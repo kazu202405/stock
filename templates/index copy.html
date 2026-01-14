@@ -1,0 +1,419 @@
+{% extends "layout.html" %}
+
+{% block title %}ダッシュボード{% endblock %}
+
+{% block content %}
+<h3 class="mt-4 text-center">小規模事業者持続化補助金 診断ツール</h3>
+<div class="card shadow-sm mb-4 mx-auto" style="max-width: 800px;">
+    <div class="card-body">
+        <form id="subsidyForm">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <!-- 必須バッチ -->
+                        <label for="industry" class="form-label">業種 <span class="badge bg-danger text-white">必須</span></label>
+                        <select class="form-control" id="industry" name="industry" required>
+                            <option value="" selected disabled>選択してください</option>
+                            <option value="commerce_service">商業・サービス業（宿泊業・娯楽業を除く）</option>
+                            <option value="others">サービス業（宿泊業・娯楽業）・その他</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="employeeCount" class="form-label">従業員数 <span class="badge bg-danger text-white">必須</span></label>
+                        <select class="form-control" id="employeeCount" name="employeeCount" required>
+                            <option value="" selected disabled>選択してください</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <!-- 注意喚起メッセージ（初期状態は非表示） -->
+            <div id="alertMessage" class="alert alert-warning d-none mt-3">
+                下記に当てはまる場合は申請できませんのでご注意ください。<br>
+                - 学校法人<br>
+                - 医療法人（ 医師、歯科医師、助産師、医療法人）<br>
+                - 農業者（系統出荷による収入のみの個人農業、林業、水産業者）<br>
+                - 協同組合（一般社団法人、公益社団法人、宗教法人など）<br>
+                - 未開業者（申請時点で開業していない創業予定者）<br>
+                - 卒業枠（過去に卒業枠で採択された事業者は再申請不可）
+            </div>
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <div class="form-group">
+                        <label for="invoiceRegistration" class="form-label">インボイス制度
+                            <!-- 期間要件があるため、span small で記載 -->
+                            <span class="small"><br>（2021年9月30日から2023年9月30日の属する課税期間で一度でも免税事業者であった又は免税事業者であることが見込まれる事業者及び2023年10月1日以降に創業した事業者）</span>
+                        </label>
+                        <select class="form-control" id="invoiceRegistration" name="invoiceRegistration" required>
+                            <option value="none">未登録</option>
+                            <option value="new">新規登録</option>
+                            <option value="already">既に登録済み</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="invoiceNumber" class="form-label">インボイス番号</label>
+                        <select class="form-control" id="invoiceNumber" name="invoiceNumber" required>
+                            <option value="yes">あり</option>
+                            <option value="no">なし</option>
+                        </select>
+                    </div>
+                </div>                
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="location" class="form-label">所在地</label>
+                        <select class="form-control" id="location" name="location" required>
+                            <option value="other">石川県、富山県、新潟県、福井県以外</option>
+                            <option value="disaster">石川県、富山県、新潟県、福井県</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="capitalOwnership" class="form-label">資本金または出資金が5億円以上の法人に<br>100％の株式を保有されていない</label>
+                        <select class="form-control" id="capitalOwnership" name="capitalOwnership" required>
+                            <option value="yes">はい</option>
+                            <option value="no">いいえ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="taxableIncome" class="form-label">直近３年の課税所得の年平均が<br>15億円以下である</label>
+                        <select class="form-control" id="taxableIncome" name="taxableIncome" required>
+                            <option value="yes">はい</option>
+                            <option value="no">いいえ</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+
+<style>
+    .form-label {
+        display: inline-block;
+        width: 100%; /* ラベル全体の幅を設定 */
+        max-width: 400px; /* ラベルの最大幅を統一 */
+        white-space: normal; /* 折り返しを許可 */
+    }
+
+    .form-control {
+        width: 100%; /* フォームコントロールを全体に広げる */
+    }
+</style>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="previousSubsidy" class="form-label">特定の補助事業の実施</label>
+                        <select class="form-control" id="previousSubsidy" name="previousSubsidy" required>
+                            <option value="none">していない</option>
+                            <option value="r1">令和元年度補正予算 小規模事業者持続化補助金＜一般型＞</option>
+                            <option value="r2">令和2年度第3次補正予算 小規模事業者持続化補助金＜低感染リスク型ビジネス枠＞</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="businessPlan" class="form-label">取組内容</label>
+                        <select class="form-control" id="businessPlan" name="businessPlan" required>
+                            <option value="valid">経営計画に基づいた地道な販路開拓や業務効率化のための取組</option>
+                            <option value="invalid">それ以外</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="chamberSupport" class="form-label">商工会・商工会議所の支援</label>
+                        <select class="form-control" id="chamberSupport" name="chamberSupport" required>
+                            <option value="yes">あり</option>
+                            <option value="no">なし</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="otherSubsidies" class="form-label">他の助成金との重複</label>
+                        <select class="form-control" id="otherSubsidies" name="otherSubsidies" required>
+                            <option value="no">なし</option>
+                            <option value="yes">あり</option>
+                        </select>
+                    </div>
+                </div> -->
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="jointApplication" class="form-label">共同申請</label>
+                        <select class="form-control" id="jointApplication" name="jointApplication" required>
+                            <option value="no">なし</option>
+                            <option value="yes">あり</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="wageIncrease" class="form-label">事業場内の最低賃金を50円以上引き上げる予定</label>
+                        <select class="form-control" id="wageIncrease" name="wageIncrease" required>
+                            <option value="no">なし</option>
+                            <option value="yes">あり</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="isDeficit" class="form-label">赤字事業者である</label>
+                        <select class="form-control" id="isDeficit" name="isDeficit" required>
+                            <option value="no">いいえ</option>
+                            <option value="yes">はい</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="atotsugiFinalist" class="form-label">「アトツギ甲子園」のファイナリストである</label>
+                        <select class="form-control" id="atotsugiFinalist" name="atotsugiFinalist" required>
+                            <option value="no">いいえ</option>
+                            <option value="yes">はい</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="startupSupport" class="form-label">特定創業支援等事業の支援（過去３年の間）</label>
+                        <select class="form-control" id="startupSupport" name="startupSupport" required>
+                            <option value="no">なし</option>
+                            <option value="yes">あり</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-group">
+                        <label for="recentStartup" class="form-label">開業が過去３年以内</label>
+                        <select class="form-control" id="recentStartup" name="recentStartup" required>
+                            <option value="no">いいえ</option>
+                            <option value="yes">はい</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">診断する</button>
+        </form>
+    </div>
+</div>
+<div id="result" class="my-4 card shadow-sm d-none">
+    <div class="card-body">
+        <h3 class="card-title">診断結果</h3>
+        <p id="resultText" class="card-text"></p>
+    </div>
+</div>
+
+<script>
+    document.getElementById('subsidyForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        
+        const industry = document.getElementById('industry').value;
+        const employeeCount = document.getElementById('employeeCount').value;
+        const capitalOwnership = document.getElementById('capitalOwnership').value;
+        const taxableIncome = document.getElementById('taxableIncome').value;
+        const previousSubsidy = document.getElementById('previousSubsidy').value;
+        const businessPlan = document.getElementById('businessPlan').value;
+        const chamberSupport = document.getElementById('chamberSupport').value;
+        // const otherSubsidies = document.getElementById('otherSubsidies').value;
+        const jointApplication = document.getElementById('jointApplication').value;
+        const wageIncrease = document.getElementById('wageIncrease').value;
+        const isDeficit = document.getElementById('isDeficit').value;
+        const atotsugiFinalist = document.getElementById('atotsugiFinalist').value;
+        const startupSupport = document.getElementById('startupSupport').value;
+        const recentStartup = document.getElementById('recentStartup').value;
+        const invoiceNumber = document.getElementById('invoiceNumber').value;
+        const location = document.getElementById('location').value;
+        const invoiceRegistration = document.getElementById('invoiceRegistration').value;        
+
+        let isEligible = true;
+        let result = "";
+        let reasons = [];
+        let warnings = []; // 警告メッセージ用の配列を追加
+        let recommendedType = "通常枠";
+        let maxSubsidy = 50; // デフォルトは通常枠
+        let subsidyRate = 2/3;
+
+        // 基本的な適格性チェック
+        if (capitalOwnership === 'no' || taxableIncome === 'no' || businessPlan === 'invalid') {
+            isEligible = false;
+        }
+
+        // 特定の補助事業実施による警告（変更）
+        if (previousSubsidy === 'r1' || previousSubsidy === 'r2') {
+            warnings.push("過去に特定の補助事業を実施しているため、審査時に減点対象となる可能性があります。（" + 
+                        (previousSubsidy === 'r1' ? "令和元年度補正予算 小規模事業者持続化補助金＜一般型＞" : 
+                        "令和2年度第3次補正予算 小規模事業者持続化補助金＜低感染リスク型ビジネス枠＞") + 
+                        "）");
+        }
+
+        if (invoiceRegistration === 'new') {
+            maxSubsidy += 50; 
+            warnings.push("インボイス新規登録により、補助上限が50万円追加されます。");
+        }
+
+        // 業種と従業員数のチェック
+        if (industry === 'commerce_service' && employeeCount === '6_or_more') {
+            // 卒業枠に該当
+            maxSubsidy = 200;
+            recommendedType = "卒業枠で申請できる可能性があります。";
+            isEligible = true; // 卒業枠で適格にする
+            reasons.push("従業員数が通常枠の基準を超えています。（商業・サービス業で6人以上）");
+        } else if (industry === 'others' && employeeCount === '21_or_more') {
+            // 卒業枠に該当
+            maxSubsidy = 200;
+            recommendedType = "卒業枠で申請できる可能性があります。";
+            isEligible = true; // サービス業（宿泊業・娯楽業）およびその他で21人以上の場合も卒業枠で適格にする
+            reasons.push("従業員数が通常枠の基準を超えています。（宿泊業・娯楽業またはその他で21人以上）");
+        }
+
+
+        // 補助金枠の判断
+
+        // 特定創業支援等事業の支援があり、かつ開業が過去3年以内で、業種が商業・サービス業またはその他の場合に創業枠で適格とする
+        if (recentStartup === 'yes' && startupSupport === 'yes' && 
+        (industry === 'commerce_service' && employeeCount === '5_or_less') || 
+        (industry === 'others' && employeeCount === '20_or_less')) {
+            maxSubsidy = 200;
+            recommendedType = "創業枠"; // 創業枠で申請可能
+        } 
+        // 商業・サービス業（宿泊業・娯楽業を除く）で6人以上の場合に卒業枠で適格とする
+        else if (employeeCount === '6_or_more' && industry === 'commerce_service') {
+            maxSubsidy = 200;
+            recommendedType = "卒業枠で申請できる可能性があります。"; // 卒業枠で申請可能
+            isEligible = true; // 卒業枠に該当する場合は適格にする
+        } 
+        // サービス業（宿泊業・娯楽業を含む）およびその他で従業員数が21人以上の場合も卒業枠で適格にする
+        else if (employeeCount === '21_or_more' && industry === 'others') {
+            maxSubsidy = 200;
+            recommendedType = "卒業枠で申請できる可能性があります。"; // 卒業枠で申請可能
+            isEligible = true; // サービス業・その他で21人以上の場合も卒業枠で適格にする
+        } 
+        // 事業場内の最低賃金を50円以上引き上げる予定の場合に賃金引上げ枠で適格とする
+        else if (wageIncrease === 'yes') {
+            maxSubsidy = 200;
+            recommendedType = "賃金引上げ枠"; // 賃金引上げ枠で申請可能
+        } 
+        // 「アトツギ甲子園」のファイナリストの場合に後継者支援枠で適格とする
+        else if (atotsugiFinalist === 'yes') {
+            maxSubsidy = 200;
+            recommendedType = "後継者支援枠"; // 後継者支援枠で申請可能
+        }
+
+        if (jointApplication === 'yes') {
+            if (recommendedType !== "通常枠") {
+                isEligible = false;
+                reasons.push("通常枠以外では共同申請ができません。");
+            } else {
+                warnings.push("通常枠での共同申請は、全ての小規模事業者が関与する場合のみ可能です。詳細な条件を確認してください。");
+            }
+        }
+
+        if (invoiceNumber === 'yes') {
+            maxSubsidy += 50; 
+        }
+
+        if (isDeficit === 'yes') {
+            subsidyRate = 3/4;
+        }
+
+        if (!isEligible) {
+            result = "申し訳ありませんが、申請条件を満たしていないため、申請できません。";
+            if (capitalOwnership === 'no') reasons.push("資本金または出資金が5億円以上の法人に100％の株式を保有されています");
+            if (taxableIncome === 'no') reasons.push("直近３年の課税所得の年平均が15億円を超えています");
+            if (businessPlan === 'invalid') reasons.push("経営計画に基づいた地道な販路開拓や業務効率化のための取組ではありません");
+            // if (otherSubsidies === 'yes') reasons.push("他の助成金と重複しています");
+        } else {
+            // ${(subsidyRate * 100).toFixed(1)}を計算し、3/4、2/3のいずれかの値を表示するための変数を作成
+            var rate = (subsidyRate * 100).toFixed(1);
+            if (rate == 75) {
+                rate = "3/4";
+            } else if (rate == 66.7) {
+                rate = "2/3";
+            }
+            result = `申請可能です。\n推奨申請枠: ${recommendedType}\n最大補助金額: ${maxSubsidy}万円（補助率: ${rate}）\n\n`;
+            if (chamberSupport === 'no') {
+                result += "＊申請には商工会・商工会議所の支援を受ける必要があります。\n";
+            }
+            if (location === 'disaster') {
+                result += "令和6年能登半島地震により被害を受けた小規模事業者の場合は、「災害支援枠」に当てはまる可能性があります。\n";
+            }
+            if (warnings.length > 0) {
+                result += warnings.join("\n") + "\n";
+            }
+            result += "\n注意: この結果は簡易診断です。実際の申請には経費内容など、詳細な条件の確認と必要書類の準備が必要です。";
+        }
+
+        if (reasons.length > 0) {
+            result += "\n\n通常枠の不適格理由:\n" + reasons.join("\n");
+        }
+
+        const resultElement = document.getElementById('result');
+        resultElement.classList.remove('d-none');
+        document.getElementById('resultText').innerText = result;
+
+        if (isEligible) {
+            result = `申請可能です。\n推奨申請枠: ${recommendedType}\n最大補助金額: ${maxSubsidy}万円（補助率: ${subsidyRate}）\n\n`;
+            // ... (他の結果表示ロジックは変更なし) ...
+        } else {
+            result = "申し訳ありませんが、申請条件を満たしていないため、申請できません。";
+            // ... (不適格理由の表示ロジックは変更なし) ...
+        }
+
+        // 警告メッセージの表示
+        if (warnings.length > 0) {
+            result += "\n注意事項:\n" + warnings.join("\n") + "\n";
+        }
+    });
+
+    // 業種に応じて従業員数の選択肢を動的に変更
+    document.getElementById('industry').addEventListener('change', function() {
+        const alertMessage = document.getElementById('alertMessage');
+        const employeeCountSelect = document.getElementById('employeeCount');
+        employeeCountSelect.innerHTML = ''; // 既存のオプションをクリア
+
+        const defaultOption = document.createElement('option');
+        defaultOption.value = "";
+        defaultOption.text = "選択してください";
+        defaultOption.disabled = true;
+        defaultOption.selected = true;
+        employeeCountSelect.add(defaultOption);
+
+        if (this.value === 'commerce_service') {
+            addOption(employeeCountSelect, '5_or_less', '5人以下');
+            addOption(employeeCountSelect, '6_or_more', '6人以上');
+            alertMessage.classList.add('d-none'); // 注意メッセージを非表示
+        } else if (this.value === 'others') {
+            addOption(employeeCountSelect, '20_or_less', '20人以下');
+            addOption(employeeCountSelect, '21_or_more', '21人以上');
+        }
+
+        if (this.value === 'others') {
+            alertMessage.classList.remove('d-none'); // 注意メッセージを表示
+        } else {
+            alertMessage.classList.add('d-none'); // 注意メッセージを非表示
+        }
+    });
+
+    function addOption(select, value, text) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.text = text;
+        select.add(option);
+    }
+</script>
+{% endblock %}

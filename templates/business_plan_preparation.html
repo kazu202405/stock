@@ -1,0 +1,464 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+
+<style>
+    #chatbot {
+        font-size: small;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 400px;
+        background-color: #f1f1f1;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #chatbot-header {
+        background-color: #5c6d80;
+        color: white;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+
+    #chatbot-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 16px;
+    }
+
+    #chatbot-body {
+        padding: 10px;
+        display: none;
+        flex-direction: column;
+        min-height: 200px; /* 最小高さを設定 */
+        height: 80vh; /* 画面の高さの80% */
+        max-height: 600px; /* 最大高さを設定 */
+        overflow-y: auto;
+    }
+
+    #chatbot-input {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        height: 15% !important; /* 高さを15%に設定して親要素に追従する */
+    }
+
+    #chatbot-send {
+        background-color: #5c6d80;
+        color: white;
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    #chatbot-send:hover {
+        background-color: rgb(48, 49, 50);
+    }
+
+    #chat-history {
+        flex-grow: 1; /* チャット履歴の要素が可変になる */
+        overflow-y: auto; /* チャットが長くなった場合はスクロールする */
+        background-color: #fff;
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+        height: 80% !important; /* 高さを100%に設定して親要素に追従する */
+    }
+
+    .user-message,
+    .bot-message {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 20px;
+        max-width: 75%;
+        word-wrap: break-word;
+    }
+
+    .user-message {
+        background-color: #dcf8c6; /* LINEのような緑色 */
+        color: black;
+        padding: 10px;
+        border-radius: 15px 15px 0 15px;
+        margin-bottom: 10px;
+        max-width: 70%;
+        align-self: flex-end;
+        text-align: left;
+        position: relative;
+    }
+    
+    .user-message::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: -10px;
+        border-width: 10px;
+        border-style: solid;
+        border-color: #dcf8c6 transparent transparent transparent;
+    }
+
+    .user-message::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: -10px;
+        border-width: 10px;
+        border-style: solid;
+        border-color: #dcf8c6 transparent transparent transparent;
+    }
+
+    .bot-message {
+        background-color: #ffffff;
+        color: black;
+        padding: 10px;
+        border-radius: 15px 15px 15px 0;
+        margin-bottom: 10px;
+        max-width: 70%;
+        align-self: flex-start;
+        text-align: left;
+        position: relative;
+        background-color: #f1f1f1;
+    }
+
+    .bot-message::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -10px;
+        border-width: 10px;
+        border-style: solid;
+        border-color: #ffffff transparent transparent transparent;
+    }
+
+    #chat-history {
+        height: 50vh;
+        overflow-y: auto;
+        background-color: #fff;
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #chatbot-input:focus, #chatbot-send:focus {
+        outline: none; /* フォーカス時の輪郭を非表示にする */
+    }
+
+</style>
+
+
+<div class="container mt-5">
+    <h3 class="text-center">{{ header_title }}</h3>
+
+    <!-- 追加：参考情報へのリンク -->
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle"></i> 
+        <a href="https://i12rm.hp.peraichi.com/" target="_blank" class="alert-link">
+            事業計画書の作成方法やポイントについての参考情報はこちら
+        </a>
+    </div>
+
+    <form action="/business_plan_preparation" method="post" id="businessPlanForm" class="mb-5">
+        <div class="form-group">
+            <label for="company_name">会社名</label>
+            <input type="text" class="form-control" id="company_name" name="company_name" value="{{ company_name }}" required>
+        </div>
+        <div class="form-group">
+            <label for="ceo_name">代表者名</label>
+            <input type="text" class="form-control" id="ceo_name" name="ceo_name" value="{{ ceo_name }}" required>
+        </div>
+        <div class="form-group">
+            <label for="establishment_date">設立日</label>
+            <input type="date" class="form-control" id="establishment_date" name="establishment_date" value="{{ establishment_date }}" required>
+        </div>
+        <div class="form-group">
+            <label for="address">本社住所</label>
+            <input type="text" class="form-control" id="address" name="address" value="{{ address }}" required>
+        </div>
+        <div class="form-group">
+            <label for="servise">サービス売上割合（合計100%になるように、サービス名とパーセンテージを記入）</label>
+            <textarea class="form-control" id="servise" name="servise" rows="3" required>{{ servise }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="target">主な顧客層</label>
+            <input type="text" class="form-control" id="target" name="target" value="{{ target }}" required>
+        </div>
+        <div class="form-group">
+            <label for="pr">販促方法（ホームページ、SNS、口コミなど）</label>
+            <input type="text" class="form-control" id="pr" name="pr" value="{{ pr }}" required>
+        </div>
+        <div class="form-group">
+            <label for="product">導入物の説明ページのURL</label>
+            <input type="url" class="form-control" id="product" name="product" value="{{ product }}" required>
+        </div>
+        <div class="form-group">
+            <label for="project">補助事業で行うこと（何のためにするのか）</label>
+            <input type="text" class="form-control" id="project" name="project" value="{{ project }}" required>
+        </div>
+        <div class="form-group">
+            <label for="project_target">補助事業のターゲット像</label>
+            <input type="text" class="form-control" id="project_target" name="project_target" value="{{ project_target }}" required>
+        </div>
+        <div class="form-group">
+            <label for="market_info">市場データ</label>
+            <input type="text" class="form-control" id="market_info" name="market_info" value="{{ market_info }}" required>
+        </div>
+        <div class="form-group">
+            <label for="company_supplementary_info">補足的会社情報（会社情報が載ったサイトのURL）</label>
+            <input type="url" class="form-control" id="company_supplementary_info" name="company_supplementary_info" value="{{ company_supplementary_info }}" required>
+        </div>
+        <div class="form-group">
+            <label for="additional_info">その他の情報</label>
+            <textarea class="form-control" id="additional_info" name="additional_info" rows="3">{{ additional_info }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">送信</button>
+    </form>
+
+    <div id="loadingSpinner" class="text-center" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+        <p>生成中...</p>
+    </div>
+
+    {% if result %}
+    <div class="mt-4">
+        <h3>{{ result_header }}</h3>
+        <div class="generated-results">
+            {% for key, value in result.items() %}
+            <div class="result-item mb-4">
+                <h6>{{ key | translate_key }}</h6>
+
+                {% if value is string %}
+                <p id="text{{ loop.index }}" style="white-space: pre-wrap;">{{ value }}</p>
+                <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('text{{ loop.index }}')">コピー</button>
+
+                {% elif value is iterable and value %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                {% for col_name in value[0].keys() %}
+                                <th>{{ col_name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in value %}
+                            <tr id="row{{ loop.index }}_{{ loop.index0 }}">
+                                {% for col_value in item.values() %}
+                                <td>{{ col_value }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div id="chatbot">
+        <div id="chatbot-header" onclick="toggleChatbot()">
+            <img src="../static/images/chatbot_icon.webp" alt="Chatbot" style="width: 30px;">
+            <span>チャットボットを開く</span>
+            <button id="chatbot-close" onclick="toggleChatbot()"></button>
+        </div>
+        <div id="chatbot-body">
+            <div id="chat-history" class="chat-history">
+                <!-- チャット履歴がここに表示されます -->
+            </div>
+            <div class="typing-indicator" id="typing-indicator" style="display: none;">・・・</div>
+            <textarea id="chatbot-input" rows="2" placeholder="メッセージを入力してください..."></textarea>
+            <button id="chatbot-send">送信</button>
+        </div>
+    </div>
+    
+</div>
+
+<script>
+    function copyToClipboard(elementId) {
+        var copyText = document.getElementById(elementId).innerText;
+        navigator.clipboard.writeText(copyText).then(function() {
+            alert('コピーしました: ' + copyText);
+        }, function(err) {
+            alert('コピーに失敗しました。');
+        });
+    }
+
+    function copyTableToClipboard(rowIdPrefix) {
+        var rows = document.querySelectorAll('[id^="' + rowIdPrefix + '"]');
+        var clipboardText = '';
+
+        rows.forEach(row => {
+            var cells = row.querySelectorAll('td');
+            cells.forEach((cell, index) => {
+                clipboardText += cell.innerText;
+                if (index < cells.length - 1) {
+                    clipboardText += '\t'; // セル間の区切り
+                }
+            });
+            clipboardText += '\n'; // 行間の区切り
+        });
+
+        navigator.clipboard.writeText(clipboardText).then(function() {
+            alert('テーブルをコピーしました');
+        }, function(err) {
+            alert('コピーに失敗しました。');
+        });
+    }
+
+    document.getElementById('businessPlanForm').addEventListener('submit', function() {
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.querySelector('body').classList.add('loading');
+    });
+
+    function toggleChatbot() {
+        const chatbotBody = document.getElementById("chatbot-body");
+        const chatbot = document.getElementById("chatbot");
+
+        if (chatbotBody.style.display === "none" || chatbotBody.style.display === "") {
+            chatbotBody.style.display = "block";
+        } else {
+            chatbotBody.style.display = "none";
+        }
+    }
+
+    // Enterキーの動作を制御
+    document.getElementById('chatbot-input').addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            if (event.shiftKey) {
+                // Shift + Enter の場合は送信
+                event.preventDefault(); // 改行を防ぎ、送信を行う
+                sendMessage();
+            }
+            // Enterキーのみの場合は改行を行うので、特に何もしない
+        }
+    });
+
+    // 送信ボタンのクリックイベント
+    document.getElementById('chatbot-send').addEventListener('click', function () {
+        sendMessage();
+    });
+
+    // メッセージ送信関数
+    function sendMessage() {
+        var message = document.getElementById('chatbot-input').value;
+
+        if (message.trim() === '') {
+            alert('メッセージを入力してください');
+            return;
+        }
+
+        // ユーザーメッセージをチャット履歴に追加
+        addMessageToChatHistory(message, 'user');
+
+        // テキストエリアをクリア
+        document.getElementById('chatbot-input').value = '';
+
+        // サーバーの返答待ちとして「・・・」を一時的に表示
+        const chatHistory = document.getElementById('chat-history');
+        const tempBotMessage = document.createElement('div');
+        tempBotMessage.className = 'bot-message';
+        tempBotMessage.innerText = '・・・';
+        chatHistory.appendChild(tempBotMessage);
+
+        // チャット履歴をスクロール
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        // サーバーへ非同期にメッセージを送信
+        fetch('/send_message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 「・・・」をサーバーからの返答で置き換える
+            tempBotMessage.remove();
+
+            // チャット履歴にボットのメッセージを追加
+            addMessageToChatHistory(data.reply, 'bot');
+
+            // チャット履歴をスクロール
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('エラーが発生しました');
+            tempBotMessage.innerText = 'エラーが発生しました';
+        });
+    }
+
+
+
+    window.onload = function() {
+        const chatHistory = document.getElementById('chat-history');
+        const botInitialMessage = `
+            <div class="bot-message">何でも聞いてください！</div>
+        `;
+        chatHistory.innerHTML += botInitialMessage;
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    };
+
+    // メッセージをクリックしたらクリップボードにコピーする関数
+    function copyMessageToClipboard(messageElement) {
+        const messageText = messageElement.innerText;
+
+        // クリップボードにコピー
+        navigator.clipboard.writeText(messageText).then(function() {
+            alert('メッセージがコピーされました: ' + messageText);
+        }, function(err) {
+            alert('メッセージのコピーに失敗しました。');
+        });
+    }
+
+    // チャット履歴にユーザーやボットのメッセージを追加する関数
+    function addMessageToChatHistory(message, type) {
+        const chatHistory = document.getElementById('chat-history');
+
+        // メッセージ要素を作成
+        const messageElement = document.createElement('div');
+        messageElement.className = type === 'user' ? 'user-message' : 'bot-message';
+        
+        // messageElementにinnerHTMLを使ってHTMLを解釈
+        messageElement.innerHTML = message;  // innerTextをinnerHTMLに変更
+
+        // クリックイベントを追加して、吹き出しをクリックするとコピーできるようにする
+        messageElement.addEventListener('click', function() {
+            copyMessageToClipboard(messageElement);
+        });
+
+        // チャット履歴にメッセージを追加
+        chatHistory.appendChild(messageElement);
+
+        // チャット履歴をスクロール
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+
+</script>
+
+{% endblock %}

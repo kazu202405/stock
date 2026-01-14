@@ -1,0 +1,46 @@
+# Python
+**/__pycache__/
+**/models/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# 環境変数・シークレット（重要！）
+.env
+.env.local
+.env.production
+*.env
+
+# 出力ファイル
+output/
+charts/
+*.png
+*.json
+!package.json
+
+# ログ
+*.log
+
+# Windows
+**/desktop.ini
+**/Thumbs.db
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# その他
+*.bak
+*.tmp
+nul
+tmpclaude-*
+.claude/

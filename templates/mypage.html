@@ -1,0 +1,366 @@
+{% extends "layout.html" %}
+
+{% block title %}マイページ - 企業分析{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- ヘッダーセクション -->
+    <div class="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white">
+        <div class="max-w-7xl mx-auto px-6 py-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold tracking-tight">田中 太郎</h1>
+                        <p class="text-blue-200 text-lg">株式会社サンプル</p>
+                        <p class="text-blue-300 text-sm">最終ログイン: 2025/08/25 14:30</p>
+                    </div>
+                </div>
+                <div class="mt-6 lg:mt-0">
+                    <button class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-edit mr-2"></i>プロフィール編集
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左カラム -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- プロフィール情報 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-semibold text-gray-900">プロフィール情報</h2>
+                            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">編集</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">氏名</label>
+                                <input type="text" value="田中 太郎" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">メールアドレス</label>
+                                <input type="email" value="tanaka@example.com" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">会社名</label>
+                                <input type="text" value="株式会社サンプル" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">電話番号</label>
+                                <input type="tel" value="03-1234-5678" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- お気に入り企業 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-semibold text-gray-900">お気に入り企業</h2>
+                            <span class="text-sm text-gray-500">8社</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <div class="font-medium text-gray-900">キーエンス</div>
+                                    <div class="text-sm text-gray-500">6861.T</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="text-blue-600 hover:text-blue-700">
+                                        <i class="fas fa-chart-line text-sm"></i>
+                                    </button>
+                                    <button class="text-red-500 hover:text-red-600">
+                                        <i class="fas fa-trash text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <div class="font-medium text-gray-900">任天堂</div>
+                                    <div class="text-sm text-gray-500">7974.T</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="text-blue-600 hover:text-blue-700">
+                                        <i class="fas fa-chart-line text-sm"></i>
+                                    </button>
+                                    <button class="text-red-500 hover:text-red-600">
+                                        <i class="fas fa-trash text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <div class="font-medium text-gray-900">トヨタ自動車</div>
+                                    <div class="text-sm text-gray-500">7203.T</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="text-blue-600 hover:text-blue-700">
+                                        <i class="fas fa-chart-line text-sm"></i>
+                                    </button>
+                                    <button class="text-red-500 hover:text-red-600">
+                                        <i class="fas fa-trash text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-center p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                                <button class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-plus text-lg mb-2 block"></i>
+                                    <span class="text-sm">企業を追加</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ウォッチリスト -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-semibold text-gray-900">ウォッチリスト</h2>
+                            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                <i class="fas fa-plus mr-1"></i>新規作成
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <div class="font-medium text-gray-900">高成長テック株</div>
+                                    <div class="text-sm text-gray-500">5社 • 最終更新: 2025/08/20</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        +12.5%
+                                    </span>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <i class="fas fa-ellipsis-v text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <div class="font-medium text-gray-900">配当重視ポートフォリオ</div>
+                                    <div class="text-sm text-gray-500">12社 • 最終更新: 2025/08/24</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        +5.2%
+                                    </span>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <i class="fas fa-ellipsis-v text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右カラム -->
+            <div class="space-y-6">
+                <!-- 利用統計 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">利用統計</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">今月の分析回数</span>
+                                <span class="text-sm font-medium text-gray-900">47回</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">お気に入り企業</span>
+                                <span class="text-sm font-medium text-gray-900">8社</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">ウォッチリスト</span>
+                                <span class="text-sm font-medium text-gray-900">2個</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">アクティブアラート</span>
+                                <span class="text-sm font-medium text-gray-900">5個</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- アラート設定 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">アラート設定</h3>
+                            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                <i class="fas fa-plus mr-1"></i>追加
+                            </button>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">PER < 15</div>
+                                    <div class="text-xs text-gray-500">テクノロジー業界</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <i class="fas fa-times text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">配当利回り > 3%</div>
+                                    <div class="text-xs text-gray-500">お気に入り企業</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <i class="fas fa-times text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">株価 -10%以上</div>
+                                    <div class="text-xs text-gray-500">ウォッチリスト全体</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <i class="fas fa-times text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 設定 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">設定</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-700">メール通知</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" value="" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-700">プッシュ通知</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" value="" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-700">自動ログアウト</span>
+                                <select class="text-sm border border-gray-300 rounded px-2 py-1">
+                                    <option>30分</option>
+                                    <option selected>1時間</option>
+                                    <option>2時間</option>
+                                    <option>なし</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-6 border-t border-gray-200">
+                            <button class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-2">
+                                変更を保存
+                            </button>
+                            <button class="w-full text-gray-600 hover:text-gray-700 px-4 py-2 rounded-lg font-medium border border-gray-300 hover:bg-gray-50 transition-colors">
+                                パスワード変更
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近のアクティビティ -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">最近のアクティビティ</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
+                                    <i class="fas fa-chart-line text-blue-600 text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900">キーエンスを分析</div>
+                                    <div class="text-xs text-gray-500">2時間前</div>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mt-0.5">
+                                    <i class="fas fa-star text-green-600 text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900">任天堂をお気に入りに追加</div>
+                                    <div class="text-xs text-gray-500">5時間前</div>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center mt-0.5">
+                                    <i class="fas fa-bell text-yellow-600 text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900">アラート: PER条件に該当</div>
+                                    <div class="text-xs text-gray-500">1日前</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// プロフィール編集機能
+function toggleEdit() {
+    const inputs = document.querySelectorAll('input[readonly]');
+    const editButton = document.querySelector('button[onclick="toggleEdit()"]');
+    
+    inputs.forEach(input => {
+        input.readOnly = !input.readOnly;
+        if (!input.readOnly) {
+            input.classList.add('bg-white');
+            input.classList.remove('bg-gray-50');
+        } else {
+            input.classList.remove('bg-white');
+            input.classList.add('bg-gray-50');
+        }
+    });
+    
+    editButton.textContent = inputs[0].readOnly ? '編集' : '保存';
+}
+
+// お気に入り企業削除
+function removeFavorite(symbol) {
+    if (confirm('この企業をお気に入りから削除しますか？')) {
+        // ここで削除処理を実行
+        console.log(`削除: ${symbol}`);
+    }
+}
+
+// ウォッチリスト管理
+function createWatchlist() {
+    const name = prompt('ウォッチリスト名を入力してください：');
+    if (name) {
+        // ここで作成処理を実行
+        console.log(`ウォッチリスト作成: ${name}`);
+    }
+}
+
+// アラート追加
+function addAlert() {
+    // アラート追加ダイアログを表示
+    console.log('アラート追加');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,419 @@
+{% extends "layout.html" %}
+
+{% block title %}ユーザー管理{% endblock %}
+
+{% block content %}
+<div class="pt-3 pb-2 mb-3 border-bottom">
+    <h3 class="h3">ユーザー</h3>
+    <!-- 新規登録 -->
+    <button class="btn btn-outline-primary" id="add_btn" data-toggle="modal" data-target="#userModal" data-action="new">新規登録</button>
+    {% for user in users %}
+    <div class="card mt-3">
+        <div class="card-body">
+            <h4 class="card-title">{{ user.company_name }}</h4>
+            <p class="card-text">{{ user.email }}</p>
+            <button class="btn btn-primary edit-btn" data-toggle="modal" data-target="#userModal" data-action="edit" data-id="{{ user.id }}">編集</button>
+            <button class="btn btn-danger" onclick="confirmDelete('{{ user.id }}')">削除</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ユーザーモーダル -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="userForm" action="/user/save" method="POST">
+                <input type="hidden" name="user_id" id="user_id" value="">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalLabel">ユーザー情報</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="company_name">会社名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="company_name" name="company_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="company_name_kana">会社名(カナ) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="company_name_kana" name="company_name_kana" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="representative_name">代表者名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="representative_name" name="representative_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">メールアドレス <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone_number">電話番号</label>
+                        <input type="text" class="form-control" id="phone_number" name="phone_number">
+                    </div>
+                    <div class="form-group">
+                        <label for="postal_code">郵便番号</label>
+                        <input type="text" class="form-control" id="postal_code" name="postal_code" onblur="fetchAddress()">
+                    </div>
+                    <div class="form-group">
+                        <label for="prefecture">県名</label>
+                        <input type="text" class="form-control" id="prefecture" name="prefecture">
+                    </div>
+                    <div class="form-group">
+                        <label for="city">市区町村</label>
+                        <input type="text" class="form-control" id="city" name="city">
+                    </div>
+                    <div class="form-group">
+                        <label for="area">町域</label>
+                        <input type="text" class="form-control" id="area" name="area">
+                    </div>
+                    <div class="form-group">
+                        <label for="building">建物名・部屋番号</label>
+                        <input type="text" class="form-control" id="building" name="building">
+                    </div>
+                    <div class="form-group">
+                        <label for="manager_name">担当者名</label>
+                        <input type="text" class="form-control" id="manager_name" name="manager_name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="capital">資本金</label>
+                        <input type="number" class="form-control" id="capital" name="capital">
+                    </div>
+                    <!-- 法人番号 -->
+                    <div class="form-group">
+                        <label for="corporate_number">法人番号（13桁）</label>
+                        <input type="text" class="form-control" id="corporate_number" name="corporate_number" maxlength="13">
+                    </div>
+                    <div class="form-group">
+                        <label for="invoice_status">インボイス番号</label>
+                        <select class="form-control" id="invoice_status" name="invoice_status">
+                            <option value="発行済">発行済</option>
+                            <option value="未発行">未発行</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 自社ホームページのURL -->
+                    <div class="form-group">
+                        <label for="homepage_url">自社ホームページのURL</label>
+                        <input type="url" class="form-control" id="homepage_url" name="homepage_url">
+                    </div>
+
+                    <!-- 主たる業種 -->
+                    <div class="form-group">
+                        <label for="main_industry">主たる業種</label>
+                        <select class="form-control" id="main_industry" name="main_industry">
+                            <option value="商業・サービス業（宿泊業・娯楽業を除く）">商業・サービス業（宿泊業・娯楽業を除く）</option>
+                            <option value="サービス業のうち宿泊業・娯楽業">サービス業のうち宿泊業・娯楽業</option>
+                            <option value="製造業その他">製造業その他</option>
+                            <option value="特定非営利活動法人">特定非営利活動法人</option>
+                        </select>
+                    </div>
+
+                    <!-- 業種（日本標準産業分類） -->
+                    <div class="form-group">
+                        <label for="industry_classification">業種（日本標準産業分類）</label>
+                        <select class="form-control" id="industry_classification" name="industry_classification">
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                        </select>
+                    </div>
+
+                    <!-- 常時使用する従業員数 -->
+                    <div class="form-group">
+                        <label for="employee_count">常時使用する従業員数</label>
+                        <input type="number" class="form-control" id="employee_count" name="employee_count">
+                    </div>
+
+                    <!-- 設立年月日 -->
+                    <div class="form-group">
+                        <label for="establishment_date">設立年月日</label>
+                        <input type="date" class="form-control" id="establishment_date" name="establishment_date">
+                    </div>
+
+                    <!-- 直近1期の売上高 -->
+                    <div class="form-group">
+                        <label for="revenue">直近1期の売上高（円）</label>
+                        <input type="number" class="form-control" id="revenue" name="revenue">
+                    </div>
+
+                    <!-- 直近1期の売上総利益 -->
+                    <div class="form-group">
+                        <label for="gross_profit">直近1期の売上総利益（円）</label>
+                        <input type="number" class="form-control" id="gross_profit" name="gross_profit">
+                    </div>
+
+                    <!-- 直近1期の経常利益 -->
+                    <div class="form-group">
+                        <label for="ordinary_profit">直近1期の経常利益（円）</label>
+                        <input type="number" class="form-control" id="ordinary_profit" name="ordinary_profit">
+                    </div>
+
+                    <!-- 事業所数 -->
+                    <div class="form-group">
+                        <label for="office_count">事業所数</label>
+                        <input type="number" class="form-control" id="office_count" name="office_count">
+                    </div>
+
+                    <!-- 代表者情報 -->
+                    <hr>
+                    <h5 class="mt-4">代表者情報</h5>
+                    <div class="form-group">
+                        <label for="representative_birthdate">代表者の生年月日</label>
+                        <input type="date" class="form-control" id="representative_birthdate" name="representative_birthdate">
+                    </div>
+                    <div class="form-group">
+                        <label for="representative_age">満年齢</label>
+                        <input type="number" class="form-control" id="representative_age" name="representative_age">
+                    </div>
+
+                    <!-- 連絡担当者の情報 -->
+                    <h5 class="mt-4">連絡担当者情報</h5>
+                    <div class="form-group">
+                        <label for="contact_name">氏名</label>
+                        <input type="text" class="form-control" id="contact_name" name="contact_name">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_kana">フリガナ</label>
+                        <input type="text" class="form-control" id="contact_kana" name="contact_kana">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_position">役職</label>
+                        <input type="text" class="form-control" id="contact_position" name="contact_position">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_address">住所</label>
+                        <input type="text" class="form-control" id="contact_address" name="contact_address">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_phone">電話番号</label>
+                        <input type="text" class="form-control" id="contact_phone" name="contact_phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_mobile">携帯電話番号</label>
+                        <input type="text" class="form-control" id="contact_mobile" name="contact_mobile">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_fax">FAX番号</label>
+                        <input type="text" class="form-control" id="contact_fax" name="contact_fax">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_email">E-mailアドレス</label>
+                        <input type="email" class="form-control" id="contact_email" name="contact_email">
+                    </div>
+
+                    <!-- 事業承継加点の情報 -->
+                    <hr>
+                    <h5 class="mt-4">事業承継加点希望者のみ入力</h5>
+                    <div class="form-group">
+                        <label for="successor_name">補助事業を中心に行う者の氏名</label>
+                        <input type="text" class="form-control" id="successor_name" name="successor_name">
+                    </div>
+                    <div class="form-group">
+                        <label for="successor_relation">補助事業を中心に行う者との関係</label>
+                        <select class="form-control" id="successor_relation" name="successor_relation">
+                            <option value="後継者候補である">後継者候補である</option>
+                            <option value="後継者候補でない">後継者候補でない</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="representative_relation">代表者との関係</label>
+                        <select class="form-control" id="representative_relation" name="representative_relation">
+                            <option value="代表者本人">代表者本人</option>
+                            <option value="代表者の配偶者">代表者の配偶者</option>
+                            <option value="代表者の子">代表者の子</option>
+                            <option value="代表者のその他親族">代表者のその他親族</option>
+                            <option value="親族以外の役員・従業員等">親族以外の役員・従業員等</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">閉じる</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function fetchAddress() {
+        var postalCode = document.getElementById('postal_code').value;
+        if (postalCode) {
+            fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + postalCode)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.results) {
+                        var result = data.results[0];
+                        document.getElementById('prefecture').value = result.address1;
+                        document.getElementById('city').value = result.address2;
+                        document.getElementById('area').value = result.address3;
+                    } else {
+                        alert('郵便番号に対応する住所が見つかりませんでした。');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('住所の取得に失敗しました。');
+                });
+        } else {
+            alert('有効な郵便番号を入力してください。');
+        }
+    }
+
+    document.getElementById('add_btn').addEventListener('click', function() {
+        document.getElementById('userForm').action = '/user/save';
+        document.getElementById('user_id').value = '';
+        document.getElementById('company_name').value = '';
+        document.getElementById('company_name_kana').value = '';
+        document.getElementById('representative_name').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('phone_number').value = '';
+        document.getElementById('postal_code').value = '';
+        document.getElementById('prefecture').value = '';
+        document.getElementById('city').value = '';
+        document.getElementById('area').value = '';
+        document.getElementById('building').value = '';
+        document.getElementById('manager_name').value = '';
+        document.getElementById('invoice_status').value = '未発行';  // 修正点
+        document.getElementById('capital').value = 0;
+        document.getElementById('corporate_number').value = '';  // 法人番号追加
+        document.getElementById('homepage_url').value = '';  // ホームページURL追加
+        document.getElementById('main_industry').selectedIndex = 0;  // 主たる業種追加
+        document.getElementById('industry_classification').selectedIndex = 0;  // 業種追加
+        document.getElementById('employee_count').value = '';  // 従業員数追加
+        document.getElementById('establishment_date').value = '';  // 設立年月日追加
+        document.getElementById('revenue').value = 0;  // 売上高追加
+        document.getElementById('gross_profit').value = 0;  // 売上総利益追加
+        document.getElementById('ordinary_profit').value = 0;  // 経常利益追加
+        document.getElementById('office_count').value = '';  // 事業所数追加
+        document.getElementById('representative_birthdate').value = '';  // 代表者生年月日追加
+        document.getElementById('representative_age').value = '';  // 代表者満年齢追加
+        document.getElementById('contact_name').value = '';  // 連絡担当者情報追加
+        document.getElementById('contact_kana').value = '';  // 連絡担当者フリガナ追加
+        document.getElementById('contact_position').value = '';  // 連絡担当者役職追加
+        document.getElementById('contact_address').value = '';  // 連絡担当者住所追加
+        document.getElementById('contact_phone').value = '';  // 連絡担当者電話番号追加
+        document.getElementById('contact_mobile').value = '';  // 連絡担当者携帯番号追加
+        document.getElementById('contact_fax').value = '';  // 連絡担当者FAX番号追加
+        document.getElementById('contact_email').value = '';  // 連絡担当者Eメール追加
+        document.getElementById('successor_name').value = '';  // 事業承継加点希望者氏名追加
+        document.getElementById('successor_relation').selectedIndex = 0;  // 事業承継加点希望者関係追加
+        document.getElementById('representative_relation').selectedIndex = 0;  // 代表者関係追加
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            var id = this.getAttribute('data-id');
+            fetch('/user/get/' + id)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('userForm').action = '/user/save';
+                    document.getElementById('user_id').value = data.id;
+                    document.getElementById('company_name').value = data.company_name;
+                    document.getElementById('company_name_kana').value = data.company_name_kana;
+                    document.getElementById('representative_name').value = data.representative_name;
+                    document.getElementById('email').value = data.email;
+                    document.getElementById('phone_number').value = data.phone_number;
+                    document.getElementById('postal_code').value = data.postal_code;
+                    document.getElementById('prefecture').value = data.prefecture;
+                    document.getElementById('city').value = data.city;
+                    document.getElementById('area').value = data.area;
+                    document.getElementById('building').value = data.building;
+                    document.getElementById('manager_name').value = data.manager_name;
+                    
+                    const invoiceStatusElement = document.getElementById('invoice_status');
+                    if (invoiceStatusElement.querySelector(`option[value="${data.invoice_status}"]`)) {
+                        invoiceStatusElement.value = data.invoice_status;
+                    } else {
+                        invoiceStatusElement.selectedIndex = 0;
+                    }
+
+                    document.getElementById('capital').value = data.capital;
+                    document.getElementById('corporate_number').value = data.corporate_number;
+                    document.getElementById('homepage_url').value = data.homepage_url;
+                    document.getElementById('main_industry').value = data.main_industry;
+                    document.getElementById('industry_classification').value = data.industry_classification;
+                    document.getElementById('employee_count').value = data.employee_count;
+
+                    // 元の文字列をDateオブジェクトに変換
+                    var establishment_date = new Date(data.establishment_date);
+                    // yyyy-MM-dd形式の文字列を生成
+                    establishment_date = `${establishment_date.getFullYear()}-${("0" + (establishment_date.getMonth() + 1)).slice(-2)}-${("0" + establishment_date.getDate()).slice(-2)}`;
+
+                    // input要素に設定
+                    document.getElementById('establishment_date').value = establishment_date;
+                    
+                    document.getElementById('revenue').value = data.revenue;
+                    document.getElementById('gross_profit').value = data.gross_profit;
+                    document.getElementById('ordinary_profit').value = data.ordinary_profit;
+                    document.getElementById('office_count').value = data.office_count;
+
+                    // 元の文字列をDateオブジェクトに変換
+                    var representative_birthdate = new Date(data.representative_birthdate);
+                    // yyyy-MM-dd形式の文字列を生成
+                    representative_birthdate = `${representative_birthdate.getFullYear()}-${("0" + (representative_birthdate.getMonth() + 1)).slice(-2)}-${("0" + representative_birthdate.getDate()).slice(-2)}`;
+
+                    // input要素に設定
+                    document.getElementById('establishment_date').value = representative_birthdate;
+
+                    document.getElementById('representative_birthdate').value = representative_birthdate;
+                    document.getElementById('representative_age').value = data.representative_age;
+                    document.getElementById('contact_name').value = data.contact_name;
+                    document.getElementById('contact_kana').value = data.contact_kana;
+                    document.getElementById('contact_position').value = data.contact_position;
+                    document.getElementById('contact_address').value = data.contact_address;
+                    document.getElementById('contact_phone').value = data.contact_phone;
+                    document.getElementById('contact_mobile').value = data.contact_mobile;
+                    document.getElementById('contact_fax').value = data.contact_fax;
+                    document.getElementById('contact_email').value = data.contact_email;
+                    document.getElementById('successor_name').value = data.successor_name;
+                    document.getElementById('successor_relation').value = data.successor_relation;
+                    document.getElementById('representative_relation').value = data.representative_relation;
+
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('ユーザー情報の取得に失敗しました。');
+                });
+        });
+    });
+
+    function confirmDelete(id) {
+        if (confirm('本当にこのユーザーを削除しますか？')) {
+            window.location.href = '/user/delete/' + id;
+        }
+    }
+    // document.querySelectorAll('#userForm .form-control').forEach(field => {
+    //     field.addEventListener('input', function() {
+    //         // フォームデータを収集
+    //         let formData = new FormData(document.getElementById('userForm'));
+
+    //         // 自動保存のためにAJAXリクエストを送信
+    //         fetch('/user/auto-save', {
+    //             method: 'POST',
+    //             body: formData
+    //         })
+    //         .then(response => response.json())
+    //         .then(data => {
+    //             if (data.success) {
+    //                 console.log('自動保存が成功しました。');
+    //             } else {
+    //                 console.error('自動保存に失敗しました。');
+    //             }
+    //         })
+    //         .catch(error => {
+    //             console.error('自動保存エラー:', error);
+    //         });
+    //     });
+    // });
+</script>
+
+
+{% endblock %}

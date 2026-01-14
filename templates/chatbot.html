@@ -1,0 +1,207 @@
+{% extends "layout.html" %}
+
+{% block title %}ダッシュボード{% endblock %}
+
+{% block content %}
+
+<style>
+    body {
+        /* background-color: #f7f7f7; */
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    #chatbot{
+        background-color: #5C6D80;
+    }
+
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding-top: 50px;
+    }
+
+    .chat-box {
+        background-color: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        height: 80vh; /* 画面の高さの80% */
+        min-height: 200px;
+        overflow-y: auto;
+    }
+
+    .message {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 14px;
+    }
+
+    .user-message {
+        justify-content: flex-end;
+        text-align: right;
+    }
+
+    .bot-message {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .message-content {
+        max-width: 60%;
+        padding: 10px 15px;
+        border-radius: 20px;
+        word-wrap: break-word; /* 単語の途中でも折り返し */
+    }
+
+    .user-message .message-content {
+        background-color: #dcf8c6;
+        color: #000000;
+    }
+
+    .bot-message .message-content {
+        background-color: #f1f0f0;
+        color: #000000;
+    }
+
+    .bot-message.loading .message-content {
+        background-color: #e0e0e0;
+        color: #000000;
+    }
+
+    .input-group {
+        margin-top: 30px;
+        margin-bottom: 30px;
+        border-top: 1px solid #eeeeee;
+        padding-top: 10px;
+    }
+
+    .input-group input {
+        border: none;
+        border-radius: 20px;
+        padding: 10px 15px;
+        box-shadow: none;
+    }
+
+    .input-group input:focus {
+        box-shadow: none;
+    }
+
+    .input-group-append .btn {
+        border-radius: 20px;
+        background-color: #4CAF50;
+        color: #ffffff;
+    }
+</style>
+
+<div class="chat-container mb-4">
+    <h3 class="text-center mb-4">小規模事業者持続化補助金<br>要件確認チャットボット</h3>
+    <div class="chat-box" id="chat-box">
+        {% for message in messages %}
+            <div class="message {% if message.user_type == 'user' %}user-message{% else %}bot-message{% endif %}">
+                <div class="message-content">{{ message.message | safe }}</div>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="input-group">
+        <input type="text" id="message" class="form-control border" placeholder="質問を入力してください" required>
+        <div class="input-group-append">
+            <button class="btn" type="button" id="send-btn">送信</button>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // 初期状態でチャットボックスを一番下にスクロール
+        $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+
+        $('#send-btn').on('click', function() {
+            sendMessage();
+        });
+
+        $('#message').on('keypress', function(e) {
+            if (e.which == 13) {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            var message = $('#message').val();
+            if (!message) return;
+            $('#message').val('');
+            addMessage('user-message', message);
+
+            // 入力を無効化
+            $('#message').prop('disabled', true);
+            $('#send-btn').prop('disabled', true);
+
+            // 仮メッセージを追加
+            addLoadingMessage();
+
+            fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({ message: message })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    removeLoadingMessage();
+                    addMessage('bot-message', data.response);
+
+                    // 入力を有効化
+                    $('#message').prop('disabled', false);
+                    $('#send-btn').prop('disabled', false);
+                    $('#message').focus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    removeLoadingMessage();
+
+                    // 入力を有効化
+                    $('#message').prop('disabled', false);
+                    $('#send-btn').prop('disabled', false);
+                });
+        }
+
+
+        function addMessage(className, message) {
+            var messageElement = $('<div>').addClass('message').addClass(className);
+            
+            // メッセージ内のURLをリンクに変換
+            var formattedMessage = message.replace(/(https?:\/\/[^\s]+)/g, function(url) {
+                return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+            });
+            
+            console.log("Formatted Message: ", formattedMessage); // ここで変換結果を確認
+            
+            // .html()を使ってリンクを挿入
+            var messageContent = $('<div>').addClass('message-content').html(formattedMessage);
+            
+            messageElement.append(messageContent);
+            $('#chat-box').append(messageElement);
+            
+            // チャットボックスをスクロール
+            $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+        }
+
+
+        function addLoadingMessage() {
+            var messageElement = $('<div>').addClass('message').addClass('bot-message').addClass('loading');
+            var messageContent = $('<div>').addClass('message-content').text('...');
+            messageElement.append(messageContent);
+            $('#chat-box').append(messageElement);
+            $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+        }
+
+        function removeLoadingMessage() {
+            $('#chat-box .loading').remove();
+        }
+    });
+</script>
+
+{% endblock %}

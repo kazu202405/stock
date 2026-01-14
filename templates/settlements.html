@@ -1,0 +1,690 @@
+{% extends "layout.html" %}
+
+{% block title %}決算情報管理{% endblock %}
+
+{% block content %}
+<div class="pt-3 pb-2 mb-3 border-bottom">
+    <h3 class="h3" style="font-weight: bolder;">決算情報</h3>
+    <!-- 新規登録 -->
+    <button class="btn btn-outline-primary" id="add_btn" data-toggle="modal" data-target="#settlementModal" data-action="new">新規登録</button>
+    {% for settlement in settlements %}
+    <div class="card mt-3">
+        <div class="card-body">
+            <h3 class="card-title">{{ settlement.year }}年{{ settlement.month }}月</h3>
+            <p class="card-text">売上高: {{ settlement.sales }}円</p>
+            <button class="btn btn-primary edit-btn" data-toggle="modal" data-target="#settlementModal" data-action="edit" data-id="{{ settlement.id }}">編集</button>
+            <button class="btn btn-danger" onclick="confirmDelete('{{ settlement.id }}')">削除</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 決算情報モーダル -->
+<div class="modal fade" id="settlementModal" tabindex="-1" aria-labelledby="settlementModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="settlementForm" action="/settlement/save" method="POST">
+                <input type="hidden" name="settlement_id" id="settlement_id" value="">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="settlementModalLabel">決算情報</h3>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <label for="year">決算年</label>
+                                <select class="form-control" id="year" name="year" required>
+                                    <option value="2021">2021年</option>
+                                    <option value="2022">2022年</option>
+                                    <option value="2023">2023年</option>
+                                    <option value="2024">2024年</option>
+                                    <option value="2025">2025年</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <label for="month">決算月</label>
+                                <select class="form-control" id="month" name="month" required>
+                                    <option value="01">1月</option>
+                                    <option value="02">2月</option>
+                                    <option value="03">3月</option>
+                                    <option value="04">4月</option>
+                                    <option value="05">5月</option>
+                                    <option value="06">6月</option>
+                                    <option value="07">7月</option>
+                                    <option value="08">8月</option>
+                                    <option value="09">9月</option>
+                                    <option value="10">10月</option>
+                                    <option value="11">11月</option>
+                                    <option value="12">12月</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="large_category">大分類</label>
+                        <select class="form-control" id="large_category" name="large_category" required>
+                            <option value="">選択してください</option>
+                            <option value="01_農業">01_農業</option>
+                            <option value="02_建設業">02_建設業</option>
+                            <option value="03_製造業">03_製造業</option>
+                            <option value="04_卸売業">04_卸売業</option>
+                            <option value="05_小売業">05_小売業</option>
+                            <option value="06_飲食業">06_飲食業</option>
+                            <option value="07_不動産業">07_不動産業</option>
+                            <option value="08_運輸業">08_運輸業</option>
+                            <option value="09_エネルギー">09_エネルギー</option>
+                            <option value="10_サービス業">10_サービス業</option>
+                            <option value="11_医療業">11_医療業</option>
+                            <option value="12_保険衛生、廃棄物処理業">12_保険衛生、廃棄物処理業</option>
+                            <option value="13_観光業">13_観光業</option>
+                            <option value="14_その他">14_その他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="small_category">小分類</label>
+                        <select class="form-control" id="small_category" name="small_category" required>
+                            <option value="">大分類を先に選んでください</option>
+                        </select>
+                    </div>
+                    
+
+                    <div class="form-group">
+                        <label for="previous_year_sales">前年度売上高</label>
+                        <input type="number" class="form-control" id="previous_year_sales" name="previous_year_sales">
+                    </div>
+                    <div class="form-group">
+                        <label for="employee_number">従業員数</label>
+                        <input type="number" class="form-control" id="employee_number" name="employee_number">
+                    </div>
+                    <div class="form-group">
+                        <label for="business_scale">事業規模</label>
+                        <input type="text" class="form-control" id="business_scale" name="business_scale" value=""readonly>
+                    </div>
+
+                    <!-- 流動資産 -->
+                    <!--
+                    <div class="form-group">
+                        <label for="cash_deposit">現金及び預金</label>
+                        <input type="number" class="form-control asset" id="cash_deposit" name="cash_deposit" value="0">
+                    </div>
+                    -->
+                    <div class="form-group">
+                        <label for="accounts_receivable">売掛金（売上債権）</label>
+                        <input type="number" class="form-control asset" id="accounts_receivable" name="accounts_receivable" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="bills_recivable">受取手形</label>
+                        <input type="number" class="form-control asset" id="bills_recivable" name="bills_recivable" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="securities">有価証券</label>
+                        <input type="number" class="form-control asset" id="securities" name="securities" value="0">
+                    </div>
+                    -->
+                    <div class="form-group">
+                        <label for="inventory">棚卸資産（商品、原材料、仕掛品など）</label>
+                        <input type="number" class="form-control asset" id="inventory" name="inventory" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="total_debt">総負債</label>
+                        <input type="number" class="form-control" id="total_debt" name="total_debt" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="borrowed_money">借入金</label>
+                        <input type="number" class="form-control liability" id="borrowed_money" name="borrowed_money" value="0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="prepaid_expenses">前払費用</label>
+                        <input type="number" class="form-control asset" id="prepaid_expenses" name="prepaid_expenses" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="current_assets_total">流動資産合計</label>
+                        <input type="number" class="form-control" id="current_assets_total" name="current_assets_total" value="0">
+                    </div>
+                    -->
+                    <!-- 固定資産 -->
+                    <!--
+                    <div class="form-group">
+                        <label for="tangible_assets">有形固定資産（建物、土地、設備、機械など）</label>
+                        <input type="number" class="form-control asset" id="tangible_assets" name="tangible_assets" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="intangible_assets">無形固定資産（特許権、商標権、ソフトウェアなど）</label>
+                        <input type="number" class="form-control asset" id="intangible_assets" name="intangible_assets" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="investment_assets">投資その他の資産（長期貸付金、投資有価証券など）</label>
+                        <input type="number" class="form-control asset" id="investment_assets" name="investment_assets" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="fixed_assets_total">固定資産合計</label>
+                        <input type="number" class="form-control" id="fixed_assets_total" name="fixed_assets_total" value="0">
+                    </div>
+                    -->
+                    <!-- 資産合計 -->
+                    <div class="form-group">
+                        <label for="total_assets">資産合計（流動資産 + 固定資産）</label>
+                        <input type="number" class="form-control" id="total_assets" name="total_assets" value="0">
+                    </div>
+
+                    <!-- 負債 -->
+                    <!--
+                    <div class="form-group">
+                        <label for="accounts_payable">買掛金</label>
+                        <input type="number" class="form-control liability" id="accounts_payable" name="accounts_payable" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="bills_payable">支払手形</label>
+                        <input type="number" class="form-control liability" id="bills_payable" name="bills_payable" value="0">
+                    </div>
+                    -->
+                    <div class="form-group">
+                        <label for="short_term_debt">短期借入金</label>
+                        <input type="number" class="form-control liability" id="short_term_debt" name="short_term_debt" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="accrued_expenses">未払費用（未払いの給与、光熱費など）</label>
+                        <input type="number" class="form-control liability" id="accrued_expenses" name="accrued_expenses" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="advance_received">前受金</label>
+                        <input type="number" class="form-control liability" id="advance_received" name="advance_received" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="current_liabilities_total">流動負債合計</label>
+                        <input type="number" class="form-control" id="current_liabilities_total" name="current_liabilities_total" value="0">
+                    </div>
+                    -->
+                    <!-- 固定負債 -->
+                    <div class="form-group">
+                        <label for="long_term_debt">長期借入金</label>
+                        <input type="number" class="form-control liability" id="long_term_debt" name="long_term_debt" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="corporate_bond">社債</label>
+                        <input type="number" class="form-control liability" id="corporate_bond" name="corporate_bond" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="retirement_reserve">退職給付引当金</label>
+                        <input type="number" class="form-control liability" id="retirement_reserve" name="retirement_reserve" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="fixed_liabilities_total">固定負債合計</label>
+                        <input type="number" class="form-control" id="fixed_liabilities_total" name="fixed_liabilities_total" value="0">
+                    </div>
+                    -->
+                    <!-- 負債合計 -->
+                    <!--
+                    <div class="form-group">
+                        <label for="total_liabilities">負債合計（流動負債 + 固定負債）</label>
+                        <input type="number" class="form-control" id="total_liabilities" name="total_liabilities" value="0">
+                    </div>
+                    -->
+
+                    <!-- 純資産 -->
+                    
+                    <div class="form-group">
+                        <label for="capital_stock">資本金・出資金</label>
+                        <input type="number" class="form-control equity" id="capital_stock" name="capital_stock" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="capital_surplus">資本剰余金</label>
+                        <input type="number" class="form-control equity" id="capital_surplus" name="capital_surplus" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="retained_earnings">利益剰余金（繰越利益、内部留保）</label>
+                        <input type="number" class="form-control equity" id="retained_earnings" name="retained_earnings" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="valuation_conversion">評価・換算差額等（その他有価証券評価差額金、為替換算調整勘定など）</label>
+                        <input type="number" class="form-control equity" id="valuation_conversion" name="valuation_conversion" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="treasury_stock">自己株式（マイナス計上）</label>
+                        <input type="number" class="form-control equity" id="treasury_stock" name="treasury_stock" value="0">
+                    </div>
+                    -->
+                    <div class="form-group">
+                        <label for="total_net_assets">純資産合計</label>
+                        <input type="number" class="form-control" id="total_net_assets" name="total_net_assets" value="0">
+                    </div>
+
+                    <!-- 収益 -->
+                    <div class="form-group">
+                        <label for="sales">売上高</label>
+                        <input type="number" class="form-control revenue" id="sales" name="sales" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="cost_of_sales">売上原価</label>
+                        <input type="number" class="form-control expense" id="cost_of_sales" name="cost_of_sales" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="gross_profit">売上総利益</label>
+                        <input type="number" class="form-control revenue" id="gross_profit" name="gross_profit" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="non_operating_income">営業外収益</label>
+                        <input type="number" class="form-control revenue" id="non_operating_income" name="non_operating_income" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="total_revenue">収益合計</label>
+                        <input type="number" class="form-control" id="total_revenue" name="total_revenue" value="0">
+                    </div>
+                    -->
+
+                    <!-- 費用 -->                     
+                    <div class="form-group">
+                        <label for="general_administrative_expenses">販売費及び一般管理費</label>
+                        <input type="number" class="form-control expense" id="general_administrative_expenses" name="general_administrative_expenses" value="0">
+                    </div>                    
+                    <div class="form-group">
+                        <label for="depreciation_expense">減価償却費</label>
+                        <input type="number" class="form-control expense" id="depreciation_expense" name="depreciation_expense" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="non_operating_expenses">営業外費用</label>
+                        <input type="number" class="form-control expense" id="non_operating_expenses" name="non_operating_expenses" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="special_loss">特別損失</label>
+                        <input type="number" class="form-control expense" id="special_loss" name="special_loss" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="total_expense">費用合計</label>
+                        <input type="number" class="form-control" id="total_expense" name="total_expense" value="0">
+                    </div>
+                    -->
+
+                    <!-- 利益 -->
+                    <div class="form-group">
+                        <label for="operating_income">営業利益</label>
+                        <input type="number" class="form-control profit" id="operating_income" name="operating_income" value="0">
+                    </div>
+                    <!--
+                    <div class="form-group">
+                        <label for="ordinary_profit">経常利益</label>
+                        <input type="number" class="form-control profit" id="ordinary_profit" name="ordinary_profit" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="income_before_taxes">税引前当期純利益</label>
+                        <input type="number" class="form-control profit" id="income_before_taxes" name="income_before_taxes" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="net_income">当期純利益</label>
+                        <input type="number" class="form-control profit" id="net_income" name="net_income" value="0">
+                    </div>
+                    -->
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">閉じる</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    var currentDate = new Date();
+    var currentYear = currentDate.getFullYear();
+    var currentMonth = ("0" + (currentDate.getMonth() + 1)).slice(-2);
+
+    document.getElementById('year').value = currentYear;
+    document.getElementById('month').value = currentMonth;
+
+    document.getElementById('add_btn').addEventListener('click', function() {
+        document.getElementById('settlementForm').action = '/settlement/save';
+        document.getElementById('settlement_id').value = ''; // 決算ID
+        document.getElementById('year').value = ''; // 決算年
+        document.getElementById('month').value = ''; // 決算月
+        document.getElementById('sales').value = ''; // 売上高
+        document.getElementById('previous_year_sales').value = ''; // 前年度売上高
+        //document.getElementById('cost_of_sales').value = ''; // 売上原価
+        document.getElementById('employee_number').value = ''; // 従業員数
+        document.getElementById('business_scale').value = ''; // 事業規模
+        document.getElementById('operating_income').value = ''; // 営業利益
+        document.getElementById('depreciation_expense').value = ''; // 減価償却費
+        // document.getElementById('cash_deposit').value = ''; // 預金
+        // document.getElementById('bills_recivable').value = ''; // 受取手形
+        document.getElementById('accounts_receivable').value = ''; // 売掛金
+        document.getElementById('inventory').value = ''; // 棚卸資産
+        // document.getElementById('total_debt').value = ''; // 総負債（'total_debt' というIDが定義されているか確認）
+        // document.getElementById('bills_payable').value = ''; // 支払手形
+        // document.getElementById('accounts_payable').value = ''; // 買掛金
+        // document.getElementById('borrowed_money').value = ''; // 借入金
+        document.getElementById('total_net_assets').value = ''; // 純資産合計
+
+
+        // 追加項目
+        // document.getElementById('securities').value = ''; // 有価証券
+        // document.getElementById('prepaid_expenses').value = ''; // 前払費用
+        // document.getElementById('current_assets_total').value = ''; // 流動資産合計
+        // document.getElementById('tangible_assets').value = ''; // 有形固定資産
+        // document.getElementById('intangible_assets').value = ''; // 無形固定資産
+        // document.getElementById('investment_assets').value = ''; // 投資その他の資産
+        // document.getElementById('fixed_assets_total').value = ''; // 固定資産合計
+        document.getElementById('total_assets').value = ''; // 資産合計
+        document.getElementById('short_term_debt').value = ''; // 短期借入金
+        document.getElementById('accrued_expenses').value = ''; // 未払費用
+        // document.getElementById('advance_received').value = ''; // 前受金
+        // document.getElementById('current_liabilities_total').value = ''; // 流動負債合計
+        document.getElementById('long_term_debt').value = ''; // 長期借入金
+        // document.getElementById('corporate_bond').value = ''; // 社債
+        // document.getElementById('retirement_reserve').value = ''; // 退職給付引当金
+        // document.getElementById('fixed_liabilities_total').value = ''; // 固定負債合計
+        // document.getElementById('total_liabilities').value = ''; // 負債合計
+        document.getElementById('capital_stock').value = ''; // 資本金
+        // document.getElementById('capital_surplus').value = ''; // 資本剰余金
+        // document.getElementById('retained_earnings').value = ''; // 利益剰余金
+        // document.getElementById('valuation_conversion').value = ''; // 評価・換算差額等
+        // document.getElementById('treasury_stock').value = ''; // 自己株式
+        // document.getElementById('net_assets_total').value = ''; // 純資産合計
+        // document.getElementById('gross_profit').value = ''; // 売上総利益
+        // document.getElementById('non_operating_income').value = ''; // 営業外収益
+        // document.getElementById('total_revenue').value = ''; // 収益合計
+        document.getElementById('general_administrative_expenses').value = ''; // 販売費及び一般管理費
+        // document.getElementById('non_operating_expenses').value = ''; // 営業外費用
+        // document.getElementById('special_loss').value = ''; // 特別損失
+        // document.getElementById('total_expense').value = ''; // 費用合計
+        // document.getElementById('operating_profit').value = ''; // 営業利益
+        // document.getElementById('ordinary_profit').value = ''; // 経常利益
+        // document.getElementById('income_before_taxes').value = ''; // 税引前当期純利益
+        // document.getElementById('net_income').value = ''; // 当期純利益
+        document.getElementById('large_category').value = ''; // 大分類
+        document.getElementById('small_category').value = ''; // 小分類
+
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            var id = this.getAttribute('data-id');
+            fetch('/settlement/get/' + id)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('settlementForm').action = '/settlement/save';
+                    document.getElementById('settlement_id').value = data.id; // 決算ID
+                    document.getElementById('year').value = data.year; // 決算年
+                    document.getElementById('month').value = data.month; // 決算月
+                    document.getElementById('sales').value = data.sales; // 売上高
+                    document.getElementById('previous_year_sales').value = data.previous_year_sales; // 前年度売上高
+                    //document.getElementById('cost_of_sales').value = data.cost_of_sales; // 売上原価
+                    document.getElementById('employee_number').value = data.employee_number; // 従業員数
+                    document.getElementById('business_scale').value = data.business_scale; // 事業規模
+                    document.getElementById('operating_income').value = data.operating_income; // 営業利益
+                    document.getElementById('depreciation_expense').value = data.depreciation_expense; // 減価償却費
+                    // document.getElementById('cash_deposit').value = data.cash_deposit; // 現金および預金
+                    // document.getElementById('bills_recivable').value = data.bills_recivable; // 受取手形
+                    document.getElementById('accounts_receivable').value = data.accounts_receivable; // 売掛金
+                    document.getElementById('inventory').value = data.inventory; // 棚卸資産
+                    // document.getElementById('total_debt').value = data.total_debt; // 総負債
+                    // document.getElementById('bills_payable').value = data.bills_payable; // 支払手形
+                    // document.getElementById('accounts_payable').value = data.accounts_payable; // 買掛金
+                    // document.getElementById('borrowed_money').value = data.borrowed_money; // 借入金
+                    document.getElementById('total_net_assets').value = data.total_net_assets; // 純資産合計
+
+
+                    // 追加項目
+                    // document.getElementById('securities').value = data.securities; // 有価証券
+                    // document.getElementById('prepaid_expenses').value = data.prepaid_expenses; // 前払費用
+                    // document.getElementById('current_assets_total').value = data.current_assets_total; // 流動資産合計
+                    // document.getElementById('tangible_assets').value = data.tangible_assets; // 有形固定資産
+                    // document.getElementById('intangible_assets').value = data.intangible_assets; // 無形固定資産
+                    // document.getElementById('investment_assets').value = data.investment_assets; // 投資その他の資産
+                    // document.getElementById('fixed_assets_total').value = data.fixed_assets_total; // 固定資産合計
+                    document.getElementById('total_assets').value = data.total_assets; // 資産合計
+                    document.getElementById('short_term_debt').value = data.short_term_debt; // 短期借入金
+                    document.getElementById('accrued_expenses').value = data.accrued_expenses; // 未払費用
+                    // document.getElementById('advance_received').value = data.advance_received; // 前受金
+                    // document.getElementById('current_liabilities_total').value = data.current_liabilities_total; // 流動負債合計
+                    document.getElementById('long_term_debt').value = data.long_term_debt; // 長期借入金
+                    // document.getElementById('corporate_bond').value = data.corporate_bond; // 社債
+                    // document.getElementById('retirement_reserve').value = data.retirement_reserve; // 退職給付引当金
+                    // document.getElementById('fixed_liabilities_total').value = data.fixed_liabilities_total; // 固定負債合計
+                    // document.getElementById('total_liabilities').value = data.total_liabilities; // 負債合計
+                    document.getElementById('capital_stock').value = data.capital_stock; // 資本金
+                    // document.getElementById('capital_surplus').value = data.capital_surplus; // 資本剰余金
+                    // document.getElementById('retained_earnings').value = data.retained_earnings; // 利益剰余金
+                    // document.getElementById('valuation_conversion').value = data.valuation_conversion; // 評価・換算差額等
+                    // document.getElementById('treasury_stock').value = data.treasury_stock; // 自己株式
+                    // document.getElementById('net_assets_total').value = data.net_assets_total; // 純資産合計
+                    // document.getElementById('gross_profit').value = data.gross_profit; // 売上総利益
+                    // document.getElementById('non_operating_income').value = data.non_operating_income; // 営業外収益
+                    // document.getElementById('total_revenue').value = data.total_revenue; // 収益合計
+                    document.getElementById('general_administrative_expenses').value = data.general_administrative_expenses; // 販売費及び一般管理費
+                    // document.getElementById('non_operating_expenses').value = data.non_operating_expenses; // 営業外費用
+                    // document.getElementById('special_loss').value = data.special_loss; // 特別損失
+                    // document.getElementById('total_expense').value = data.total_expense; // 費用合計
+                    // document.getElementById('operating_profit').value = data.operating_profit; // 営業利益
+                    // document.getElementById('ordinary_profit').value = data.ordinary_profit; // 経常利益
+                    // document.getElementById('income_before_taxes').value = data.income_before_taxes; // 税引前当期純利益
+                    // document.getElementById('net_income').value = data.net_income; // 当期純利益
+                    document.getElementById('large_category').value = data.large_category; // 大分類
+                    console.log("大分類:", data.large_category);
+
+                    const smallCategorySelect = document.getElementById("small_category");
+                    
+                    if (categorySets[data.large_category]) {
+                        // 小分類のオプションを追加
+                        categorySets[data.large_category].forEach(function(smallCategory) {
+                            const option = document.createElement("option");
+                            option.value = smallCategory;
+                            option.textContent = smallCategory;
+                            smallCategorySelect.appendChild(option);
+                        });
+                    } else {
+                        // 小分類がない場合のメッセージ
+                        const option = document.createElement("option");
+                        option.value = "";
+                        option.textContent = "小分類がありません";
+                        smallCategorySelect.appendChild(option);
+                    }
+
+                    document.getElementById('small_category').value = data.small_category; // 小分類
+
+                })
+                .catch(error => console.error('Error:', error));
+        });
+    });
+
+    function confirmDelete(id) {
+        if (confirm('本当にこの決算情報を削除しますか？')) {
+            window.location.href = '/settlement/delete/' + id;
+        }
+    }
+    
+    // カテゴリーセットの定義（必要に応じて外部ファイルやサーバーサイドから取得）
+    const categorySets = {
+            "01_農業": ["0101_農業"],
+            "02_建設業": ["0201_建設業"],
+            "03_製造業": [
+                "0301_食料品・飼料・飲料製造業",
+                "0302_化学工業・関連製品製造業",
+                "0304_金属製品製造業",
+                "0303_鉄鋼業、非鉄金属製造業",
+                "0305_一般・電気機械器具製造業",
+                "0306_その他の製造業"
+            ],
+            "04_卸売業": [
+                "0404_その他の卸売業",
+                "0403_食料品卸売業",
+                "0401_化学製品卸売業",
+                "0402_繊維関連製品卸売業"
+            ],
+            "05_小売業": ["0501_小売業"],
+            "06_飲食業": ["0601_飲食業"],
+            "07_不動産業": ["0701_不動産業"],
+            "08_運輸業": ["0801_運輸業"],
+            "09_エネルギー": ["0901_エネルギー"],
+            "10_サービス業": [
+                "1002_娯楽業",
+                "1005_専門サービス業",
+                "1001_物品賃貸業",
+                "1006_その他のサービス業",
+                "1003_広告・調査・情報サービス業",
+                "1004_事業サービス業"
+            ],
+            "11_医療業": ["1101_医療業"],
+            "12_保険衛生、廃棄物処理業": ["1201_保険衛生、廃棄物処理業"],
+            "13_観光業": ["1301_観光業"],
+            "14_その他": ["1400_その他業種"]
+        };
+
+        // ページの読み込みが完了したタイミングで実行
+        document.addEventListener('DOMContentLoaded', function () {
+            // カテゴリー選択の初期化
+            const largeCategorySelect = document.getElementById("large_category");
+            const smallCategorySelect = document.getElementById("small_category");
+            console.log("初期値のlarge_category:", largeCategorySelect.value);
+
+
+            largeCategorySelect.addEventListener("change", function() {
+                const selectedLargeCategory = largeCategorySelect.value;
+                //console.log("Selected large category:", selectedLargeCategory);  // デバッグ用
+                smallCategorySelect.innerHTML = ''; // 小分類の選択肢をクリア
+
+                if (categorySets[selectedLargeCategory]) {
+                    
+                    // 小分類のオプションを追加
+                    categorySets[selectedLargeCategory].forEach(function(smallCategory) {
+                        const option = document.createElement("option");
+                        option.value = smallCategory;
+                        option.textContent = smallCategory;
+                        smallCategorySelect.appendChild(option);
+                    });
+                } else {
+                    // 小分類がない場合のメッセージ
+                    const option = document.createElement("option");
+                    option.value = "";
+                    option.textContent = "小分類がありません";
+                    smallCategorySelect.appendChild(option);
+                }
+            });
+
+    document.addEventListener('input', function (event) {
+        // 各フィールドから値を取得
+        //const taxes = parseFloat(document.getElementById('taxes').value) || 0; // 法人税等のフィールド
+        const year = document.getElementById('year').value; // 決算年
+        const month = document.getElementById('month').value; // 決算月
+        const previousYearSales = parseFloat(document.getElementById('previous_year_sales').value) || 0; // 前年度売上高
+        const employeeNumber = parseInt(document.getElementById('employee_number').value) || 0; // 従業員数
+        const businessScale = document.getElementById('business_scale').value; // 事業規模
+        const large_category = document.getElementById('large_category').value; 
+        const small_category = document.getElementById('small_category').value; 
+        //const cashDeposit = parseFloat(document.getElementById('cash_deposit').value) || 0; // 現金及び預金
+        //const accountsReceivable = parseFloat(document.getElementById('accounts_receivable').value) || 0; // 売掛金
+        //const billsRecivable = parseFloat(document.getElementById('bills_recivable').value) || 0; // 受取手形
+        //const securities = parseFloat(document.getElementById('securities').value) || 0; // 有価証券
+        //const inventory = parseFloat(document.getElementById('inventory').value) || 0; // 棚卸資産
+        //const prepaidExpenses = parseFloat(document.getElementById('prepaid_expenses').value) || 0; // 前払費用
+        //const currentAssetsTotal = parseFloat(document.getElementById('current_assets_total').value) || 0; // 流動資産合計
+        //const tangibleAssets = parseFloat(document.getElementById('tangible_assets').value) || 0; // 有形固定資産
+        //const intangibleAssets = parseFloat(document.getElementById('intangible_assets').value) || 0; // 無形固定資産
+        //const investmentAssets = parseFloat(document.getElementById('investment_assets').value) || 0; // 投資その他の資産
+        //const fixedAssetsTotal = parseFloat(document.getElementById('fixed_assets_total').value) || 0; // 固定資産合計
+        const totalAssets = parseFloat(document.getElementById('total_assets').value) || 0; // 資産合計
+        //const accountsPayable = parseFloat(document.getElementById('accounts_payable').value) || 0; // 買掛金
+        //const billsPayable = parseFloat(document.getElementById('bills_payable').value) || 0; // 支払手形
+        const shortTermDebt = parseFloat(document.getElementById('short_term_debt').value) || 0; // 短期借入金
+        const accruedExpenses = parseFloat(document.getElementById('accrued_expenses').value) || 0; // 未払費用
+        //const advanceReceived = parseFloat(document.getElementById('advance_received').value) || 0; // 前受金
+        //const currentLiabilitiesTotal = parseFloat(document.getElementById('current_liabilities_total').value) || 0; // 流動負債合計
+        const longTermDebt = parseFloat(document.getElementById('long_term_debt').value) || 0; // 長期借入金
+        //const corporateBond = parseFloat(document.getElementById('corporate_bond').value) || 0; // 社債
+        //const retirementReserve = parseFloat(document.getElementById('retirement_reserve').value) || 0; // 退職給付引当金
+        //const fixedLiabilitiesTotal = parseFloat(document.getElementById('fixed_liabilities_total').value) || 0; // 固定負債合計
+        //const totalLiabilities = parseFloat(document.getElementById('total_liabilities').value) || 0; // 負債合計
+        const capitalStock = parseFloat(document.getElementById('capital_stock').value) || 0; // 資本金
+        //const capitalSurplus = parseFloat(document.getElementById('capital_surplus').value) || 0; // 資本剰余金
+        //const retainedEarnings = parseFloat(document.getElementById('retained_earnings').value) || 0; // 利益剰余金
+        //const valuationConversion = parseFloat(document.getElementById('valuation_conversion').value) || 0; // 評価・換算差額等
+        //const treasuryStock = parseFloat(document.getElementById('treasury_stock').value) || 0; // 自己株式
+        const totalNetAssets = parseFloat(document.getElementById('total_net_assets').value) || 0; // 純資産合計
+        const sales = parseFloat(document.getElementById('sales').value) || 0; // 売上高
+        //const costOfSales = parseFloat(document.getElementById('cost_of_sales').value) || 0; // 売上原価
+        //const grossProfit = parseFloat(document.getElementById('gross_profit').value) || 0; // 売上総利益
+        //const nonOperatingIncome = parseFloat(document.getElementById('non_operating_income').value) || 0; // 営業外収益
+        //const totalRevenue = parseFloat(document.getElementById('total_revenue').value) || 0; // 収益合計
+        const generalAdminExpenses = parseFloat(document.getElementById('general_administrative_expenses').value) || 0; // 販売費及び一般管理費
+        //const depreciationExpense = parseFloat(document.getElementById('depreciation_expense').value) || 0; // 減価償却費
+        //const nonOperatingExpenses = parseFloat(document.getElementById('non_operating_expenses').value) || 0; // 営業外費用
+        //const specialLoss = parseFloat(document.getElementById('special_loss').value) || 0; // 特別損失
+        //const totalExpense = parseFloat(document.getElementById('total_expense').value) || 0; // 費用合計
+        const operatingIncome = parseFloat(document.getElementById('operating_income').value) || 0; // 営業利益
+        //const ordinaryProfit = parseFloat(document.getElementById('ordinary_profit').value) || 0; // 経常利益
+        //const incomeBeforeTaxes = parseFloat(document.getElementById('income_before_taxes').value) || 0; // 税引前当期純利益
+        //const netIncome = parseFloat(document.getElementById('net_income').value) || 0; // 当期純利益
+
+        // 売上総利益 = 売上高 - 売上原価
+        //const grossProfit = sales - costOfGoodsSold;
+        //document.getElementById('gross_profit').value = grossProfit;
+
+        // 営業利益 = 売上総利益 - 販売費及び一般管理費
+        //const operatingProfit = grossProfit - generalAdminExpenses;
+        //document.getElementById('operating_profit').value = operatingProfit;
+
+        // 経常利益 = 営業利益 + 営業外収益 - 営業外費用
+        //const ordinaryProfit = operatingProfit + nonOperatingIncome - nonOperatingExpenses;
+        //document.getElementById('ordinary_profit').value = ordinaryProfit;
+
+        // 当期純利益 = 経常利益 - 法人税等
+        //const netIncome = ordinaryProfit - taxes;
+        //document.getElementById('net_income').value = netIncome;
+
+        
+        });
+    });
+
+    document.addEventListener('input', function () {
+        const capitalStock = parseFloat(document.getElementById('capital_stock').value) || 0;
+        const employeeNumber = parseInt(document.getElementById('employee_number').value) || 0;
+        const largeCategory = document.getElementById('large_category').value;
+        let businessScale = "";
+
+        if (["01_農業", "02_建設業", "03_製造業", "07_不動産業", "08_運輸業", "09_エネルギー", "14_その他"].includes(largeCategory)) {
+            if (capitalStock <= 300000000 || employeeNumber <= 300) {
+                businessScale = employeeNumber <= 20 ? "小規模事業者" : "中規模事業者";
+            } else {
+                businessScale = "中小企業基本法の中小企業定義に当てはまりません";
+            }
+        } else if (largeCategory === "04_卸売業") {
+            if (capitalStock <= 100000000 || employeeNumber <= 100) {
+                businessScale = employeeNumber <= 5 ? "小規模事業者" : "中規模事業者";
+            } else {
+                businessScale = "中小企業基本法の中小企業定義に当てはまりません";
+            }
+        } else if (["05_小売業", "06_飲食業"].includes(largeCategory)) {
+            if (capitalStock <= 50000000 || employeeNumber <= 50) {
+                businessScale = employeeNumber <= 5 ? "小規模事業者" : "中規模事業者";
+            } else {
+                businessScale = "中小企業基本法の中小企業定義に当てはまりません";
+            }
+        } else if (["10_サービス業", "11_医療業", "12_保険衛生、廃棄物処理業", "13_観光業"].includes(largeCategory)) {
+            if (capitalStock <= 50000000 || employeeNumber <= 100) {
+                businessScale = employeeNumber <= 5 ? "小規模事業者" : "中規模事業者";
+            } else {
+                businessScale = "中小企業基本法の中小企業定義に当てはまりません";
+            }
+        } else {
+            businessScale = "中小企業基本法の中小企業定義に当てはまりません";
+        }
+
+        document.getElementById('business_scale').value = businessScale;
+    });
+
+
+</script>
+
+{% endblock %}
