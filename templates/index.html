@@ -1563,9 +1563,9 @@
         if (currency === 'JPY') {
             const sign = n0 < 0 ? '−' : '';           // マイナス記号（全角）
             const n = Math.abs(n0);                   // ★ 単位判定は絶対値で
-            if (n >= 1e12) return `${sign}${(n/1e12).toFixed(1)}兆円`;
-            if (n >= 1e8)  return `${sign}${Math.round(n/1e8)}億円`;
-            if (n >= 1e4)  return `${sign}${Math.round(n/1e4)}万円`;
+            if (n >= 1e12) return `${sign}${(n/1e12).toFixed(2)}兆円`;
+            if (n >= 1e8)  return `${sign}${(n/1e8).toFixed(2)}億円`;
+            if (n >= 1e4)  return `${sign}${(n/1e4).toFixed(2)}万円`;
             return `${sign}${Math.round(n).toLocaleString()}円`;
         } else {
             // USD or other currencies

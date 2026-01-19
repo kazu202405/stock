@@ -733,9 +733,16 @@
         padding: 4px 8px;
         font-size: inherit;
         color: inherit;
-        width: 100%;
+        width: 80px;
         text-align: right;
         transition: all 0.2s;
+        -moz-appearance: textfield;
+    }
+
+    .editable-cell::-webkit-outer-spin-button,
+    .editable-cell::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
     }
 
     .editable-cell:hover {
@@ -927,10 +934,10 @@
                         <thead>
                             <tr>
                                 <th style="text-align: left; width: 100px;">決算期</th>
-                                <th>売上高</th>
-                                <th>営業利益</th>
-                                <th>経常利益</th>
-                                <th>純利益</th>
+                                <th>売上高(億円)</th>
+                                <th>営業利益(億円)</th>
+                                <th>経常利益(億円)</th>
+                                <th>純利益(億円)</th>
                                 <th>1株益(円)</th>
                                 <th>1株配(円)</th>
                                 <th>配当性向(%)</th>
@@ -1002,11 +1009,11 @@
                         <thead>
                             <tr>
                                 <th style="text-align: left; width: 100px;">決算期</th>
-                                <th>営業CF</th>
-                                <th>投資CF</th>
-                                <th>財務CF</th>
-                                <th>現金等</th>
-                                <th>流動負債</th>
+                                <th>営業CF(億円)</th>
+                                <th>投資CF(億円)</th>
+                                <th>財務CF(億円)</th>
+                                <th>現金等(億円)</th>
+                                <th>流動負債(億円)</th>
                                 <th>自己資本比率(%)</th>
                                 <th>ROE(%)</th>
                                 <th>ROA(%)</th>
@@ -1509,7 +1516,7 @@
         });
     }
     
-    // セルの値を更新 - 編集可能版
+    // セルの値を更新 - 編集可能版（億円単位の数値のみ表示）
     function updateCellValue(row, dataType, value, isPerShare = false, isPercent = false) {
         const cell = row.querySelector(`td[data-type="${dataType}"]`);
         if (!cell) return;
@@ -1518,13 +1525,23 @@
         let displayValue = '';
         let rawValue = value;
 
+        // 金額系のデータタイプ（億円単位で表示）
+        const amountTypes = ['revenue', 'op_income', 'ordinary_income', 'net_income',
+                            'operating_cf', 'investing_cf', 'financing_cf', 'cash', 'current_liabilities_list'];
+
         if (value !== undefined && value !== null) {
             if (isPerShare) {
+                // 1株あたりの値（円単位）
                 displayValue = value.toFixed(2);
             } else if (isPercent) {
+                // パーセント（数値のみ）
                 displayValue = value.toFixed(1);
+            } else if (amountTypes.includes(dataType)) {
+                // 金額は億円単位に変換して数値のみ表示（小数2桁）
+                const okuValue = value / 1e8;
+                displayValue = okuValue.toFixed(2);
             } else {
-                displayValue = formatAmount(value, window.currentCurrency);
+                displayValue = value.toFixed(2);
             }
             rawValue = value;
         } else {
@@ -1532,17 +1549,19 @@
             rawValue = '';
         }
 
-        // 編集可能な入力フィールドとして表示
-        cell.innerHTML = `<input type="text" class="editable-cell"
+        // 編集可能な入力フィールドとして表示（数値のみ、単位なし）
+        cell.innerHTML = `<input type="number" class="editable-cell"
             data-type="${dataType}"
             data-year="${yearIndex}"
             data-raw="${rawValue}"
             data-is-percent="${isPercent}"
             data-is-pershare="${isPerShare}"
+            data-is-amount="${amountTypes.includes(dataType)}"
             value="${displayValue}"
             onchange="onCellEdit(this)"
             onfocus="this.select()"
-        >${isPercent ? '%' : ''}`;
+            step="0.01"
+        >`;
     }
 
 
@@ -1726,9 +1745,9 @@
         if (currency === 'JPY') {
             const sign = n0 < 0 ? '−' : '';           // マイナス記号（全角）
             const n = Math.abs(n0);                   // ★ 単位判定は絶対値で
-            if (n >= 1e12) return `${sign}${(n/1e12).toFixed(1)}兆円`;
-            if (n >= 1e8)  return `${sign}${Math.round(n/1e8)}億円`;
-            if (n >= 1e4)  return `${sign}${Math.round(n/1e4)}万円`;
+            if (n >= 1e12) return `${sign}${(n/1e12).toFixed(2)}兆円`;
+            if (n >= 1e8)  return `${sign}${(n/1e8).toFixed(2)}億円`;
+            if (n >= 1e4)  return `${sign}${(n/1e4).toFixed(2)}万円`;
             return `${sign}${Math.round(n).toLocaleString()}円`;
         } else {
             // USD or other currencies
@@ -2914,9 +2933,15 @@
         cellInputs.forEach(input => {
             const dataType = input.getAttribute('data-type');
             const yearIndex = input.getAttribute('data-year');
-            const value = parseEditedValue(input.value);
+            const isAmount = input.getAttribute('data-is-amount') === 'true';
+            let value = parseFloat(input.value);
 
-            if (!dataType || !yearIndex) return;
+            if (!dataType || !yearIndex || isNaN(value)) return;
+
+            // 金額系は億円→円に変換
+            if (isAmount) {
+                value = value * 1e8;
+            }
 
             // 財務データとCFデータを分類
             const financialTypes = ['revenue', 'op_income', 'ordinary_income', 'net_income', 'eps', 'dps', 'payout_ratio'];

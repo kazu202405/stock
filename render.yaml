@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: stock-analyzer
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.4"
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Database (SQLAlchemy用)
+      - key: DB_SERVER
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # App
+      - key: APP_SECRET_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      # OpenAI
+      - key: OPENAI_API_KEY
+        sync: false
+      # DIFY (オプション)
+      - key: DIFY_API_KEY
+        sync: false
