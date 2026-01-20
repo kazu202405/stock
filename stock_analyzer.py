@@ -85,6 +85,11 @@ class StockAnalyzer:
             "margin_trading_ratio": None,  # 信用倍率
             "margin_trading_buy": None,  # 信用買残
             "margin_trading_sell": None,  # 信用売残
+            "forecast_revenue": None,  # 今期予想売上高
+            "forecast_op_income": None,  # 今期予想営業利益
+            "forecast_ordinary_income": None,  # 今期予想経常利益
+            "forecast_net_income": None,  # 今期予想純利益
+            "forecast_year": None,  # 今期予想の決算期
             "business_summary": None,  # 事業概要（英語）
             "business_summary_jp": None,  # 事業概要（日本語）
             "major_shareholders_jp": [],  # 大株主（日本語）
@@ -128,7 +133,9 @@ class StockAnalyzer:
             # 信用倍率取得（日本株のみ）
             if symbol.endswith('.T'):
                 self._get_margin_trading_data(symbol, result)
-            
+                # 業績予想データ取得
+                self._get_forecast_data(symbol, result)
+
             # JSON保存
             output_file = os.path.join(self.output_dir, f"snapshot_{symbol.replace('.', '_')}.json")
             with open(output_file, 'w', encoding='utf-8') as f:
@@ -996,7 +1003,115 @@ class StockAnalyzer:
 
         except Exception as e:
             print(f"信用倍率データ取得エラー: {str(e)}")
-    
+
+    def _get_forecast_data(self, symbol: str, result: Dict[str, Any]):
+        """
+        Yahoo!ファイナンス日本版から業績予想データを取得
+
+        Args:
+            symbol: 銘柄コード（例: "7203.T"）
+            result: 結果を格納する辞書
+        """
+        try:
+            import json as json_module
+            import re
+
+            # .Tを除去して4桁コードを取得
+            code = symbol.replace('.T', '')
+
+            # Yahoo!ファイナンス日本版の業績ページURL
+            url = f"https://finance.yahoo.co.jp/quote/{code}.T/performance"
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+
+            response = requests.get(url, headers=headers, timeout=10)
+            response.encoding = 'utf-8'
+
+            if response.status_code == 200:
+                html = response.text
+
+                # JSONデータを抽出（ReactのpropsやstateとしてHTMLに埋め込まれている）
+                # "forecast":{"yearEndDate":"2025-12-31","netSales":35000000000,...}
+                forecast_pattern = r'"forecast"\s*:\s*\{[^}]+\}'
+                forecast_match = re.search(forecast_pattern, html)
+
+                if forecast_match:
+                    forecast_str = forecast_match.group(0)
+                    # "forecast": を除去してJSONパース可能な形に
+                    json_str = '{' + forecast_str + '}'
+
+                    try:
+                        data = json_module.loads(json_str)
+                        forecast = data.get('forecast', {})
+
+                        # 決算期
+                        year_end = forecast.get('yearEndDate')
+                        if year_end:
+                            result["forecast_year"] = year_end
+
+                        # 売上高（円→億円に変換）
+                        net_sales = forecast.get('netSales')
+                        if net_sales and isinstance(net_sales, (int, float)):
+                            result["forecast_revenue"] = net_sales / 1e8
+
+                        # 営業利益（円→億円に変換）
+                        op_income = forecast.get('operatingIncome')
+                        if op_income and isinstance(op_income, (int, float)):
+                            result["forecast_op_income"] = op_income / 1e8
+
+                        # 経常利益（円→億円に変換）
+                        ordinary_income = forecast.get('ordinaryIncome')
+                        if ordinary_income and isinstance(ordinary_income, (int, float)):
+                            result["forecast_ordinary_income"] = ordinary_income / 1e8
+
+                        # 純利益（円→億円に変換）
+                        net_profit = forecast.get('netProfit')
+                        if net_profit and isinstance(net_profit, (int, float)):
+                            result["forecast_net_income"] = net_profit / 1e8
+
+                        print(f"業績予想データ取得成功: 期={result.get('forecast_year')}, "
+                              f"売上={result.get('forecast_revenue')}億, "
+                              f"営利={result.get('forecast_op_income')}億")
+
+                    except json_module.JSONDecodeError as e:
+                        # シンプルな正規表現でフォールバック
+                        print(f"JSONパース失敗、正規表現でフォールバック: {e}")
+
+                        # netSales
+                        sales_match = re.search(r'"netSales"\s*:\s*(\d+)', html)
+                        if sales_match:
+                            result["forecast_revenue"] = int(sales_match.group(1)) / 1e8
+
+                        # operatingIncome
+                        op_match = re.search(r'"operatingIncome"\s*:\s*(\d+)', html)
+                        if op_match:
+                            result["forecast_op_income"] = int(op_match.group(1)) / 1e8
+
+                        # ordinaryIncome
+                        ordinary_match = re.search(r'"ordinaryIncome"\s*:\s*(\d+)', html)
+                        if ordinary_match:
+                            result["forecast_ordinary_income"] = int(ordinary_match.group(1)) / 1e8
+
+                        # netProfit
+                        profit_match = re.search(r'"netProfit"\s*:\s*(\d+)', html)
+                        if profit_match:
+                            result["forecast_net_income"] = int(profit_match.group(1)) / 1e8
+
+                        # yearEndDate
+                        year_match = re.search(r'"yearEndDate"\s*:\s*"([^"]+)"', html)
+                        if year_match:
+                            result["forecast_year"] = year_match.group(1)
+
+                        print(f"業績予想データ取得成功（フォールバック）: 売上={result.get('forecast_revenue')}億")
+
+                else:
+                    print("業績予想データが見つかりませんでした")
+
+        except Exception as e:
+            print(f"業績予想データ取得エラー: {str(e)}")
+
     def _get_business_summary(self, symbol: str, ticker: yf.Ticker, result: Dict[str, Any]):
         """
         会社概要・事業説明を取得

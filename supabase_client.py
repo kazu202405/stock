@@ -127,19 +127,21 @@ def get_watchlist_with_details() -> list:
 
 def calculate_match_rate(data: dict) -> int:
     """
-    財務指標の投資基準への合致度を計算（0-100%）
+    財務指標の投資基準への合致度を計算（0-120点）
 
-    yomu.md基準（10項目 × 10点 = 100点満点）:
+    yomu.md基準（12項目 × 10点 = 120点満点）:
     1. 時価総額 <= 700億円
     2. 自己資本比率 >= 30%
     3. 売上高増減率(2期前→前期) > 0%
-    4. 売上高営業利益率 >= 10%
-    5. 営業利益増減率(2期前→前期) > 0%
-    6. 営業CF前期 > 0億円
-    7. フリーCF前期 > 0億円
-    8. ROA(前期) > 4.5%
-    9. PER(来期) < 40倍
-    10. PBR < 10倍
+    4. 売上高増減率(前期→今期予) > 0%  ★NEW
+    5. 売上高営業利益率 >= 10%
+    6. 営業利益増減率(2期前→前期) > 0%
+    7. 営業利益増減率(前期→今期予) > 0%  ★NEW
+    8. 営業CF前期 > 0億円
+    9. フリーCF前期 > 0億円
+    10. ROA(前期) > 4.5%
+    11. PER(来期) < 40倍
+    12. PBR < 10倍
     """
     import json
 
@@ -193,25 +195,51 @@ def calculate_match_rate(data: dict) -> int:
                     if growth_rate > 0:
                         score += 10
 
-    # 4. 売上高営業利益率 >= 10%（10点）
+    # 4. 売上高増減率(前期→今期予) > 0%（10点）★NEW
+    forecast_revenue = data.get('forecast_revenue')
+    if forecast_revenue and financial_history:
+        revenue_list = financial_history.get('revenue', [])
+        if revenue_list:
+            sorted_rev = sorted(revenue_list, key=lambda x: x.get('date', ''), reverse=True)
+            if sorted_rev:
+                last_revenue = sorted_rev[0].get('value')
+                if last_revenue and last_revenue > 0:
+                    growth_rate = ((forecast_revenue - last_revenue) / last_revenue) * 100
+                    if growth_rate > 0:
+                        score += 10
+
+    # 7. 営業利益増減率(前期→今期予) > 0%（10点）★NEW
+    forecast_op_income = data.get('forecast_op_income')
+    if forecast_op_income and financial_history:
+        op_income_list = financial_history.get('op_income', [])
+        if op_income_list:
+            sorted_op = sorted(op_income_list, key=lambda x: x.get('date', ''), reverse=True)
+            if sorted_op:
+                last_op_income = sorted_op[0].get('value')
+                if last_op_income and last_op_income > 0:
+                    growth_rate = ((forecast_op_income - last_op_income) / last_op_income) * 100
+                    if growth_rate > 0:
+                        score += 10
+
+    # 5. 売上高営業利益率 >= 10%（10点）
     operating_margin = data.get('operating_margin')
     if operating_margin is not None:
         if operating_margin >= 10:
             score += 10
 
-    # 6. 営業CF前期 > 0億円（10点）
+    # 8. 営業CF前期 > 0億円（10点）
     operating_cf = data.get('operating_cf')
     if operating_cf is not None:
         if operating_cf > 0:
             score += 10
 
-    # 7. フリーCF前期 > 0億円（10点）
+    # 9. フリーCF前期 > 0億円（10点）
     free_cf = data.get('free_cf')
     if free_cf is not None:
         if free_cf > 0:
             score += 10
 
-    # 8. ROA(前期) > 4.5%（10点）
+    # 10. ROA(前期) > 4.5%（10点）
     # roaはcf_historyに格納されている場合がある
     roa = data.get('roa')
     if roa is None:
@@ -230,13 +258,13 @@ def calculate_match_rate(data: dict) -> int:
         if roa > 4.5:
             score += 10
 
-    # 9. PER(来期) < 40倍（10点）
+    # 11. PER(来期) < 40倍（10点）
     per = data.get('per_forward')
     if per is not None and per > 0:
         if per < 40:
             score += 10
 
-    # 10. PBR < 10倍（10点）
+    # 12. PBR < 10倍（10点）
     pbr = data.get('pbr')
     if pbr is not None and pbr > 0:
         if pbr < 10:

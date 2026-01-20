@@ -873,7 +873,7 @@
                 <div class="score-header">合致度</div>
                 <div class="score-main">
                     <div class="score-value" id="score-value">--</div>
-                    <div class="score-label">/ 100</div>
+                    <div class="score-label">/ 120</div>
                 </div>
                 <div class="score-details" id="score-details">
                     <div class="score-item">
@@ -885,16 +885,24 @@
                         <span class="score-item-status" id="score-equity-ratio">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">売上成長率 >0%</span>
+                        <span class="score-item-label">売上成長(実績)</span>
                         <span class="score-item-status" id="score-revenue-growth">--</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-item-label">売上成長(予想)</span>
+                        <span class="score-item-status" id="score-revenue-forecast">--</span>
                     </div>
                     <div class="score-item">
                         <span class="score-item-label">営業利益率 ≥10%</span>
                         <span class="score-item-status" id="score-op-margin">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">営業利益成長 >0%</span>
+                        <span class="score-item-label">営利成長(実績)</span>
                         <span class="score-item-status" id="score-op-growth">--</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-item-label">営利成長(予想)</span>
+                        <span class="score-item-status" id="score-op-forecast">--</span>
                     </div>
                     <div class="score-item">
                         <span class="score-item-label">営業CF >0</span>
@@ -2372,7 +2380,7 @@
         const equityRatio = data.equity_ratio;
         updateScoreItem('score-equity-ratio', equityRatio !== null && equityRatio >= 30, equityRatio ? `${equityRatio.toFixed(1)}%` : null);
 
-        // 3. 売上成長率 > 0% (前期 vs 2期前)
+        // 3. 売上成長率(実績) > 0% (前期 vs 2期前)
         let revenueGrowth = null;
         let revenueGrowthPass = false;
         const financialHistory = parseJsonField(data.financial_history);
@@ -2385,11 +2393,24 @@
         }
         updateScoreItem('score-revenue-growth', revenueGrowthPass, revenueGrowth !== null ? `${revenueGrowth.toFixed(1)}%` : null);
 
-        // 4. 営業利益率 >= 10%
+        // 4. 売上成長率(予想) > 0% (前期 vs 今期予想)
+        let revenueForecastGrowth = null;
+        let revenueForecastPass = false;
+        const forecastRevenue = data.forecast_revenue;
+        if (forecastRevenue && financialHistory && financialHistory.revenue && financialHistory.revenue.length >= 1) {
+            const sorted = [...financialHistory.revenue].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            if (sorted[0].value && sorted[0].value > 0) {
+                revenueForecastGrowth = ((forecastRevenue - sorted[0].value) / sorted[0].value) * 100;
+                revenueForecastPass = revenueForecastGrowth > 0;
+            }
+        }
+        updateScoreItem('score-revenue-forecast', revenueForecastPass, revenueForecastGrowth !== null ? `${revenueForecastGrowth.toFixed(1)}%` : null);
+
+        // 5. 営業利益率 >= 10%
         const opMargin = data.operating_margin;
         updateScoreItem('score-op-margin', opMargin !== null && opMargin >= 10, opMargin ? `${opMargin.toFixed(1)}%` : null);
 
-        // 5. 営業利益成長率 > 0%
+        // 6. 営業利益成長率(実績) > 0%
         let opGrowth = null;
         let opGrowthPass = false;
         if (financialHistory && financialHistory.op_income && financialHistory.op_income.length >= 2) {
@@ -2400,6 +2421,19 @@
             }
         }
         updateScoreItem('score-op-growth', opGrowthPass, opGrowth !== null ? `${opGrowth.toFixed(1)}%` : null);
+
+        // 7. 営業利益成長率(予想) > 0% (前期 vs 今期予想)
+        let opForecastGrowth = null;
+        let opForecastPass = false;
+        const forecastOpIncome = data.forecast_op_income;
+        if (forecastOpIncome && financialHistory && financialHistory.op_income && financialHistory.op_income.length >= 1) {
+            const sorted = [...financialHistory.op_income].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            if (sorted[0].value && sorted[0].value > 0) {
+                opForecastGrowth = ((forecastOpIncome - sorted[0].value) / sorted[0].value) * 100;
+                opForecastPass = opForecastGrowth > 0;
+            }
+        }
+        updateScoreItem('score-op-forecast', opForecastPass, opForecastGrowth !== null ? `${opForecastGrowth.toFixed(1)}%` : null);
 
         // 6. 営業CF > 0
         const operatingCf = data.operating_cf;

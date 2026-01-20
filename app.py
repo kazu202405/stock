@@ -187,6 +187,13 @@ def api_add_to_watchlist():
                 'margin_trading_buy': stock_data.get('margin_trading_buy'),
                 'margin_trading_sell': stock_data.get('margin_trading_sell'),
 
+                # 業績予想（Yahoo Finance Japan）
+                'forecast_revenue': stock_data.get('forecast_revenue'),
+                'forecast_op_income': stock_data.get('forecast_op_income'),
+                'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
+                'forecast_net_income': stock_data.get('forecast_net_income'),
+                'forecast_year': stock_data.get('forecast_year'),
+
                 # 事業概要
                 'business_summary': stock_data.get('business_summary'),
                 'business_summary_jp': stock_data.get('business_summary_jp'),
