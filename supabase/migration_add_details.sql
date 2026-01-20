@@ -31,3 +31,7 @@ ALTER TABLE screened_latest ADD COLUMN IF NOT EXISTS margin_trading_sell BIGINT;
 -- 年度別財務データ（JSONB形式で柔軟に保存）
 ALTER TABLE screened_latest ADD COLUMN IF NOT EXISTS financial_history JSONB;
 ALTER TABLE screened_latest ADD COLUMN IF NOT EXISTS cf_history JSONB;
+
+
+  ALTER TABLE screened_latest
+  ADD COLUMN IF NOT EXISTS major_shareholders_jp JSONB;

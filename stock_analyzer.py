@@ -93,6 +93,7 @@ class StockAnalyzer:
             "business_summary": None,  # 事業概要（英語）
             "business_summary_jp": None,  # 事業概要（日本語）
             "major_shareholders_jp": [],  # 大株主（日本語）
+            "price_history": [],  # 株価履歴（OHLC）
             "trend": None,
             "chart_png": None,
             "source": "Yahoo Finance (yfinance/yahooquery)",
@@ -835,7 +836,23 @@ class StockAnalyzer:
             else:
                 print(f"トレンド計算: データ点不足 ({len(x)}点)")
                 result["trend"] = None
-                
+
+            # OHLCデータを結果に格納（Lightweight Charts用）
+            price_history = []
+            for idx, row in hist.iterrows():
+                # Lightweight Chartsはtime（UNIX秒）を期待
+                timestamp = int(idx.timestamp())
+                price_history.append({
+                    "time": timestamp,
+                    "open": float(row['Open']) if pd.notna(row['Open']) else None,
+                    "high": float(row['High']) if pd.notna(row['High']) else None,
+                    "low": float(row['Low']) if pd.notna(row['Low']) else None,
+                    "close": float(row['Close']) if pd.notna(row['Close']) else None,
+                    "volume": int(row['Volume']) if pd.notna(row.get('Volume', None)) else None
+                })
+            result["price_history"] = price_history
+            print(f"株価履歴データ: {len(price_history)}件")
+
             # チャート作成
             fig, ax = plt.subplots(figsize=(12, 6))
             

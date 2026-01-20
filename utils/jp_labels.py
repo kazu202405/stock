@@ -26,6 +26,8 @@ def fetch_jp_labels(symbol: str):
         h1 = soup.find("h1")
         if h1:
             name_jp = h1.get_text(" ", strip=True)
+            # 「の株価・株式情報」「株価・株式情報」を除去
+            name_jp = re.sub(r'の?株価・株式情報$', '', name_jp).strip()
 
         # 業種（「業種：建設業」などのテキストを横断抽出）
         industry_jp = None

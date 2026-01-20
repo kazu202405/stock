@@ -129,6 +129,13 @@
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--primary-color);
+        margin-bottom: 2px;
+    }
+
+    .stock-price-display {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
         margin-bottom: 5px;
     }
 
@@ -522,6 +529,37 @@
         text-align: center;
         padding: 40px;
         color: var(--text-secondary);
+    }
+
+    .loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border-color);
+        border-top: 4px solid var(--accent-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+        font-size: 0.95rem;
+    }
+
+    .loading-subtext {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        opacity: 0.7;
     }
 
     .results-area {
@@ -945,7 +983,11 @@
 
     <!-- ローディング -->
     <div class="loading" id="loading">
-        データを取得中...（目安：10～20秒程度）
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-text">データを取得中...</div>
+            <div class="loading-subtext">目安：10～20秒程度</div>
+        </div>
     </div>
 
     <!-- 結果エリア -->
@@ -955,6 +997,7 @@
             <!-- 左側: サマリー情報 -->
             <div class="summary-card">
                 <div class="company-name">トヨタ自動車</div>
+                <div class="stock-price-display" id="stock-price-display">¥2,850</div>
                 <div class="company-code">銘柄コード: 7203 | 自動車製造業</div>
                 
                 <div class="key-metrics">
@@ -1234,7 +1277,7 @@
         </div>
 
         <!-- 詳細情報セクション - 3カラム（財務健全性・主要株主・役員構成） -->
-        <div class="details-section" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+        <div class="details-section" style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 20px;">
 
             <!-- 財務健全性 -->
             <div class="detail-card">
@@ -1310,45 +1353,96 @@
     </div>
 </div>
 
-<script src="https://s3.tradingview.com/tv.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-    // TradingViewチャートを表示する関数
-    function showTradingViewChart(symbol) {
+    // グローバル変数でチャートインスタンスを保持
+    let priceChart = null;
+    let candlestickSeries = null;
+    let volumeSeries = null;
+
+    // ローソク足チャートを表示する関数
+    function showCandlestickChart(priceHistory) {
         const container = document.getElementById('tradingview-chart-container');
         if (!container) return;
-
-        // TradingView用のシンボルに変換
-        // 日本株（.T付き）→ TSE:xxxx
-        // 米国株 → そのまま or NASDAQ/NYSE
-        let tvSymbol = symbol;
-        if (symbol.endsWith('.T')) {
-            const code = symbol.replace('.T', '');
-            tvSymbol = `TSE:${code}`;
-        } else if (/^[A-Z]+$/.test(symbol)) {
-            // 米国株はそのまま（TradingViewが自動判別）
-            tvSymbol = symbol;
-        }
 
         // コンテナをクリア
         container.innerHTML = '';
 
-        // TradingViewウィジェットを作成
-        new TradingView.widget({
-            "autosize": true,
-            "symbol": tvSymbol,
-            "interval": "D",
-            "timezone": "Asia/Tokyo",
-            "theme": "light",
-            "style": "1",
-            "locale": "ja",
-            "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false,
-            "hide_top_toolbar": false,
-            "hide_legend": false,
-            "save_image": false,
-            "container_id": "tradingview-chart-container",
-            "height": 300
+        // データがない場合
+        if (!priceHistory || priceHistory.length === 0) {
+            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#666;">株価データがありません</div>';
+            return;
+        }
+
+        // 既存のチャートを破棄
+        if (priceChart) {
+            priceChart.remove();
+            priceChart = null;
+        }
+
+        // チャートを作成
+        priceChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#333333',
+            },
+            grid: {
+                vertLines: { color: '#e1e1e1' },
+                horzLines: { color: '#e1e1e1' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: '#cccccc',
+            },
+            timeScale: {
+                borderColor: '#cccccc',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+            localization: {
+                locale: 'ja-JP',
+                dateFormat: 'yyyy/MM/dd',
+            },
         });
+
+        // ローソク足シリーズを追加
+        candlestickSeries = priceChart.addCandlestickSeries({
+            upColor: '#ef5350',      // 陽線（日本式：赤）
+            downColor: '#26a69a',    // 陰線（日本式：緑/青）
+            borderUpColor: '#ef5350',
+            borderDownColor: '#26a69a',
+            wickUpColor: '#ef5350',
+            wickDownColor: '#26a69a',
+        });
+
+        // データをフィルタリング（nullを除去）
+        const validData = priceHistory.filter(d =>
+            d.open !== null && d.high !== null && d.low !== null && d.close !== null
+        );
+
+        // データをセット
+        candlestickSeries.setData(validData);
+
+        // チャートを全データにフィット
+        priceChart.timeScale().fitContent();
+
+        // リサイズ対応
+        const resizeObserver = new ResizeObserver(entries => {
+            if (priceChart) {
+                const { width } = entries[0].contentRect;
+                priceChart.applyOptions({ width: width });
+            }
+        });
+        resizeObserver.observe(container);
+    }
+
+    // TradingViewからの互換性のためのラッパー
+    function showTradingViewChart(symbol) {
+        console.log('showTradingViewChart called with symbol:', symbol);
     }
 
     async function analyzeStock() {
@@ -1383,10 +1477,20 @@
                 updateResults(data);
                 document.getElementById('resultsArea').classList.add('active');
             } else {
-                alert(`エラー: ${data.error || '分析に失敗しました'}`);
+                // タイムアウトエラーの場合
+                if (data.timeout || response.status === 504) {
+                    alert(`⏱️ タイムアウト\n\nデータ取得に時間がかかりすぎました。\nYahoo Financeの応答が遅い可能性があります。\n\n→ 少し時間をおいて再度「抽出」をお試しください。`);
+                } else {
+                    alert(`エラー: ${data.error || '分析に失敗しました'}`);
+                }
             }
         } catch (error) {
-            alert(`通信エラー: ${error.message}`);
+            // ネットワークエラーやタイムアウト
+            if (error.name === 'AbortError' || error.message.includes('timeout')) {
+                alert(`⏱️ 通信タイムアウト\n\n接続に時間がかかりすぎました。\n\n→ 少し時間をおいて再度「抽出」をお試しください。`);
+            } else {
+                alert(`通信エラー: ${error.message}`);
+            }
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
@@ -1405,6 +1509,15 @@
         if (companyNameElement) {
             const displayName = data.name_jp || data.name || data.symbol;
             companyNameElement.textContent = displayName;
+        }
+
+        // 株価表示
+        const stockPriceDisplay = document.getElementById('stock-price-display');
+        if (stockPriceDisplay && data.last_price) {
+            const currency = data.currency === 'JPY' ? '¥' : '$';
+            stockPriceDisplay.textContent = `${currency}${formatNumber(data.last_price)}`;
+        } else if (stockPriceDisplay) {
+            stockPriceDisplay.textContent = '---';
         }
 
         // 銘柄コードと業種（日本語優先表示）
@@ -1468,9 +1581,9 @@
         // 会社概要・事業説明を更新
         updateBusinessSummary(data);
 
-        // TradingViewチャート表示
-        if (data.symbol) {
-            showTradingViewChart(data.symbol);
+        // ローソク足チャート表示
+        if (data.price_history && data.price_history.length > 0) {
+            showCandlestickChart(data.price_history);
         }
 
         // 株価情報
@@ -1479,6 +1592,141 @@
             const currency = data.currency === 'JPY' ? '¥' : '$';
             chartTitle.textContent = `株価推移（現在値: ${currency}${formatNumber(data.last_price)}）`;
         }
+
+        // 合致度スコアカードを更新（抽出データをSupabase形式に変換）
+        const scoreData = convertToScoreFormat(data);
+        updateScoreCard(scoreData);
+    }
+
+    // 抽出データをスコアカード用形式に変換
+    function convertToScoreFormat(data) {
+        // 配列から最新値を取得するヘルパー
+        function getLatestValue(arr) {
+            if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
+            const sorted = [...arr].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            return sorted[0]?.value ?? null;
+        }
+
+        // 時価総額を億円に変換
+        const marketCapOku = data.market_cap ? data.market_cap / 1e8 : null;
+
+        // 営業CFを億円に変換
+        const opCfRaw = getLatestValue(data.operating_cf);
+        const operatingCf = opCfRaw ? opCfRaw / 1e8 : null;
+
+        // 投資CFを億円に変換
+        const invCfRaw = getLatestValue(data.investing_cf);
+        const investingCf = invCfRaw ? invCfRaw / 1e8 : null;
+
+        // フリーCF計算
+        const freeCf = (operatingCf !== null && investingCf !== null) ? operatingCf + investingCf : null;
+
+        // ROA最新値
+        const roa = getLatestValue(data.roa);
+
+        // 自己資本比率
+        const equityRatio = data.equity_ratio_pct ?? data.equity_ratio ?? getLatestValue(data.equity_ratio_list);
+
+        // 営業利益率
+        const operatingMargin = data.op_margin_pct ?? data.operating_margin;
+
+        // PER/PBR
+        const per = data.per;
+        const pbr = data.pbr;
+
+        // 業績予想
+        const forecastRevenue = data.forecast_revenue;
+        const forecastOpIncome = data.forecast_op_income;
+
+        // 売上・営業利益の配列
+        const revenueList = data.revenue || [];
+        const opIncomeList = data.op_income || [];
+
+        // 合致度スコア計算（12項目 × 10点 = 120点満点）
+        let score = 0;
+
+        // 1. 時価総額 <= 700億円
+        if (marketCapOku !== null && marketCapOku <= 700) score += 10;
+
+        // 2. 自己資本比率 >= 30%
+        if (equityRatio !== null && equityRatio >= 30) score += 10;
+
+        // 3. 売上成長率(実績) > 0%
+        if (revenueList.length >= 2) {
+            const sorted = [...revenueList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            if (sorted[0]?.value && sorted[1]?.value && sorted[1].value > 0) {
+                const growth = ((sorted[0].value - sorted[1].value) / sorted[1].value) * 100;
+                if (growth > 0) score += 10;
+            }
+        }
+
+        // 4. 売上成長率(予想) > 0%
+        if (forecastRevenue && revenueList.length >= 1) {
+            const sorted = [...revenueList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            const lastRevenue = sorted[0]?.value ? sorted[0].value / 1e8 : null;
+            if (lastRevenue && lastRevenue > 0) {
+                const growth = ((forecastRevenue - lastRevenue) / lastRevenue) * 100;
+                if (growth > 0) score += 10;
+            }
+        }
+
+        // 5. 営業利益率 >= 10%
+        if (operatingMargin !== null && operatingMargin >= 10) score += 10;
+
+        // 6. 営業利益成長率(実績) > 0%
+        if (opIncomeList.length >= 2) {
+            const sorted = [...opIncomeList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            if (sorted[0]?.value && sorted[1]?.value && sorted[1].value > 0) {
+                const growth = ((sorted[0].value - sorted[1].value) / sorted[1].value) * 100;
+                if (growth > 0) score += 10;
+            }
+        }
+
+        // 7. 営業利益成長率(予想) > 0%
+        if (forecastOpIncome && opIncomeList.length >= 1) {
+            const sorted = [...opIncomeList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            const lastOpIncome = sorted[0]?.value ? sorted[0].value / 1e8 : null;
+            if (lastOpIncome && lastOpIncome > 0) {
+                const growth = ((forecastOpIncome - lastOpIncome) / lastOpIncome) * 100;
+                if (growth > 0) score += 10;
+            }
+        }
+
+        // 8. 営業CF > 0
+        if (operatingCf !== null && operatingCf > 0) score += 10;
+
+        // 9. フリーCF > 0
+        if (freeCf !== null && freeCf > 0) score += 10;
+
+        // 10. ROA > 4.5%
+        if (roa !== null && roa > 4.5) score += 10;
+
+        // 11. PER < 40倍
+        if (per !== null && per > 0 && per < 40) score += 10;
+
+        // 12. PBR < 10倍
+        if (pbr !== null && pbr > 0 && pbr < 10) score += 10;
+
+        return {
+            match_rate: score,
+            market_cap: marketCapOku,
+            equity_ratio: equityRatio,
+            operating_margin: operatingMargin,
+            operating_cf: operatingCf,
+            free_cf: freeCf,
+            roa: roa,
+            per_forward: per,
+            pbr: pbr,
+            forecast_revenue: forecastRevenue,
+            forecast_op_income: forecastOpIncome,
+            financial_history: {
+                revenue: revenueList,
+                op_income: opIncomeList
+            },
+            cf_history: {
+                roa: data.roa || []
+            }
+        };
     }
 
     // 業種別のPER基準値マッピング
@@ -2445,8 +2693,12 @@
             displayCachedData(cachedData);
             document.getElementById('resultsArea').classList.add('active');
 
-            // TradingViewチャートを即座に表示
-            showTradingViewChart(code);
+            // チャートは株価履歴データが必要なのでloadFullAnalysis後に表示される
+            // 一時的にローディング表示
+            const chartContainer = document.getElementById('tradingview-chart-container');
+            if (chartContainer) {
+                chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#666;">チャートデータを読み込み中...</div>';
+            }
 
             // 登録ボタンを「データ更新」状態で表示
             const registerBtn = document.getElementById('registerBtn');
@@ -2485,6 +2737,14 @@
         const companyNameElement = document.querySelector('.company-name');
         if (companyNameElement) {
             companyNameElement.textContent = data.company_name || data.company_code;
+        }
+
+        // 株価表示
+        const stockPriceDisplay = document.getElementById('stock-price-display');
+        if (stockPriceDisplay && data.stock_price) {
+            stockPriceDisplay.textContent = `¥${formatNumber(data.stock_price)}`;
+        } else if (stockPriceDisplay) {
+            stockPriceDisplay.textContent = '---';
         }
 
         // 銘柄コードと業種
@@ -3066,10 +3326,20 @@
                     registerBtn.disabled = false;
                 }
             } else {
-                alert(`エラー: ${data.error || '分析に失敗しました'}`);
+                // タイムアウトエラーの場合
+                if (data.timeout || response.status === 504) {
+                    alert(`⏱️ タイムアウト\n\nデータ取得に時間がかかりすぎました。\nYahoo Financeの応答が遅い可能性があります。\n\n→ 少し時間をおいて再度「抽出」をお試しください。`);
+                } else {
+                    alert(`エラー: ${data.error || '分析に失敗しました'}`);
+                }
             }
         } catch (error) {
-            alert(`通信エラー: ${error.message}`);
+            // ネットワークエラーやタイムアウト
+            if (error.name === 'AbortError' || error.message.includes('timeout')) {
+                alert(`⏱️ 通信タイムアウト\n\n接続に時間がかかりすぎました。\n\n→ 少し時間をおいて再度「抽出」をお試しください。`);
+            } else {
+                alert(`通信エラー: ${error.message}`);
+            }
         } finally {
             document.getElementById('loading').style.display = 'none';
         }

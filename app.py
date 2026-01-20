@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from flask import jsonify, request
 from config import *
 # from models.login import *  # ログイン機能無効化
@@ -296,32 +297,49 @@ def api_update_watchlist():
 
 
 # 株式データAPI エンドポイント
+# タイムアウト設定（秒）
+ANALYZE_TIMEOUT = 60
+
 @app.route('/api/stock/analyze', methods=['POST'])
 def analyze_stock():
     """
     株式データを分析してJSON形式で返す
+    タイムアウト処理付き（60秒）
     """
     try:
         # リクエストデータ取得
         data = request.get_json()
         if not data or 'symbol' not in data:
             return jsonify({"error": "銘柄コードが指定されていません"}), 400
-            
+
         symbol = data['symbol']
-        period = data.get('period', '1y')  # ★ 追加（デフォは1年）
-        
+        period = data.get('period', '1y')
+
         # 銘柄コードの簡易バリデーション
         if not symbol or len(symbol) < 1:
             return jsonify({"error": "無効な銘柄コードです"}), 400
-            
-        # 分析実行
-        analyzer = StockAnalyzer()
-        result = analyzer.analyze(symbol, period=period)  # ★ 期間を渡す
-        
+
+        # タイムアウト付きで分析実行
+        def run_analysis():
+            analyzer = StockAnalyzer()
+            return analyzer.analyze(symbol, period=period)
+
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_analysis)
+                result = future.result(timeout=ANALYZE_TIMEOUT)
+        except FuturesTimeoutError:
+            print(f"タイムアウト: {symbol}の分析が{ANALYZE_TIMEOUT}秒を超えました")
+            return jsonify({
+                "error": f"データ取得がタイムアウトしました（{ANALYZE_TIMEOUT}秒）。時間をおいて再度お試しください。",
+                "symbol": symbol,
+                "timeout": True
+            }), 504
+
         # エラーチェック
         if result.get("error"):
             return jsonify({"error": result["error"]}), 500
-            
+
         # チャート画像をBase64エンコード（存在する場合）
         if result.get("chart_png") and os.path.exists(result["chart_png"]):
             try:
@@ -330,10 +348,11 @@ def analyze_stock():
                     result["chart_base64"] = f"data:image/png;base64,{chart_base64}"
             except:
                 pass
-                
+
         return jsonify(result), 200
-        
+
     except Exception as e:
+        print(f"分析エラー: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
