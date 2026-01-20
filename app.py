@@ -15,7 +15,8 @@ from stock_analyzer import StockAnalyzer, batch_analyze
 from supabase_client import (
     add_to_watchlist, remove_from_watchlist, get_watchlist,
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
-    update_screened_data
+    update_screened_data, upsert_screened_data_with_match_rate,
+    calculate_match_rate
 )
 
 
@@ -203,7 +204,8 @@ def api_add_to_watchlist():
                 'data_source': 'yfinance',
                 'data_status': 'fresh'
             }
-            upsert_screened_data(screened_data)
+            # 合致度を自動計算して保存
+            upsert_screened_data_with_match_rate(screened_data)
 
         return jsonify({"success": True, "company_code": company_code}), 200
     except Exception as e:
@@ -271,6 +273,12 @@ def api_update_watchlist():
             update_data['cf_history'] = json.dumps(edited_data['cf_history'], ensure_ascii=False)
 
         if update_data:
+            # 合致度を再計算するため、既存データを取得してマージ
+            from supabase_client import get_screened_data
+            existing_data = get_screened_data(company_code) or {}
+            merged_data = {**existing_data, **update_data}
+            update_data['match_rate'] = calculate_match_rate(merged_data)
+
             update_screened_data(company_code, update_data)
             return jsonify({"success": True, "company_code": company_code, "updated_fields": list(update_data.keys())}), 200
         else:

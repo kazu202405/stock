@@ -119,3 +119,137 @@ def get_watchlist_with_details() -> list:
         })
 
     return result
+
+
+# =============================================
+# 合致度計算関数（yomu.md基準）
+# =============================================
+
+def calculate_match_rate(data: dict) -> int:
+    """
+    財務指標の投資基準への合致度を計算（0-100%）
+
+    yomu.md基準（10項目 × 10点 = 100点満点）:
+    1. 時価総額 <= 700億円
+    2. 自己資本比率 >= 30%
+    3. 売上高増減率(2期前→前期) > 0%
+    4. 売上高営業利益率 >= 10%
+    5. 営業利益増減率(2期前→前期) > 0%
+    6. 営業CF前期 > 0億円
+    7. フリーCF前期 > 0億円
+    8. ROA(前期) > 4.5%
+    9. PER(来期) < 40倍
+    10. PBR < 10倍
+    """
+    import json
+
+    score = 0
+
+    # 1. 時価総額 <= 700億円（10点）
+    market_cap = data.get('market_cap')
+    if market_cap is not None:
+        if market_cap <= 700:
+            score += 10
+
+    # 2. 自己資本比率 >= 30%（10点）
+    equity_ratio = data.get('equity_ratio')
+    if equity_ratio is not None:
+        if equity_ratio >= 30:
+            score += 10
+
+    # 3. 売上高増減率(2期前→前期) > 0%（10点）
+    # 4. 売上高営業利益率 >= 10%（10点）
+    # 5. 営業利益増減率(2期前→前期) > 0%（10点）
+    financial_history = data.get('financial_history')
+    if financial_history:
+        if isinstance(financial_history, str):
+            try:
+                financial_history = json.loads(financial_history)
+            except:
+                financial_history = {}
+
+        # 売上高増減率(2期前→前期) > 0%
+        revenue_list = financial_history.get('revenue', [])
+        if len(revenue_list) >= 2:
+            sorted_revenue = sorted(revenue_list, key=lambda x: x.get('date', ''), reverse=True)
+            if len(sorted_revenue) >= 2:
+                # sorted_revenue[0] = 前期, sorted_revenue[1] = 2期前
+                current = sorted_revenue[0].get('value')
+                previous = sorted_revenue[1].get('value')
+                if current and previous and previous > 0:
+                    growth_rate = ((current - previous) / previous) * 100
+                    if growth_rate > 0:
+                        score += 10
+
+        # 営業利益増減率(2期前→前期) > 0%
+        op_income_list = financial_history.get('op_income', [])
+        if len(op_income_list) >= 2:
+            sorted_op = sorted(op_income_list, key=lambda x: x.get('date', ''), reverse=True)
+            if len(sorted_op) >= 2:
+                current = sorted_op[0].get('value')
+                previous = sorted_op[1].get('value')
+                if current and previous and previous > 0:
+                    growth_rate = ((current - previous) / previous) * 100
+                    if growth_rate > 0:
+                        score += 10
+
+    # 4. 売上高営業利益率 >= 10%（10点）
+    operating_margin = data.get('operating_margin')
+    if operating_margin is not None:
+        if operating_margin >= 10:
+            score += 10
+
+    # 6. 営業CF前期 > 0億円（10点）
+    operating_cf = data.get('operating_cf')
+    if operating_cf is not None:
+        if operating_cf > 0:
+            score += 10
+
+    # 7. フリーCF前期 > 0億円（10点）
+    free_cf = data.get('free_cf')
+    if free_cf is not None:
+        if free_cf > 0:
+            score += 10
+
+    # 8. ROA(前期) > 4.5%（10点）
+    # roaはcf_historyに格納されている場合がある
+    roa = data.get('roa')
+    if roa is None:
+        cf_history = data.get('cf_history')
+        if cf_history:
+            if isinstance(cf_history, str):
+                try:
+                    cf_history = json.loads(cf_history)
+                except:
+                    cf_history = {}
+            roa_list = cf_history.get('roa', [])
+            if roa_list and len(roa_list) > 0:
+                sorted_roa = sorted(roa_list, key=lambda x: x.get('date', ''), reverse=True)
+                roa = sorted_roa[0].get('value')
+    if roa is not None:
+        if roa > 4.5:
+            score += 10
+
+    # 9. PER(来期) < 40倍（10点）
+    per = data.get('per_forward')
+    if per is not None and per > 0:
+        if per < 40:
+            score += 10
+
+    # 10. PBR < 10倍（10点）
+    pbr = data.get('pbr')
+    if pbr is not None and pbr > 0:
+        if pbr < 10:
+            score += 10
+
+    return score
+
+
+def upsert_screened_data_with_match_rate(data: dict) -> dict:
+    """screened_latestにデータを登録/更新（合致度を自動計算）"""
+    # 合致度を計算して追加
+    data['match_rate'] = calculate_match_rate(data)
+
+    client = get_supabase_client()
+    result = client.table('screened_latest').upsert(data).execute()
+    return result.data
