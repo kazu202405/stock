@@ -6,8 +6,8 @@ from models.model import *
 
 @app.route('/')
 def index():
-    """トップページ"""
-    return render_template('index.html')
+    """トップページ（閲覧専用）"""
+    return render_template('stock.html', is_admin=False)
 
 
 @app.route('/screener')
@@ -30,5 +30,5 @@ def community():
 
 @app.route('/admin')
 def admin():
-    """管理画面"""
-    return render_template('admin.html')
+    """管理画面（編集可能）"""
+    return render_template('stock.html', is_admin=True)

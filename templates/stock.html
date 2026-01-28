@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}管理画面 - 企業情報抽出アプリ{% endblock %}
+{% block title %}{% if is_admin %}管理画面 - {% endif %}企業情報抽出アプリ{% endblock %}
 
 {% block content %}
 <style>
@@ -948,7 +948,9 @@
         <div class="watchlist-header">
             <span class="watchlist-title">条件合致企業</span>
             <div style="display: flex; align-items: center; gap: 10px;">
+                {% if is_admin %}
                 <button class="bulk-register-btn" onclick="openBulkRegisterModal()">一括登録</button>
+                {% endif %}
                 <span class="watchlist-count" id="watchlistCount">0件</span>
             </div>
         </div>
@@ -960,6 +962,7 @@
         </div>
     </div>
 
+    {% if is_admin %}
     <!-- 一括登録モーダル -->
     <div class="modal-overlay" id="bulkRegisterModal" style="display: none;">
         <div class="modal-content">
@@ -980,6 +983,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- ローディング -->
     <div class="loading" id="loading">
@@ -1345,16 +1349,21 @@
             </div>
         </div>
 
+        {% if is_admin %}
         <!-- 保存セクション -->
         <div class="save-section" id="saveSection">
             <p class="edit-hint">💡 表示されている値は直接編集できます。編集後は下のボタンで保存してください。</p>
             <button class="save-button" onclick="saveEditedData()">変更を保存</button>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
+    // 管理者モードフラグ
+    const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
     // グローバル変数でチャートインスタンスを保持
     let priceChart = null;
     let candlestickSeries = null;
@@ -2547,6 +2556,16 @@
     // ページ読み込み時にウォッチリストを取得
     document.addEventListener('DOMContentLoaded', function() {
         loadWatchlist();
+
+        // 管理者モードでない場合、編集機能を無効化
+        if (!IS_ADMIN) {
+            // 編集可能なセルをreadonlyに
+            document.querySelectorAll('.editable-cell, .editable-field').forEach(el => {
+                el.readOnly = true;
+                el.style.cursor = 'default';
+                el.style.pointerEvents = 'none';
+            });
+        }
     });
 
     // ウォッチリストを読み込んで表示
@@ -3445,8 +3464,9 @@
         showSaveSection();
     }
 
-    // 保存セクションを表示
+    // 保存セクションを表示（管理者モードのみ）
     function showSaveSection() {
+        if (!IS_ADMIN) return;
         const saveSection = document.getElementById('saveSection');
         if (saveSection) {
             saveSection.classList.add('active');
