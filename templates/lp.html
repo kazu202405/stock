@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業情報抽出アプリ - 業績データで、確かな判断を</title>
+    <title>企業情報抽出アプリ - 業績データを、わかりやすく</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
@@ -169,12 +169,120 @@
 
         /* カードホバー */
         .lp-card {
-            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
         .lp-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.12);
+        }
+
+        /* Valueカード: カラーバーのアニメーション */
+        .value-card .value-bar {
+            transition: height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .value-card:hover .value-bar {
+            height: 6px;
+        }
+
+        /* Valueカード: アイコン背景のアニメーション */
+        .value-card .value-icon {
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.5s ease;
+        }
+
+        .value-card:hover .value-icon {
+            transform: scale(1.1) rotate(-3deg);
+            background: linear-gradient(135deg, rgba(27,67,50,0.15), rgba(45,106,79,0.25));
+        }
+
+        /* Valueカード: 背景番号のアニメーション */
+        .value-card .value-num {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .value-card:hover .value-num {
+            opacity: 1;
+            transform: scale(1.05);
+            color: rgba(27,67,50,0.08);
+        }
+
+        /* Value背景: 曲線アニメーション */
+        .value-wave-1 {
+            animation: waveFlow1 12s ease-in-out infinite alternate;
+        }
+        .value-wave-2 {
+            animation: waveFlow2 16s ease-in-out infinite alternate;
+        }
+        .value-wave-3 {
+            animation: waveFlow3 14s ease-in-out infinite alternate;
+        }
+
+        @keyframes waveFlow1 {
+            0%   { d: path("M-100,300 C200,100 400,500 700,250 S1100,400 1300,200"); }
+            100% { d: path("M-100,250 C250,400 350,150 650,350 S1050,100 1300,300"); }
+        }
+        @keyframes waveFlow2 {
+            0%   { d: path("M-100,400 C150,200 500,450 800,300 S1000,150 1300,350"); }
+            100% { d: path("M-100,350 C200,450 450,200 750,400 S1050,250 1300,200"); }
+        }
+        @keyframes waveFlow3 {
+            0%   { d: path("M-100,200 C300,350 600,100 900,350 S1100,250 1300,300"); }
+            100% { d: path("M-100,300 C250,150 550,350 850,150 S1050,350 1300,250"); }
+        }
+
+        /* Value背景: 光点の浮遊 */
+        .value-glow-1 { animation: glowFloat1 8s ease-in-out infinite alternate; }
+        .value-glow-2 { animation: glowFloat2 10s ease-in-out infinite alternate; }
+        .value-glow-3 { animation: glowFloat3 12s ease-in-out infinite alternate; }
+
+        @keyframes glowFloat1 {
+            0%   { transform: translate(0, 0) scale(1); opacity: 0.3; }
+            100% { transform: translate(40px, -30px) scale(1.5); opacity: 0.6; }
+        }
+        @keyframes glowFloat2 {
+            0%   { transform: translate(0, 0) scale(1); opacity: 0.25; }
+            100% { transform: translate(-30px, 20px) scale(1.8); opacity: 0.5; }
+        }
+        @keyframes glowFloat3 {
+            0%   { transform: translate(0, 0) scale(1); opacity: 0.2; }
+            100% { transform: translate(25px, -40px) scale(1.3); opacity: 0.45; }
+        }
+
+        /* 12項目カード: ホバー効果 */
+        .criteria-card {
+            position: relative;
+            border-left: 3px solid transparent;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        box-shadow 0.4s ease,
+                        border-left-color 0.4s ease;
+        }
+
+        .criteria-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 16px 48px rgba(27, 67, 50, 0.08);
+            border-left-color: var(--lp-accent);
+        }
+
+        .criteria-card:hover .w-8 {
+            transform: scale(1.1);
+            transition: transform 0.3s ease;
+        }
+
+        /* Valueカード: グロー効果 */
+        .value-card::after {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(27,67,50,0.2), rgba(82,183,136,0.15));
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: -1;
+        }
+
+        .value-card:hover::after {
+            opacity: 1;
         }
 
         /* CTAボタン */
@@ -228,6 +336,32 @@
             height: 8px;
             border-radius: 50%;
             background: #d1d5db;
+        }
+
+        /* UIモック 3D効果 */
+        .ui-mock-3d {
+            perspective: 800px;
+        }
+
+        .ui-mock-3d .ui-mock {
+            transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.6s ease;
+            transform: rotateY(-2deg) rotateX(1deg);
+            box-shadow: 8px 12px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        .ui-mock-3d:hover .ui-mock {
+            transform: rotateY(0deg) rotateX(0deg) translateY(-4px);
+            box-shadow: 0 20px 60px rgba(27, 67, 50, 0.12);
+        }
+
+        /* UIモック内の指標: ホバーでハイライト */
+        .service-metric {
+            transition: background 0.3s ease, transform 0.3s ease;
+        }
+
+        .ui-mock-3d:hover .service-metric {
+            background: rgba(27, 67, 50, 0.06) !important;
+            transform: scale(1.03);
         }
 
         /* LPヘッダー */
@@ -305,6 +439,123 @@
             box-shadow: 0 4px 12px rgba(27, 67, 50, 0.2);
         }
 
+        /* プロセス: リング脈動 */
+        .process-ring {
+            animation: processRingPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes processRingPulse {
+            0%, 100% { transform: scale(1); opacity: 0.3; }
+            50% { transform: scale(1.08); opacity: 0.6; }
+        }
+
+        /* プロセス: スピナー回転 */
+        .process-spinner {
+            animation: processSpin 8s linear infinite;
+            transform-origin: 16px 16px;
+        }
+
+        @keyframes processSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* プロセスステップ: ホバー */
+        .process-step .process-circle {
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        background 0.5s ease,
+                        border-color 0.5s ease;
+        }
+
+        .process-step:hover .process-circle {
+            transform: translateY(-4px);
+            background: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.25);
+        }
+
+        .process-step:hover .process-ring {
+            animation-duration: 1.5s;
+            border-color: rgba(82,183,136,0.5);
+        }
+
+        /* おすすめカード */
+        .foryou-card {
+            position: relative;
+            overflow: hidden;
+            border-left: 4px solid transparent;
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        box-shadow 0.5s ease,
+                        border-left-color 0.4s ease;
+        }
+
+        .foryou-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 50px rgba(27, 67, 50, 0.1);
+            border-left-color: var(--lp-accent);
+        }
+
+        .foryou-card .foryou-icon {
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        background 0.4s ease;
+        }
+
+        .foryou-card:hover .foryou-icon {
+            transform: scale(1.1) rotate(-5deg);
+            background: linear-gradient(135deg, rgba(27,67,50,0.15), rgba(45,106,79,0.25));
+        }
+
+        .foryou-card .foryou-num {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .foryou-card:hover .foryou-num {
+            opacity: 0.08;
+            transform: scale(1.05) translateY(-2px);
+        }
+
+        /* CTA: 浮遊する丸 */
+        .cta-float-1 { animation: ctaFloat1 20s ease-in-out infinite alternate; }
+        .cta-float-2 { animation: ctaFloat2 26s ease-in-out infinite alternate; }
+        .cta-float-3 { animation: ctaFloat3 22s ease-in-out infinite alternate; }
+        .cta-float-4 { animation: ctaFloat4 28s ease-in-out infinite alternate; }
+
+        @keyframes ctaFloat1 {
+            0%   { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-35px, 25px) scale(1.08); }
+        }
+        @keyframes ctaFloat2 {
+            0%   { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(25px, -35px) scale(1.1); }
+        }
+        @keyframes ctaFloat3 {
+            0%   { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-20px, -25px) scale(0.92); }
+        }
+        @keyframes ctaFloat4 {
+            0%   { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 20px) scale(1.06); }
+        }
+
+        /* CTA: リングの脈動 */
+        .cta-ring {
+            animation: ctaRingPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes ctaRingPulse {
+            0%, 100% { transform: scale(1); opacity: 0.06; }
+            50% { transform: scale(1.06); opacity: 0.1; }
+        }
+
+        /* CTA: ボタングロー */
+        .cta-glow {
+            animation: ctaGlowPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes ctaGlowPulse {
+            0%, 100% { opacity: 0.15; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.25; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
         /* レスポンシブ */
         @media (max-width: 768px) {
             .hero-title { font-size: 2rem !important; }
@@ -353,12 +604,12 @@
         <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
             <div class="accent-line mx-auto mb-8 opacity-0" id="hero-line"></div>
             <h1 class="hero-title text-4xl md:text-6xl lg:text-7xl font-light leading-tight tracking-tight mb-8 opacity-0" id="hero-title">
-                業績データで、<br>
-                <span class="font-medium" style="color: var(--lp-accent);">確かな判断</span>を。
+                業績データを、<br>
+                <span class="font-medium" style="color: var(--lp-accent);">わかりやすく</span>。
             </h1>
             <p class="hero-subtitle text-lg md:text-xl font-light leading-relaxed opacity-0" id="hero-subtitle" style="color: var(--lp-muted); max-width: 600px; margin: 0 auto;">
-                財務指標を自動で収集・分析し、<br class="hidden md:block">
-                業績好調企業の発見をサポートします。
+                散在する財務指標を自動で収集・整理し、<br class="hidden md:block">
+                一画面でまとめてご覧いただけます。
             </p>
         </div>
 
@@ -380,93 +631,382 @@
         </svg>
     </div>
 
-    <!-- ========== 2. コンセプト説明 ========== -->
-    <section class="py-24 md:py-32 bg-white">
-        <div class="max-w-4xl mx-auto px-6">
-            <div class="section-fade">
-                <div class="accent-line mb-6"></div>
+    <!-- ========== 2. コンセプト + 12項目 ========== -->
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(160deg, #f0f5f1 0%, #ffffff 30%, #f7f9f7 60%, #eef3ef 100%);">
+        <!-- 曲線・弧の装飾: 右上 -->
+        <svg class="absolute -top-10 -right-10 md:top-0 md:right-0" width="400" height="350" viewBox="0 0 400 350" fill="none" style="opacity: 0.07;">
+            <path d="M400,0 Q300,80 350,200 T250,350" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+            <path d="M380,0 Q260,100 320,220 T200,350" stroke="#2d6a4f" stroke-width="0.8" fill="none"/>
+            <path d="M360,0 Q220,120 290,240 T150,350" stroke="#1b4332" stroke-width="0.5" fill="none"/>
+        </svg>
+        <!-- 斜線・弧の装飾: 左下 -->
+        <svg class="absolute -bottom-10 -left-10 md:bottom-0 md:left-0" width="350" height="300" viewBox="0 0 350 300" fill="none" style="opacity: 0.07;">
+            <path d="M0,300 Q100,200 50,100 T120,0" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+            <path d="M20,300 Q140,180 80,80 T180,0" stroke="#2d6a4f" stroke-width="0.8" fill="none"/>
+            <path d="M0,250 C80,220 40,120 100,50" stroke="#1b4332" stroke-width="0.5" fill="none"/>
+            <line x1="60" y1="300" x2="200" y2="100" stroke="#1b4332" stroke-width="0.4" stroke-dasharray="8,6"/>
+            <line x1="80" y1="300" x2="220" y2="100" stroke="#2d6a4f" stroke-width="0.3" stroke-dasharray="4,8"/>
+        </svg>
+        <!-- 背景装飾: 中盤の曲線（12項目エリア用） -->
+        <svg class="absolute bottom-0 right-0 w-full" viewBox="0 0 1200 800" preserveAspectRatio="none" fill="none" style="opacity: 0.04;">
+            <path d="M1200,0 Q900,200 1000,400 T800,800" stroke="#1b4332" stroke-width="2"/>
+            <path d="M0,800 Q300,600 200,400 T400,0" stroke="#2d6a4f" stroke-width="1.5"/>
+        </svg>
+
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+
+            <!-- ===== Part 1: コンセプト ===== -->
+            <div class="section-fade text-center mb-16">
+                <div class="accent-line mx-auto mb-6"></div>
                 <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Concept</p>
-                <h2 class="text-2xl md:text-4xl font-light leading-relaxed mb-12">
-                    投資判断に必要なのは、<br>
-                    <span class="font-medium">正確なデータと冷静な分析</span>です。
+                <h2 class="text-2xl md:text-4xl font-light leading-relaxed">
+                    気になる企業、<br>
+                    <span class="font-medium">一社ずつ調べていませんか？</span>
                 </h2>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-12 md:gap-16">
-                <div class="section-fade">
-                    <p class="text-base leading-loose" style="color: var(--lp-muted);">
-                        株式投資において、企業の業績を正しく把握することは最も基本的でありながら、最も時間のかかる作業です。
-                        決算短信、有価証券報告書、各種財務指標 ── 一社あたりの分析に、どれほどの時間を費やしていますか。
+            <!-- Before / After カード -->
+            <div class="grid md:grid-cols-2 gap-6 md:gap-8 mb-12">
+                <!-- Before -->
+                <div class="section-fade rounded-xl p-8 border relative" style="border-color: var(--lp-border); background: #f5f5f3;">
+                    <div class="flex items-center gap-2 mb-5">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center" style="background: #e5e5e0;">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10L10 2M2 2L10 10" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <span class="text-xs font-medium tracking-wider uppercase" style="color: #9ca3af;">Before</span>
+                    </div>
+                    <p class="text-sm leading-loose" style="color: var(--lp-muted);">
+                        決算短信、有価証券報告書、株価サイト、IR資料……<br>
+                        一社の情報を集めるだけで、いくつものサイトを行き来。<br>
+                        <span class="font-medium" style="color: #6b7280;">時間がかかるうえに、見落としも起きがちです。</span>
                     </p>
                 </div>
-                <div class="section-fade">
-                    <p class="text-base leading-loose" style="color: var(--lp-muted);">
-                        私たちのアプリは、複数の公開データソースから財務情報を自動収集し、
-                        独自の合致度スコアで企業の財務健全性を可視化します。
-                        感覚ではなく、データに基づいた企業選定を可能にします。
+
+                <!-- After -->
+                <div class="section-fade rounded-xl p-8 border relative" style="border-color: rgba(27, 67, 50, 0.15); background: linear-gradient(135deg, rgba(27, 67, 50, 0.03), rgba(45, 106, 79, 0.06));">
+                    <div class="flex items-center gap-2 mb-5">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center" style="background: rgba(27, 67, 50, 0.1);">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 6L5 9L10 3" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <span class="text-xs font-medium tracking-wider uppercase" style="color: var(--lp-accent);">After</span>
+                    </div>
+                    <p class="text-sm leading-loose" style="color: var(--lp-muted);">
+                        このアプリでは、企業の状態を把握するうえで<br>
+                        特に大切な<span class="font-medium" style="color: var(--lp-accent);">12の確認項目</span>を自動で収集。<br>
+                        <span class="font-medium" style="color: var(--lp-accent);">条件への合致度とともに、一画面にまとめて表示します。</span>
                     </p>
                 </div>
+            </div>
+
+            <!-- 接続テキスト -->
+            <div class="section-fade text-center mb-4">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="mx-auto mb-4" style="opacity: 0.3;">
+                    <path d="M12 4V20M12 20L6 14M12 20L18 14" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+
+            <!-- ===== Part 2: 12の確認項目 ===== -->
+            <div class="text-center section-fade mb-8">
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">12 Criteria</p>
+                <h2 class="text-2xl md:text-3xl font-light mb-4">その12の確認項目とは</h2>
+                <p class="text-sm leading-relaxed mx-auto" style="color: var(--lp-muted); max-width: 560px;">
+                    企業の状態を多角的に把握するため、4つの観点から12の公開データを確認します。<br>
+                    専門的な指標も、ひとことで言えばシンプルです。
+                </p>
+            </div>
+
+            <!-- なぜこの12項目か -->
+            <div class="section-fade mb-12">
+                <div class="rounded-xl p-6 md:p-8 border relative overflow-hidden" style="border-color: rgba(27,67,50,0.15); background: linear-gradient(135deg, rgba(27,67,50,0.03), rgba(45,106,79,0.06));">
+                    <div class="absolute -top-6 -right-6 w-24 h-24 rounded-full" style="background: rgba(27,67,50,0.04);"></div>
+                    <div class="absolute -bottom-4 -left-4 w-16 h-16 rounded-full" style="background: rgba(45,106,79,0.03);"></div>
+                    <div class="flex items-start gap-4 relative z-10">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style="background: rgba(27,67,50,0.1);">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M10 2L12.5 7H18L13.5 10.5L15.5 16L10 12.5L4.5 16L6.5 10.5L2 7H7.5L10 2Z" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-medium mb-3" style="color: var(--lp-accent);">なぜこの12項目？</h3>
+                            <p class="text-sm leading-loose" style="color: var(--lp-muted);">
+                                企業の財務状態は、ひとつの数字だけでは把握できません。
+                                「借金は少ないか（安全性）」「しっかり稼いでいるか（収益性）」「売上や利益は伸びているか（成長性）」「株価は高すぎないか（割安性）」──
+                                この4つの観点をバランスよくカバーすることで、偏りのない情報確認が可能になります。
+                                いずれも決算短信や有価証券報告書などで公開されているデータに基づいています。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4カテゴリ -->
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- 安全性 -->
+                <div class="criteria-card section-fade bg-white rounded-xl p-6 border" style="border-color: var(--lp-border);">
+                    <div class="flex items-center gap-4 mb-6 pb-5" style="border-bottom: 1px solid var(--lp-border);">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9);">
+                            <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+                                <path d="M9 1L16 5V9C16 13 12.5 16.5 9 17.5C5.5 16.5 2 13 2 9V5L9 1Z" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold" style="color: var(--lp-accent);">倒産しにくく安全か</h3>
+                            <p class="text-xs mt-0.5" style="color: var(--lp-muted);">安全性</p>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">1</span>
+                            <div>
+                                <div class="text-sm font-medium">借金が少ないか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">自己資本比率</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">会社の資金のうち、返さなくていいお金の割合。高いほど経営が安定しています。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">2</span>
+                            <div>
+                                <div class="text-sm font-medium">実際にお金が入ってきているか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">営業キャッシュフロー</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">帳簿上の利益ではなく、本業で実際に手元に入ったお金。プラスなら健全です。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">3</span>
+                            <div>
+                                <div class="text-sm font-medium">自由に使えるお金があるか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">フリーキャッシュフロー</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">設備投資などを差し引いた後に残るお金。プラスなら余裕があります。</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 収益性 -->
+                <div class="criteria-card section-fade bg-white rounded-xl p-6 border" style="border-color: var(--lp-border);">
+                    <div class="flex items-center gap-4 mb-6 pb-5" style="border-bottom: 1px solid var(--lp-border);">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9);">
+                            <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+                                <circle cx="9" cy="9" r="7" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                                <path d="M9 5V9L12 11" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold" style="color: var(--lp-accent);">しっかり稼ぐ力があるか</h3>
+                            <p class="text-xs mt-0.5" style="color: var(--lp-muted);">収益性</p>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">4</span>
+                            <div>
+                                <div class="text-sm font-medium">本業で稼ぐ力</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">営業利益率</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">売上のうち、本業の活動で残る利益の割合。高いほど効率よく稼いでいます。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">5</span>
+                            <div>
+                                <div class="text-sm font-medium">資産を上手に使えているか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">ROA（総資産利益率）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">会社が持つ資産全体に対する利益の割合。少ない資産で多く稼げるほど優秀です。</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 成長性 -->
+                <div class="criteria-card section-fade bg-white rounded-xl p-6 border" style="border-color: var(--lp-border);">
+                    <div class="flex items-center gap-4 mb-6 pb-5" style="border-bottom: 1px solid var(--lp-border);">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9);">
+                            <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+                                <polyline points="2,14 6,9 10,11 16,4" stroke="#1b4332" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                <polyline points="12,4 16,4 16,8" stroke="#1b4332" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold" style="color: var(--lp-accent);">順調に成長している会社か</h3>
+                            <p class="text-xs mt-0.5" style="color: var(--lp-muted);">成長性</p>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">6</span>
+                            <div>
+                                <div class="text-sm font-medium">売上は伸びているか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">売上高増減率（実績）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">前年と比べて売上が増えているか。伸びていれば事業が拡大している証拠です。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">7</span>
+                            <div>
+                                <div class="text-sm font-medium">利益も伸びているか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">営業利益増減率（実績）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">売上だけでなく利益も増えているか。「売上は増えたけど赤字」を見抜けます。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">8</span>
+                            <div>
+                                <div class="text-sm font-medium">今期も売上が伸びる見込みか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">売上高増減率（予想）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">会社が公表している今期の売上予想が、前期より増えているか。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">9</span>
+                            <div>
+                                <div class="text-sm font-medium">今期も利益が伸びる見込みか</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">営業利益増減率（予想）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">会社が公表している今期の利益予想が、前期より増えているか。</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 割安性 -->
+                <div class="criteria-card section-fade bg-white rounded-xl p-6 border" style="border-color: var(--lp-border);">
+                    <div class="flex items-center gap-4 mb-6 pb-5" style="border-bottom: 1px solid var(--lp-border);">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9);">
+                            <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
+                                <rect x="2" y="6" width="14" height="8" rx="1.5" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                                <path d="M5 6V4.5C5 3.12 6.12 2 7.5 2H10.5C11.88 2 13 3.12 13 4.5V6" stroke="#1b4332" stroke-width="1.5"/>
+                                <circle cx="9" cy="10" r="1.5" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold" style="color: var(--lp-accent);">株価は高すぎないか</h3>
+                            <p class="text-xs mt-0.5" style="color: var(--lp-muted);">割安性</p>
+
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">10</span>
+                            <div>
+                                <div class="text-sm font-medium">会社の規模</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">時価総額</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">株価 × 発行株数で計算される会社全体の値段。規模感の把握に使います。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">11</span>
+                            <div>
+                                <div class="text-sm font-medium">利益に対して割安か</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">PER（株価収益率）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">株価が利益の何年分かを示す数字。低いほど利益に対して株価が割安とされます。</div>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 shrink-0" style="background: #e8f5e9; color: var(--lp-accent);">12</span>
+                            <div>
+                                <div class="text-sm font-medium">資産に対して割安か</div>
+                                <div class="text-xs mb-1" style="color: var(--lp-accent); opacity: 0.6;">PBR（株価純資産倍率）</div>
+                                <div class="text-xs leading-relaxed" style="color: var(--lp-muted);">株価が会社の純資産の何倍かを示す数字。低いほど資産に対して株価が割安とされます。</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 注記 -->
+            <div class="section-fade mt-8">
+                <p class="text-xs text-center leading-relaxed" style="color: var(--lp-muted);">
+                    ※ 上記はすべて公開情報に基づく数値の確認であり、特定の銘柄の推奨や売買の助言を行うものではありません。
+                </p>
             </div>
         </div>
     </section>
 
     <!-- ========== 3. 提供価値 ========== -->
-    <section class="py-24 md:py-32" style="background: var(--lp-bg);">
-        <div class="max-w-5xl mx-auto px-6">
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(160deg, #1b4332 0%, #0f2b1f 50%, #1a3a2e 100%);">
+        <!-- 背景装飾: グロー -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full" style="background: radial-gradient(ellipse, rgba(82,183,136,0.08), transparent 70%);"></div>
+        <div class="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full" style="background: radial-gradient(circle, rgba(45,106,79,0.12), transparent 60%);"></div>
+        <!-- 背景装飾: 流れる曲線 -->
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1200 600" preserveAspectRatio="none" fill="none" style="opacity: 0.1;">
+            <path d="M-100,300 C200,100 400,500 700,250 S1100,400 1300,200" stroke="#52b788" stroke-width="1" class="value-wave-1"/>
+            <path d="M-100,400 C150,200 500,450 800,300 S1000,150 1300,350" stroke="#95d5b2" stroke-width="0.6" class="value-wave-2"/>
+            <path d="M-100,200 C300,350 600,100 900,350 S1100,250 1300,300" stroke="#2d6a4f" stroke-width="0.8" class="value-wave-3"/>
+        </svg>
+        <!-- 背景装飾: 浮遊する光点 -->
+        <div class="value-glow-1 absolute w-3 h-3 rounded-full" style="background: rgba(82,183,136,0.3); top: 20%; left: 10%; filter: blur(2px);"></div>
+        <div class="value-glow-2 absolute w-2 h-2 rounded-full" style="background: rgba(149,213,178,0.25); top: 60%; right: 15%; filter: blur(2px);"></div>
+        <div class="value-glow-3 absolute w-4 h-4 rounded-full" style="background: rgba(45,106,79,0.2); bottom: 25%; left: 40%; filter: blur(3px);"></div>
+
+        <div class="max-w-5xl mx-auto px-6 relative z-10">
             <div class="text-center section-fade mb-16">
-                <div class="accent-line mx-auto mb-6"></div>
-                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Value</p>
-                <h2 class="text-2xl md:text-4xl font-light">三つの価値</h2>
+                <div class="w-10 h-0.5 mx-auto mb-6" style="background: rgba(255,255,255,0.3);"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: #52b788;">Value</p>
+                <h2 class="text-2xl md:text-4xl font-light text-white">三つの価値</h2>
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
-                <!-- カード1: データ分析 -->
-                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
-                    <div class="mb-6">
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                            <rect x="4" y="24" width="8" height="18" rx="2" fill="#2d6a4f" opacity="0.3"/>
-                            <rect x="16" y="16" width="8" height="26" rx="2" fill="#2d6a4f" opacity="0.5"/>
-                            <rect x="28" y="8" width="8" height="34" rx="2" fill="#2d6a4f" opacity="0.7"/>
-                            <rect x="40" y="4" width="4" height="38" rx="2" fill="#1b4332"/>
-                        </svg>
+                <!-- カード1: データ一元表示 -->
+                <div class="lp-card value-card section-fade bg-white rounded-xl overflow-hidden border relative" style="border-color: var(--lp-border);">
+                    <div class="value-bar h-1.5" style="background: linear-gradient(90deg, #1b4332, #2d6a4f);"></div>
+                    <div class="p-8 relative">
+                        <div class="value-num absolute top-4 right-6 text-6xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">01</div>
+                        <div class="value-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                <rect x="2" y="14" width="5" height="11" rx="1.5" fill="#2d6a4f" opacity="0.4"/>
+                                <rect x="9" y="10" width="5" height="15" rx="1.5" fill="#2d6a4f" opacity="0.6"/>
+                                <rect x="16" y="5" width="5" height="20" rx="1.5" fill="#2d6a4f" opacity="0.8"/>
+                                <rect x="23" y="2" width="3" height="23" rx="1.5" fill="#1b4332"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium mb-3">データの一元表示</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            「借金は少ないか」「本業でしっかり稼いでいるか」「株価は割高すぎないか」──
+                            こうした情報を12の指標で自動取得し、一画面にまとめて表示します。
+                        </p>
                     </div>
-                    <h3 class="text-lg font-medium mb-3">データに基づく判断</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        自己資本比率、営業利益率、PER、PBR、配当利回りなど、
-                        12の財務指標を自動取得。数値に基づいた企業評価を実現します。
-                    </p>
                 </div>
 
-                <!-- カード2: 時間効率 -->
-                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
-                    <div class="mb-6">
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                            <circle cx="24" cy="24" r="18" stroke="#1b4332" stroke-width="2" fill="none"/>
-                            <line x1="24" y1="14" x2="24" y2="24" stroke="#1b4332" stroke-width="2" stroke-linecap="round"/>
-                            <line x1="24" y1="24" x2="32" y2="28" stroke="#2d6a4f" stroke-width="2" stroke-linecap="round"/>
-                            <circle cx="24" cy="24" r="2" fill="#1b4332"/>
-                        </svg>
+                <!-- カード2: 時間短縮 -->
+                <div class="lp-card value-card section-fade bg-white rounded-xl overflow-hidden border relative" style="border-color: var(--lp-border);">
+                    <div class="value-bar h-1.5" style="background: linear-gradient(90deg, #2d6a4f, #52b788);"></div>
+                    <div class="p-8 relative">
+                        <div class="value-num absolute top-4 right-6 text-6xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">02</div>
+                        <div class="value-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                <circle cx="14" cy="14" r="11" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                                <line x1="14" y1="8" x2="14" y2="14" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round"/>
+                                <line x1="14" y1="14" x2="19" y2="17" stroke="#2d6a4f" stroke-width="1.5" stroke-linecap="round"/>
+                                <circle cx="14" cy="14" r="1.5" fill="#1b4332"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium mb-3">情報収集の時間を短縮</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            銘柄コードを入力するだけで、数秒で情報の収集・整理が完了。
+                            あちこちのサイトを巡回する手間がなくなります。
+                        </p>
                     </div>
-                    <h3 class="text-lg font-medium mb-3">圧倒的な時間効率</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        銘柄コードを入力するだけで、数秒で包括的な財務分析が完了。
-                        手作業で何時間もかかる情報収集を自動化します。
-                    </p>
                 </div>
 
-                <!-- カード3: 客観性 -->
-                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
-                    <div class="mb-6">
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                            <path d="M24 6L30 18H42L32 26L36 38L24 30L12 38L16 26L6 18H18L24 6Z" stroke="#1b4332" stroke-width="2" fill="none"/>
-                            <path d="M24 14L27 22H35L29 27L31 35L24 30L17 35L19 27L13 22H21L24 14Z" fill="#2d6a4f" opacity="0.2"/>
-                        </svg>
+                <!-- カード3: 合致度表示 -->
+                <div class="lp-card value-card section-fade bg-white rounded-xl overflow-hidden border relative" style="border-color: var(--lp-border);">
+                    <div class="value-bar h-1.5" style="background: linear-gradient(90deg, #52b788, #95d5b2);"></div>
+                    <div class="p-8 relative">
+                        <div class="value-num absolute top-4 right-6 text-6xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">03</div>
+                        <div class="value-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-6" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                <path d="M14 3L17.5 10.5H25L19 15.5L21 23L14 18.5L7 23L9 15.5L3 10.5H10.5L14 3Z" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                                <path d="M14 8L16 13H21L17 16L18.5 21L14 18L9.5 21L11 16L7 13H12L14 8Z" fill="#2d6a4f" opacity="0.15"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium mb-3">条件の合致度表示</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            「借金が少ないか」「売上は伸びているか」など12の項目について、
+                            あらかじめ設定された条件にどれだけ当てはまるかを120点満点で表示します。
+                        </p>
                     </div>
-                    <h3 class="text-lg font-medium mb-3">客観的な合致度</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        120点満点の独自スコアリングシステムで、投資基準への合致度を定量化。
-                        感情に左右されない、一貫した評価基準を提供します。
-                    </p>
                 </div>
             </div>
         </div>
@@ -480,174 +1020,209 @@
     </div>
 
     <!-- ========== 4. サービス内容 ========== -->
-    <section class="py-24 md:py-32 bg-white">
-        <div class="max-w-5xl mx-auto px-6">
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(180deg, #ffffff 0%, #f7faf8 50%, #f0f5f1 100%);">
+        <!-- 背景装飾: 淡い弧 -->
+        <svg class="absolute top-0 left-0 w-full h-full" viewBox="0 0 1200 600" preserveAspectRatio="none" fill="none" style="opacity: 0.04;">
+            <path d="M-200,500 Q300,200 600,400 T1400,250" stroke="#1b4332" stroke-width="2"/>
+            <path d="M-200,100 Q400,350 800,150 T1400,400" stroke="#2d6a4f" stroke-width="1.5"/>
+        </svg>
+
+        <div class="max-w-5xl mx-auto px-6 relative z-10">
             <div class="text-center section-fade mb-16">
                 <div class="accent-line mx-auto mb-6"></div>
                 <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Service</p>
                 <h2 class="text-2xl md:text-4xl font-light">主な機能</h2>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-12">
+            <div class="grid md:grid-cols-2 gap-12 md:gap-16 items-start">
                 <!-- 機能1: 財務分析 -->
-                <div class="section-fade">
-                    <div class="ui-mock mb-6">
-                        <div class="ui-mock-bar">
-                            <div class="ui-mock-dot"></div>
-                            <div class="ui-mock-dot"></div>
-                            <div class="ui-mock-dot"></div>
-                        </div>
-                        <div class="p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
-                                <span class="text-sm font-medium">財務分析レポート</span>
+                <div class="service-block-left">
+                    <div class="ui-mock-3d mb-8">
+                        <div class="ui-mock mb-0">
+                            <div class="ui-mock-bar">
+                                <div class="ui-mock-dot"></div>
+                                <div class="ui-mock-dot"></div>
+                                <div class="ui-mock-dot"></div>
                             </div>
-                            <div class="grid grid-cols-3 gap-3">
-                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
-                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">自己資本比率</div>
-                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">72.5%</div>
+                            <div class="p-6">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
+                                    <span class="text-sm font-medium">財務情報レポート</span>
                                 </div>
-                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
-                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">営業利益率</div>
-                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">24.3%</div>
-                                </div>
-                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
-                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">配当利回り</div>
-                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">3.1%</div>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div class="rounded-lg p-3 text-center service-metric" style="background: var(--lp-bg);">
+                                        <div class="text-xs mb-1" style="color: var(--lp-muted);">借金の少なさ</div>
+                                        <div class="text-lg font-semibold" style="color: var(--lp-accent);" data-target="72.5">0%</div>
+                                    </div>
+                                    <div class="rounded-lg p-3 text-center service-metric" style="background: var(--lp-bg);">
+                                        <div class="text-xs mb-1" style="color: var(--lp-muted);">稼ぐ力</div>
+                                        <div class="text-lg font-semibold" style="color: var(--lp-accent);" data-target="24.3">0%</div>
+                                    </div>
+                                    <div class="rounded-lg p-3 text-center service-metric" style="background: var(--lp-bg);">
+                                        <div class="text-xs mb-1" style="color: var(--lp-muted);">配当の多さ</div>
+                                        <div class="text-lg font-semibold" style="color: var(--lp-accent);" data-target="3.1">0%</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <h3 class="text-lg font-medium mb-2">包括的な財務分析</h3>
+                    <h3 class="text-lg font-medium mb-2">財務情報の一覧表示</h3>
                     <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        銘柄コードひとつで、自己資本比率・営業利益率・PER・PBR・配当利回り・時価総額など、
-                        主要な財務指標を一画面に集約して表示します。
+                        銘柄コードひとつで、借金の少なさ・本業で稼ぐ力・株価の割安さ・会社の規模など、
+                        主要な財務データを一画面にまとめて表示します。
                     </p>
                 </div>
 
                 <!-- 機能2: 合致度スコア -->
-                <div class="section-fade">
-                    <div class="ui-mock mb-6">
-                        <div class="ui-mock-bar">
-                            <div class="ui-mock-dot"></div>
-                            <div class="ui-mock-dot"></div>
-                            <div class="ui-mock-dot"></div>
-                        </div>
-                        <div class="p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
-                                <span class="text-sm font-medium">合致度スコア</span>
+                <div class="service-block-right">
+                    <div class="ui-mock-3d mb-8">
+                        <div class="ui-mock mb-0">
+                            <div class="ui-mock-bar">
+                                <div class="ui-mock-dot"></div>
+                                <div class="ui-mock-dot"></div>
+                                <div class="ui-mock-dot"></div>
                             </div>
-                            <div class="flex items-end gap-4 justify-center">
-                                <div class="text-center">
-                                    <div class="text-5xl font-light" style="color: var(--lp-accent);">92</div>
-                                    <div class="text-xs mt-1" style="color: var(--lp-muted);">/ 120</div>
+                            <div class="p-6">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
+                                    <span class="text-sm font-medium">合致度スコア</span>
                                 </div>
-                                <div class="flex gap-1 items-end pb-2">
-                                    <div class="w-3 rounded-t" style="height: 16px; background: #2d6a4f; opacity: 0.3;"></div>
-                                    <div class="w-3 rounded-t" style="height: 24px; background: #2d6a4f; opacity: 0.5;"></div>
-                                    <div class="w-3 rounded-t" style="height: 32px; background: #2d6a4f; opacity: 0.7;"></div>
-                                    <div class="w-3 rounded-t" style="height: 40px; background: #1b4332;"></div>
+                                <div class="flex items-end gap-4 justify-center">
+                                    <div class="text-center">
+                                        <div class="text-5xl font-light service-score" style="color: var(--lp-accent);" data-target="92">0</div>
+                                        <div class="text-xs mt-1" style="color: var(--lp-muted);">/ 120</div>
+                                    </div>
+                                    <div class="flex gap-1 items-end pb-2">
+                                        <div class="w-3 rounded-t score-bar" style="height: 0px; background: #2d6a4f; opacity: 0.3;" data-height="16"></div>
+                                        <div class="w-3 rounded-t score-bar" style="height: 0px; background: #2d6a4f; opacity: 0.5;" data-height="24"></div>
+                                        <div class="w-3 rounded-t score-bar" style="height: 0px; background: #2d6a4f; opacity: 0.7;" data-height="32"></div>
+                                        <div class="w-3 rounded-t score-bar" style="height: 0px; background: #1b4332;" data-height="40"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <h3 class="text-lg font-medium mb-2">独自の合致度スコア</h3>
+                    <h3 class="text-lg font-medium mb-2">合致度スコアの表示</h3>
                     <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        12の評価項目に基づく120点満点のスコアリング。
-                        時価総額、自己資本比率、営業利益率、ROA、PER、PBRなど、
-                        多角的な視点から企業を評価します。
+                        「安全性」「収益性」「成長性」「割安性」の4つの観点から、
+                        12項目の条件にどれだけ当てはまるかを120点満点で表示します。
                     </p>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- 波型ディバイダー（サービス → プロセス: 暗い背景への遷移） -->
+    <div class="wave-divider wave-divider-flip" style="background: linear-gradient(160deg, #1b4332 0%, #122e22 50%, #1a3a2e 100%);">
+        <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
+            <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z" fill="#f0f5f1"/>
+        </svg>
+    </div>
+
     <!-- ========== 5. プロセス ========== -->
-    <section class="py-24 md:py-32" style="background: var(--lp-bg);">
-        <div class="max-w-3xl mx-auto px-6">
-            <div class="text-center section-fade mb-16">
-                <div class="accent-line mx-auto mb-6"></div>
-                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Process</p>
-                <h2 class="text-2xl md:text-4xl font-light">使い方は、とてもシンプル</h2>
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(160deg, #1b4332 0%, #122e22 50%, #1a3a2e 100%);">
+        <!-- 背景装飾 -->
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1200 600" preserveAspectRatio="none" fill="none" style="opacity: 0.06;">
+            <path d="M-100,500 Q400,200 800,400 T1300,200" stroke="#52b788" stroke-width="1.5"/>
+            <path d="M-100,100 Q500,350 900,150 T1300,400" stroke="#95d5b2" stroke-width="1"/>
+        </svg>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full" style="background: radial-gradient(circle, rgba(82,183,136,0.06), transparent 60%);"></div>
+
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+            <div class="text-center section-fade mb-20">
+                <div class="w-10 h-0.5 mx-auto mb-6" style="background: rgba(255,255,255,0.3);"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: #52b788;">Process</p>
+                <h2 class="text-2xl md:text-4xl font-light text-white">使い方は、とてもシンプル</h2>
             </div>
 
-            <div class="relative">
-                <!-- タイムライン中央線 -->
-                <div class="timeline-line hidden md:block"></div>
+            <!-- ステップカード 横並び -->
+            <div class="grid md:grid-cols-3 gap-8 md:gap-6 relative">
+                <!-- 接続線（PC） -->
+                <svg class="absolute top-12 left-0 w-full hidden md:block" height="2" style="opacity: 0.15; z-index: 0;">
+                    <line x1="16.5%" y1="1" x2="83.5%" y2="1" stroke="white" stroke-width="1" stroke-dasharray="6,4" class="process-line"/>
+                </svg>
 
                 <!-- ステップ1 -->
-                <div class="section-fade relative flex flex-col md:flex-row items-center gap-6 md:gap-12 mb-16">
-                    <div class="md:w-1/2 md:text-right">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">1</span>
-                        </div>
-                        <h3 class="text-lg font-medium mb-2">銘柄コードを入力</h3>
-                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                            4桁の証券コードを入力するだけ。企業名での検索にも対応しています。
-                        </p>
-                    </div>
-                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
-                    <div class="hidden md:flex md:w-1/2 items-center">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">1</span>
+                <div class="process-step text-center relative z-10">
+                    <div class="process-circle inline-flex items-center justify-center w-24 h-24 rounded-full mb-6 relative" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);">
+                        <div class="process-ring absolute inset-0 rounded-full" style="border: 2px solid rgba(82,183,136,0.3);"></div>
+                        <div class="relative">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                <rect x="6" y="8" width="20" height="16" rx="2" stroke="white" stroke-width="1.5" fill="none"/>
+                                <line x1="6" y1="13" x2="26" y2="13" stroke="white" stroke-width="1" opacity="0.4"/>
+                                <rect x="9" y="16" width="8" height="2" rx="1" fill="white" opacity="0.5"/>
+                                <rect x="9" y="20" width="5" height="1.5" rx="0.75" fill="white" opacity="0.3"/>
+                            </svg>
                         </div>
                     </div>
+                    <div class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-medium mb-4" style="background: #52b788; color: white;">1</div>
+                    <h3 class="text-base font-medium text-white mb-2">銘柄コードを入力</h3>
+                    <p class="text-sm leading-relaxed" style="color: rgba(255,255,255,0.55);">
+                        4桁の証券コードを入力するだけ。<br>企業名での検索にも対応。
+                    </p>
                 </div>
 
                 <!-- ステップ2 -->
-                <div class="section-fade relative flex flex-col md:flex-row-reverse items-center gap-6 md:gap-12 mb-16">
-                    <div class="md:w-1/2 md:text-left">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">2</span>
-                        </div>
-                        <h3 class="text-lg font-medium mb-2">自動で分析開始</h3>
-                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                            Yahoo ファイナンス等の公開データソースから、財務情報・株価・事業概要を自動収集。
-                            数秒で分析が完了します。
-                        </p>
-                    </div>
-                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
-                    <div class="hidden md:flex md:w-1/2 justify-end items-center">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">2</span>
+                <div class="process-step text-center relative z-10">
+                    <div class="process-circle inline-flex items-center justify-center w-24 h-24 rounded-full mb-6 relative" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);">
+                        <div class="process-ring absolute inset-0 rounded-full" style="border: 2px solid rgba(82,183,136,0.3);"></div>
+                        <div class="relative">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                <circle cx="16" cy="16" r="10" stroke="white" stroke-width="1.5" fill="none"/>
+                                <path d="M16 10V16L20 19" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+                                <circle cx="16" cy="16" r="1.5" fill="white" opacity="0.5"/>
+                                <!-- 回転するダッシュ -->
+                                <circle cx="16" cy="16" r="13" stroke="white" stroke-width="0.75" fill="none" stroke-dasharray="4,8" opacity="0.3" class="process-spinner"/>
+                            </svg>
                         </div>
                     </div>
+                    <div class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-medium mb-4" style="background: #52b788; color: white;">2</div>
+                    <h3 class="text-base font-medium text-white mb-2">自動で情報を収集</h3>
+                    <p class="text-sm leading-relaxed" style="color: rgba(255,255,255,0.55);">
+                        公開データを自動収集し、<br>数秒で情報の整理が完了。
+                    </p>
                 </div>
 
                 <!-- ステップ3 -->
-                <div class="section-fade relative flex flex-col md:flex-row items-center gap-6 md:gap-12">
-                    <div class="md:w-1/2 md:text-right">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">3</span>
-                        </div>
-                        <h3 class="text-lg font-medium mb-2">結果を確認・比較</h3>
-                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                            合致度スコア、財務チャート、事業概要を一画面で確認。
-                            気になる企業はお気に入りに登録して、いつでも比較できます。
-                        </p>
-                    </div>
-                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
-                    <div class="hidden md:flex md:w-1/2 items-center">
-                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
-                            <span class="text-lg font-light">3</span>
+                <div class="process-step text-center relative z-10">
+                    <div class="process-circle inline-flex items-center justify-center w-24 h-24 rounded-full mb-6 relative" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);">
+                        <div class="process-ring absolute inset-0 rounded-full" style="border: 2px solid rgba(82,183,136,0.3);"></div>
+                        <div class="relative">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                <path d="M11 16L14.5 19.5L21.5 12.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="16" cy="16" r="11" stroke="white" stroke-width="1.5" fill="none" opacity="0.8"/>
+                            </svg>
                         </div>
                     </div>
+                    <div class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-medium mb-4" style="background: #52b788; color: white;">3</div>
+                    <h3 class="text-base font-medium text-white mb-2">情報を確認・保存</h3>
+                    <p class="text-sm leading-relaxed" style="color: rgba(255,255,255,0.55);">
+                        財務データや合致度を一画面で確認。<br>お気に入りに登録して見返せる。
+                    </p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- 波型ディバイダー -->
-    <div class="wave-divider">
+    <!-- 波型ディバイダー（プロセス → おすすめ: 暗い背景からの遷移） -->
+    <div class="wave-divider" style="background: linear-gradient(160deg, #1b4332 0%, #122e22 50%, #1a3a2e 100%);">
         <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
             <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z" fill="white"/>
         </svg>
     </div>
 
     <!-- ========== 6. こんな方におすすめ ========== -->
-    <section class="py-24 md:py-32 bg-white">
-        <div class="max-w-5xl mx-auto px-6">
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(180deg, #ffffff 0%, #f7faf8 40%, #f0f5f1 100%);">
+        <!-- 背景装飾: 曲線 -->
+        <svg class="absolute top-0 left-0 w-full h-full" viewBox="0 0 1200 600" preserveAspectRatio="none" fill="none" style="opacity: 0.04;">
+            <path d="M-200,100 Q200,400 600,200 T1400,350" stroke="#1b4332" stroke-width="2"/>
+            <path d="M-200,450 Q400,150 800,350 T1400,200" stroke="#2d6a4f" stroke-width="1.5"/>
+        </svg>
+        <!-- 背景装飾: 淡いグロー -->
+        <div class="absolute top-1/3 right-0 w-[400px] h-[400px] rounded-full" style="background: radial-gradient(circle, rgba(27,67,50,0.03), transparent 60%);"></div>
+        <div class="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full" style="background: radial-gradient(circle, rgba(45,106,79,0.03), transparent 60%);"></div>
+
+        <div class="max-w-5xl mx-auto px-6 relative z-10">
             <div class="text-center section-fade mb-16">
                 <div class="accent-line mx-auto mb-6"></div>
                 <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">For You</p>
@@ -655,30 +1230,58 @@
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
-                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
-                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">01</div>
-                    <h3 class="text-lg font-medium mb-3">個人投資家の方</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        限られた時間の中で効率よく銘柄分析をしたい。
-                        感覚的な判断ではなく、データに裏付けされた投資判断をしたい方。
+                <!-- カード1: 情報収集を効率化 -->
+                <div class="foryou-card bg-white rounded-xl p-8 border relative" style="border-color: var(--lp-border);">
+                    <div class="foryou-num absolute top-4 right-6 text-7xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">01</div>
+                    <div class="foryou-icon w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="9" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                            <line x1="12" y1="7" x2="12" y2="12" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="12" y1="12" x2="16" y2="14.5" stroke="#2d6a4f" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="12" cy="12" r="1.2" fill="#1b4332"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3 relative z-10">情報収集を効率化したい方</h3>
+                    <p class="text-sm leading-relaxed relative z-10" style="color: var(--lp-muted);">
+                        限られた時間の中で、企業の財務情報を効率よく確認したい。
+                        複数のサイトを巡回する手間を省きたい方。
                     </p>
                 </div>
 
-                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
-                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">02</div>
-                    <h3 class="text-lg font-medium mb-3">投資初心者の方</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                <!-- カード2: 財務データを学びたい -->
+                <div class="foryou-card bg-white rounded-xl p-8 border relative" style="border-color: var(--lp-border);">
+                    <div class="foryou-num absolute top-4 right-6 text-7xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">02</div>
+                    <div class="foryou-icon w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M4 19V5C4 3.9 4.9 3 6 3H18C19.1 3 20 3.9 20 5V19" stroke="#1b4332" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                            <path d="M4 19H20" stroke="#1b4332" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="8" y1="8" x2="16" y2="8" stroke="#2d6a4f" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+                            <line x1="8" y1="11.5" x2="14" y2="11.5" stroke="#2d6a4f" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+                            <line x1="8" y1="15" x2="12" y2="15" stroke="#2d6a4f" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3 relative z-10">財務データを学びたい方</h3>
+                    <p class="text-sm leading-relaxed relative z-10" style="color: var(--lp-muted);">
                         財務諸表の見方がよくわからない。
-                        どの指標が重要なのか、わかりやすく整理された情報で学びたい方。
+                        各指標がどのような意味を持つのか、整理された情報で理解を深めたい方。
                     </p>
                 </div>
 
-                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
-                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">03</div>
-                    <h3 class="text-lg font-medium mb-3">長期投資志向の方</h3>
-                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
-                        短期の値動きではなく、企業の本質的な価値を重視。
-                        業績の安定性や成長性を軸に銘柄を選びたい方。
+                <!-- カード3: 業績を把握したい -->
+                <div class="foryou-card bg-white rounded-xl p-8 border relative" style="border-color: var(--lp-border);">
+                    <div class="foryou-num absolute top-4 right-6 text-7xl font-bold leading-none" style="color: rgba(27,67,50,0.04);">03</div>
+                    <div class="foryou-icon w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background: linear-gradient(135deg, rgba(27,67,50,0.08), rgba(45,106,79,0.15));">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="13" width="4" height="8" rx="1" fill="#2d6a4f" opacity="0.3"/>
+                            <rect x="10" y="9" width="4" height="12" rx="1" fill="#2d6a4f" opacity="0.5"/>
+                            <rect x="17" y="4" width="4" height="17" rx="1" fill="#1b4332" opacity="0.7"/>
+                            <polyline points="3,10 8,6 14,8 21,3" stroke="#1b4332" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3 relative z-10">企業の業績を把握したい方</h3>
+                    <p class="text-sm leading-relaxed relative z-10" style="color: var(--lp-muted);">
+                        企業の財務状況や業績推移をデータで確認したい。
+                        公開情報をまとめて閲覧し、企業理解に役立てたい方。
                     </p>
                 </div>
             </div>
@@ -686,30 +1289,54 @@
     </section>
 
     <!-- ========== 7. CTA ========== -->
-    <section class="py-24 md:py-32 relative overflow-hidden" style="background: var(--lp-accent);">
-        <!-- 装飾用blob -->
-        <div class="absolute top-0 right-0 opacity-10">
-            <svg width="400" height="400" viewBox="0 0 400 400">
-                <circle cx="300" cy="100" r="200" fill="white"/>
-            </svg>
-        </div>
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: linear-gradient(160deg, #1b4332 0%, #163b2b 40%, #122e22 70%, #1a3a2e 100%);">
+
+        <!-- 丸: 右上（大） -->
+        <div class="cta-float-1 absolute -top-16 -right-16 w-[320px] h-[320px] rounded-full" style="background: radial-gradient(circle, rgba(255,255,255,0.08), rgba(255,255,255,0.02) 70%, transparent);"></div>
+
+        <!-- 丸: 左下（中） -->
+        <div class="cta-float-2 absolute -bottom-10 -left-10 w-[200px] h-[200px] rounded-full" style="background: radial-gradient(circle, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 70%, transparent);"></div>
+
+        <!-- 丸: 左上（小） -->
+        <div class="cta-float-3 absolute top-12 left-[15%] w-[80px] h-[80px] rounded-full" style="background: radial-gradient(circle, rgba(82,183,136,0.12), transparent 70%);"></div>
+
+        <!-- 丸: 右下（小） -->
+        <div class="cta-float-4 absolute bottom-16 right-[12%] w-[60px] h-[60px] rounded-full" style="background: radial-gradient(circle, rgba(149,213,178,0.1), transparent 70%);"></div>
+
+        <!-- リング: 右上（大きな丸の輪郭） -->
+        <div class="cta-ring absolute -top-8 -right-8 w-[280px] h-[280px] rounded-full" style="border: 1px solid rgba(255,255,255,0.06);"></div>
+
+        <!-- リング: 左下 -->
+        <div class="cta-ring absolute -bottom-6 -left-6 w-[160px] h-[160px] rounded-full" style="border: 1px solid rgba(255,255,255,0.05); animation-delay: 1s;"></div>
+
+        <!-- リング: 中央やや上 -->
+        <div class="cta-ring absolute top-[20%] left-[40%] w-[120px] h-[120px] rounded-full" style="border: 1px solid rgba(82,183,136,0.06); animation-delay: 2s;"></div>
 
         <div class="relative z-10 max-w-3xl mx-auto px-6 text-center">
             <div class="section-fade">
-                <div class="w-10 h-0.5 bg-white opacity-40 mx-auto mb-8"></div>
+                <div class="w-10 h-0.5 mx-auto mb-8" style="background: rgba(255,255,255,0.3);"></div>
                 <h2 class="text-2xl md:text-4xl font-light text-white mb-6">
-                    まずは一社、<br>分析してみませんか。
+                    まずは一社、<br>調べてみませんか。
                 </h2>
-                <p class="text-base text-white opacity-70 mb-10 leading-relaxed">
+                <p class="text-base text-white opacity-70 mb-12 leading-relaxed">
                     登録不要・無料でご利用いただけます。<br>
-                    銘柄コードを入力するだけで、すぐに分析が始まります。
+                    銘柄コードを入力するだけで、すぐに情報を確認できます。
                 </p>
-                <a href="/dashboard" class="cta-btn inline-flex items-center gap-3 px-10 py-4 bg-white rounded-full text-base font-medium transition-all" style="color: var(--lp-accent);">
-                    分析を始める
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </a>
+
+                <!-- ボタン + グロー -->
+                <div class="relative inline-block">
+                    <div class="cta-glow absolute top-1/2 left-1/2 w-[200px] h-[200px] rounded-full" style="background: radial-gradient(circle, rgba(255,255,255,0.2), transparent 70%); transform: translate(-50%, -50%); pointer-events: none;"></div>
+                    <a href="/dashboard" class="cta-btn relative inline-flex items-center gap-3 px-10 py-4 bg-white rounded-full text-base font-medium transition-all" style="color: var(--lp-accent);">
+                        使ってみる
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                </div>
+
+                <p class="text-xs text-white opacity-40 mt-8">
+                    ※ 本サービスは投資助言・投資勧誘を目的としたものではありません
+                </p>
             </div>
         </div>
     </section>
@@ -722,8 +1349,9 @@
                     企業情報抽出アプリ
                 </div>
                 <div class="text-xs leading-relaxed text-center md:text-right" style="color: var(--lp-muted);">
-                    本サービスは投資助言・投資勧誘を目的としたものではありません。<br>
-                    投資に関する最終的な判断は、ご自身の責任にてお願いいたします。
+                    本サービスは公開情報の収集・整理を行う情報閲覧ツールであり、<br>
+                    投資助言、投資勧誘、または特定の金融商品の推奨を目的としたものではありません。<br>
+                    掲載情報の正確性・完全性を保証するものではなく、投資に関する最終的な判断は、ご自身の責任にてお願いいたします。
                 </div>
             </div>
         </div>
@@ -785,6 +1413,204 @@
                 },
                 delay: i % 3 * 0.1
             });
+        });
+
+        // 12項目カード: スタガーイン + 番号バッジポップ
+        gsap.utils.toArray('.criteria-card').forEach((card, i) => {
+            gsap.fromTo(card, {
+                opacity: 0,
+                y: 40,
+                scale: 0.97
+            }, {
+                opacity: 1, y: 0, scale: 1,
+                duration: 0.7, ease: 'power3.out',
+                scrollTrigger: { trigger: card, start: 'top 85%', toggleActions: 'play none none none' },
+                delay: i * 0.12
+            });
+
+            // 番号バッジのポップイン
+            const badges = card.querySelectorAll('.rounded-full');
+            badges.forEach((badge, j) => {
+                gsap.fromTo(badge, { scale: 0, opacity: 0 }, {
+                    scale: 1, opacity: 1,
+                    duration: 0.4, ease: 'back.out(2)',
+                    scrollTrigger: { trigger: card, start: 'top 80%', toggleActions: 'play none none none' },
+                    delay: i * 0.12 + j * 0.08 + 0.3
+                });
+            });
+        });
+
+        // Serviceブロック: 左右からスライドイン
+        gsap.utils.toArray('.service-block-left').forEach(el => {
+            gsap.fromTo(el, { opacity: 0, x: -60 }, {
+                opacity: 1, x: 0, duration: 1, ease: 'power3.out',
+                scrollTrigger: { trigger: el, start: 'top 80%', toggleActions: 'play none none none' }
+            });
+        });
+        gsap.utils.toArray('.service-block-right').forEach(el => {
+            gsap.fromTo(el, { opacity: 0, x: 60 }, {
+                opacity: 1, x: 0, duration: 1, ease: 'power3.out',
+                scrollTrigger: { trigger: el, start: 'top 80%', toggleActions: 'play none none none' },
+                delay: 0.2
+            });
+        });
+
+        // Service: 数値カウントアップ
+        document.querySelectorAll('.service-metric .text-lg').forEach(el => {
+            const target = parseFloat(el.dataset.target);
+            ScrollTrigger.create({
+                trigger: el,
+                start: 'top 85%',
+                once: true,
+                onEnter: () => {
+                    gsap.to({ val: 0 }, {
+                        val: target, duration: 1.5, ease: 'power2.out',
+                        onUpdate: function() { el.textContent = this.targets()[0].val.toFixed(1) + '%'; }
+                    });
+                }
+            });
+        });
+
+        // Service: スコアカウントアップ + バー伸長
+        document.querySelectorAll('.service-score').forEach(el => {
+            const target = parseInt(el.dataset.target);
+            ScrollTrigger.create({
+                trigger: el,
+                start: 'top 85%',
+                once: true,
+                onEnter: () => {
+                    gsap.to({ val: 0 }, {
+                        val: target, duration: 1.8, ease: 'power2.out',
+                        onUpdate: function() { el.textContent = Math.round(this.targets()[0].val); }
+                    });
+                    document.querySelectorAll('.score-bar').forEach((bar, i) => {
+                        gsap.to(bar, {
+                            height: bar.dataset.height + 'px',
+                            duration: 1, ease: 'power2.out', delay: 0.2 + i * 0.15
+                        });
+                    });
+                }
+            });
+        });
+
+        // Valueカード: スタガーアニメーション（左から順に飛び込む）
+        gsap.utils.toArray('.value-card').forEach((card, i) => {
+            gsap.fromTo(card, {
+                opacity: 0,
+                y: 60,
+                rotateY: -8,
+                scale: 0.95
+            }, {
+                opacity: 1,
+                y: 0,
+                rotateY: 0,
+                scale: 1,
+                duration: 0.9,
+                ease: 'power3.out',
+                scrollTrigger: {
+                    trigger: card,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none'
+                },
+                delay: i * 0.15
+            });
+        });
+
+        // Process: ステップのスタガーイン
+        gsap.utils.toArray('.process-step').forEach((step, i) => {
+            gsap.fromTo(step, {
+                opacity: 0,
+                y: 50,
+                scale: 0.85
+            }, {
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                duration: 0.9,
+                ease: 'power3.out',
+                scrollTrigger: {
+                    trigger: step,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none'
+                },
+                delay: i * 0.2
+            });
+        });
+
+        // Process: 接続線のフェードイン
+        const processLine = document.querySelector('.process-line');
+        if (processLine) {
+            gsap.fromTo(processLine, { opacity: 0 }, {
+                opacity: 0.15,
+                duration: 1.2,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: processLine,
+                    start: 'top 80%',
+                    toggleActions: 'play none none none'
+                },
+                delay: 0.5
+            });
+        }
+
+        // Process: リングのスケールアニメーション（スクロール時にパルス強調）
+        gsap.utils.toArray('.process-ring').forEach((ring, i) => {
+            gsap.fromTo(ring, { scale: 0.8, opacity: 0 }, {
+                scale: 1, opacity: 0.3,
+                duration: 0.6,
+                ease: 'back.out(1.5)',
+                scrollTrigger: {
+                    trigger: ring,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none'
+                },
+                delay: i * 0.2 + 0.3
+            });
+        });
+
+        // ForYouカード: スタガーイン（少し回転付き）
+        gsap.utils.toArray('.foryou-card').forEach((card, i) => {
+            gsap.fromTo(card, {
+                opacity: 0,
+                y: 50,
+                rotateZ: -2,
+                scale: 0.95
+            }, {
+                opacity: 1,
+                y: 0,
+                rotateZ: 0,
+                scale: 1,
+                duration: 0.8,
+                ease: 'power3.out',
+                scrollTrigger: {
+                    trigger: card,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none'
+                },
+                delay: i * 0.15
+            });
+
+            // アイコンのポップイン
+            const icon = card.querySelector('.foryou-icon');
+            if (icon) {
+                gsap.fromTo(icon, { scale: 0, opacity: 0 }, {
+                    scale: 1, opacity: 1,
+                    duration: 0.5, ease: 'back.out(2)',
+                    scrollTrigger: { trigger: card, start: 'top 80%', toggleActions: 'play none none none' },
+                    delay: i * 0.15 + 0.3
+                });
+            }
+
+            // 背景番号のフェードイン
+            const num = card.querySelector('.foryou-num');
+            if (num) {
+                gsap.fromTo(num, { opacity: 0, x: 20 }, {
+                    opacity: 0.04, x: 0,
+                    duration: 0.8, ease: 'power2.out',
+                    scrollTrigger: { trigger: card, start: 'top 80%', toggleActions: 'play none none none' },
+                    delay: i * 0.15 + 0.4
+                });
+            }
         });
 
         // 浮遊パーティクル生成
