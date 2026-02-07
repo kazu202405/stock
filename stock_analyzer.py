@@ -1180,7 +1180,7 @@ class StockAnalyzer:
                         # 連結事業も追加情報として格納
                         if jp_data.get('business_segments'):
                             if result.get("business_summary_jp"):
-                                result["business_summary_jp"] += f"\n【連結事業】{jp_data['business_segments']}"
+                                result["business_summary_jp"] += f"<br>【連結事業】{jp_data['business_segments']}"
                             else:
                                 result["business_summary_jp"] = f"【連結事業】{jp_data['business_segments']}"
 

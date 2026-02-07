@@ -210,6 +210,7 @@
         font-size: 1.25rem;
         font-weight: 600;
         color: var(--text-primary);
+        white-space: nowrap;
     }
 
     .metric-sub {
@@ -1819,15 +1820,21 @@
                         rawValue = '';
                     }
 
-                    // 入力フィールドとして表示
-                    valueElem.innerHTML = `<input type="text" class="editable-field"
-                        data-metric="${dataKey}"
-                        data-suffix="${suffix}"
-                        data-raw="${rawValue}"
-                        value="${displayValue}"
-                        onchange="onMetricEdit(this)"
-                        onfocus="this.select()"
-                    >${label !== '時価総額' ? suffix : ''}`;
+                    if (IS_ADMIN) {
+                        // 管理者: 編集可能な入力フィールド
+                        valueElem.innerHTML = `<input type="text" class="editable-field"
+                            data-metric="${dataKey}"
+                            data-suffix="${suffix}"
+                            data-raw="${rawValue}"
+                            value="${displayValue}"
+                            onchange="onMetricEdit(this)"
+                            onfocus="this.select()"
+                        >${label !== '時価総額' ? suffix : ''}`;
+                    } else {
+                        // 一般ユーザー: テキスト表示のみ
+                        const suffixText = label !== '時価総額' ? suffix : '';
+                        valueElem.textContent = displayValue ? `${displayValue}${suffixText}` : '---';
+                    }
                 }
 
                 // サブテキストに業種平均を表示（PERの場合）

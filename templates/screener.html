@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}厳選！業績好調企業一覧{% endblock %}
+{% block title %}お気に入り企業一覧{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-gray-50">
@@ -9,97 +9,16 @@
         <div class="max-w-none mx-auto px-6 py-8">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold tracking-tight mb-2">業績好調企業一覧</h1>
-                    <p class="text-slate-300 text-lg">財務データに基づいて選定された投資価値の高い企業</p>
+                    <h1 class="text-3xl font-bold tracking-tight mb-2">
+                        <i class="fas fa-star text-yellow-400 mr-2"></i>お気に入り企業一覧
+                    </h1>
+                    <p class="text-slate-300 text-lg">登録した企業の財務データを一覧で確認</p>
                 </div>
                 <div class="mt-6 lg:mt-0 text-right">
-                    <div class="grid grid-cols-3 gap-6 text-center lg:text-right">
-                        <div>
-                            <div class="text-2xl font-bold text-blue-400">35</div>
-                            <div class="text-sm text-slate-400">掲載企業数</div>
-                        </div>
-                        <div>
-                            <div class="text-2xl font-bold text-green-400">15.2%</div>
-                            <div class="text-sm text-slate-400">平均ROE</div>
-                        </div>
-                        <div>
-                            <div class="text-sm text-slate-400">最終更新</div>
-                            <div class="text-sm font-medium">2025/08/25</div>
-                        </div>
+                    <div class="text-center lg:text-right">
+                        <div class="text-2xl font-bold text-yellow-400" id="favoriteCount">0</div>
+                        <div class="text-sm text-slate-400">登録企業数</div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 選定基準バナー -->
-    <div class="bg-white border-b border-gray-200 shadow-sm">
-        <div class="max-w-none mx-auto px-6 py-4">
-            <div class="flex items-center space-x-2 mb-3">
-                <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                    <i class="fas fa-filter text-blue-600 text-xs"></i>
-                </div>
-                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wider">選定基準</h3>
-            </div>
-            <div class="flex flex-wrap gap-4 text-sm text-gray-600">
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>FCF利回り 5%以上かつEV/EBITDA 10倍以下</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>売上・営業利益が3年連続成長</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span>自己資本比率 30%以上</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    <span>営業利益率 10%以上</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span>ROE 12%以上</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- フィルターセクション -->
-    <div class="bg-gray-50 border-b border-gray-200">
-        <div class="max-w-none mx-auto px-6 py-4">
-            <div class="flex flex-wrap items-center gap-4">
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700 min-w-0">業種:</label>
-                    <select id="sectorFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                        <option value="">すべて</option>
-                        <option value="technology">テクノロジー</option>
-                        <option value="finance">金融</option>
-                        <option value="consumer">消費財</option>
-                        <option value="healthcare">ヘルスケア</option>
-                        <option value="industrial">製造業</option>
-                        <option value="materials">素材</option>
-                    </select>
-                </div>
-                
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700 min-w-0">時価総額:</label>
-                    <select id="marketCapFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                        <option value="">すべて</option>
-                        <option value="large">大型（1兆円以上）</option>
-                        <option value="mid">中型（1000億-1兆円）</option>
-                        <option value="small">小型（1000億円未満）</option>
-                    </select>
-                </div>
-
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700 min-w-0">表示件数:</label>
-                    <select id="limitFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                        <option value="25">25件</option>
-                        <option value="50" selected>50件</option>
-                        <option value="100">100件</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -107,7 +26,22 @@
 
     <!-- テーブルセクション -->
     <div class="max-w-none mx-auto px-6 py-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <!-- 空状態メッセージ（データがない場合） -->
+        <div id="emptyState" class="hidden">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-star text-gray-400 text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">お気に入りが登録されていません</h3>
+                <p class="text-gray-500 mb-6">トップページで企業を分析し、お気に入りに登録しましょう</p>
+                <a href="/" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                    <i class="fas fa-search mr-2"></i>企業を探す
+                </a>
+            </div>
+        </div>
+
+        <!-- テーブル -->
+        <div id="tableContainer" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -118,27 +52,36 @@
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="marketcap">
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="match_rate">
+                                <div class="flex items-center space-x-1">
+                                    <span>合致度</span>
+                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                セクター
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="market_cap">
                                 <div class="flex items-center space-x-1">
                                     <span>時価総額</span>
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="equity">
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="stock_price">
+                                <div class="flex items-center space-x-1">
+                                    <span>株価</span>
+                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="equity_ratio">
                                 <div class="flex items-center space-x-1">
                                     <span>自己資本比率</span>
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="margin">
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="operating_margin">
                                 <div class="flex items-center space-x-1">
                                     <span>営業利益率</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="pbr">
-                                <div class="flex items-center space-x-1">
-                                    <span>PBR</span>
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
@@ -148,27 +91,15 @@
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="dividend">
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="pbr">
+                                <div class="flex items-center space-x-1">
+                                    <span>PBR</span>
+                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="dividend_yield">
                                 <div class="flex items-center space-x-1">
                                     <span>配当利回り</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="payout">
-                                <div class="flex items-center space-x-1">
-                                    <span>配当性向</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="margin_ratio">
-                                <div class="flex items-center space-x-1">
-                                    <span>信用倍率</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="current_ratio">
-                                <div class="flex items-center space-x-1">
-                                    <span>流動比率</span>
                                     <i class="fas fa-sort text-gray-400 text-xs"></i>
                                 </div>
                             </th>
@@ -177,432 +108,244 @@
                             </th>
                         </tr>
                     </thead>
-                    <tbody id="companiesTableBody" class="bg-white divide-y divide-gray-200">
-                        <!-- キーエンス -->
-                        <tr data-symbol="6861.T" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 company-name" onclick="analyzeCompany('6861.T')">キーエンス</div>
-                                    <div class="text-xs text-gray-500 flex items-center space-x-2">
-                                        <span class="company-code">6861.T</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 company-sector">テクノロジー</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">¥15.2兆</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">87.3%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">54.2%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">12.5</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">22.1</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">0.8%</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">18.2%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">2.1倍</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">185%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex space-x-2">
-                                    <button onclick="toggleFavorite('6861.T')" class="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded transition-colors">
-                                        <i class="fas fa-star text-sm"></i>
-                                    </button>
-                                    <button onclick="toggleCompare('6861.T')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                                        <i class="fas fa-chart-bar text-sm"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <!-- 任天堂 -->
-                        <tr data-symbol="7974.T" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 company-name" onclick="analyzeCompany('7974.T')">任天堂</div>
-                                    <div class="text-xs text-gray-500 flex items-center space-x-2">
-                                        <span class="company-code">7974.T</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 company-sector">消費財</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">¥8.9兆</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">89.1%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">35.6%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">3.2</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">16.8</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">2.4%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">41.2%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">1.8倍</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">245%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex space-x-2">
-                                    <button onclick="toggleFavorite('7974.T')" class="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded transition-colors">
-                                        <i class="fas fa-star text-sm"></i>
-                                    </button>
-                                    <button onclick="toggleCompare('7974.T')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                                        <i class="fas fa-chart-bar text-sm"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <!-- 信越化学工業 -->
-                        <tr data-symbol="4063.T" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 company-name" onclick="analyzeCompany('4063.T')">信越化学工業</div>
-                                    <div class="text-xs text-gray-500 flex items-center space-x-2">
-                                        <span class="company-code">4063.T</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 company-sector">素材</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">¥7.1兆</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">73.8%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">38.4%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">2.8</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">12.3</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">3.2%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">39.1%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">2.3倍</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">198%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex space-x-2">
-                                    <button onclick="toggleFavorite('4063.T')" class="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded transition-colors">
-                                        <i class="fas fa-star text-sm"></i>
-                                    </button>
-                                    <button onclick="toggleCompare('4063.T')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                                        <i class="fas fa-chart-bar text-sm"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <!-- トヨタ自動車 -->
-                        <tr data-symbol="7203.T" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 company-name" onclick="analyzeCompany('7203.T')">トヨタ自動車</div>
-                                    <div class="text-xs text-gray-500 flex items-center space-x-2">
-                                        <span class="company-code">7203.T</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 company-sector">製造業</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">¥40.2兆</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">42.5%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">9.8%</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">0.95</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">11.2</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">2.8%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">31.4%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">---</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">135%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex space-x-2">
-                                    <button onclick="toggleFavorite('7203.T')" class="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded transition-colors">
-                                        <i class="fas fa-star text-sm"></i>
-                                    </button>
-                                    <button onclick="toggleCompare('7203.T')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                                        <i class="fas fa-chart-bar text-sm"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <!-- ソニーグループ -->
-                        <tr data-symbol="6758.T" class="hover:bg-gray-50 transition-colors">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600 company-name" onclick="analyzeCompany('6758.T')">ソニーグループ</div>
-                                    <div class="text-xs text-gray-500 flex items-center space-x-2">
-                                        <span class="company-code">6758.T</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 company-sector">テクノロジー</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">¥14.8兆</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">28.3%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">13.2%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">2.1</td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">15.6</td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">1.2%</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">18.7%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">1.9倍</td>
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">98%</span>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div class="flex space-x-2">
-                                    <button onclick="toggleFavorite('6758.T')" class="p-2 text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 rounded transition-colors">
-                                        <i class="fas fa-star text-sm"></i>
-                                    </button>
-                                    <button onclick="toggleCompare('6758.T')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors">
-                                        <i class="fas fa-chart-bar text-sm"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                    <tbody id="favoritesTableBody" class="bg-white divide-y divide-gray-200">
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- 比較パネル -->
-    <div id="comparisonPanel" class="fixed bottom-6 right-6 bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm hidden">
-        <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-semibold text-gray-900">比較対象企業</h4>
-            <button onclick="document.getElementById('comparisonPanel').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times text-sm"></i>
-            </button>
-        </div>
-        <div id="compareList" class="text-sm text-gray-600 mb-3">選択されていません</div>
-        <button onclick="compareCompanies()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
-            詳細比較
-        </button>
-    </div>
 </div>
 
+<style>
+    /* 合致度の色分け */
+    .match-high { color: #16a34a; font-weight: 600; }
+    .match-medium { color: #ca8a04; font-weight: 600; }
+    .match-low { color: #dc2626; font-weight: 600; }
+</style>
+
 <script>
+    // ダミーデータ（将来的にはAPI/ログイン連携に置き換え）
+    let favorites = [
+        {
+            company_code: '6861.T', company_name: 'キーエンス', sector: 'テクノロジー',
+            market_cap: 152000, stock_price: 68450, equity_ratio: 87.3,
+            operating_margin: 54.2, per_forward: 22.1, pbr: 12.5,
+            dividend_yield: 0.8, match_rate: 85
+        },
+        {
+            company_code: '7974.T', company_name: '任天堂', sector: '消費財',
+            market_cap: 89000, stock_price: 9245, equity_ratio: 89.1,
+            operating_margin: 35.6, per_forward: 16.8, pbr: 3.2,
+            dividend_yield: 2.4, match_rate: 78
+        },
+        {
+            company_code: '4063.T', company_name: '信越化学工業', sector: '素材',
+            market_cap: 71000, stock_price: 5632, equity_ratio: 73.8,
+            operating_margin: 38.4, per_forward: 12.3, pbr: 2.8,
+            dividend_yield: 3.2, match_rate: 92
+        },
+        {
+            company_code: '7203.T', company_name: 'トヨタ自動車', sector: '製造業',
+            market_cap: 402000, stock_price: 2815, equity_ratio: 42.5,
+            operating_margin: 9.8, per_forward: 11.2, pbr: 0.95,
+            dividend_yield: 2.8, match_rate: 55
+        },
+        {
+            company_code: '6758.T', company_name: 'ソニーグループ', sector: 'テクノロジー',
+            market_cap: 148000, stock_price: 3420, equity_ratio: 28.3,
+            operating_margin: 13.2, per_forward: 15.6, pbr: 2.1,
+            dividend_yield: 1.2, match_rate: 48
+        },
+        {
+            company_code: '9983.T', company_name: 'ファーストリテイリング', sector: '消費財',
+            market_cap: 134000, stock_price: 42350, equity_ratio: 52.1,
+            operating_margin: 16.8, per_forward: 32.5, pbr: 7.8,
+            dividend_yield: 1.1, match_rate: 35
+        },
+        {
+            company_code: '8035.T', company_name: '東京エレクトロン', sector: 'テクノロジー',
+            market_cap: 112000, stock_price: 23780, equity_ratio: 68.5,
+            operating_margin: 28.9, per_forward: 18.4, pbr: 5.6,
+            dividend_yield: 2.1, match_rate: 72
+        }
+    ];
+
     let sortColumn = '';
     let sortDirection = 'asc';
-    let compareList = [];
 
-    // テーブルソート
+    // 時価総額フォーマット（億円単位 → 兆/億表示）
+    function formatMarketCapOku(oku) {
+        if (oku === null || oku === undefined) return '---';
+        if (oku >= 10000) {
+            return `${(oku / 10000).toFixed(1)}兆`;
+        }
+        return `${Math.round(oku)}億`;
+    }
+
+    // 株価フォーマット
+    function formatWatchlistPrice(num) {
+        if (num === null || num === undefined) return '---';
+        return `¥${Math.round(num).toLocaleString()}`;
+    }
+
+    // 合致度の色分けクラスを取得
+    function getMatchRateClass(value) {
+        if (value === null || value === undefined) return '';
+        if (value >= 70) return 'match-high';
+        if (value >= 40) return 'match-medium';
+        return 'match-low';
+    }
+
+    // セクターのバッジ色を取得
+    function getSectorBadge(sector) {
+        const colors = {
+            'テクノロジー': 'bg-blue-100 text-blue-800',
+            '消費財': 'bg-purple-100 text-purple-800',
+            '素材': 'bg-gray-100 text-gray-800',
+            '製造業': 'bg-indigo-100 text-indigo-800',
+            '金融': 'bg-green-100 text-green-800',
+            'ヘルスケア': 'bg-red-100 text-red-800'
+        };
+        return colors[sector] || 'bg-gray-100 text-gray-800';
+    }
+
+    // テーブル描画
+    function renderFavorites() {
+        const tbody = document.getElementById('favoritesTableBody');
+        const emptyState = document.getElementById('emptyState');
+        const tableContainer = document.getElementById('tableContainer');
+        const countEl = document.getElementById('favoriteCount');
+
+        countEl.textContent = favorites.length;
+
+        if (favorites.length === 0) {
+            emptyState.classList.remove('hidden');
+            tableContainer.classList.add('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+        tableContainer.classList.remove('hidden');
+
+        let html = '';
+        favorites.forEach(item => {
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}%` : '---';
+            const matchClass = getMatchRateClass(item.match_rate);
+            const sectorBadge = getSectorBadge(item.sector);
+
+            html += `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <div>
+                            <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600"
+                                 onclick="analyzeFromFavorite('${item.company_code}')">
+                                ${item.company_name}
+                            </div>
+                            <div class="text-xs text-gray-500">${item.company_code}</div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="text-sm font-semibold ${matchClass}">${matchRate}</span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sectorBadge}">${item.sector}</span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        ${formatMarketCapOku(item.market_cap)}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${formatWatchlistPrice(item.stock_price)}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.equity_ratio >= 50 ? 'bg-green-100 text-green-800' : item.equity_ratio >= 30 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                            ${item.equity_ratio}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.operating_margin >= 15 ? 'bg-green-100 text-green-800' : item.operating_margin >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                            ${item.operating_margin}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${item.per_forward ? item.per_forward.toFixed(1) + '倍' : '---'}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${item.pbr ? item.pbr.toFixed(2) + '倍' : '---'}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${item.dividend_yield ? item.dividend_yield.toFixed(2) + '%' : '---'}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <button onclick="removeFavorite('${item.company_code}')"
+                                class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                            <i class="fas fa-trash-alt mr-1"></i>削除
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    // お気に入りから削除
+    function removeFavorite(code) {
+        favorites = favorites.filter(item => item.company_code !== code);
+        renderFavorites();
+    }
+
+    // 企業名クリック → トップページの分析パネルへ遷移
+    function analyzeFromFavorite(code) {
+        const stockCode = code.replace('.T', '');
+        window.location.href = `/?code=${stockCode}`;
+    }
+
+    // ソート機能
     document.querySelectorAll('th.sortable').forEach(th => {
         th.addEventListener('click', () => {
             const column = th.dataset.sort;
-            
-            // ソート方向の決定
+
             if (sortColumn === column) {
                 sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             } else {
                 sortColumn = column;
                 sortDirection = 'asc';
             }
-            
-            // ヘッダーのスタイル更新
+
+            // ヘッダーのアイコン更新
             document.querySelectorAll('th.sortable i').forEach(icon => {
                 icon.className = 'fas fa-sort text-gray-400 text-xs';
             });
             const currentIcon = th.querySelector('i');
-            currentIcon.className = sortDirection === 'asc' ? 
-                'fas fa-sort-up text-blue-500 text-xs' : 
-                'fas fa-sort-down text-blue-500 text-xs';
-            
-            // テーブルをソート
-            sortTable(column, sortDirection);
+            currentIcon.className = sortDirection === 'asc'
+                ? 'fas fa-sort-up text-blue-500 text-xs'
+                : 'fas fa-sort-down text-blue-500 text-xs';
+
+            // ソート実行
+            sortFavorites(column, sortDirection);
         });
     });
 
-    // テーブルソート実行
-    function sortTable(column, direction) {
-        const tbody = document.getElementById('companiesTableBody');
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        
-        rows.sort((a, b) => {
+    function sortFavorites(column, direction) {
+        favorites.sort((a, b) => {
             let aVal, bVal;
-            
-            switch(column) {
-                case 'company':
-                    aVal = a.querySelector('.company-name').textContent;
-                    bVal = b.querySelector('.company-name').textContent;
-                    return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-                    
-                case 'marketcap':
-                    aVal = parseMarketCap(a.children[1].textContent);
-                    bVal = parseMarketCap(b.children[1].textContent);
-                    break;
-                    
-                default:
-                    aVal = parseFloat(a.querySelector(`td:nth-child(${getColumnIndex(column)})`).textContent.replace(/[^\d.-]/g, '')) || 0;
-                    bVal = parseFloat(b.querySelector(`td:nth-child(${getColumnIndex(column)})`).textContent.replace(/[^\d.-]/g, '')) || 0;
+
+            if (column === 'company') {
+                aVal = a.company_name;
+                bVal = b.company_name;
+                return direction === 'asc' ? aVal.localeCompare(bVal, 'ja') : bVal.localeCompare(aVal, 'ja');
             }
-            
-            if (direction === 'asc') {
-                return aVal - bVal;
-            } else {
-                return bVal - aVal;
-            }
+
+            // 数値カラム
+            aVal = a[column] || 0;
+            bVal = b[column] || 0;
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
         });
-        
-        // ソート済み行を再配置
-        rows.forEach(row => tbody.appendChild(row));
+
+        renderFavorites();
     }
 
-    // 時価総額パース
-    function parseMarketCap(text) {
-        const num = parseFloat(text.replace(/[^\d.]/g, ''));
-        if (text.includes('兆')) return num * 1000000;
-        if (text.includes('億')) return num * 100;
-        return num;
-    }
-
-    // カラムインデックス取得
-    function getColumnIndex(column) {
-        const mapping = {
-            'marketcap': 2, 'equity': 3, 'margin': 4, 'pbr': 5,
-            'per': 6, 'dividend': 7, 'payout': 8, 'margin_ratio': 9, 'current_ratio': 10
-        };
-        return mapping[column] || 2;
-    }
-
-    // 企業分析ページへ
-    function analyzeCompany(symbol) {
-        window.location.href = `/analysis/${symbol}`;
-    }
-
-    // お気に入り切り替え
-    function toggleFavorite(symbol) {
-        const btn = event.target.closest('button');
-        btn.classList.toggle('text-yellow-500');
-        btn.classList.toggle('bg-yellow-50');
-    }
-
-    // 比較リスト切り替え
-    function toggleCompare(symbol) {
-        const btn = event.target.closest('button');
-        const companyName = btn.closest('tr').querySelector('.company-name').textContent;
-        
-        if (compareList.includes(symbol)) {
-            // 除去
-            compareList = compareList.filter(s => s !== symbol);
-            btn.classList.remove('text-blue-500', 'bg-blue-50');
-        } else {
-            // 追加（最大3社まで）
-            if (compareList.length < 3) {
-                compareList.push(symbol);
-                btn.classList.add('text-blue-500', 'bg-blue-50');
-            } else {
-                alert('比較できるのは最大3社までです');
-                return;
-            }
-        }
-        
-        // 比較パネル更新
-        updateComparePanel();
-    }
-
-    // 比較パネル更新
-    function updateComparePanel() {
-        const panel = document.getElementById('comparisonPanel');
-        const list = document.getElementById('compareList');
-        
-        if (compareList.length > 0) {
-            const names = compareList.map(symbol => {
-                const row = document.querySelector(`tr[data-symbol="${symbol}"]`);
-                return row ? row.querySelector('.company-name').textContent : symbol;
-            });
-            list.textContent = names.join(' vs ');
-            panel.classList.remove('hidden');
-        } else {
-            list.textContent = '選択されていません';
-            panel.classList.add('hidden');
-        }
-    }
-
-    // 比較実行
-    function compareCompanies() {
-        if (compareList.length < 2) {
-            alert('比較するには最低2社を選択してください');
-            return;
-        }
-        
-        const symbols = compareList.join(',');
-        window.location.href = `/compare?symbols=${symbols}`;
-    }
-
-    // フィルター機能
-    document.getElementById('sectorFilter').addEventListener('change', filterTable);
-    document.getElementById('marketCapFilter').addEventListener('change', filterTable);
-
-    function filterTable() {
-        const sectorFilter = document.getElementById('sectorFilter').value;
-        const marketCapFilter = document.getElementById('marketCapFilter').value;
-        const rows = document.querySelectorAll('#companiesTableBody tr');
-        
-        rows.forEach(row => {
-            let show = true;
-            
-            // 業種フィルター
-            if (sectorFilter) {
-                const sector = row.querySelector('.company-sector').textContent;
-                if (!sector.includes(getSectorName(sectorFilter))) {
-                    show = false;
-                }
-            }
-            
-            // 時価総額フィルター
-            if (marketCapFilter && show) {
-                const marketCap = parseMarketCap(row.children[1].textContent);
-                if (marketCapFilter === 'large' && marketCap < 1000000) show = false;
-                if (marketCapFilter === 'mid' && (marketCap < 100 || marketCap >= 1000000)) show = false;
-                if (marketCapFilter === 'small' && marketCap >= 100) show = false;
-            }
-            
-            row.style.display = show ? '' : 'none';
-        });
-    }
-
-    function getSectorName(key) {
-        const mapping = {
-            'technology': 'テクノロジー',
-            'finance': '金融',
-            'consumer': '消費財',
-            'healthcare': 'ヘルスケア',
-            'industrial': '製造業',
-            'materials': '素材'
-        };
-        return mapping[key] || '';
-    }
+    // 初期表示
+    renderFavorites();
 </script>
 {% endblock %}
