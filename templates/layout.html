@@ -2,8 +2,12 @@
 <html lang="ja">
 
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+    body {
+        font-family: 'Noto Serif JP', 'Inter', serif;
+    }
     .btn-primary {
-        background-color: #226994 !important;
+        background-color: #1b4332 !important;
     }
 </style>
 
@@ -19,37 +23,37 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
-<body class="bg-gray-50 min-h-screen">
-    <!-- モダンナビゲーション -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
+<body class="min-h-screen" style="background: #fafaf8;">
+    <!-- ナビゲーション -->
+    <nav class="bg-white shadow-sm" style="border-bottom: 1px solid #e5e5e0;">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- ロゴ・ブランド -->
                 <div class="flex items-center">
-                    <a href="/" class="flex items-center space-x-2">
-                        <div class="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
+                    <a href="/dashboard" class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #1b4332, #2d6a4f);">
                             <i class="fas fa-chart-line text-white text-sm"></i>
                         </div>
-                        <span class="text-xl font-bold text-gray-900">企業情報抽出アプリ</span>
+                        <span class="text-xl font-bold" style="color: #1a1a1a;">企業情報抽出アプリ</span>
                     </a>
                 </div>
 
                 <!-- メインナビゲーション -->
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="/screener" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    <a href="/screener" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
                         お気に入り
                     </a>
-                    <a href="/community" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    <a href="/community" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
                         コミュニティ
                     </a>
-                    <a href="/mypage" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    <a href="/mypage" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
                         マイページ
                     </a>
-                    <a href="/admin" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    <a href="/dashboard/admin" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
                         管理画面
                     </a>
                     {% if current_user.is_system_admin %}
-                    <a href="/user" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    <a href="/user" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
                         ユーザー管理
                     </a>
                     {% endif %}

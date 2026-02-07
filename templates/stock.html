@@ -4,23 +4,25 @@
 
 {% block content %}
 <style>
-    /* プロフェッショナルなレポートスタイル */
+    /* LP統一デザイン */
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
     :root {
-        --primary-color: #1a1f36;
-        --secondary-color: #2d3561;
-        --accent-color: #5865f2;
+        --primary-color: #1b4332;
+        --secondary-color: #2d6a4f;
+        --accent-color: #2d6a4f;
         --success-color: #10b981;
         --warning-color: #f59e0b;
         --danger-color: #ef4444;
-        --text-primary: #1a1f36;
-        --text-secondary: #64748b;
-        --border-color: #e2e8f0;
-        --bg-light: #f8fafc;
+        --text-primary: #1a1a1a;
+        --text-secondary: #6b7280;
+        --border-color: #e5e5e0;
+        --bg-light: #fafaf8;
     }
 
     body {
-        background: #ffffff;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #fafaf8;
+        font-family: 'Noto Serif JP', 'Inter', -apple-system, BlinkMacSystemFont, serif;
         color: var(--text-primary);
     }
 
@@ -167,7 +169,7 @@
         left: 0;
         right: 0;
         height: 3px;
-        background: linear-gradient(90deg, var(--accent-color), #8b9cff);
+        background: linear-gradient(90deg, var(--accent-color), #52b788);
         opacity: 0.8;
     }
 
@@ -368,7 +370,7 @@
         left: 0;
         right: 0;
         height: 2px;
-        background: linear-gradient(90deg, var(--accent-color), #8b9cff);
+        background: linear-gradient(90deg, var(--accent-color), #52b788);
         opacity: 0.6;
     }
 
@@ -504,7 +506,7 @@
 
     .dividend-bar {
         flex: 1;
-        background: linear-gradient(180deg, #34d399, var(--success-color));
+        background: linear-gradient(180deg, #52b788, var(--primary-color));
         border-radius: 3px 3px 0 0;
         position: relative;
         opacity: 0.8;

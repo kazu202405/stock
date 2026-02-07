@@ -26,7 +26,7 @@ def check_password(user, password):
 def login():
     """ログインページと処理"""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         email = request.form['account_name']
         password = request.form['password']
@@ -51,7 +51,7 @@ def login():
                                         user_agent=user_agent, status='success', attempt_time=attempt_time, user_id=user.id)
             db.session.add(login_attempt)
             db.session.commit()
-            return redirect(url_for('index'))            
+            return redirect(url_for('dashboard'))            
         
         else:
             user_id = user.id if user else None
@@ -69,5 +69,5 @@ def logout():
     """ログアウト"""
     logout_user()
     flash('ログアウトしました。', 'success')
-    # return redirect(url_for('index'))
+    # return redirect(url_for('dashboard'))
     return redirect(url_for('login'))

@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業情報抽出アプリ - 業績データで、確かな判断を</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.css">
+    <script src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
+    <style>
+        /* カスタムプロパティ */
+        :root {
+            --lp-bg: #fafaf8;
+            --lp-text: #1a1a1a;
+            --lp-accent: #1b4332;
+            --lp-accent-light: #2d6a4f;
+            --lp-muted: #6b7280;
+            --lp-border: #e5e5e0;
+        }
+
+        /* フォント */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+        body {
+            font-family: 'Noto Serif JP', 'Inter', serif;
+            background: var(--lp-bg);
+            color: var(--lp-text);
+            overflow-x: hidden;
+        }
+
+        /* ノイズテクスチャオーバーレイ */
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+        }
+
+        /* Heroセクション */
+        .hero-section {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Blob morphing背景 */
+        .blob-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw;
+            height: 80vh;
+            opacity: 0.08;
+        }
+
+        .blob-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        @keyframes blobMorph {
+            0%, 100% {
+                d: path("M420,300Q380,450,250,460Q120,470,90,330Q60,190,200,130Q340,70,400,185Q460,300,420,300Z");
+            }
+            25% {
+                d: path("M440,320Q400,480,240,450Q80,420,100,280Q120,140,260,100Q400,60,440,180Q480,300,440,320Z");
+            }
+            50% {
+                d: path("M400,340Q360,500,220,470Q80,440,60,300Q40,160,200,80Q360,0,420,150Q480,300,400,340Z");
+            }
+            75% {
+                d: path("M450,280Q420,440,260,480Q100,520,80,340Q60,160,220,120Q380,80,430,190Q480,300,450,280Z");
+            }
+        }
+
+        .blob-path {
+            animation: blobMorph 20s ease-in-out infinite;
+            fill: var(--lp-accent);
+        }
+
+        /* 浮遊パーティクル */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--lp-accent);
+            border-radius: 50%;
+            opacity: 0;
+        }
+
+        /* スクロールインジケーター */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        @keyframes scrollBounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(8px); }
+        }
+
+        .scroll-indicator {
+            animation: scrollBounce 2s ease-in-out infinite;
+        }
+
+        /* 波型ディバイダー */
+        .wave-divider {
+            width: 100%;
+            overflow: hidden;
+            line-height: 0;
+        }
+
+        .wave-divider svg {
+            display: block;
+            width: 100%;
+            height: 60px;
+        }
+
+        .wave-divider-flip {
+            transform: rotate(180deg);
+        }
+
+        /* セクション共通 */
+        .section-fade {
+            opacity: 0;
+            transform: translateY(40px);
+        }
+
+        /* アクセントライン */
+        .accent-line {
+            width: 40px;
+            height: 2px;
+            background: var(--lp-accent);
+        }
+
+        /* プロセスタイムライン */
+        .timeline-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--lp-border);
+            transform: translateX(-50%);
+        }
+
+        .timeline-dot {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--lp-accent);
+            background: var(--lp-bg);
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* カードホバー */
+        .lp-card {
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .lp-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.06);
+        }
+
+        /* CTAボタン */
+        .cta-btn {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .cta-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.6s;
+        }
+
+        .cta-btn:hover::after {
+            left: 100%;
+        }
+
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(27, 67, 50, 0.3);
+        }
+
+        /* UIモック */
+        .ui-mock {
+            background: white;
+            border: 1px solid var(--lp-border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+        }
+
+        .ui-mock-bar {
+            height: 32px;
+            background: #f5f5f3;
+            border-bottom: 1px solid var(--lp-border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 6px;
+        }
+
+        .ui-mock-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d1d5db;
+        }
+
+        /* LPヘッダー */
+        .lp-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 16px 24px;
+            transition: background 0.4s, box-shadow 0.4s, padding 0.4s;
+        }
+
+        .lp-header.scrolled {
+            background: rgba(250, 250, 248, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 1px 0 var(--lp-border);
+            padding: 12px 24px;
+        }
+
+        .lp-header-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .lp-logo {
+            font-size: 0.95rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--lp-text);
+            text-decoration: none;
+            transition: opacity 0.3s;
+        }
+
+        .lp-logo:hover { opacity: 0.7; }
+
+        .lp-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .lp-login-btn {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--lp-text);
+            text-decoration: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .lp-login-btn:hover {
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        .lp-signup-btn {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: white;
+            background: var(--lp-accent);
+            text-decoration: none;
+            padding: 6px 20px;
+            border-radius: 6px;
+            transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+        }
+
+        .lp-signup-btn:hover {
+            background: var(--lp-accent-light);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.2);
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .hero-title { font-size: 2rem !important; }
+            .hero-subtitle { font-size: 1rem !important; }
+            .timeline-line { display: none; }
+            .timeline-dot { display: none; }
+            .lp-login-btn { padding: 6px 10px; }
+            .lp-signup-btn { padding: 6px 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========== ヘッダー ========== -->
+    <header class="lp-header" id="lp-header">
+        <div class="lp-header-inner">
+            <a href="/" class="lp-logo">企業情報抽出アプリ</a>
+            <div class="lp-header-actions">
+                <a href="/login" class="lp-login-btn">ログイン</a>
+                <a href="/dashboard" class="lp-signup-btn">無料で始める</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ノイズテクスチャ SVG -->
+    <svg class="noise-overlay" xmlns="http://www.w3.org/2000/svg">
+        <filter id="noiseFilter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+    </svg>
+
+    <!-- ========== 1. Hero ========== -->
+    <section class="hero-section">
+        <!-- Blob背景 -->
+        <div class="blob-container">
+            <svg viewBox="0 0 500 500" preserveAspectRatio="xMidYMid slice">
+                <path class="blob-path" d="M420,300Q380,450,250,460Q120,470,90,330Q60,190,200,130Q340,70,400,185Q460,300,420,300Z"/>
+            </svg>
+        </div>
+
+        <!-- パーティクル生成エリア -->
+        <div id="particles" class="absolute inset-0 pointer-events-none"></div>
+
+        <!-- メインコンテンツ -->
+        <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
+            <div class="accent-line mx-auto mb-8 opacity-0" id="hero-line"></div>
+            <h1 class="hero-title text-4xl md:text-6xl lg:text-7xl font-light leading-tight tracking-tight mb-8 opacity-0" id="hero-title">
+                業績データで、<br>
+                <span class="font-medium" style="color: var(--lp-accent);">確かな判断</span>を。
+            </h1>
+            <p class="hero-subtitle text-lg md:text-xl font-light leading-relaxed opacity-0" id="hero-subtitle" style="color: var(--lp-muted); max-width: 600px; margin: 0 auto;">
+                財務指標を自動で収集・分析し、<br class="hidden md:block">
+                業績好調企業の発見をサポートします。
+            </p>
+        </div>
+
+        <!-- スクロールインジケーター -->
+        <div class="scroll-indicator opacity-0" id="scroll-indicator">
+            <svg width="24" height="36" viewBox="0 0 24 36" fill="none">
+                <rect x="1" y="1" width="22" height="34" rx="11" stroke="#1b4332" stroke-width="1.5" fill="none"/>
+                <circle cx="12" cy="10" r="2.5" fill="#1b4332">
+                    <animate attributeName="cy" values="10;22;10" dur="2s" repeatCount="indefinite"/>
+                </circle>
+            </svg>
+        </div>
+    </section>
+
+    <!-- 波型ディバイダー -->
+    <div class="wave-divider">
+        <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
+            <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z" fill="white"/>
+        </svg>
+    </div>
+
+    <!-- ========== 2. コンセプト説明 ========== -->
+    <section class="py-24 md:py-32 bg-white">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="section-fade">
+                <div class="accent-line mb-6"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Concept</p>
+                <h2 class="text-2xl md:text-4xl font-light leading-relaxed mb-12">
+                    投資判断に必要なのは、<br>
+                    <span class="font-medium">正確なデータと冷静な分析</span>です。
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-12 md:gap-16">
+                <div class="section-fade">
+                    <p class="text-base leading-loose" style="color: var(--lp-muted);">
+                        株式投資において、企業の業績を正しく把握することは最も基本的でありながら、最も時間のかかる作業です。
+                        決算短信、有価証券報告書、各種財務指標 ── 一社あたりの分析に、どれほどの時間を費やしていますか。
+                    </p>
+                </div>
+                <div class="section-fade">
+                    <p class="text-base leading-loose" style="color: var(--lp-muted);">
+                        私たちのアプリは、複数の公開データソースから財務情報を自動収集し、
+                        独自の合致度スコアで企業の財務健全性を可視化します。
+                        感覚ではなく、データに基づいた企業選定を可能にします。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 3. 提供価値 ========== -->
+    <section class="py-24 md:py-32" style="background: var(--lp-bg);">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center section-fade mb-16">
+                <div class="accent-line mx-auto mb-6"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Value</p>
+                <h2 class="text-2xl md:text-4xl font-light">三つの価値</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- カード1: データ分析 -->
+                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
+                    <div class="mb-6">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <rect x="4" y="24" width="8" height="18" rx="2" fill="#2d6a4f" opacity="0.3"/>
+                            <rect x="16" y="16" width="8" height="26" rx="2" fill="#2d6a4f" opacity="0.5"/>
+                            <rect x="28" y="8" width="8" height="34" rx="2" fill="#2d6a4f" opacity="0.7"/>
+                            <rect x="40" y="4" width="4" height="38" rx="2" fill="#1b4332"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3">データに基づく判断</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        自己資本比率、営業利益率、PER、PBR、配当利回りなど、
+                        12の財務指標を自動取得。数値に基づいた企業評価を実現します。
+                    </p>
+                </div>
+
+                <!-- カード2: 時間効率 -->
+                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
+                    <div class="mb-6">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="18" stroke="#1b4332" stroke-width="2" fill="none"/>
+                            <line x1="24" y1="14" x2="24" y2="24" stroke="#1b4332" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="24" y1="24" x2="32" y2="28" stroke="#2d6a4f" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="24" cy="24" r="2" fill="#1b4332"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3">圧倒的な時間効率</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        銘柄コードを入力するだけで、数秒で包括的な財務分析が完了。
+                        手作業で何時間もかかる情報収集を自動化します。
+                    </p>
+                </div>
+
+                <!-- カード3: 客観性 -->
+                <div class="lp-card section-fade bg-white rounded-xl p-8 border" style="border-color: var(--lp-border);">
+                    <div class="mb-6">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <path d="M24 6L30 18H42L32 26L36 38L24 30L12 38L16 26L6 18H18L24 6Z" stroke="#1b4332" stroke-width="2" fill="none"/>
+                            <path d="M24 14L27 22H35L29 27L31 35L24 30L17 35L19 27L13 22H21L24 14Z" fill="#2d6a4f" opacity="0.2"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium mb-3">客観的な合致度</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        120点満点の独自スコアリングシステムで、投資基準への合致度を定量化。
+                        感情に左右されない、一貫した評価基準を提供します。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 波型ディバイダー -->
+    <div class="wave-divider wave-divider-flip">
+        <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
+            <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z" fill="white"/>
+        </svg>
+    </div>
+
+    <!-- ========== 4. サービス内容 ========== -->
+    <section class="py-24 md:py-32 bg-white">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center section-fade mb-16">
+                <div class="accent-line mx-auto mb-6"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Service</p>
+                <h2 class="text-2xl md:text-4xl font-light">主な機能</h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-12">
+                <!-- 機能1: 財務分析 -->
+                <div class="section-fade">
+                    <div class="ui-mock mb-6">
+                        <div class="ui-mock-bar">
+                            <div class="ui-mock-dot"></div>
+                            <div class="ui-mock-dot"></div>
+                            <div class="ui-mock-dot"></div>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
+                                <span class="text-sm font-medium">財務分析レポート</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
+                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">自己資本比率</div>
+                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">72.5%</div>
+                                </div>
+                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
+                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">営業利益率</div>
+                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">24.3%</div>
+                                </div>
+                                <div class="rounded-lg p-3 text-center" style="background: var(--lp-bg);">
+                                    <div class="text-xs mb-1" style="color: var(--lp-muted);">配当利回り</div>
+                                    <div class="text-lg font-semibold" style="color: var(--lp-accent);">3.1%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-medium mb-2">包括的な財務分析</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        銘柄コードひとつで、自己資本比率・営業利益率・PER・PBR・配当利回り・時価総額など、
+                        主要な財務指標を一画面に集約して表示します。
+                    </p>
+                </div>
+
+                <!-- 機能2: 合致度スコア -->
+                <div class="section-fade">
+                    <div class="ui-mock mb-6">
+                        <div class="ui-mock-bar">
+                            <div class="ui-mock-dot"></div>
+                            <div class="ui-mock-dot"></div>
+                            <div class="ui-mock-dot"></div>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-3 h-3 rounded-full" style="background: var(--lp-accent);"></div>
+                                <span class="text-sm font-medium">合致度スコア</span>
+                            </div>
+                            <div class="flex items-end gap-4 justify-center">
+                                <div class="text-center">
+                                    <div class="text-5xl font-light" style="color: var(--lp-accent);">92</div>
+                                    <div class="text-xs mt-1" style="color: var(--lp-muted);">/ 120</div>
+                                </div>
+                                <div class="flex gap-1 items-end pb-2">
+                                    <div class="w-3 rounded-t" style="height: 16px; background: #2d6a4f; opacity: 0.3;"></div>
+                                    <div class="w-3 rounded-t" style="height: 24px; background: #2d6a4f; opacity: 0.5;"></div>
+                                    <div class="w-3 rounded-t" style="height: 32px; background: #2d6a4f; opacity: 0.7;"></div>
+                                    <div class="w-3 rounded-t" style="height: 40px; background: #1b4332;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-medium mb-2">独自の合致度スコア</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        12の評価項目に基づく120点満点のスコアリング。
+                        時価総額、自己資本比率、営業利益率、ROA、PER、PBRなど、
+                        多角的な視点から企業を評価します。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 5. プロセス ========== -->
+    <section class="py-24 md:py-32" style="background: var(--lp-bg);">
+        <div class="max-w-3xl mx-auto px-6">
+            <div class="text-center section-fade mb-16">
+                <div class="accent-line mx-auto mb-6"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">Process</p>
+                <h2 class="text-2xl md:text-4xl font-light">使い方は、とてもシンプル</h2>
+            </div>
+
+            <div class="relative">
+                <!-- タイムライン中央線 -->
+                <div class="timeline-line hidden md:block"></div>
+
+                <!-- ステップ1 -->
+                <div class="section-fade relative flex flex-col md:flex-row items-center gap-6 md:gap-12 mb-16">
+                    <div class="md:w-1/2 md:text-right">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">1</span>
+                        </div>
+                        <h3 class="text-lg font-medium mb-2">銘柄コードを入力</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            4桁の証券コードを入力するだけ。企業名での検索にも対応しています。
+                        </p>
+                    </div>
+                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
+                    <div class="hidden md:flex md:w-1/2 items-center">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ステップ2 -->
+                <div class="section-fade relative flex flex-col md:flex-row-reverse items-center gap-6 md:gap-12 mb-16">
+                    <div class="md:w-1/2 md:text-left">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">2</span>
+                        </div>
+                        <h3 class="text-lg font-medium mb-2">自動で分析開始</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            Yahoo ファイナンス等の公開データソースから、財務情報・株価・事業概要を自動収集。
+                            数秒で分析が完了します。
+                        </p>
+                    </div>
+                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
+                    <div class="hidden md:flex md:w-1/2 justify-end items-center">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">2</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ステップ3 -->
+                <div class="section-fade relative flex flex-col md:flex-row items-center gap-6 md:gap-12">
+                    <div class="md:w-1/2 md:text-right">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 md:hidden" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">3</span>
+                        </div>
+                        <h3 class="text-lg font-medium mb-2">結果を確認・比較</h3>
+                        <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                            合致度スコア、財務チャート、事業概要を一画面で確認。
+                            気になる企業はお気に入りに登録して、いつでも比較できます。
+                        </p>
+                    </div>
+                    <div class="timeline-dot hidden md:block" style="top: 20px;"></div>
+                    <div class="hidden md:flex md:w-1/2 items-center">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full" style="background: var(--lp-accent); color: white;">
+                            <span class="text-lg font-light">3</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 波型ディバイダー -->
+    <div class="wave-divider">
+        <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
+            <path d="M0,30 C360,60 720,0 1080,30 C1260,45 1380,15 1440,30 L1440,60 L0,60 Z" fill="white"/>
+        </svg>
+    </div>
+
+    <!-- ========== 6. こんな方におすすめ ========== -->
+    <section class="py-24 md:py-32 bg-white">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center section-fade mb-16">
+                <div class="accent-line mx-auto mb-6"></div>
+                <p class="text-sm tracking-widest uppercase mb-4" style="color: var(--lp-accent);">For You</p>
+                <h2 class="text-2xl md:text-4xl font-light">こんな方におすすめ</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
+                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">01</div>
+                    <h3 class="text-lg font-medium mb-3">個人投資家の方</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        限られた時間の中で効率よく銘柄分析をしたい。
+                        感覚的な判断ではなく、データに裏付けされた投資判断をしたい方。
+                    </p>
+                </div>
+
+                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
+                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">02</div>
+                    <h3 class="text-lg font-medium mb-3">投資初心者の方</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        財務諸表の見方がよくわからない。
+                        どの指標が重要なのか、わかりやすく整理された情報で学びたい方。
+                    </p>
+                </div>
+
+                <div class="lp-card section-fade rounded-xl p-8 border" style="border-color: var(--lp-border); background: var(--lp-bg);">
+                    <div class="text-3xl font-light mb-4" style="color: var(--lp-accent);">03</div>
+                    <h3 class="text-lg font-medium mb-3">長期投資志向の方</h3>
+                    <p class="text-sm leading-relaxed" style="color: var(--lp-muted);">
+                        短期の値動きではなく、企業の本質的な価値を重視。
+                        業績の安定性や成長性を軸に銘柄を選びたい方。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 7. CTA ========== -->
+    <section class="py-24 md:py-32 relative overflow-hidden" style="background: var(--lp-accent);">
+        <!-- 装飾用blob -->
+        <div class="absolute top-0 right-0 opacity-10">
+            <svg width="400" height="400" viewBox="0 0 400 400">
+                <circle cx="300" cy="100" r="200" fill="white"/>
+            </svg>
+        </div>
+
+        <div class="relative z-10 max-w-3xl mx-auto px-6 text-center">
+            <div class="section-fade">
+                <div class="w-10 h-0.5 bg-white opacity-40 mx-auto mb-8"></div>
+                <h2 class="text-2xl md:text-4xl font-light text-white mb-6">
+                    まずは一社、<br>分析してみませんか。
+                </h2>
+                <p class="text-base text-white opacity-70 mb-10 leading-relaxed">
+                    登録不要・無料でご利用いただけます。<br>
+                    銘柄コードを入力するだけで、すぐに分析が始まります。
+                </p>
+                <a href="/dashboard" class="cta-btn inline-flex items-center gap-3 px-10 py-4 bg-white rounded-full text-base font-medium transition-all" style="color: var(--lp-accent);">
+                    分析を始める
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== フッター ========== -->
+    <footer class="py-12 border-t" style="border-color: var(--lp-border); background: var(--lp-bg);">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="text-sm" style="color: var(--lp-muted);">
+                    企業情報抽出アプリ
+                </div>
+                <div class="text-xs leading-relaxed text-center md:text-right" style="color: var(--lp-muted);">
+                    本サービスは投資助言・投資勧誘を目的としたものではありません。<br>
+                    投資に関する最終的な判断は、ご自身の責任にてお願いいたします。
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========== JavaScript ========== -->
+    <script>
+        // Lenis スムーススクロール初期化
+        const lenis = new Lenis({
+            duration: 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            smooth: true
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // ヘッダー スクロール時の背景切り替え
+        const lpHeader = document.getElementById('lp-header');
+        lenis.on('scroll', ({ scroll }) => {
+            if (scroll > 50) {
+                lpHeader.classList.add('scrolled');
+            } else {
+                lpHeader.classList.remove('scrolled');
+            }
+        });
+
+        // GSAP ScrollTrigger とLenis連携
+        gsap.registerPlugin(ScrollTrigger);
+
+        lenis.on('scroll', ScrollTrigger.update);
+        gsap.ticker.add((time) => {
+            lenis.raf(time * 1000);
+        });
+        gsap.ticker.lagSmoothing(0);
+
+        // Hero アニメーション
+        const heroTl = gsap.timeline({ delay: 0.3 });
+        heroTl
+            .to('#hero-line', { opacity: 1, width: 60, duration: 0.8, ease: 'power2.out' })
+            .to('#hero-title', { opacity: 1, y: 0, duration: 1, ease: 'power2.out' }, '-=0.4')
+            .to('#hero-subtitle', { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }, '-=0.5')
+            .to('#scroll-indicator', { opacity: 0.6, duration: 0.6, ease: 'power2.out' }, '-=0.3');
+
+        // 各セクションのフェードインアニメーション
+        gsap.utils.toArray('.section-fade').forEach((el, i) => {
+            gsap.to(el, {
+                opacity: 1,
+                y: 0,
+                duration: 0.8,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: el,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none'
+                },
+                delay: i % 3 * 0.1
+            });
+        });
+
+        // 浮遊パーティクル生成
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = Math.random() * 100 + '%';
+            particlesContainer.appendChild(particle);
+
+            gsap.to(particle, {
+                opacity: Math.random() * 0.3 + 0.05,
+                duration: Math.random() * 3 + 2,
+                repeat: -1,
+                yoyo: true,
+                ease: 'sine.inOut'
+            });
+
+            gsap.to(particle, {
+                y: Math.random() * -60 - 20,
+                x: Math.random() * 40 - 20,
+                duration: Math.random() * 8 + 6,
+                repeat: -1,
+                yoyo: true,
+                ease: 'sine.inOut'
+            });
+        }
+    </script>
+</body>
+</html>
