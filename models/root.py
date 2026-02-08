@@ -48,6 +48,12 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/stock/<code>')
+def stock_detail(code):
+    """個別銘柄詳細ページ"""
+    return render_template('stock_detail.html', stock_code=code)
+
+
 @app.route('/dashboard/admin')
 def admin():
     """管理画面（編集可能）"""

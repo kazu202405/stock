@@ -843,6 +843,7 @@
 
     .tab-content {
         display: none;
+        padding-top: 16px;
     }
 
     .tab-content.active {
@@ -1053,7 +1054,7 @@
                 条件合致企業
             </button>
             <button class="watchlist-tab" onclick="switchTab('gc')" id="tab-gc">
-                GC達成銘柄
+                GC銘柄
             </button>
             <button class="watchlist-tab" onclick="switchTab('dc')" id="tab-dc">
                 DC銘柄
@@ -1067,7 +1068,10 @@
                 <div style="display: flex; align-items: center; gap: 10px;">
                     {% if is_admin %}
                     <button class="bulk-register-btn" onclick="openBulkRegisterModal()">一括登録</button>
+                    <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
+                    <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn" style="background-color: #2563eb;">詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <span class="watchlist-count" id="watchlistCount">0件</span>
                 </div>
             </div>
@@ -1085,6 +1089,8 @@
                 <span class="watchlist-title"></span>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <button class="gc-fetch-btn" onclick="fetchGcStocks()" id="gcFetchBtn">取得</button>
+                    <button class="gc-fetch-btn" onclick="analyzeGcStocks()" id="gcAnalyzeBtn" style="background-color: #2563eb;">詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="stopGcAnalyze()" id="gcStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <span class="watchlist-count" id="gcCount">0件</span>
                 </div>
             </div>
@@ -2785,6 +2791,8 @@
                         <th>PER</th>
                         <th>PBR</th>
                         <th>配当利回り</th>
+                        <th>GC</th>
+                        <th>DC</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -2804,11 +2812,14 @@
             // 合致度
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}%` : '---';
             const matchRateClass = getMatchRateClass(item.match_rate);
+            // GC/DC形成日
+            const gcDate = formatScrapedDate(item.gc_date);
+            const dcDate = formatScrapedDate(item.dc_date);
 
             html += `
                 <tr>
                     <td>${code}</td>
-                    <td class="company-name-cell" onclick="analyzeFromWatchlist('${code}')">${name}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
                     <td>${marketCap}</td>
@@ -2816,6 +2827,8 @@
                     <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
+                    <td>${gcDate}</td>
+                    <td>${dcDate}</td>
                     <td><button class="delete-btn" onclick="removeFromWatchlist('${code}')">削除</button></td>
                 </tr>
             `;
@@ -3531,6 +3544,118 @@
     };
 
     // ========================================
+    // ウォッチリスト一括分析機能
+    // ========================================
+
+    let wlAnalyzePolling = null;
+
+    async function analyzeWlStocks() {
+        const btn = document.getElementById('wlAnalyzeBtn');
+        const stopBtn = document.getElementById('wlStopBtn');
+        btn.disabled = true;
+        stopBtn.style.display = 'inline-block';
+
+        try {
+            const response = await fetch('/api/watchlist/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.status && data.status.total === 0) {
+                    btn.disabled = false;
+                    btn.textContent = '詳細取得';
+                    stopBtn.style.display = 'none';
+                    alert('全銘柄の分析が完了済みです');
+                } else {
+                    startWlAnalyzePolling();
+                }
+            } else {
+                if (data.status && data.status.running) {
+                    startWlAnalyzePolling();
+                } else {
+                    alert('分析エラー: ' + (data.error || '不明'));
+                    btn.disabled = false;
+                    btn.textContent = '詳細取得';
+                    stopBtn.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            alert('通信エラー: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = '詳細取得';
+            stopBtn.style.display = 'none';
+        }
+    }
+
+    async function stopWlAnalyze() {
+        try {
+            await fetch('/api/watchlist/analyze/stop', { method: 'POST' });
+            document.getElementById('wlStopBtn').disabled = true;
+            document.getElementById('wlStopBtn').textContent = '停止中...';
+        } catch (e) {
+            console.error('停止リクエスト失敗:', e);
+        }
+    }
+
+    function finishWlAnalyzeUI() {
+        const btn = document.getElementById('wlAnalyzeBtn');
+        const stopBtn = document.getElementById('wlStopBtn');
+        btn.disabled = false;
+        btn.textContent = '詳細取得';
+        stopBtn.style.display = 'none';
+        stopBtn.disabled = false;
+        stopBtn.textContent = '停止';
+    }
+
+    function startWlAnalyzePolling() {
+        if (wlAnalyzePolling) clearInterval(wlAnalyzePolling);
+
+        wlAnalyzePolling = setInterval(async () => {
+            try {
+                const statusRes = await fetch('/api/watchlist/analyze/status');
+                const status = await statusRes.json();
+
+                document.getElementById('wlAnalyzeBtn').textContent = `分析中 ${status.done}/${status.total}`;
+
+                // ウォッチリストを再読み込み
+                loadWatchlist();
+
+                if (!status.running) {
+                    clearInterval(wlAnalyzePolling);
+                    wlAnalyzePolling = null;
+                    finishWlAnalyzeUI();
+                }
+            } catch (e) {
+                clearInterval(wlAnalyzePolling);
+                wlAnalyzePolling = null;
+                finishWlAnalyzeUI();
+            }
+        }, 3000);
+    }
+
+    // ========================================
+    // ウォッチリスト全件削除
+    // ========================================
+
+    async function removeAllWatchlist() {
+        if (!confirm('ウォッチリストの全銘柄を削除しますか？')) return;
+
+        try {
+            const response = await fetch('/api/watchlist/remove-all', { method: 'DELETE' });
+            if (response.ok) {
+                loadWatchlist();
+            } else {
+                const data = await response.json();
+                alert('削除エラー: ' + (data.error || '不明'));
+            }
+        } catch (error) {
+            alert('通信エラー: ' + error.message);
+        }
+    }
+
+    // ========================================
     // 一括登録機能
     // ========================================
 
@@ -3565,10 +3690,10 @@
         const codes = input
             .split(/[,\n\s]+/)
             .map(code => code.trim().replace('.T', ''))
-            .filter(code => code && /^\d{4}$/.test(code));
+            .filter(code => code && /^\d{3,4}[A-Z]?$/.test(code));
 
         if (codes.length === 0) {
-            statusDiv.innerHTML = '<span style="color: #dc2626;">有効な銘柄コード（4桁の数字）が見つかりません</span>';
+            statusDiv.innerHTML = '<span style="color: #dc2626;">有効な銘柄コード（3〜4桁の数字+英字）が見つかりません</span>';
             return;
         }
 
@@ -3888,11 +4013,14 @@
                 <thead>
                     <tr>
                         <th>コード</th>
-                        <th>銘柄名</th>
-                        <th>市場</th>
+                        <th>会社名</th>
+                        <th>合致度</th>
+                        <th>セクター</th>
+                        <th>時価総額</th>
                         <th>株価</th>
                         <th>PER</th>
                         <th>PBR</th>
+                        <th>配当利回り</th>
                         <th>形成日</th>
                     </tr>
                 </thead>
@@ -3902,23 +4030,32 @@
         stocks.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
-            const market = item.market || '---';
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined
+                ? `${item.match_rate}/120` : '---';
+            const sector = item.sector || '---';
+            const marketCap = item.market_cap !== null && item.market_cap !== undefined
+                ? `${Number(item.market_cap).toLocaleString()}億` : '---';
             const price = item.stock_price !== null && item.stock_price !== undefined
                 ? Number(item.stock_price).toLocaleString() + '円' : '---';
             const per = item.per !== null && item.per !== undefined
                 ? `${Number(item.per).toFixed(1)}倍` : '---';
             const pbr = item.pbr !== null && item.pbr !== undefined
                 ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const divYield = item.dividend_yield !== null && item.dividend_yield !== undefined
+                ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const formedDate = formatScrapedDate(item.scraped_at);
 
             html += `
                 <tr>
                     <td>${code}</td>
-                    <td class="company-name-cell" onclick="analyzeFromWatchlist('${code}')">${name}</td>
-                    <td>${market}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
+                    <td>${matchRate}</td>
+                    <td>${sector}</td>
+                    <td>${marketCap}</td>
                     <td>${price}</td>
                     <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td>${divYield}</td>
                     <td>${formedDate}</td>
                 </tr>
             `;
@@ -3926,6 +4063,110 @@
 
         html += '</tbody></table>';
         content.innerHTML = html;
+    }
+
+    // GC銘柄の詳細分析を実行（バックグラウンド + ポーリング）
+    let gcAnalyzePolling = null;
+
+    async function analyzeGcStocks() {
+        if (gcStocksCache.length === 0) {
+            alert('先にGC銘柄を取得してください');
+            return;
+        }
+
+        const btn = document.getElementById('gcAnalyzeBtn');
+        const stopBtn = document.getElementById('gcStopBtn');
+        btn.disabled = true;
+        stopBtn.style.display = 'inline-block';
+
+        try {
+            const response = await fetch('/api/gc-stocks/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.status && data.status.total === 0) {
+                    // 全件分析済み
+                    btn.disabled = false;
+                    btn.textContent = '詳細取得';
+                    stopBtn.style.display = 'none';
+                    alert('全銘柄の分析が完了済みです');
+                } else {
+                    startGcAnalyzePolling();
+                }
+            } else {
+                if (data.status && data.status.running) {
+                    startGcAnalyzePolling();
+                } else {
+                    document.getElementById('gcContent').innerHTML =
+                        `<div class="watchlist-empty">分析エラー: ${data.error}</div>`;
+                    btn.disabled = false;
+                    btn.textContent = '詳細取得';
+                    stopBtn.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            document.getElementById('gcContent').innerHTML =
+                `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+            btn.disabled = false;
+            btn.textContent = '詳細取得';
+            stopBtn.style.display = 'none';
+        }
+    }
+
+    async function stopGcAnalyze() {
+        try {
+            await fetch('/api/gc-stocks/analyze/stop', { method: 'POST' });
+            document.getElementById('gcStopBtn').disabled = true;
+            document.getElementById('gcStopBtn').textContent = '停止中...';
+        } catch (e) {
+            console.error('停止リクエスト失敗:', e);
+        }
+    }
+
+    function finishGcAnalyzeUI() {
+        const btn = document.getElementById('gcAnalyzeBtn');
+        const stopBtn = document.getElementById('gcStopBtn');
+        btn.disabled = false;
+        btn.textContent = '詳細取得';
+        stopBtn.style.display = 'none';
+        stopBtn.disabled = false;
+        stopBtn.textContent = '停止';
+    }
+
+    function startGcAnalyzePolling() {
+        if (gcAnalyzePolling) clearInterval(gcAnalyzePolling);
+
+        gcAnalyzePolling = setInterval(async () => {
+            try {
+                // 進捗を取得
+                const statusRes = await fetch('/api/gc-stocks/analyze/status');
+                const status = await statusRes.json();
+
+                const btn = document.getElementById('gcAnalyzeBtn');
+                btn.textContent = `分析中 ${status.done}/${status.total}`;
+
+                // テーブルを最新データで更新
+                const dataRes = await fetch('/api/gc-stocks');
+                const data = await dataRes.json();
+                if (dataRes.ok) {
+                    renderGcStocks(data.gc_stocks || []);
+                }
+
+                // 完了判定
+                if (!status.running) {
+                    clearInterval(gcAnalyzePolling);
+                    gcAnalyzePolling = null;
+                    finishGcAnalyzeUI();
+                }
+            } catch (e) {
+                clearInterval(gcAnalyzePolling);
+                gcAnalyzePolling = null;
+                finishGcAnalyzeUI();
+            }
+        }, 3000);
     }
 
     // scraped_atをyyyy/mm/dd形式に変換
@@ -4037,7 +4278,7 @@
             html += `
                 <tr>
                     <td>${code}</td>
-                    <td class="company-name-cell" onclick="analyzeFromWatchlist('${code}')">${name}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td>${market}</td>
                     <td>${price}</td>
                     <td>${per}</td>

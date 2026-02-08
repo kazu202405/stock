@@ -39,7 +39,7 @@ class StockAnalyzer:
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.charts_dir, exist_ok=True)
         
-    def analyze(self, symbol: str, period: str = "1y") -> Dict[str, Any]:
+    def analyze(self, symbol: str, period: str = "1y", skip_chart: bool = False, skip_extras: bool = False) -> Dict[str, Any]:
         """
         株式データを分析してJSONとチャートを生成
         
@@ -106,7 +106,11 @@ class StockAnalyzer:
             
             # 基本的な株価・指標データ取得
             self._get_basic_metrics(ticker, result)
-            
+
+            # kabutanから正確なPBRを取得（日本株のみ、常時実行）
+            if symbol.endswith('.T'):
+                self._get_kabutan_metrics(symbol, result)
+
             # 財務データ取得
             self._get_financial_data(ticker, result)
             
@@ -120,22 +124,24 @@ class StockAnalyzer:
             self._get_industry_sector(symbol, ticker, result)
             
             # トレンド分析とチャート作成
-            self._analyze_trend_and_create_chart(ticker, symbol, result, period)
+            if not skip_chart:
+                self._analyze_trend_and_create_chart(ticker, symbol, result, period)
             
             # 日本語会社名・業種取得
             self._get_jp_labels(symbol, result)
-            
-            # 主要株主・役員情報取得
-            self._get_holders_and_officers(symbol, result)
-            
-            # 会社概要・事業説明取得
-            self._get_business_summary(symbol, ticker, result)
-            
-            # 信用倍率取得（日本株のみ）
-            if symbol.endswith('.T'):
-                self._get_margin_trading_data(symbol, result)
-                # 業績予想データ取得
-                self._get_forecast_data(symbol, result)
+
+            if not skip_extras:
+                # 主要株主・役員情報取得
+                self._get_holders_and_officers(symbol, result)
+
+                # 会社概要・事業説明取得
+                self._get_business_summary(symbol, ticker, result)
+
+                # 信用倍率取得（日本株のみ）
+                if symbol.endswith('.T'):
+                    self._get_margin_trading_data(symbol, result)
+                    # 業績予想データ取得
+                    self._get_forecast_data(symbol, result)
 
             # JSON保存
             output_file = os.path.join(self.output_dir, f"snapshot_{symbol.replace('.', '_')}.json")
@@ -776,18 +782,23 @@ class StockAnalyzer:
             try_periods = [period, "1y"] if period in ("1d", "5d") else [period]
             hist = None
             for p in try_periods:
-                try:
-                    print(f"データ取得試行: {symbol}, 期間: {p}")
-                    hist = ticker.history(period=p, timeout=10)  # 10秒タイムアウト
-                    if not hist.empty:
-                        print(f"データ取得成功: {len(hist)} 行")
-                        break
-                    else:
-                        print(f"データが空: 期間 {p}")
-                except Exception as e:
-                    print(f"データ取得失敗 ({p}): {str(e)}")
-                    continue
-            
+                # 最大2回試行（初回失敗時に2秒待ってリトライ）
+                for attempt in range(2):
+                    try:
+                        print(f"データ取得試行: {symbol}, 期間: {p}, 試行{attempt+1}/2")
+                        hist = ticker.history(period=p, timeout=10)
+                        if not hist.empty:
+                            print(f"データ取得成功: {len(hist)} 行")
+                            break
+                        else:
+                            print(f"データが空: 期間 {p}, 試行{attempt+1}")
+                    except Exception as e:
+                        print(f"データ取得失敗 ({p}, 試行{attempt+1}): {str(e)}")
+                    if attempt == 0:
+                        time.sleep(2)
+                if hist is not None and not hist.empty:
+                    break
+
             if hist is None or hist.empty:
                 return
                 
@@ -953,6 +964,48 @@ class StockAnalyzer:
             result["company_officers"] = None
             result["holders_source"] = "error"
     
+    def _get_kabutan_metrics(self, symbol: str, result: Dict[str, Any]):
+        """kabutanから正確なPBR/PERを取得して上書き（日本株のみ）"""
+        try:
+            from bs4 import BeautifulSoup
+
+            code = symbol.replace('.T', '')
+            url = f'https://kabutan.jp/stock/?code={code}'
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(url, headers=headers, timeout=15)
+            response.encoding = 'utf-8'
+
+            if response.status_code != 200:
+                return
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            abbr = soup.find('abbr', title='Price Book-value Ratio')
+            if not abbr:
+                return
+            table = abbr.find_parent('table')
+            if not table:
+                return
+            rows = table.find_all('tr')
+            if len(rows) < 2:
+                return
+            cells = rows[1].find_all('td')
+            if len(cells) >= 2:
+                # PBR = cells[1]
+                pbr_text = cells[1].get_text(strip=True).replace('倍', '')
+                try:
+                    pbr_val = float(pbr_text)
+                    old_pbr = result.get('pbr')
+                    result['pbr'] = pbr_val
+                    print(f"PBR上書き（kabutan）: {old_pbr} → {pbr_val}")
+                except ValueError:
+                    pass
+
+        except Exception as e:
+            print(f"kabutan PBR取得エラー: {str(e)}")
+
     def _get_margin_trading_data(self, symbol: str, result: Dict[str, Any]):
         """
         Yahoo!ファイナンス日本版から信用倍率データを取得
@@ -1292,20 +1345,22 @@ class StockAnalyzer:
             print(f"事業概要取得エラー: {str(e)}")
 
 
-def batch_analyze(symbols: List[str], sleep_time: float = 0.35):
+def batch_analyze(symbols: List[str], sleep_time: float = 0.35, skip_chart: bool = False, skip_extras: bool = False):
     """
     複数銘柄をバッチ分析
-    
+
     Args:
         symbols: 銘柄コードのリスト
         sleep_time: リクエスト間のスリープ時間（秒）
+        skip_chart: チャート生成をスキップするか
+        skip_extras: 株主・事業概要・信用倍率・業績予想をスキップするか
     """
     analyzer = StockAnalyzer()
     results = []
-    
+
     for i, symbol in enumerate(symbols):
         print(f"\n[{i+1}/{len(symbols)}] {symbol}を分析中...")
-        result = analyzer.analyze(symbol)
+        result = analyzer.analyze(symbol, skip_chart=skip_chart, skip_extras=skip_extras)
         results.append(result)
         
         # 最後の銘柄以外はスリープ

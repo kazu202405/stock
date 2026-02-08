@@ -14,22 +14,66 @@ from models.chatbot import *
 from models.business_plan_preparation import *
 from stock_analyzer import StockAnalyzer, batch_analyze
 from supabase_client import (
+    get_supabase_client,
     add_to_watchlist, remove_from_watchlist, get_watchlist,
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
     update_screened_data, upsert_screened_data_with_match_rate,
-    calculate_match_rate,
+    calculate_match_rate, get_screened_data,
     upsert_gc_stocks, get_gc_stocks,
     upsert_dc_stocks, get_dc_stocks
 )
 from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
 
+# ヘルパー関数
+def get_latest_value(val):
+    """配列データから最新値を抽出"""
+    if val is None:
+        return None
+    if isinstance(val, list) and len(val) > 0:
+        sorted_list = sorted(val, key=lambda x: x.get('date', ''), reverse=True)
+        return sorted_list[0].get('value')
+    if isinstance(val, (int, float)):
+        return val
+    return None
+
+
+def get_yearly_values(data_list, count=4):
+    """配列データから直近N年分の値を取得"""
+    if not data_list or not isinstance(data_list, list):
+        return [None] * count
+    sorted_list = sorted(data_list, key=lambda x: x.get('date', ''), reverse=True)
+    values = [item.get('value') for item in sorted_list[:count]]
+    while len(values) < count:
+        values.append(None)
+    return values
+
+
+def to_oku(val):
+    """億円単位に変換"""
+    if val is None:
+        return None
+    return val / 1e8
+
+
 # ウォッチリストAPI
 @app.route('/api/watchlist', methods=['GET'])
 def api_get_watchlist():
-    """登録銘柄一覧を取得"""
+    """登録銘柄一覧を取得（GC/DC形成日付き）"""
     try:
         data = get_watchlist_with_details()
+
+        # GC/DCの形成日をマッピング
+        gc_stocks = get_gc_stocks()
+        dc_stocks = get_dc_stocks()
+        gc_map = {s['company_code']: s.get('scraped_at') for s in gc_stocks}
+        dc_map = {s['company_code']: s.get('scraped_at') for s in dc_stocks}
+
+        for item in data:
+            code = item.get('company_code', '').replace('.T', '')
+            item['gc_date'] = gc_map.get(code)
+            item['dc_date'] = dc_map.get(code)
+
         return jsonify({"watchlist": data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -52,39 +96,9 @@ def api_add_to_watchlist():
         if 'stock_data' in data:
             stock_data = data['stock_data']
 
-            # 配列データから最新値を抽出するヘルパー関数
-            def get_latest_value(val):
-                if val is None:
-                    return None
-                if isinstance(val, list) and len(val) > 0:
-                    # 日付でソートして最新を取得
-                    sorted_list = sorted(val, key=lambda x: x.get('date', ''), reverse=True)
-                    return sorted_list[0].get('value')
-                if isinstance(val, (int, float)):
-                    return val
-                return None
-
             # 時価総額を億円単位に変換
             market_cap_raw = stock_data.get('market_cap')
             market_cap_oku = market_cap_raw / 1e8 if market_cap_raw else None
-
-            # 配列データから年度別の値を抽出（最新から順に取得）
-            def get_yearly_values(data_list, count=4):
-                """配列データから直近N年分の値を取得"""
-                if not data_list or not isinstance(data_list, list):
-                    return [None] * count
-                sorted_list = sorted(data_list, key=lambda x: x.get('date', ''), reverse=True)
-                values = [item.get('value') for item in sorted_list[:count]]
-                # 足りない分はNoneで埋める
-                while len(values) < count:
-                    values.append(None)
-                return values
-
-            # 億円単位に変換する関数
-            def to_oku(val):
-                if val is None:
-                    return None
-                return val / 1e8
 
             # 売上高（直近4年分：今期予、前期、2期前、3期前）
             revenue_vals = get_yearly_values(stock_data.get('revenue'), 4)
@@ -233,6 +247,17 @@ def api_remove_from_watchlist(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/watchlist/remove-all', methods=['DELETE'])
+def api_remove_all_from_watchlist():
+    """ウォッチリストを全件削除"""
+    try:
+        client = get_supabase_client()
+        client.table('watched_tickers').delete().neq('company_code', '').execute()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/watchlist/check/<company_code>', methods=['GET'])
 def api_check_watchlist(company_code):
     """銘柄がウォッチリストに登録されているか確認"""
@@ -375,9 +400,9 @@ def analyze_stocks_batch():
         if not isinstance(symbols, list) or len(symbols) == 0:
             return jsonify({"error": "無効な銘柄コードリストです"}), 400
             
-        # 最大10銘柄まで
-        if len(symbols) > 10:
-            return jsonify({"error": "一度に分析できるのは10銘柄までです"}), 400
+        # 最大200銘柄まで
+        if len(symbols) > 200:
+            return jsonify({"error": "一度に分析できるのは200銘柄までです"}), 400
             
         # バッチ分析実行
         results = batch_analyze(symbols)
@@ -462,6 +487,249 @@ def api_scrape_gc_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+# バックグラウンド分析の進捗管理
+import threading
+gc_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+wl_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+
+def _analyze_stock_and_save(analyzer, company_code):
+    """1銘柄を分析してscreened_latestに保存。成功時にscreened_dataを返す。
+    company_codeは '7203.T' でも '7203' でもOK。"""
+    symbol = company_code if company_code.endswith('.T') else f"{company_code}.T"
+    code = company_code  # DB保存用（そのまま使う）
+    stock_data = analyzer.analyze(symbol, skip_chart=True, skip_extras=True)
+
+    if not stock_data.get('name'):
+        return None
+
+    market_cap_oku = None
+    if stock_data.get('market_cap'):
+        market_cap_oku = round(stock_data['market_cap'] / 1e8, 1)
+
+    operating_cf = get_latest_value(stock_data.get('operating_cf'))
+    investing_cf = get_latest_value(stock_data.get('investing_cf'))
+
+    financial_history = {
+        'revenue': stock_data.get('revenue', []),
+        'op_income': stock_data.get('op_income', []),
+    }
+    cf_history = {
+        'roa': stock_data.get('roa', []),
+    }
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    screened_data = {
+        'company_code': code,
+        'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
+        'sector': stock_data.get('sector_jp') or stock_data.get('sector', ''),
+        'market_cap': market_cap_oku,
+        'stock_price': stock_data.get('last_price'),
+        'equity_ratio': get_latest_value(stock_data.get('equity_ratio_pct')),
+        'operating_margin': get_latest_value(stock_data.get('op_margin_pct')),
+        'operating_cf': to_oku(operating_cf) if operating_cf else None,
+        'free_cf': to_oku(operating_cf + investing_cf) if operating_cf and investing_cf else None,
+        'roa': get_latest_value(stock_data.get('roa')),
+        'per_forward': stock_data.get('per'),
+        'pbr': stock_data.get('pbr'),
+        'dividend_yield': stock_data.get('dividend_yield'),
+        'analyzed_at': now,
+        'forecast_revenue': stock_data.get('forecast_revenue'),
+        'forecast_op_income': stock_data.get('forecast_op_income'),
+        'financial_history': json.dumps(financial_history, ensure_ascii=False),
+        'cf_history': json.dumps(cf_history, ensure_ascii=False),
+        'data_source': 'yfinance',
+        'data_status': 'fresh'
+    }
+    upsert_screened_data_with_match_rate(screened_data)
+    return {**screened_data, 'raw': stock_data}
+
+
+def _analyze_gc_background(codes):
+    """GC銘柄をバックグラウンドで1銘柄ずつ分析"""
+    global gc_analyze_status
+    analyzer = StockAnalyzer()
+
+    for i, code in enumerate(codes):
+        if gc_analyze_status["stop_requested"]:
+            break
+
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if result:
+                client = get_supabase_client()
+                client.table('gc_stocks').update({
+                    'sector': result.get('sector'),
+                    'market_cap': result.get('market_cap'),
+                    'dividend_yield': result['raw'].get('dividend_yield'),
+                    'match_rate': result.get('match_rate'),
+                    'analyzed_at': result.get('analyzed_at'),
+                }).eq('company_code', code).execute()
+            else:
+                gc_analyze_status["errors"] += 1
+        except Exception as e:
+            print(f"GC分析エラー ({code}): {e}")
+            gc_analyze_status["errors"] += 1
+
+        gc_analyze_status["done"] += 1
+        if i < len(codes) - 1:
+            import time
+            time.sleep(0.35)
+
+    gc_analyze_status["running"] = False
+    gc_analyze_status["stop_requested"] = False
+
+
+def _analyze_wl_background(codes):
+    """ウォッチリスト銘柄をバックグラウンドで1銘柄ずつ分析"""
+    global wl_analyze_status
+    analyzer = StockAnalyzer()
+
+    for i, code in enumerate(codes):
+        if wl_analyze_status["stop_requested"]:
+            break
+
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if not result:
+                wl_analyze_status["errors"] += 1
+        except Exception as e:
+            print(f"WL分析エラー ({code}): {e}")
+            wl_analyze_status["errors"] += 1
+
+        wl_analyze_status["done"] += 1
+        if i < len(codes) - 1:
+            import time
+            time.sleep(0.35)
+
+    wl_analyze_status["running"] = False
+    wl_analyze_status["stop_requested"] = False
+
+
+@app.route('/api/gc-stocks/analyze', methods=['POST'])
+def api_analyze_gc_stocks():
+    """GC銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
+    global gc_analyze_status
+    try:
+        if gc_analyze_status["running"]:
+            return jsonify({
+                "error": "分析が既に実行中です",
+                "status": gc_analyze_status
+            }), 409
+
+        gc_stocks = get_gc_stocks()
+        if not gc_stocks:
+            return jsonify({"error": "GC銘柄がありません。先に取得してください"}), 400
+
+        # 今日未分析の銘柄のみ対象
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        codes = [s['company_code'] for s in gc_stocks
+                 if not (s.get('analyzed_at') or '').startswith(today)]
+
+        if not codes:
+            return jsonify({
+                "success": True,
+                "message": "本日の分析は全銘柄完了済みです",
+                "status": {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+            }), 200
+
+        gc_analyze_status = {
+            "running": True, "done": 0, "total": len(codes),
+            "errors": 0, "stop_requested": False
+        }
+
+        thread = threading.Thread(target=_analyze_gc_background, args=(codes,), daemon=True)
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"未分析 {len(codes)}件の分析を開始しました",
+            "status": gc_analyze_status
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/gc-stocks/analyze/stop', methods=['POST'])
+def api_gc_analyze_stop():
+    """GC分析を停止"""
+    global gc_analyze_status
+    if gc_analyze_status["running"]:
+        gc_analyze_status["stop_requested"] = True
+        return jsonify({"success": True, "message": "停止リクエストを送信しました"}), 200
+    return jsonify({"success": True, "message": "分析は実行されていません"}), 200
+
+
+@app.route('/api/gc-stocks/analyze/status', methods=['GET'])
+def api_gc_analyze_status():
+    """GC分析の進捗状況を取得"""
+    return jsonify(gc_analyze_status), 200
+
+
+# ウォッチリスト一括分析API
+@app.route('/api/watchlist/analyze', methods=['POST'])
+def api_analyze_watchlist():
+    """ウォッチリスト銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
+    global wl_analyze_status
+    try:
+        if wl_analyze_status["running"]:
+            return jsonify({
+                "error": "分析が既に実行中です",
+                "status": wl_analyze_status
+            }), 409
+
+        watchlist = get_watchlist_with_details()
+        if not watchlist:
+            return jsonify({"error": "ウォッチリストが空です"}), 400
+
+        # 今日未分析の銘柄のみ対象（.T付きのまま渡す）
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        codes = [s['company_code'] for s in watchlist
+                 if not (s.get('analyzed_at') or '').startswith(today)]
+
+        if not codes:
+            return jsonify({
+                "success": True,
+                "message": "本日の分析は全銘柄完了済みです",
+                "status": {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+            }), 200
+
+        wl_analyze_status = {
+            "running": True, "done": 0, "total": len(codes),
+            "errors": 0, "stop_requested": False
+        }
+
+        thread = threading.Thread(target=_analyze_wl_background, args=(codes,), daemon=True)
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"未分析 {len(codes)}件の分析を開始しました",
+            "status": wl_analyze_status
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/watchlist/analyze/stop', methods=['POST'])
+def api_wl_analyze_stop():
+    """ウォッチリスト分析を停止"""
+    global wl_analyze_status
+    if wl_analyze_status["running"]:
+        wl_analyze_status["stop_requested"] = True
+        return jsonify({"success": True, "message": "停止リクエストを送信しました"}), 200
+    return jsonify({"success": True, "message": "分析は実行されていません"}), 200
+
+
+@app.route('/api/watchlist/analyze/status', methods=['GET'])
+def api_wl_analyze_status():
+    """ウォッチリスト分析の進捗状況を取得"""
+    return jsonify(wl_analyze_status), 200
+
+
 # DC銘柄API
 @app.route('/api/dc-stocks', methods=['GET'])
 def api_get_dc_stocks():
@@ -491,6 +759,21 @@ def api_scrape_dc_stocks():
             "count": len(stocks),
             "dc_stocks": stocks
         }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stock/screened/<company_code>', methods=['GET'])
+def api_get_screened_stock(company_code):
+    """screened_latestから単一銘柄のキャッシュデータ取得"""
+    try:
+        data = get_screened_data(company_code)
+        # .T付きでも検索
+        if not data and not company_code.endswith('.T'):
+            data = get_screened_data(company_code + '.T')
+        if data:
+            return jsonify(data), 200
+        return jsonify({"error": "not found"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
