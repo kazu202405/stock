@@ -775,6 +775,16 @@
         color: white;
     }
 
+    .trend-up {
+        color: #dc2626;
+        font-weight: 600;
+    }
+
+    .trend-down {
+        color: #2563eb;
+        font-weight: 600;
+    }
+
     .watchlist-empty {
         text-align: center;
         padding: 40px;
@@ -2036,11 +2046,11 @@
     function updateFinancialYearTable(data) {
         // 年度データを収集
         const yearDataMap = new Map();
-        
+
         // 全データタイプから年度を収集
         const dataTypes = ['revenue', 'op_income', 'ordinary_income', 'net_income', 'eps', 'dps', 'payout_ratio',
                           'operating_cf', 'investing_cf', 'financing_cf', 'cash', 'current_liabilities_list', 'equity_ratio_list', 'roe', 'roa'];
-        
+
         dataTypes.forEach(type => {
             if (data[type] && Array.isArray(data[type])) {
                 data[type].forEach(item => {
@@ -2054,7 +2064,26 @@
                 });
             }
         });
-        
+
+        // 会社予想データを追加
+        if (data.forecast_year) {
+            const fd = new Date(data.forecast_year);
+            const fYear = fd.getFullYear();
+            const fMonth = fd.getMonth() + 1;
+            if (!yearDataMap.has(fYear) || !yearDataMap.get(fYear).revenue) {
+                if (!yearDataMap.has(fYear)) {
+                    yearDataMap.set(fYear, { _month: fMonth, _date: data.forecast_year, _forecast: true });
+                } else {
+                    yearDataMap.get(fYear)._forecast = true;
+                }
+                const fy = yearDataMap.get(fYear);
+                if (data.forecast_revenue) fy.revenue = data.forecast_revenue * 1e8;
+                if (data.forecast_op_income) fy.op_income = data.forecast_op_income * 1e8;
+                if (data.forecast_ordinary_income) fy.ordinary_income = data.forecast_ordinary_income * 1e8;
+                if (data.forecast_net_income) fy.net_income = data.forecast_net_income * 1e8;
+            }
+        }
+
         // 年度を昇順でソート（古い年が上に）
         const sortedYears = Array.from(yearDataMap.keys()).sort((a, b) => a - b).slice(-5);
         
@@ -2085,8 +2114,10 @@
             if (yearLabel) {
                 const yearData = dataMap.get(year) || {};
                 const month = yearData._month;
-                yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                const forecast = yearData._forecast ? '(予)' : '';
+                yearLabel.textContent = month ? `${year}年${month}月${forecast}` : `${year}年${forecast}`;
                 yearLabel.dataset.fullDate = yearData._date || `${year}-03-31`;
+                if (yearData._forecast) { yearLabel.style.color = '#1b4332'; yearLabel.style.whiteSpace = 'nowrap'; }
             }
             
             const yearData = dataMap.get(year) || {};
@@ -2116,8 +2147,10 @@
             if (yearLabel) {
                 const yearData = dataMap.get(year) || {};
                 const month = yearData._month;
-                yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                const forecast = yearData._forecast ? '(予)' : '';
+                yearLabel.textContent = month ? `${year}年${month}月${forecast}` : `${year}年${forecast}`;
                 yearLabel.dataset.fullDate = yearData._date || `${year}-03-31`;
+                if (yearData._forecast) { yearLabel.style.color = '#1b4332'; yearLabel.style.whiteSpace = 'nowrap'; }
             }
             
             const yearData = dataMap.get(year) || {};
@@ -2793,6 +2826,7 @@
                         <th>配当利回り</th>
                         <th>GC</th>
                         <th>DC</th>
+                        <th>方向</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -2812,9 +2846,10 @@
             // 合致度
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}%` : '---';
             const matchRateClass = getMatchRateClass(item.match_rate);
-            // GC/DC形成日
+            // GC/DC形成日とトレンド方向
             const gcDate = formatScrapedDate(item.gc_date);
             const dcDate = formatScrapedDate(item.dc_date);
+            const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
                 <tr>
@@ -2829,6 +2864,7 @@
                     <td>${divYield}</td>
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
+                    <td class="${trend.cls}">${trend.label}</td>
                     <td><button class="delete-btn" onclick="removeFromWatchlist('${code}')">削除</button></td>
                 </tr>
             `;
@@ -3042,7 +3078,9 @@
         if (forecastRevenue && financialHistory && financialHistory.revenue && financialHistory.revenue.length >= 1) {
             const sorted = [...financialHistory.revenue].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             if (sorted[0].value && sorted[0].value > 0) {
-                revenueForecastGrowth = ((forecastRevenue - sorted[0].value) / sorted[0].value) * 100;
+                // forecastRevenueは億円、sorted[0].valueは円なので変換
+                const forecastYen = forecastRevenue * 1e8;
+                revenueForecastGrowth = ((forecastYen - sorted[0].value) / sorted[0].value) * 100;
                 revenueForecastPass = revenueForecastGrowth > 0;
             }
         }
@@ -3071,7 +3109,9 @@
         if (forecastOpIncome && financialHistory && financialHistory.op_income && financialHistory.op_income.length >= 1) {
             const sorted = [...financialHistory.op_income].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             if (sorted[0].value && sorted[0].value > 0) {
-                opForecastGrowth = ((forecastOpIncome - sorted[0].value) / sorted[0].value) * 100;
+                // forecastOpIncomeは億円、sorted[0].valueは円なので変換
+                const forecastYen = forecastOpIncome * 1e8;
+                opForecastGrowth = ((forecastYen - sorted[0].value) / sorted[0].value) * 100;
                 opForecastPass = opForecastGrowth > 0;
             }
         }
@@ -3205,6 +3245,13 @@
                 mockData.roe = cfHistory.roe || [];
                 mockData.roa = cfHistory.roa || [];
             }
+
+            // 会社予想データをキャッシュから追加
+            if (data.forecast_year) mockData.forecast_year = data.forecast_year;
+            if (data.forecast_revenue) mockData.forecast_revenue = data.forecast_revenue;
+            if (data.forecast_op_income) mockData.forecast_op_income = data.forecast_op_income;
+            if (data.forecast_ordinary_income) mockData.forecast_ordinary_income = data.forecast_ordinary_income;
+            if (data.forecast_net_income) mockData.forecast_net_income = data.forecast_net_income;
 
             // 既存の関数を使って表示
             updateFinancialYearTable(mockData);
@@ -4021,7 +4068,8 @@
                         <th>PER</th>
                         <th>PBR</th>
                         <th>配当利回り</th>
-                        <th>形成日</th>
+                        <th>GC形成日</th>
+                        <th>方向</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -4044,6 +4092,7 @@
             const divYield = item.dividend_yield !== null && item.dividend_yield !== undefined
                 ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const formedDate = formatScrapedDate(item.scraped_at);
+            const trend = getTrendDirection(item.scraped_at, item.dc_date);
 
             html += `
                 <tr>
@@ -4057,6 +4106,7 @@
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
                     <td>${formedDate}</td>
+                    <td class="${trend.cls}">${trend.label}</td>
                 </tr>
             `;
         });
@@ -4180,6 +4230,18 @@
         return `${y}/${m}/${day}`;
     }
 
+    // トレンド方向判定（GC/DC日付比較）
+    function getTrendDirection(gcDate, dcDate) {
+        if (!gcDate && !dcDate) return { label: '---', cls: '' };
+        if (gcDate && !dcDate) return { label: '↗', cls: 'trend-up' };
+        if (!gcDate && dcDate) return { label: '↘', cls: 'trend-down' };
+        const gc = new Date(gcDate);
+        const dc = new Date(dcDate);
+        if (gc > dc) return { label: '↗', cls: 'trend-up' };
+        if (dc > gc) return { label: '↘', cls: 'trend-down' };
+        return { label: '---', cls: '' };
+    }
+
     // ========================================
     // DC銘柄関連機能
     // ========================================
@@ -4257,7 +4319,8 @@
                         <th>株価</th>
                         <th>PER</th>
                         <th>PBR</th>
-                        <th>形成日</th>
+                        <th>DC形成日</th>
+                        <th>方向</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -4274,6 +4337,7 @@
             const pbr = item.pbr !== null && item.pbr !== undefined
                 ? `${Number(item.pbr).toFixed(2)}倍` : '---';
             const formedDate = formatScrapedDate(item.scraped_at);
+            const trend = getTrendDirection(item.gc_date, item.scraped_at);
 
             html += `
                 <tr>
@@ -4284,6 +4348,7 @@
                     <td>${per}</td>
                     <td>${pbr}</td>
                     <td>${formedDate}</td>
+                    <td class="${trend.cls}">${trend.label}</td>
                 </tr>
             `;
         });

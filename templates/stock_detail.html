@@ -154,6 +154,26 @@
         margin-bottom: 16px;
     }
 
+    .trend-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 12px;
+        white-space: nowrap;
+    }
+
+    .trend-badge.up {
+        color: #dc2626;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+    }
+
+    .trend-badge.down {
+        color: #2563eb;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+    }
+
     .key-metrics {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -363,7 +383,10 @@
         <div class="summary-card">
             <div class="company-name" id="companyName">---</div>
             <div class="stock-price-display" id="stockPriceDisplay">---</div>
-            <div class="company-code" id="companyCodeInfo">---</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="company-code" id="companyCodeInfo">---</div>
+                <span id="trendBadge" style="display: none;"></span>
+            </div>
 
             <div class="key-metrics">
                 <div class="metric-item">
@@ -667,6 +690,25 @@
         return num;
     }
 
+    // トレンド方向バッジ更新
+    function updateTrendBadge(gcDate, dcDate) {
+        const badge = document.getElementById('trendBadge');
+        if (!badge) return;
+        if (!gcDate && !dcDate) { badge.style.display = 'none'; return; }
+        let label, cls;
+        if (gcDate && !dcDate) { label = '↗ 上昇トレンド'; cls = 'up'; }
+        else if (!gcDate && dcDate) { label = '↘ 下降トレンド'; cls = 'down'; }
+        else {
+            const gc = new Date(gcDate), dc = new Date(dcDate);
+            if (gc > dc) { label = '↗ 上昇トレンド'; cls = 'up'; }
+            else if (dc > gc) { label = '↘ 下降トレンド'; cls = 'down'; }
+            else { badge.style.display = 'none'; return; }
+        }
+        badge.textContent = label;
+        badge.className = `trend-badge ${cls}`;
+        badge.style.display = 'inline-block';
+    }
+
     function toNumberSafe(v) {
         if (v === null || v === undefined) return null;
         if (typeof v === 'string') v = v.replace(/,/g, '').trim();
@@ -797,6 +839,26 @@
                 });
             }
         });
+
+        // 会社予想データを追加
+        if (data.forecast_year) {
+            const fd = new Date(data.forecast_year);
+            const fYear = fd.getFullYear();
+            const fMonth = fd.getMonth() + 1;
+            if (!yearDataMap.has(fYear) || !yearDataMap.get(fYear).revenue) {
+                if (!yearDataMap.has(fYear)) {
+                    yearDataMap.set(fYear, { _month: fMonth, _date: data.forecast_year, _forecast: true });
+                } else {
+                    yearDataMap.get(fYear)._forecast = true;
+                }
+                const fy = yearDataMap.get(fYear);
+                if (data.forecast_revenue) fy.revenue = data.forecast_revenue * 1e8;
+                if (data.forecast_op_income) fy.op_income = data.forecast_op_income * 1e8;
+                if (data.forecast_ordinary_income) fy.ordinary_income = data.forecast_ordinary_income * 1e8;
+                if (data.forecast_net_income) fy.net_income = data.forecast_net_income * 1e8;
+            }
+        }
+
         const sortedYears = Array.from(yearDataMap.keys()).sort((a, b) => a - b).slice(-5);
 
         // 財務データテーブル
@@ -809,7 +871,9 @@
                 if (yearLabel) {
                     const yearData = yearDataMap.get(year) || {};
                     const month = yearData._month;
-                    yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                    const forecast = yearData._forecast ? '(予)' : '';
+                    yearLabel.textContent = month ? `${year}年${month}月${forecast}` : `${year}年${forecast}`;
+                    if (yearData._forecast) { yearLabel.style.color = '#1b4332'; yearLabel.style.whiteSpace = 'nowrap'; }
                 }
                 const yd = yearDataMap.get(year) || {};
                 updateCellValue(row, 'revenue', yd.revenue);
@@ -832,7 +896,9 @@
                 if (yearLabel) {
                     const yearData = yearDataMap.get(year) || {};
                     const month = yearData._month;
-                    yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                    const forecast = yearData._forecast ? '(予)' : '';
+                    yearLabel.textContent = month ? `${year}年${month}月${forecast}` : `${year}年${forecast}`;
+                    if (yearData._forecast) { yearLabel.style.color = '#1b4332'; yearLabel.style.whiteSpace = 'nowrap'; }
                 }
                 const yd = yearDataMap.get(year) || {};
                 updateCellValue(row, 'operating_cf', yd.operating_cf);
@@ -1038,23 +1104,17 @@
     }
 
     function updateScoreCard(data) {
-        const scoreValue = document.getElementById('score-value');
-        const matchRate = data.match_rate;
-        if (matchRate !== null && matchRate !== undefined) {
-            scoreValue.textContent = matchRate;
-            scoreValue.className = 'score-value';
-            if (matchRate >= 70) scoreValue.classList.add('high');
-            else if (matchRate >= 40) scoreValue.classList.add('medium');
-            else scoreValue.classList.add('low');
-        } else {
-            scoreValue.textContent = '--';
-            scoreValue.className = 'score-value';
-        }
+        // 各項目の合否を判定しながら合致度をJS側で再計算
+        let calcScore = 0;
 
         const marketCap = data.market_cap;
-        updateScoreItem('score-market-cap', marketCap !== null && marketCap <= 700, marketCap ? `${Math.round(marketCap)}億` : null);
+        const marketCapPass = marketCap !== null && marketCap <= 700;
+        if (marketCapPass) calcScore += 10;
+        updateScoreItem('score-market-cap', marketCapPass, marketCap ? `${Math.round(marketCap)}億` : null);
         const equityRatio = data.equity_ratio;
-        updateScoreItem('score-equity-ratio', equityRatio !== null && equityRatio >= 30, equityRatio ? `${equityRatio.toFixed(1)}%` : null);
+        const equityPass = equityRatio !== null && equityRatio >= 30;
+        if (equityPass) calcScore += 10;
+        updateScoreItem('score-equity-ratio', equityPass, equityRatio ? `${equityRatio.toFixed(1)}%` : null);
 
         let revenueGrowth = null, revenueGrowthPass = false;
         const financialHistory = parseJsonField(data.financial_history);
@@ -1065,20 +1125,26 @@
                 revenueGrowthPass = revenueGrowth > 0;
             }
         }
+        if (revenueGrowthPass) calcScore += 10;
         updateScoreItem('score-revenue-growth', revenueGrowthPass, revenueGrowth !== null ? `${revenueGrowth.toFixed(1)}%` : null);
 
         let revenueForecastGrowth = null, revenueForecastPass = false;
         if (data.forecast_revenue && financialHistory && financialHistory.revenue && financialHistory.revenue.length >= 1) {
             const sorted = [...financialHistory.revenue].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             if (sorted[0].value && sorted[0].value > 0) {
-                revenueForecastGrowth = ((data.forecast_revenue - sorted[0].value) / sorted[0].value) * 100;
+                // forecast_revenueは億円、sorted[0].valueは円なので変換
+                const forecastYen = data.forecast_revenue * 1e8;
+                revenueForecastGrowth = ((forecastYen - sorted[0].value) / sorted[0].value) * 100;
                 revenueForecastPass = revenueForecastGrowth > 0;
             }
         }
+        if (revenueForecastPass) calcScore += 10;
         updateScoreItem('score-revenue-forecast', revenueForecastPass, revenueForecastGrowth !== null ? `${revenueForecastGrowth.toFixed(1)}%` : null);
 
         const opMargin = data.operating_margin;
-        updateScoreItem('score-op-margin', opMargin !== null && opMargin >= 10, opMargin ? `${opMargin.toFixed(1)}%` : null);
+        const opMarginPass = opMargin !== null && opMargin >= 10;
+        if (opMarginPass) calcScore += 10;
+        updateScoreItem('score-op-margin', opMarginPass, opMargin ? `${opMargin.toFixed(1)}%` : null);
 
         let opGrowth = null, opGrowthPass = false;
         if (financialHistory && financialHistory.op_income && financialHistory.op_income.length >= 2) {
@@ -1088,22 +1154,30 @@
                 opGrowthPass = opGrowth > 0;
             }
         }
+        if (opGrowthPass) calcScore += 10;
         updateScoreItem('score-op-growth', opGrowthPass, opGrowth !== null ? `${opGrowth.toFixed(1)}%` : null);
 
         let opForecastGrowth = null, opForecastPass = false;
         if (data.forecast_op_income && financialHistory && financialHistory.op_income && financialHistory.op_income.length >= 1) {
             const sorted = [...financialHistory.op_income].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             if (sorted[0].value && sorted[0].value > 0) {
-                opForecastGrowth = ((data.forecast_op_income - sorted[0].value) / sorted[0].value) * 100;
+                // forecast_op_incomeは億円、sorted[0].valueは円なので変換
+                const forecastYen = data.forecast_op_income * 1e8;
+                opForecastGrowth = ((forecastYen - sorted[0].value) / sorted[0].value) * 100;
                 opForecastPass = opForecastGrowth > 0;
             }
         }
+        if (opForecastPass) calcScore += 10;
         updateScoreItem('score-op-forecast', opForecastPass, opForecastGrowth !== null ? `${opForecastGrowth.toFixed(1)}%` : null);
 
         const operatingCf = data.operating_cf;
-        updateScoreItem('score-op-cf', operatingCf !== null && operatingCf > 0, operatingCf ? `${operatingCf.toFixed(1)}億` : null);
+        const opCfPass = operatingCf !== null && operatingCf > 0;
+        if (opCfPass) calcScore += 10;
+        updateScoreItem('score-op-cf', opCfPass, operatingCf ? `${operatingCf.toFixed(1)}億` : null);
         const freeCf = data.free_cf;
-        updateScoreItem('score-free-cf', freeCf !== null && freeCf > 0, freeCf ? `${freeCf.toFixed(1)}億` : null);
+        const freeCfPass = freeCf !== null && freeCf > 0;
+        if (freeCfPass) calcScore += 10;
+        updateScoreItem('score-free-cf', freeCfPass, freeCf ? `${freeCf.toFixed(1)}億` : null);
 
         let roa = data.roa;
         if (roa === null || roa === undefined) {
@@ -1112,12 +1186,26 @@
                 roa = [...cfHistory.roa].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0].value;
             }
         }
-        updateScoreItem('score-roa', roa !== null && roa > 4.5, roa ? `${roa.toFixed(1)}%` : null);
+        const roaPass = roa !== null && roa > 4.5;
+        if (roaPass) calcScore += 10;
+        updateScoreItem('score-roa', roaPass, roa ? `${roa.toFixed(1)}%` : null);
 
         const per = data.per_forward;
-        updateScoreItem('score-per', per !== null && per > 0 && per < 40, per ? `${per.toFixed(1)}倍` : null);
+        const perPass = per !== null && per > 0 && per < 40;
+        if (perPass) calcScore += 10;
+        updateScoreItem('score-per', perPass, per ? `${per.toFixed(1)}倍` : null);
         const pbr = data.pbr;
-        updateScoreItem('score-pbr', pbr !== null && pbr > 0 && pbr < 10, pbr ? `${pbr.toFixed(2)}倍` : null);
+        const pbrPass = pbr !== null && pbr > 0 && pbr < 10;
+        if (pbrPass) calcScore += 10;
+        updateScoreItem('score-pbr', pbrPass, pbr ? `${pbr.toFixed(2)}倍` : null);
+
+        // 合致度をJS側で再計算した値で表示（DB値は古い可能性があるため）
+        const scoreValue = document.getElementById('score-value');
+        scoreValue.textContent = calcScore;
+        scoreValue.className = 'score-value';
+        if (calcScore >= 70) scoreValue.classList.add('high');
+        else if (calcScore >= 40) scoreValue.classList.add('medium');
+        else scoreValue.classList.add('low');
     }
 
     // キャッシュデータ表示
@@ -1138,6 +1226,9 @@
         // 銘柄コードと業種
         const codeEl = document.getElementById('companyCodeInfo');
         if (codeEl) codeEl.textContent = `銘柄コード: ${data.company_code || STOCK_CODE} | 業種: ${data.sector || '---'}`;
+
+        // トレンド方向バッジ
+        updateTrendBadge(data.gc_date, data.dc_date);
 
         // 指標更新
         updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率');
@@ -1172,6 +1263,12 @@
                 mockData.equity_ratio_list = cfHistory.equity_ratio || [];
                 mockData.roe = cfHistory.roe || []; mockData.roa = cfHistory.roa || [];
             }
+            // 会社予想データをキャッシュから追加
+            if (data.forecast_year) mockData.forecast_year = data.forecast_year;
+            if (data.forecast_revenue) mockData.forecast_revenue = data.forecast_revenue;
+            if (data.forecast_op_income) mockData.forecast_op_income = data.forecast_op_income;
+            if (data.forecast_ordinary_income) mockData.forecast_ordinary_income = data.forecast_ordinary_income;
+            if (data.forecast_net_income) mockData.forecast_net_income = data.forecast_net_income;
             updateFinancialYearTable(mockData);
         }
 
@@ -1250,6 +1347,9 @@
             else industryLine = '---';
             codeEl.textContent = `銘柄コード: ${data.symbol}` + (industryLine !== '---' ? ` | 業種: ${industryLine}` : '');
         }
+
+        // トレンド方向バッジ
+        updateTrendBadge(data.gc_date, data.dc_date);
 
         const equityRatio = data.equity_ratio_pct ?? data.equity_ratio ?? (Array.isArray(data.equity_ratio_list) && data.equity_ratio_list.length > 0 ? [...data.equity_ratio_list].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.value : null);
         updateMetric('equity-ratio', equityRatio, '%', '自己資本比率');

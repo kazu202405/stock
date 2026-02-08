@@ -397,6 +397,18 @@ def analyze_stock():
         except Exception as save_err:
             print(f"分析結果の自動保存エラー: {save_err}")
 
+        # GC/DC日付を付与
+        try:
+            code = normalize_code(symbol)
+            gc_stocks = get_gc_stocks()
+            dc_stocks = get_dc_stocks()
+            gc_map = {s['company_code']: s.get('scraped_at') for s in gc_stocks}
+            dc_map = {s['company_code']: s.get('scraped_at') for s in dc_stocks}
+            result['gc_date'] = gc_map.get(code)
+            result['dc_date'] = dc_map.get(code)
+        except:
+            pass
+
         return jsonify(result), 200
 
     except Exception as e:
@@ -477,10 +489,28 @@ def get_cached_analysis(symbol):
 # GC銘柄API
 @app.route('/api/gc-stocks', methods=['GET'])
 def api_get_gc_stocks():
-    """保存済みGC銘柄一覧を取得"""
+    """保存済みGC銘柄一覧を取得（DC日付付き、表示用フィルタ適用）"""
     try:
         data = get_gc_stocks()
-        return jsonify({"gc_stocks": data}), 200
+        dc_stocks = get_dc_stocks()
+        dc_map = {s['company_code']: s.get('scraped_at') for s in dc_stocks}
+
+        display_data = []
+        for item in data:
+            code = item.get('company_code', '')
+            item['dc_date'] = dc_map.get(code)
+            # 表示用フィルタ: PER/PBR両方なし(ETF等)、PER>=40、PBR>=10 は非表示
+            per = item.get('per')
+            pbr = item.get('pbr')
+            if per is None and pbr is None:
+                continue
+            if per is not None and per >= 40:
+                continue
+            if pbr is not None and pbr >= 10:
+                continue
+            display_data.append(item)
+
+        return jsonify({"gc_stocks": display_data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -659,6 +689,9 @@ def _analyze_stock_and_save(analyzer, company_code):
         'analyzed_at': now,
         'forecast_revenue': stock_data.get('forecast_revenue'),
         'forecast_op_income': stock_data.get('forecast_op_income'),
+        'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
+        'forecast_net_income': stock_data.get('forecast_net_income'),
+        'forecast_year': stock_data.get('forecast_year'),
         'data_source': 'yfinance',
         'data_status': 'fresh'
     }
@@ -857,9 +890,14 @@ def api_wl_analyze_status():
 # DC銘柄API
 @app.route('/api/dc-stocks', methods=['GET'])
 def api_get_dc_stocks():
-    """保存済みDC銘柄一覧を取得"""
+    """保存済みDC銘柄一覧を取得（GC日付付き）"""
     try:
         data = get_dc_stocks()
+        gc_stocks = get_gc_stocks()
+        gc_map = {s['company_code']: s.get('scraped_at') for s in gc_stocks}
+        for item in data:
+            code = item.get('company_code', '')
+            item['gc_date'] = gc_map.get(code)
         return jsonify({"dc_stocks": data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -889,11 +927,18 @@ def api_scrape_dc_stocks():
 
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])
 def api_get_screened_stock(company_code):
-    """screened_latestから単一銘柄のキャッシュデータ取得"""
+    """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）"""
     try:
         company_code = normalize_code(company_code)
         data = get_screened_data(company_code)
         if data:
+            # GC/DC日付を付与してトレンド方向判定に使う
+            gc_stocks = get_gc_stocks()
+            dc_stocks = get_dc_stocks()
+            gc_map = {s['company_code']: s.get('scraped_at') for s in gc_stocks}
+            dc_map = {s['company_code']: s.get('scraped_at') for s in dc_stocks}
+            data['gc_date'] = gc_map.get(company_code)
+            data['dc_date'] = dc_map.get(company_code)
             return jsonify(data), 200
         return jsonify({"error": "not found"}), 404
     except Exception as e:

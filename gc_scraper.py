@@ -41,11 +41,10 @@ def _scrape_all_pages(base_url):
 
 def scrape_gc_stocks():
     """
-    kabutan.jpからゴールデンクロス達成銘柄を全ページ取得し、
-    PER >= 40 または PBR >= 10 の銘柄を除外して返す。
+    kabutan.jpからゴールデンクロス達成銘柄を全ページ取得。
+    全件返す（フィルタはAPI表示層で実施）。
     """
-    all_stocks = _scrape_all_pages(GC_BASE_URL)
-    return _filter_stocks(all_stocks)
+    return _scrape_all_pages(GC_BASE_URL)
 
 
 def scrape_dc_stocks():

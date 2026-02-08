@@ -130,6 +130,10 @@ class StockAnalyzer:
             # 日本語会社名・業種取得
             self._get_jp_labels(symbol, result)
 
+            # 業績予想データ取得（日本株、バッチでも常に取得）
+            if symbol.endswith('.T'):
+                self._get_forecast_data(symbol, result)
+
             if not skip_extras:
                 # 主要株主・役員情報取得
                 self._get_holders_and_officers(symbol, result)
@@ -140,8 +144,6 @@ class StockAnalyzer:
                 # 信用倍率取得（日本株のみ）
                 if symbol.endswith('.T'):
                     self._get_margin_trading_data(symbol, result)
-                    # 業績予想データ取得
-                    self._get_forecast_data(symbol, result)
 
             # JSON保存
             output_file = os.path.join(self.output_dir, f"snapshot_{symbol.replace('.', '_')}.json")
@@ -577,37 +579,51 @@ class StockAnalyzer:
             # 配当データ（DPS）と配当性向計算
             dividends = ticker.dividends
             if not dividends.empty:
-                # 年別に集計
-                dividends_annual = dividends.resample('Y').sum()
-                
-                # 最新5年分
-                for i in range(min(5, len(dividends_annual))):
-                    if i < len(dividends_annual):
-                        date = dividends_annual.index[-i-1]
-                        value = dividends_annual.iloc[-i-1]
-                        date_str = date.strftime('%Y-%m-%d')
-                        
-                        result["dps"].append({
+                # EPSの決算日から決算月を推定（決算年度ベースで集計するため）
+                eps_sorted = sorted(result["eps"], key=lambda x: x["date"])
+                fiscal_end_month = 3  # デフォルト3月決算
+                if eps_sorted:
+                    latest_eps_date = pd.to_datetime(eps_sorted[-1]["date"])
+                    fiscal_end_month = latest_eps_date.month
+
+                # 決算年度ごとに配当を集計
+                # 例: 3月決算 → 前年4月〜当年3月の配当を同一年度とする
+                fiscal_year_divs = {}
+                for div_date, div_value in dividends.items():
+                    if div_date.month <= fiscal_end_month:
+                        fy_year = div_date.year
+                    else:
+                        fy_year = div_date.year + 1
+                    if fy_year not in fiscal_year_divs:
+                        fiscal_year_divs[fy_year] = 0.0
+                    fiscal_year_divs[fy_year] += div_value
+
+                # 最新5年分のDPSと配当性向を計算
+                sorted_fys = sorted(fiscal_year_divs.keys(), reverse=True)[:5]
+                for fy_year in sorted_fys:
+                    total_dps = fiscal_year_divs[fy_year]
+                    date_str = f"{fy_year}-{fiscal_end_month:02d}-28"
+
+                    result["dps"].append({
+                        "date": date_str,
+                        "value": float(total_dps)
+                    })
+
+                    # 同じ決算年度のEPSを探して配当性向計算
+                    eps_for_year = None
+                    for eps_item in eps_sorted:
+                        eps_date = pd.to_datetime(eps_item["date"])
+                        if eps_date.year == fy_year:
+                            eps_for_year = eps_item["value"]
+                            break
+
+                    if eps_for_year and eps_for_year > 0:
+                        payout_ratio = (total_dps / eps_for_year) * 100
+                        result["payout_ratio"].append({
                             "date": date_str,
-                            "value": float(value)
+                            "value": float(payout_ratio)
                         })
-                        
-                        # 配当性向計算（DPS / EPS * 100）
-                        # 同じ年のEPSを探す
-                        eps_for_year = None
-                        for eps_item in result["eps"]:
-                            eps_date = pd.to_datetime(eps_item["date"])
-                            if eps_date.year == date.year:
-                                eps_for_year = eps_item["value"]
-                                break
-                        
-                        if eps_for_year and eps_for_year > 0:
-                            payout_ratio = (value / eps_for_year) * 100
-                            result["payout_ratio"].append({
-                                "date": date_str,
-                                "value": float(payout_ratio)
-                            })
-                        
+
         except Exception as e:
             print(f"配当データ取得エラー: {str(e)}")
             
@@ -1102,10 +1118,13 @@ class StockAnalyzer:
             if response.status_code == 200:
                 html = response.text
 
+                # エスケープ引用符を正規化（HTML内のJSON文字列対応）
+                normalized_html = html.replace('\\"', '"')
+
                 # JSONデータを抽出（ReactのpropsやstateとしてHTMLに埋め込まれている）
                 # "forecast":{"yearEndDate":"2025-12-31","netSales":35000000000,...}
                 forecast_pattern = r'"forecast"\s*:\s*\{[^}]+\}'
-                forecast_match = re.search(forecast_pattern, html)
+                forecast_match = re.search(forecast_pattern, normalized_html)
 
                 if forecast_match:
                     forecast_str = forecast_match.group(0)
@@ -1150,27 +1169,27 @@ class StockAnalyzer:
                         print(f"JSONパース失敗、正規表現でフォールバック: {e}")
 
                         # netSales
-                        sales_match = re.search(r'"netSales"\s*:\s*(\d+)', html)
+                        sales_match = re.search(r'"netSales"\s*:\s*(\d+)', normalized_html)
                         if sales_match:
                             result["forecast_revenue"] = int(sales_match.group(1)) / 1e8
 
                         # operatingIncome
-                        op_match = re.search(r'"operatingIncome"\s*:\s*(\d+)', html)
+                        op_match = re.search(r'"operatingIncome"\s*:\s*(\d+)', normalized_html)
                         if op_match:
                             result["forecast_op_income"] = int(op_match.group(1)) / 1e8
 
                         # ordinaryIncome
-                        ordinary_match = re.search(r'"ordinaryIncome"\s*:\s*(\d+)', html)
+                        ordinary_match = re.search(r'"ordinaryIncome"\s*:\s*(\d+)', normalized_html)
                         if ordinary_match:
                             result["forecast_ordinary_income"] = int(ordinary_match.group(1)) / 1e8
 
                         # netProfit
-                        profit_match = re.search(r'"netProfit"\s*:\s*(\d+)', html)
+                        profit_match = re.search(r'"netProfit"\s*:\s*(\d+)', normalized_html)
                         if profit_match:
                             result["forecast_net_income"] = int(profit_match.group(1)) / 1e8
 
                         # yearEndDate
-                        year_match = re.search(r'"yearEndDate"\s*:\s*"([^"]+)"', html)
+                        year_match = re.search(r'"yearEndDate"\s*:\s*"([^"]+)"', normalized_html)
                         if year_match:
                             result["forecast_year"] = year_match.group(1)
 

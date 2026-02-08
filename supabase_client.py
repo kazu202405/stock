@@ -204,7 +204,9 @@ def calculate_match_rate(data: dict) -> int:
             if sorted_rev:
                 last_revenue = sorted_rev[0].get('value')
                 if last_revenue and last_revenue > 0:
-                    growth_rate = ((forecast_revenue - last_revenue) / last_revenue) * 100
+                    # forecast_revenueは億円単位、last_revenueは円単位なので変換
+                    forecast_rev_yen = forecast_revenue * 1e8
+                    growth_rate = ((forecast_rev_yen - last_revenue) / last_revenue) * 100
                     if growth_rate > 0:
                         score += 10
 
@@ -217,7 +219,9 @@ def calculate_match_rate(data: dict) -> int:
             if sorted_op:
                 last_op_income = sorted_op[0].get('value')
                 if last_op_income and last_op_income > 0:
-                    growth_rate = ((forecast_op_income - last_op_income) / last_op_income) * 100
+                    # forecast_op_incomeは億円単位、last_op_incomeは円単位なので変換
+                    forecast_op_yen = forecast_op_income * 1e8
+                    growth_rate = ((forecast_op_yen - last_op_income) / last_op_income) * 100
                     if growth_rate > 0:
                         score += 10
 
