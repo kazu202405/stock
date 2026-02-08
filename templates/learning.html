@@ -1,0 +1,392 @@
+{% extends "layout.html" %}
+
+{% block title %}学習ノート - 企業のことをもっと知ろう{% endblock %}
+
+{% block content %}
+<style>
+    .learning-page {
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+    }
+
+    .learning-hero {
+        background: #fafaf8;
+        border-bottom: 1px solid #e8e8e4;
+    }
+
+    /* カード */
+    .term-card {
+        transition: all 0.2s ease;
+        border: 1px solid #ebebeb;
+    }
+    .term-card:hover {
+        border-color: #d4d4d4;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+
+    .chevron-icon {
+        transition: transform 0.25s ease;
+    }
+
+    /* ステップ番号 */
+    .step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    /* セクションボックス */
+    .content-section {
+        border-radius: 12px;
+        padding: 16px 18px;
+    }
+    .section-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        margin-bottom: 8px;
+    }
+</style>
+
+<div class="learning-page min-h-screen" style="background: #f7f7f5;">
+
+    <!-- ヘッダー -->
+    <div class="learning-hero">
+        <div class="max-w-3xl mx-auto px-6 py-10">
+            <p class="text-xs font-semibold tracking-widest uppercase mb-3" style="color: #16a34a;">Learning Note</p>
+            <h1 class="text-2xl font-bold mb-3" style="color: #1a1a1a;">企業を見る目を養う基礎知識</h1>
+            <p class="text-sm leading-relaxed" style="color: #737373; max-width: 440px;">
+                難しそうな指標も、意味がわかれば怖くない。<br>
+                ひとつずつ、企業の読み解き方を身につけていきましょう。
+            </p>
+        </div>
+    </div>
+
+    <div class="max-w-3xl mx-auto px-6 py-8" x-data="learningApp()">
+
+        <!-- 全カテゴリを順に表示 -->
+        <template x-for="(cat, catIdx) in categories" :key="cat.id">
+            <div class="mb-12">
+                <!-- カテゴリ見出し -->
+                <div class="mb-5 flex items-start gap-4">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;">
+                        <span x-text="catIdx + 1"></span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold mb-1" style="color: #1a1a1a;" x-text="cat.name"></h2>
+                        <p class="text-sm leading-relaxed" style="color: #737373;" x-text="cat.description"></p>
+                    </div>
+                </div>
+
+                <!-- 用語カード一覧 -->
+                <div class="space-y-3 ml-14">
+                    <template x-for="term in getTermsByCategory(cat.id)" :key="term.id">
+                        <div class="term-card bg-white rounded-xl overflow-hidden">
+                            <!-- カードヘッダー -->
+                            <button @click="toggle(term.id)" class="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                                        :style="'background:' + term.accentBg">
+                                        <i :class="term.icon" :style="'color:' + term.accent"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-bold" style="color: #1a1a1a;" x-text="term.title"></h3>
+                                        <p class="text-xs mt-0.5" style="color: #a3a3a3;" x-text="term.subtitle"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs px-2 py-0.5 rounded font-medium"
+                                        :style="term.level === '基本'
+                                            ? 'background: #f0fdf4; color: #15803d;'
+                                            : 'background: #fefce8; color: #a16207;'"
+                                        x-text="term.level"></span>
+                                    <i class="fas fa-chevron-down text-xs chevron-icon" style="color: #d4d4d4;"
+                                        :style="openTerms.includes(term.id) ? 'transform: rotate(180deg)' : ''"></i>
+                                </div>
+                            </button>
+
+                            <!-- 展開コンテンツ -->
+                            <div x-show="openTerms.includes(term.id)" x-collapse>
+                                <div class="px-5 pb-5 space-y-3" style="border-top: 1px solid #f5f5f5;">
+                                    <div class="pt-4"></div>
+
+                                    <!-- ひとことで -->
+                                    <div class="content-section" style="background: #f8faf8; border-left: 3px solid #22c55e;">
+                                        <p class="section-label" style="color: #16a34a;">ひとことで</p>
+                                        <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.oneLiner"></p>
+                                    </div>
+
+                                    <!-- くわしく -->
+                                    <div class="content-section" style="background: #fafafa;">
+                                        <p class="section-label" style="color: #525252;">くわしく見てみると</p>
+                                        <div class="space-y-3">
+                                            <template x-for="(p, i) in term.explanation" :key="i">
+                                                <div class="flex items-start gap-3">
+                                                    <div class="step-num mt-0.5 text-white" :style="'background:' + term.accent"
+                                                        x-text="i + 1"></div>
+                                                    <p class="text-sm leading-relaxed" style="color: #525252;" x-text="p"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- 具体例 -->
+                                    <div class="content-section" style="background: #f8f9fc;" x-show="term.example">
+                                        <p class="section-label" style="color: #4b5563;">具体例でイメージすると</p>
+                                        <p class="text-sm leading-relaxed" style="color: #525252;" x-text="term.example"></p>
+                                    </div>
+
+                                    <!-- ポイント -->
+                                    <div class="content-section" style="background: #fefcf3; border-left: 3px solid #eab308;">
+                                        <p class="section-label" style="color: #a16207;">つまり、ここが大事</p>
+                                        <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.whyItMatters"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- フッター -->
+        <div class="mt-4 text-center pb-8">
+            <p class="text-xs" style="color: #a3a3a3;">気になる用語をタップすると、解説が開きます</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function learningApp() {
+    return {
+        openTerms: [],
+
+        categories: [
+            {
+                id: 'scale', name: '企業規模',
+                description: '企業の大きさを測る指標です。時価総額が小さい企業は成長余地が大きい反面、リスクも高い。企業の「器」を知ることが分析の第一歩です。'
+            },
+            {
+                id: 'safety', name: '財務の安全性',
+                description: '財務がどれだけ安定しているかを見ます。借金に頼りすぎていないか、不況が来ても耐えられるか。長く付き合える企業かどうかの判断材料です。'
+            },
+            {
+                id: 'growth', name: '成長性',
+                description: '企業がどれだけ伸びているか。実績と予想の両面から、売上・利益の成長を確認します。過去の延長線上に未来があるとは限りませんが、大きなヒントになります。'
+            },
+            {
+                id: 'profitability', name: '収益性',
+                description: '企業がどれだけ効率よく利益を出せているか。売上の大きさだけでなく「どれだけ手元に残るか」「資産をどれだけ活かせているか」が本当の実力です。'
+            },
+            {
+                id: 'cashflow', name: 'キャッシュフロー',
+                description: '実際のお金の流れを見ます。利益が出ていても現金がなければ経営は回りません。帳簿ではなく「リアルなお金の動き」が企業の本当の健康状態です。'
+            },
+            {
+                id: 'valuation', name: '割安度',
+                description: 'いい企業でも、高すぎる値段で買えば損をします。今の株価がその企業の実力に見合っているかを考えるための指標です。'
+            },
+        ],
+
+        terms: [
+            // === 企業規模 ===
+            {
+                id: 'market_cap', category: 'scale',
+                title: '時価総額', subtitle: 'Market Capitalization',
+                icon: 'fa-solid fa-building', accent: '#64748b', accentBg: '#f1f5f9',
+                level: '基本',
+                oneLiner: '企業の「値段」そのもの。株価 × 発行済株式数で計算される、市場が評価した企業の総額です。',
+                explanation: [
+                    '時価総額は「株価 \u00d7 発行済株式数」で計算します。たとえば株価5,000円で発行済株式が1億株なら、時価総額は5,000億円です。',
+                    '一般的に、時価総額が大きい企業（大型株）は安定感がありますが成長余地は限られます。小さい企業（小型株）は成長余地が大きい反面、値動きが激しくなりやすいです。',
+                    '本アプリでは時価総額700億円以下を基準としています。まだ市場に見つかっていない成長企業を探すための目安です。'
+                ],
+                example: 'トヨタ自動車は時価総額40兆円超の超大型株。一方、時価総額500億円の新興IT企業は、これから大きく伸びる可能性を秘めています。ただし、小型ゆえに1日で株価が大きく動くこともあります。',
+                whyItMatters: '企業の「現在の評価額」がわかります。時価総額が小さいうちに見つけた優良企業は、将来の評価が上がったときに大きなリターンにつながる可能性があります。'
+            },
+
+            // === 安全性 ===
+            {
+                id: 'equity_ratio', category: 'safety',
+                title: '自己資本比率', subtitle: 'Equity Ratio',
+                icon: 'fa-solid fa-shield-halved', accent: '#2563eb', accentBg: '#eff6ff',
+                level: '基本',
+                oneLiner: '会社の資産のうち「自分のお金」がどれくらいあるか。借金体質かどうかが見えます。',
+                explanation: [
+                    '「総資産のうち、返さなくていいお金（自己資本）が何%あるか」を見ます。計算式は「自己資本 \u00f7 総資産 \u00d7 100」。',
+                    '本アプリでは30%以上を基準にしています。一般的には40%以上で安全圏、50%超えで優良とされますが、30%は最低限の安全ラインです。',
+                    '銀行や不動産は構造上低くなるため、業種ごとに水準が異なることは押さえておきましょう。'
+                ],
+                example: 'A社（80%）とB社（20%）。A社は資産のほとんどが自分のお金なので不況でも余裕。B社は80%が借金なので、売上が落ちると返済に苦しむ可能性があります。',
+                whyItMatters: '不況に強く、倒産リスクが低い企業を見分けるための基本指標。安心して長期で見ていられる会社かどうかの重要な判断材料になります。'
+            },
+
+            // === 成長性 ===
+            {
+                id: 'revenue_growth', category: 'growth',
+                title: '売上成長率（実績）', subtitle: 'Revenue Growth Rate (Actual)',
+                icon: 'fa-solid fa-arrow-up', accent: '#16a34a', accentBg: '#f0fdf4',
+                level: '基本',
+                oneLiner: '前年と比べて実際に売上がどれだけ伸びたか。企業が「成長しているか」を最もシンプルに見る数字です。',
+                explanation: [
+                    '「（今年の売上 \u2212 前年の売上）\u00f7 前年の売上 \u00d7 100」で計算します。前年100億 \u2192 今年120億なら成長率20%。',
+                    '本アプリでは前年比プラス（0%超）を基準にしています。売上が前年を上回っていれば、少なくとも「縮小していない」ことが確認できます。',
+                    '1年だけではなく、数年間の推移を見ることで「一時的な好調」か「持続的な成長」かを判断できます。'
+                ],
+                example: 'A社は毎年10%ずつ着実に成長。B社は去年50%伸びたが前年は横ばい。一見B社が優秀に見えますが、継続力ではA社の方が信頼できます。',
+                whyItMatters: '売上が伸びている企業は「社会に求められている」ということ。市場が拡大しているのか、シェアを獲得しているのか。いずれにしても勢いのある企業です。'
+            },
+            {
+                id: 'revenue_growth_forecast', category: 'growth',
+                title: '売上成長率（予想）', subtitle: 'Revenue Growth Rate (Forecast)',
+                icon: 'fa-solid fa-chart-line', accent: '#059669', accentBg: '#ecfdf5',
+                level: '基本',
+                oneLiner: '会社が出している来期の売上予想が、今期より伸びているか。「未来への自信」が見えます。',
+                explanation: [
+                    '企業は毎年、来期の業績予想を開示します。その売上予想が直近実績と比べてプラスかどうかを見ます。',
+                    '予想がプラスということは、会社自身が「来年も伸びる」と考えている証拠。ただし予想はあくまで予想なので、過去の的中率も参考にすると良いです。',
+                    '本アプリでは予想の売上成長率がプラス（0%超）を基準にしています。実績と予想の両方がプラスなら、より信頼感が増します。'
+                ],
+                example: '今期の売上が200億円で、来期予想が220億円なら成長率10%。会社自身が「まだ伸びる」と見ているサインです。ただし前回の予想が大きく外れている会社は割り引いて見る必要があります。',
+                whyItMatters: '実績だけでなく「これから」を見ることで、成長の持続性を判断できます。実績・予想の両方がプラスなら、成長トレンドが続いている可能性が高いです。'
+            },
+            {
+                id: 'op_growth', category: 'growth',
+                title: '営業利益成長率（実績）', subtitle: 'Operating Income Growth (Actual)',
+                icon: 'fa-solid fa-chart-column', accent: '#0d9488', accentBg: '#f0fdfa',
+                level: '基本',
+                oneLiner: '本業の利益が前年より伸びているか。売上だけでなく「稼ぐ力」自体が成長しているかがわかります。',
+                explanation: [
+                    '売上が伸びていても、コストがそれ以上に増えれば利益は減ります。営業利益の成長率は「本業の稼ぐ力」そのものの変化を見る指標です。',
+                    '計算式は売上成長率と同じ考え方で「（今年の営業利益 \u2212 前年の営業利益）\u00f7 前年の営業利益 \u00d7 100」。',
+                    '本アプリでは前年比プラス（0%超）を基準にしています。売上と営業利益の両方が伸びている企業は、健全に成長していると言えます。'
+                ],
+                example: '売上が10%伸びて、営業利益が20%伸びた企業。売上以上に利益が伸びているので「規模が大きくなるほど効率が上がる」構造を持っている可能性が高いです。',
+                whyItMatters: '売上成長率とセットで見るのがコツ。売上は伸びているのに営業利益が減っていたら、コスト管理に問題がある可能性。両方プラスなら成長の質が高い企業です。'
+            },
+            {
+                id: 'op_growth_forecast', category: 'growth',
+                title: '営業利益成長率（予想）', subtitle: 'Operating Income Growth (Forecast)',
+                icon: 'fa-solid fa-bullseye', accent: '#0891b2', accentBg: '#ecfeff',
+                level: '基本',
+                oneLiner: '来期の営業利益予想が今期より伸びているか。「利益面でも成長が続く」という会社の見通しです。',
+                explanation: [
+                    '売上予想と同じく、企業が開示する来期の営業利益予想を直近実績と比較します。',
+                    '売上予想がプラスでも営業利益予想がマイナスなら、先行投資で一時的にコストが膨らむ計画かもしれません。逆に両方プラスなら堅実な成長路線です。',
+                    '本アプリでは営業利益予想の成長率がプラス（0%超）を基準にしています。'
+                ],
+                example: '来期の売上予想が+10%なのに営業利益予想が\u221210%。新規事業への投資で一時的に利益が減る計画かもしれません。理由を確認することで、その企業の戦略が見えてきます。',
+                whyItMatters: '成長性の4指標（売上実績・予想、営業利益実績・予想）がすべてプラスなら、その企業は「実績も将来も伸びている」状態。最も信頼感の高い成長パターンです。'
+            },
+
+            // === 収益性 ===
+            {
+                id: 'operating_margin', category: 'profitability',
+                title: '営業利益率', subtitle: 'Operating Profit Margin',
+                icon: 'fa-solid fa-chart-bar', accent: '#ea580c', accentBg: '#fff7ed',
+                level: '基本',
+                oneLiner: '本業で100円売ったら何円残るか。企業の「稼ぐ力」がストレートに表れます。',
+                explanation: [
+                    '「売上のうち、本業でどれだけ利益が残ったか」を表します。計算式は「営業利益 \u00f7 売上高 \u00d7 100」。',
+                    '本アプリでは10%以上を基準にしています。10%あれば「しっかり稼げている」と言える水準です。',
+                    '業種によって水準はかなり異なります。IT企業なら30%超えも珍しくないですが、コンビニは3%程度。同業種で比べることも大切です。'
+                ],
+                example: 'コンビニA社（3%）とソフトウェアB社（30%）。100円売ってA社は3円、B社は30円の利益。ビジネスの構造でこれだけ差が出ます。',
+                whyItMatters: '値下げ競争に巻き込まれにくく、独自の強みを持っている企業ほどこの数字が高い傾向があります。本業の実力を見る基本的な指標です。'
+            },
+            {
+                id: 'roa', category: 'profitability',
+                title: 'ROA（総資産利益率）', subtitle: 'Return on Assets',
+                icon: 'fa-solid fa-percent', accent: '#dc2626', accentBg: '#fef2f2',
+                level: '応用',
+                oneLiner: '会社が持っている資産全体を使って、どれだけ利益を生み出せたか。経営の総合的な効率がわかります。',
+                explanation: [
+                    'ROAは「純利益 \u00f7 総資産 \u00d7 100」で計算します。自己資本だけでなく借入金も含めた「全ての資産」に対する利益率です。',
+                    '本アプリでは4.5%超を基準にしています。日本企業の平均は3〜4%程度なので、4.5%超えは平均以上の効率で経営できている証拠です。',
+                    'ROEとの違いは、ROEが「株主のお金」に対する効率、ROAが「全ての資産」に対する効率を見る点。借金が多い企業でもROAが高ければ資産活用が上手です。'
+                ],
+                example: '総資産1000億円でROA 5%なら、50億円の利益を生んでいます。同じ資産を持つ他社がROA 2%なら20億円。同じ資産でも使い方次第で利益は2.5倍変わります。',
+                whyItMatters: '「この会社は持っている資産をうまく活かせているか」がわかります。ROAが高い企業は、少ない資産で大きな利益を出せる効率的な経営をしている証拠です。'
+            },
+
+            // === キャッシュフロー ===
+            {
+                id: 'operating_cf', category: 'cashflow',
+                title: '営業キャッシュフロー', subtitle: 'Operating Cash Flow',
+                icon: 'fa-solid fa-coins', accent: '#7c3aed', accentBg: '#faf5ff',
+                level: '基本',
+                oneLiner: '本業で実際に「現金が」いくら入ってきたか。利益とは違い、ごまかしがきかない数字です。',
+                explanation: [
+                    '「本業から実際に得た現金の額」です。利益は会計処理で調整できますが、現金の動きは操作できません。',
+                    '本アプリではプラス（0超）を基準にしています。本業で現金が増えていなければ、いくら利益が出ていても実態として健全とは言えません。',
+                    '利益が出ていても営業CFがマイナスなら、売掛金が未回収だったり在庫が膨らんでいたりする可能性があります。'
+                ],
+                example: 'A社は純利益50億だが営業CF 20億。お金の回収が追いついていない。B社は純利益30億で営業CF 60億。利益以上に現金が入っており、実態はB社の方が健全です。',
+                whyItMatters: '「利益は意見、キャッシュは事実」という言葉があります。この数字がプラスの企業は、配当も新規投資もできる本当の体力がある企業です。'
+            },
+            {
+                id: 'free_cf', category: 'cashflow',
+                title: 'フリーキャッシュフロー', subtitle: 'Free Cash Flow',
+                icon: 'fa-solid fa-wallet', accent: '#a855f7', accentBg: '#faf5ff',
+                level: '応用',
+                oneLiner: '企業が「自由に使えるお金」。本業で稼いだ現金から必要な投資を引いた残りです。',
+                explanation: [
+                    '「営業CF \u2212 設備投資」で計算します。本業で稼いで、事業維持に必要な投資を済ませた後に残るお金。',
+                    '本アプリではプラス（0超）を基準にしています。フリーCFがプラスなら、事業を維持しながらも余裕がある状態です。',
+                    'このお金は配当、借金返済、新規事業など、経営判断で自由に使えます。毎年プラスの企業は自力で成長できる力を持っています。'
+                ],
+                example: '営業CF 100億、設備投資40億 \u2192 フリーCF 60億円。この60億円は配当に回すことも、新工場を建てることもできる。経営の選択肢が広い状態です。',
+                whyItMatters: '企業の「本当の余裕度」を示す数字。毎年プラスなら自力で成長でき、株主にも還元できる。長期的な健全性を見る最も信頼できる指標のひとつです。'
+            },
+
+            // === 割安度 ===
+            {
+                id: 'per', category: 'valuation',
+                title: 'PER（株価収益率）', subtitle: 'Price Earnings Ratio',
+                icon: 'fa-solid fa-tag', accent: '#ca8a04', accentBg: '#fefce8',
+                level: '基本',
+                oneLiner: '今の株価が「利益の何年分」にあたるか。市場の期待値がわかる指標です。',
+                explanation: [
+                    '「株価 \u00f7 1株あたり利益（EPS）」で計算。PER 15倍なら「15年分の利益を先払いしている」イメージです。',
+                    '本アプリでは40倍未満を基準にしています。40倍を超えると期待先行で株価が膨らみすぎている可能性があります。',
+                    '日本株の平均は約15倍。成長企業は30〜50倍でも買われることがありますが、同業種の平均と比較することが大切です。'
+                ],
+                example: 'A社（PER 10倍）とB社（PER 40倍）。A社が割安に見えますが、B社が毎年30%成長しているなら40倍でも妥当かもしれません。PERだけで判断せず、成長性と合わせて考えます。',
+                whyItMatters: '市場がその企業の将来にどれだけ期待しているかの表れです。低すぎれば見落とされた可能性があり、高すぎれば期待過剰の可能性がある。企業の実力とセットで見ましょう。'
+            },
+            {
+                id: 'pbr', category: 'valuation',
+                title: 'PBR（株価純資産倍率）', subtitle: 'Price Book-value Ratio',
+                icon: 'fa-solid fa-scale-balanced', accent: '#db2777', accentBg: '#fdf2f8',
+                level: '基本',
+                oneLiner: '株価が「会社の資産価値の何倍か」を示します。1倍以下なら資産価値より安く買える状態。',
+                explanation: [
+                    '「株価 \u00f7 1株あたり純資産（BPS）」で計算。PBR 1倍は「会社を解散して資産を分配したら株価と同額が戻る」水準です。',
+                    '本アプリでは10倍未満を基準にしています。10倍を超えると、資産に対して株価がかなり高い状態。期待が過剰に織り込まれている可能性があります。',
+                    '低い＝お買い得とは限りません。資産の中身（現金なのか、古い設備なのか）も確認が必要です。'
+                ],
+                example: 'PBR 0.7倍の会社。資産価値1000円に対して700円で買えます。ただしその資産が古い工場ばかりなら、実際の価値はもっと低いかもしれません。',
+                whyItMatters: '資産面から見た株価の割安・割高がわかります。PER（利益面）とセットで見ることで、より立体的な判断ができるようになります。'
+            },
+        ],
+
+        getTermsByCategory(catId) {
+            return this.terms.filter(t => t.category === catId);
+        },
+
+        toggle(id) {
+            if (this.openTerms.includes(id)) {
+                this.openTerms = this.openTerms.filter(t => t !== id);
+            } else {
+                this.openTerms.push(id);
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

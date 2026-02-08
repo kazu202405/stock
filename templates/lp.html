@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企業情報抽出アプリ - 業績データを、わかりやすく</title>
+    <title>Company Note - 企業を理解する力を、あなたに</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
@@ -21,10 +21,10 @@
         }
 
         /* フォント */
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
 
         body {
-            font-family: 'Noto Serif JP', 'Inter', serif;
+            font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
             background: var(--lp-bg);
             color: var(--lp-text);
             overflow-x: hidden;
@@ -572,7 +572,7 @@
     <!-- ========== ヘッダー ========== -->
     <header class="lp-header" id="lp-header">
         <div class="lp-header-inner">
-            <a href="/" class="lp-logo">企業情報抽出アプリ</a>
+            <a href="/" class="lp-logo">Company Note</a>
             <div class="lp-header-actions">
                 <a href="/login" class="lp-login-btn">ログイン</a>
                 <a href="/dashboard" class="lp-signup-btn">無料で始める</a>
@@ -604,12 +604,12 @@
         <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
             <div class="accent-line mx-auto mb-8 opacity-0" id="hero-line"></div>
             <h1 class="hero-title text-4xl md:text-6xl lg:text-7xl font-light leading-tight tracking-tight mb-8 opacity-0" id="hero-title">
-                業績データを、<br>
-                <span class="font-medium" style="color: var(--lp-accent);">わかりやすく</span>。
+                企業を知る力を、<br>
+                <span class="font-medium" style="color: var(--lp-accent);">あなたに</span>。
             </h1>
             <p class="hero-subtitle text-lg md:text-xl font-light leading-relaxed opacity-0" id="hero-subtitle" style="color: var(--lp-muted); max-width: 600px; margin: 0 auto;">
-                散在する財務指標を自動で収集・整理し、<br class="hidden md:block">
-                一画面でまとめてご覧いただけます。
+                企業の構造を理解し、自分で判断できる力を育てる。<br class="hidden md:block">
+                数字の意味がわかれば、見える世界が変わります。
             </p>
         </div>
 
@@ -1316,11 +1316,11 @@
             <div class="section-fade">
                 <div class="w-10 h-0.5 mx-auto mb-8" style="background: rgba(255,255,255,0.3);"></div>
                 <h2 class="text-2xl md:text-4xl font-light text-white mb-6">
-                    まずは一社、<br>調べてみませんか。
+                    まずは一社、<br>読み解いてみませんか。
                 </h2>
                 <p class="text-base text-white opacity-70 mb-12 leading-relaxed">
                     登録不要・無料でご利用いただけます。<br>
-                    銘柄コードを入力するだけで、すぐに情報を確認できます。
+                    気になる企業の構造を、すぐに確認できます。
                 </p>
 
                 <!-- ボタン + グロー -->
@@ -1346,7 +1346,7 @@
         <div class="max-w-5xl mx-auto px-6">
             <div class="flex flex-col md:flex-row justify-between items-center gap-6">
                 <div class="text-sm" style="color: var(--lp-muted);">
-                    企業情報抽出アプリ
+                    Company Note
                 </div>
                 <div class="text-xs leading-relaxed text-center md:text-right" style="color: var(--lp-muted);">
                     本サービスは公開情報の収集・整理を行う情報閲覧ツールであり、<br>

@@ -17,8 +17,11 @@ from supabase_client import (
     add_to_watchlist, remove_from_watchlist, get_watchlist,
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
     update_screened_data, upsert_screened_data_with_match_rate,
-    calculate_match_rate
+    calculate_match_rate,
+    upsert_gc_stocks, get_gc_stocks,
+    upsert_dc_stocks, get_dc_stocks
 )
+from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
 
 # ウォッチリストAPI
@@ -426,6 +429,72 @@ def get_cached_analysis(symbol):
         return jsonify({"error": str(e)}), 500
 
 
+# GC銘柄API
+@app.route('/api/gc-stocks', methods=['GET'])
+def api_get_gc_stocks():
+    """保存済みGC銘柄一覧を取得"""
+    try:
+        data = get_gc_stocks()
+        return jsonify({"gc_stocks": data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/gc-stocks/scrape', methods=['POST'])
+def api_scrape_gc_stocks():
+    """kabutan.jpからGC銘柄をスクレイピングして保存"""
+    try:
+        from datetime import datetime, timezone
+        stocks = scrape_gc_stocks()
+
+        now = datetime.now(timezone.utc).isoformat()
+        for s in stocks:
+            s['scraped_at'] = now
+
+        upsert_gc_stocks(stocks)
+
+        return jsonify({
+            "success": True,
+            "count": len(stocks),
+            "gc_stocks": stocks
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# DC銘柄API
+@app.route('/api/dc-stocks', methods=['GET'])
+def api_get_dc_stocks():
+    """保存済みDC銘柄一覧を取得"""
+    try:
+        data = get_dc_stocks()
+        return jsonify({"dc_stocks": data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dc-stocks/scrape', methods=['POST'])
+def api_scrape_dc_stocks():
+    """kabutan.jpからDC銘柄をスクレイピングして保存"""
+    try:
+        from datetime import datetime, timezone
+        stocks = scrape_dc_stocks()
+
+        now = datetime.now(timezone.utc).isoformat()
+        for s in stocks:
+            s['scraped_at'] = now
+
+        upsert_dc_stocks(stocks)
+
+        return jsonify({
+            "success": True,
+            "count": len(stocks),
+            "dc_stocks": stocks
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000)) 
+    port = int(os.environ.get('PORT', 5000))
     app.run(debug=True)

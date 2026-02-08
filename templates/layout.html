@@ -2,12 +2,26 @@
 <html lang="ja">
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
     body {
-        font-family: 'Noto Serif JP', 'Inter', serif;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
     }
     .btn-primary {
         background-color: #1b4332 !important;
+    }
+    .nav-link {
+        color: #a3a3a3;
+        transition: color 0.2s ease;
+        border-bottom: 2px solid transparent;
+        padding-bottom: 2px;
+    }
+    .nav-link:hover {
+        color: #1b4332;
+    }
+    .nav-link.active {
+        color: #1b4332;
+        font-weight: 600;
+        border-bottom-color: #1b4332;
     }
 </style>
 
@@ -15,7 +29,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}事業計画書作成・財務分析システム{% endblock %}</title>
+    <title>{% block title %}Company Note{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -23,37 +37,43 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
-<body class="min-h-screen" style="background: #fafaf8;">
+<body class="min-h-screen" style="background: #f7f7f5;">
     <!-- ナビゲーション -->
-    <nav class="bg-white shadow-sm" style="border-bottom: 1px solid #e5e5e0;">
+    <nav class="bg-white" style="border-bottom: 1px solid #ebebeb;">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
+            <div class="flex justify-between items-center h-14">
                 <!-- ロゴ・ブランド -->
                 <div class="flex items-center">
-                    <a href="/dashboard" class="flex items-center space-x-2">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #1b4332, #2d6a4f);">
-                            <i class="fas fa-chart-line text-white text-sm"></i>
+                    <a href="/dashboard" class="flex items-center space-x-2.5">
+                        <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: #1b4332;">
+                            <i class="fas fa-book-open text-white" style="font-size: 11px;"></i>
                         </div>
-                        <span class="text-xl font-bold" style="color: #1a1a1a;">企業情報抽出アプリ</span>
+                        <div class="flex flex-col">
+                            <span class="text-base font-bold leading-tight" style="color: #1a1a1a; letter-spacing: -0.01em;">Company Note</span>
+                            <span class="text-xs" style="color: #a3a3a3; letter-spacing: 0.02em;">～企業分析アプリ～</span>
+                        </div>
                     </a>
                 </div>
 
                 <!-- メインナビゲーション -->
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="/screener" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="/learning" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        学習ノート
+                    </a>
+                    <a href="/screener" class="nav-link px-2 py-1.5 text-sm font-medium">
                         お気に入り
                     </a>
-                    <a href="/community" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
+                    <a href="/community" class="nav-link px-2 py-1.5 text-sm font-medium">
                         コミュニティ
                     </a>
-                    <a href="/mypage" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
+                    <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
                         マイページ
                     </a>
-                    <a href="/dashboard/admin" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
+                    <a href="/dashboard/admin" class="nav-link px-2 py-1.5 text-sm font-medium">
                         管理画面
                     </a>
                     {% if current_user.is_system_admin %}
-                    <a href="/user" class="px-3 py-2 rounded-md text-sm font-medium transition-colors" style="color: #6b7280;" onmouseover="this.style.color='#1b4332'" onmouseout="this.style.color='#6b7280'">
+                    <a href="/user" class="nav-link px-2 py-1.5 text-sm font-medium">
                         ユーザー管理
                     </a>
                     {% endif %}
@@ -61,26 +81,26 @@
 
                 <!-- ユーザードロップダウン -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                        <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                            <i class="fas fa-user text-gray-600 text-xs"></i>
+                    <button @click="open = !open" class="flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm font-medium" style="color: #525252;">
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center" style="background: #f0f0f0;">
+                            <i class="fas fa-user text-xs" style="color: #a3a3a3;"></i>
                         </div>
                         <span class="hidden sm:block">{{ current_user.company_name }}</span>
-                        <i class="fas fa-chevron-down text-xs"></i>
+                        <i class="fas fa-chevron-down text-xs" style="color: #d4d4d4;"></i>
                     </button>
-                    
-                    <div x-show="open" @click.away="open = false" 
-                        class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                        <a href="/settlements" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">決算情報設定</a>
-                        <a href="/change_password" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">パスワード変更</a>
-                        <div class="border-t border-gray-100 my-1"></div>
-                        <a href="/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">ログアウト</a>
+
+                    <div x-show="open" @click.away="open = false"
+                        class="absolute right-0 mt-2 w-48 bg-white rounded-lg py-1 z-50" style="border: 1px solid #ebebeb; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+                        <a href="/settlements" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">決算情報設定</a>
+                        <a href="/change_password" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">パスワード変更</a>
+                        <div style="border-top: 1px solid #f0f0f0; margin: 4px 0;"></div>
+                        <a href="/logout" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">ログアウト</a>
                     </div>
                 </div>
 
                 <!-- モバイルメニューボタン -->
                 <div class="md:hidden">
-                    <button class="text-gray-700 hover:text-gray-900 p-2">
+                    <button class="p-2" style="color: #525252;">
                         <i class="fas fa-bars"></i>
                     </button>
                 </div>
@@ -110,4 +130,14 @@
         });
     }
 
+    // ナビゲーションのアクティブ状態を設定
+    document.addEventListener('DOMContentLoaded', function() {
+        const path = window.location.pathname;
+        document.querySelectorAll('.nav-link').forEach(function(link) {
+            const href = link.getAttribute('href');
+            if (path === href || (href !== '/' && path.startsWith(href))) {
+                link.classList.add('active');
+            }
+        });
+    });
 </script>

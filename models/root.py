@@ -28,6 +28,12 @@ def mypage():
     return render_template('mypage.html')
 
 
+@app.route('/learning')
+def learning():
+    """学習ノート（用語解説・企業分析の基礎知識）"""
+    return render_template('learning.html')
+
+
 @app.route('/community')
 def community():
     """投資家コミュニティ"""

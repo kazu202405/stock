@@ -1,11 +1,11 @@
 {% extends "layout.html" %}
 
-{% block title %}{% if is_admin %}管理画面 - {% endif %}企業情報抽出アプリ{% endblock %}
+{% block title %}{% if is_admin %}管理画面 - {% endif %}Company Note{% endblock %}
 
 {% block content %}
 <style>
-    /* LP統一デザイン */
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+    /* 統一デザイン */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
 
     :root {
         --primary-color: #1b4332;
@@ -21,8 +21,8 @@
     }
 
     body {
-        background: #fafaf8;
-        font-family: 'Noto Serif JP', 'Inter', -apple-system, BlinkMacSystemFont, serif;
+        background: #f7f7f5;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
         color: var(--text-primary);
     }
 
@@ -38,7 +38,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px 0;
-        border-bottom: 2px solid var(--border-color);
+        border-bottom: 1px solid #ebebeb;
         margin-bottom: 20px;
     }
 
@@ -284,6 +284,17 @@
 
     .score-item-label {
         color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .score-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
     }
 
     .score-item-status {
@@ -799,6 +810,94 @@
         border-left: 3px solid var(--accent-color);
     }
 
+    /* タブシステム */
+    .watchlist-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 0;
+    }
+
+    .watchlist-tab {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .watchlist-tab:hover {
+        color: var(--primary-color);
+    }
+
+    .watchlist-tab.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* GC取得ボタン */
+    .gc-fetch-btn {
+        padding: 6px 14px;
+        font-size: 12px;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .gc-fetch-btn:hover {
+        opacity: 0.85;
+    }
+
+    .gc-fetch-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* GCローディングスピナー */
+    .gc-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        gap: 16px;
+    }
+
+    .gc-spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid #e5e7eb;
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: gc-spin 0.8s linear infinite;
+    }
+
+    @keyframes gc-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .gc-loading-text {
+        font-size: 13px;
+        color: #6b7280;
+    }
+
     /* レスポンシブ */
     @media (max-width: 1400px) {
         .details-section {
@@ -948,20 +1047,70 @@
 
     <!-- ウォッチリスト一覧 -->
     <div class="watchlist-section" id="watchlistSection">
-        <div class="watchlist-header">
-            <span class="watchlist-title">条件合致企業</span>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                {% if is_admin %}
-                <button class="bulk-register-btn" onclick="openBulkRegisterModal()">一括登録</button>
-                {% endif %}
-                <span class="watchlist-count" id="watchlistCount">0件</span>
+        <!-- タブナビゲーション -->
+        <div class="watchlist-tabs">
+            <button class="watchlist-tab active" onclick="switchTab('watchlist')" id="tab-watchlist">
+                条件合致企業
+            </button>
+            <button class="watchlist-tab" onclick="switchTab('gc')" id="tab-gc">
+                GC達成銘柄
+            </button>
+            <button class="watchlist-tab" onclick="switchTab('dc')" id="tab-dc">
+                DC銘柄
+            </button>
+        </div>
+
+        <!-- タブ1: 条件合致企業（既存ウォッチリスト） -->
+        <div class="tab-content active" id="tabContent-watchlist">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if is_admin %}
+                    <button class="bulk-register-btn" onclick="openBulkRegisterModal()">一括登録</button>
+                    {% endif %}
+                    <span class="watchlist-count" id="watchlistCount">0件</span>
+                </div>
+            </div>
+            <div class="match-rate-description">
+                「合致度」は、自己資本比率・営業利益率・ROE等の財務指標が、一般的な投資基準にどの程度合致しているかを示す参考値です。投資判断を推奨するものではありません。
+            </div>
+            <div id="watchlistContent">
+                <div class="watchlist-empty">読み込み中...</div>
             </div>
         </div>
-        <div class="match-rate-description">
-            「合致度」は、自己資本比率・営業利益率・ROE等の財務指標が、一般的な投資基準にどの程度合致しているかを示す参考値です。投資判断を推奨するものではありません。
+
+        <!-- タブ2: GC達成銘柄 -->
+        <div class="tab-content" id="tabContent-gc">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button class="gc-fetch-btn" onclick="fetchGcStocks()" id="gcFetchBtn">取得</button>
+                    <span class="watchlist-count" id="gcCount">0件</span>
+                </div>
+            </div>
+            <div class="match-rate-description">
+                kabutan.jpのゴールデンクロス（5日線が25日線を上抜け）銘柄から、PER40倍未満・PBR10倍未満を抽出しています。
+            </div>
+            <div id="gcContent">
+                <div class="watchlist-empty">「取得」ボタンを押してGC銘柄を取得してください</div>
+            </div>
         </div>
-        <div id="watchlistContent">
-            <div class="watchlist-empty">読み込み中...</div>
+
+        <!-- タブ3: DC銘柄 -->
+        <div class="tab-content" id="tabContent-dc">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button class="gc-fetch-btn" onclick="fetchDcStocks()" id="dcFetchBtn">取得</button>
+                    <span class="watchlist-count" id="dcCount">0件</span>
+                </div>
+            </div>
+            <div class="match-rate-description">
+                kabutan.jpのデッドクロス（5日線が25日線を下抜け）銘柄の一覧です。フィルタなしで全件表示しています。
+            </div>
+            <div id="dcContent">
+                <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
+            </div>
         </div>
     </div>
 
@@ -1050,51 +1199,51 @@
                 </div>
                 <div class="score-details" id="score-details">
                     <div class="score-item">
-                        <span class="score-item-label">時価総額 ≤700億</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#64748b;"></span>時価総額 ≤700億</span>
                         <span class="score-item-status" id="score-market-cap">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">自己資本比率 ≥30%</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#2563eb;"></span>自己資本比率 ≥30%</span>
                         <span class="score-item-status" id="score-equity-ratio">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">売上成長(実績)</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#16a34a;"></span>売上成長(実績)</span>
                         <span class="score-item-status" id="score-revenue-growth">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">売上成長(予想)</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#059669;"></span>売上成長(予想)</span>
                         <span class="score-item-status" id="score-revenue-forecast">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">営業利益率 ≥10%</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#ea580c;"></span>営業利益率 ≥10%</span>
                         <span class="score-item-status" id="score-op-margin">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">営利成長(実績)</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#0d9488;"></span>営利成長(実績)</span>
                         <span class="score-item-status" id="score-op-growth">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">営利成長(予想)</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#0891b2;"></span>営利成長(予想)</span>
                         <span class="score-item-status" id="score-op-forecast">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">営業CF >0</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#7c3aed;"></span>営業CF >0</span>
                         <span class="score-item-status" id="score-op-cf">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">フリーCF >0</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#a855f7;"></span>フリーCF >0</span>
                         <span class="score-item-status" id="score-free-cf">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">ROA >4.5%</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#dc2626;"></span>ROA >4.5%</span>
                         <span class="score-item-status" id="score-roa">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">PER <40倍</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#ca8a04;"></span>PER <40倍</span>
                         <span class="score-item-status" id="score-per">--</span>
                     </div>
                     <div class="score-item">
-                        <span class="score-item-label">PBR <10倍</span>
+                        <span class="score-item-label"><span class="score-dot" style="background:#db2777;"></span>PBR <10倍</span>
                         <span class="score-item-status" id="score-pbr">--</span>
                     </div>
                 </div>
@@ -1889,9 +2038,11 @@
         dataTypes.forEach(type => {
             if (data[type] && Array.isArray(data[type])) {
                 data[type].forEach(item => {
-                    const year = new Date(item.date).getFullYear();
+                    const d = new Date(item.date);
+                    const year = d.getFullYear();
+                    const month = d.getMonth() + 1;
                     if (!yearDataMap.has(year)) {
-                        yearDataMap.set(year, {});
+                        yearDataMap.set(year, { _month: month, _date: item.date });
                     }
                     yearDataMap.get(year)[type] = item.value;
                 });
@@ -1918,15 +2069,18 @@
     function updateFinancialDataTable(years, dataMap) {
         const tbody = document.getElementById('financial-data-tbody');
         if (!tbody) return;
-        
+
         years.forEach((year, index) => {
             const row = tbody.querySelector(`tr[data-year="${index + 1}"]`);
             if (!row) return;
-            
-            // 年度ラベルを更新
+
+            // 年度ラベルを更新（年月表示）
             const yearLabel = row.querySelector('.year-label');
             if (yearLabel) {
-                yearLabel.textContent = `${year}年`;
+                const yearData = dataMap.get(year) || {};
+                const month = yearData._month;
+                yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                yearLabel.dataset.fullDate = yearData._date || `${year}-03-31`;
             }
             
             const yearData = dataMap.get(year) || {};
@@ -1946,15 +2100,18 @@
     function updateCashFlowMetricsTable(years, dataMap) {
         const tbody = document.getElementById('cf-metrics-tbody');
         if (!tbody) return;
-        
+
         years.forEach((year, index) => {
             const row = tbody.querySelector(`tr[data-year="${index + 1}"]`);
             if (!row) return;
-            
-            // 年度ラベルを更新
+
+            // 年度ラベルを更新（年月表示）
             const yearLabel = row.querySelector('.year-label');
             if (yearLabel) {
-                yearLabel.textContent = `${year}年`;
+                const yearData = dataMap.get(year) || {};
+                const month = yearData._month;
+                yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
+                yearLabel.dataset.fullDate = yearData._date || `${year}-03-31`;
             }
             
             const yearData = dataMap.get(year) || {};
@@ -3583,11 +3740,11 @@
                 if (!financialHistory[dataType]) {
                     financialHistory[dataType] = [];
                 }
-                // 年度ラベルから年を取得
+                // 年度ラベルから日付を取得
                 const yearLabel = document.querySelector(`#financial-data-tbody tr[data-year="${yearIndex}"] .year-label`);
-                const year = yearLabel ? yearLabel.textContent.replace('年', '') : yearIndex;
+                const fullDate = yearLabel && yearLabel.dataset.fullDate ? yearLabel.dataset.fullDate : `${yearIndex}-03-31`;
                 financialHistory[dataType].push({
-                    date: `${year}-03-31`,
+                    date: fullDate,
                     value: value
                 });
             } else if (cfTypes.includes(dataType)) {
@@ -3595,9 +3752,9 @@
                     cfHistory[dataType] = [];
                 }
                 const yearLabel = document.querySelector(`#cf-metrics-tbody tr[data-year="${yearIndex}"] .year-label`);
-                const year = yearLabel ? yearLabel.textContent.replace('年', '') : yearIndex;
+                const fullDate = yearLabel && yearLabel.dataset.fullDate ? yearLabel.dataset.fullDate : `${yearIndex}-03-31`;
                 cfHistory[dataType].push({
-                    date: `${year}-03-31`,
+                    date: fullDate,
                     value: value
                 });
             }
@@ -3633,6 +3790,265 @@
         }
 
         return Number.isFinite(value) ? value : null;
+    }
+
+    // ========================================
+    // タブ切り替え機能
+    // ========================================
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.watchlist-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`tabContent-${tabName}`).classList.add('active');
+
+        // GC/DCタブに切り替えた時、データがなければ自動ロード
+        if (tabName === 'gc' && gcStocksCache.length === 0) {
+            loadGcStocks();
+        }
+        if (tabName === 'dc' && dcStocksCache.length === 0) {
+            loadDcStocks();
+        }
+    }
+
+    // ========================================
+    // GC銘柄関連機能
+    // ========================================
+
+    let gcStocksCache = [];
+
+    // 保存済みGC銘柄をロード
+    async function loadGcStocks() {
+        try {
+            const response = await fetch('/api/gc-stocks');
+            const data = await response.json();
+            if (response.ok) {
+                renderGcStocks(data.gc_stocks || []);
+            } else {
+                document.getElementById('gcContent').innerHTML =
+                    '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            }
+        } catch (error) {
+            document.getElementById('gcContent').innerHTML =
+                '<div class="watchlist-empty">データの取得に失敗しました</div>';
+        }
+    }
+
+    // kabutan.jpからスクレイピング実行
+    async function fetchGcStocks() {
+        const btn = document.getElementById('gcFetchBtn');
+        btn.disabled = true;
+        btn.textContent = '取得中...';
+
+        document.getElementById('gcContent').innerHTML =
+            '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">kabutan.jpからデータを取得中...（10〜30秒程度）</div></div>';
+
+        try {
+            const response = await fetch('/api/gc-stocks/scrape', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                renderGcStocks(data.gc_stocks || []);
+            } else {
+                document.getElementById('gcContent').innerHTML =
+                    `<div class="watchlist-empty">取得エラー: ${data.error}</div>`;
+            }
+        } catch (error) {
+            document.getElementById('gcContent').innerHTML =
+                `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '取得';
+        }
+    }
+
+    // GC銘柄テーブルを描画
+    function renderGcStocks(stocks) {
+        gcStocksCache = stocks;
+
+        const content = document.getElementById('gcContent');
+        const countElement = document.getElementById('gcCount');
+        countElement.textContent = `${stocks.length}件`;
+
+        if (stocks.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">GC銘柄がありません。「取得」ボタンでデータを取得してください。</div>';
+            return;
+        }
+
+        let html = `
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>コード</th>
+                        <th>銘柄名</th>
+                        <th>市場</th>
+                        <th>株価</th>
+                        <th>PER</th>
+                        <th>PBR</th>
+                        <th>形成日</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        stocks.forEach(item => {
+            const code = item.company_code || '---';
+            const name = item.company_name || '---';
+            const market = item.market || '---';
+            const price = item.stock_price !== null && item.stock_price !== undefined
+                ? Number(item.stock_price).toLocaleString() + '円' : '---';
+            const per = item.per !== null && item.per !== undefined
+                ? `${Number(item.per).toFixed(1)}倍` : '---';
+            const pbr = item.pbr !== null && item.pbr !== undefined
+                ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const formedDate = formatScrapedDate(item.scraped_at);
+
+            html += `
+                <tr>
+                    <td>${code}</td>
+                    <td class="company-name-cell" onclick="analyzeFromWatchlist('${code}')">${name}</td>
+                    <td>${market}</td>
+                    <td>${price}</td>
+                    <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
+                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td>${formedDate}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    }
+
+    // scraped_atをyyyy/mm/dd形式に変換
+    function formatScrapedDate(dateStr) {
+        if (!dateStr) return '---';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '---';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}/${m}/${day}`;
+    }
+
+    // ========================================
+    // DC銘柄関連機能
+    // ========================================
+
+    let dcStocksCache = [];
+
+    // 保存済みDC銘柄をロード
+    async function loadDcStocks() {
+        try {
+            const response = await fetch('/api/dc-stocks');
+            const data = await response.json();
+            if (response.ok) {
+                renderDcStocks(data.dc_stocks || []);
+            } else {
+                document.getElementById('dcContent').innerHTML =
+                    '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            }
+        } catch (error) {
+            document.getElementById('dcContent').innerHTML =
+                '<div class="watchlist-empty">データの取得に失敗しました</div>';
+        }
+    }
+
+    // kabutan.jpからDCスクレイピング実行
+    async function fetchDcStocks() {
+        const btn = document.getElementById('dcFetchBtn');
+        btn.disabled = true;
+        btn.textContent = '取得中...';
+
+        document.getElementById('dcContent').innerHTML =
+            '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">kabutan.jpからデータを取得中...（10〜30秒程度）</div></div>';
+
+        try {
+            const response = await fetch('/api/dc-stocks/scrape', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                renderDcStocks(data.dc_stocks || []);
+            } else {
+                document.getElementById('dcContent').innerHTML =
+                    `<div class="watchlist-empty">取得エラー: ${data.error}</div>`;
+            }
+        } catch (error) {
+            document.getElementById('dcContent').innerHTML =
+                `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '取得';
+        }
+    }
+
+    // DC銘柄テーブルを描画
+    function renderDcStocks(stocks) {
+        dcStocksCache = stocks;
+
+        const content = document.getElementById('dcContent');
+        const countElement = document.getElementById('dcCount');
+        countElement.textContent = `${stocks.length}件`;
+
+        if (stocks.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">DC銘柄がありません。「取得」ボタンでデータを取得してください。</div>';
+            return;
+        }
+
+        let html = `
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>コード</th>
+                        <th>銘柄名</th>
+                        <th>市場</th>
+                        <th>株価</th>
+                        <th>PER</th>
+                        <th>PBR</th>
+                        <th>形成日</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        stocks.forEach(item => {
+            const code = item.company_code || '---';
+            const name = item.company_name || '---';
+            const market = item.market || '---';
+            const price = item.stock_price !== null && item.stock_price !== undefined
+                ? Number(item.stock_price).toLocaleString() + '円' : '---';
+            const per = item.per !== null && item.per !== undefined
+                ? `${Number(item.per).toFixed(1)}倍` : '---';
+            const pbr = item.pbr !== null && item.pbr !== undefined
+                ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const formedDate = formatScrapedDate(item.scraped_at);
+
+            html += `
+                <tr>
+                    <td>${code}</td>
+                    <td class="company-name-cell" onclick="analyzeFromWatchlist('${code}')">${name}</td>
+                    <td>${market}</td>
+                    <td>${price}</td>
+                    <td>${per}</td>
+                    <td>${pbr}</td>
+                    <td>${formedDate}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
     }
 
 </script>

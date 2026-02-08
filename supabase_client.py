@@ -281,3 +281,49 @@ def upsert_screened_data_with_match_rate(data: dict) -> dict:
     client = get_supabase_client()
     result = client.table('screened_latest').upsert(data).execute()
     return result.data
+
+
+# =============================================
+# GC銘柄テーブル操作
+# =============================================
+
+def upsert_gc_stocks(stocks: list) -> list:
+    """GC銘柄データを全削除後に一括登録（スナップショット方式）"""
+    client = get_supabase_client()
+    client.table('gc_stocks').delete().neq('company_code', '').execute()
+    if stocks:
+        result = client.table('gc_stocks').insert(stocks).execute()
+        return result.data
+    return []
+
+
+def get_gc_stocks() -> list:
+    """GC銘柄一覧を取得"""
+    client = get_supabase_client()
+    result = client.table('gc_stocks').select('*').order(
+        'company_code', desc=False
+    ).execute()
+    return result.data
+
+
+# =============================================
+# DC銘柄テーブル操作
+# =============================================
+
+def upsert_dc_stocks(stocks: list) -> list:
+    """DC銘柄データを全削除後に一括登録（スナップショット方式）"""
+    client = get_supabase_client()
+    client.table('dc_stocks').delete().neq('company_code', '').execute()
+    if stocks:
+        result = client.table('dc_stocks').insert(stocks).execute()
+        return result.data
+    return []
+
+
+def get_dc_stocks() -> list:
+    """DC銘柄一覧を取得"""
+    client = get_supabase_client()
+    result = client.table('dc_stocks').select('*').order(
+        'company_code', desc=False
+    ).execute()
+    return result.data
