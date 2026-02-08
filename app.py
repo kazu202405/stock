@@ -26,6 +26,13 @@ from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
 
 # ヘルパー関数
+def normalize_code(code):
+    """銘柄コードを正規化（.Tを除去して統一）"""
+    if code and code.endswith('.T'):
+        return code[:-2]
+    return code
+
+
 def get_latest_value(val):
     """配列データから最新値を抽出"""
     if val is None:
@@ -87,7 +94,7 @@ def api_add_to_watchlist():
         if not data or 'company_code' not in data:
             return jsonify({"error": "銘柄コードが指定されていません"}), 400
 
-        company_code = data['company_code']
+        company_code = normalize_code(data['company_code'])
 
         # ウォッチリストに追加
         add_to_watchlist(company_code)
@@ -159,17 +166,18 @@ def api_add_to_watchlist():
                 'roa': stock_data.get('roa', [])
             }
 
-            screened_data = {
+            # Noneのフィールドを除外して構築（既存データをnullで上書きしない）
+            screened_data_full = {
                 'company_code': company_code,
                 'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
                 'sector': stock_data.get('sector_jp') or stock_data.get('sector', ''),
                 'market_cap': market_cap_oku,
                 'stock_price': stock_data.get('last_price'),
 
-                # 売上高（億円単位）- 配列の順序: [最新, 1年前, 2年前, 3年前]
-                'revenue_cy': to_oku(revenue_vals[0]),   # 今期（最新）
-                'revenue_1y': to_oku(revenue_vals[1]),   # 前期
-                'revenue_2y': to_oku(revenue_vals[2]),   # 2期前
+                # 売上高（億円単位）
+                'revenue_cy': to_oku(revenue_vals[0]),
+                'revenue_1y': to_oku(revenue_vals[1]),
+                'revenue_2y': to_oku(revenue_vals[2]),
 
                 # 営業利益（億円単位）
                 'op_cy': to_oku(op_vals[0]),
@@ -229,6 +237,10 @@ def api_add_to_watchlist():
                 'data_source': 'yfinance',
                 'data_status': 'fresh'
             }
+
+            # Noneのフィールドを除外（既存データを保護）、ただしcompany_codeは必須
+            screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
+
             # 合致度を自動計算して保存
             upsert_screened_data_with_match_rate(screened_data)
 
@@ -241,6 +253,7 @@ def api_add_to_watchlist():
 def api_remove_from_watchlist(company_code):
     """銘柄をウォッチリストから削除"""
     try:
+        company_code = normalize_code(company_code)
         remove_from_watchlist(company_code)
         return jsonify({"success": True, "company_code": company_code}), 200
     except Exception as e:
@@ -262,6 +275,7 @@ def api_remove_all_from_watchlist():
 def api_check_watchlist(company_code):
     """銘柄がウォッチリストに登録されているか確認"""
     try:
+        company_code = normalize_code(company_code)
         is_registered = is_in_watchlist(company_code)
         return jsonify({"is_registered": is_registered, "company_code": company_code}), 200
     except Exception as e:
@@ -276,7 +290,7 @@ def api_update_watchlist():
         if not data or 'company_code' not in data:
             return jsonify({"error": "銘柄コードが指定されていません"}), 400
 
-        company_code = data['company_code']
+        company_code = normalize_code(data['company_code'])
         edited_data = data.get('edited_data', {})
 
         if not edited_data:
@@ -376,6 +390,12 @@ def analyze_stock():
                     result["chart_base64"] = f"data:image/png;base64,{chart_base64}"
             except:
                 pass
+
+        # 分析結果をscreened_latestに自動保存（サーバー側）
+        try:
+            _save_analysis_to_screened(symbol, result)
+        except Exception as save_err:
+            print(f"分析結果の自動保存エラー: {save_err}")
 
         return jsonify(result), 200
 
@@ -487,6 +507,116 @@ def api_scrape_gc_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+def _save_analysis_to_screened(symbol, stock_data):
+    """フル分析結果をscreened_latestに保存（サーバー側で確実に保存）"""
+    company_code = normalize_code(symbol)
+
+    market_cap_raw = stock_data.get('market_cap')
+    market_cap_oku = market_cap_raw / 1e8 if market_cap_raw else None
+
+    revenue_vals = get_yearly_values(stock_data.get('revenue'), 4)
+    op_vals = get_yearly_values(stock_data.get('op_income'), 4)
+
+    operating_cf = get_latest_value(stock_data.get('operating_cf'))
+    investing_cf = get_latest_value(stock_data.get('investing_cf'))
+    financing_cf = get_latest_value(stock_data.get('financing_cf'))
+    net_income = get_latest_value(stock_data.get('net_income'))
+    cash = get_latest_value(stock_data.get('cash'))
+    current_liabilities = get_latest_value(stock_data.get('current_liabilities_list'))
+    current_assets = get_latest_value(stock_data.get('current_assets_list'))
+
+    current_ratio = None
+    if current_assets and current_liabilities and current_liabilities > 0:
+        current_ratio = (current_assets / current_liabilities) * 100
+
+    eps = get_latest_value(stock_data.get('eps'))
+    dps = get_latest_value(stock_data.get('dps'))
+    payout_ratio = get_latest_value(stock_data.get('payout_ratio'))
+    roe = get_latest_value(stock_data.get('roe'))
+
+    financial_history = {
+        'revenue': stock_data.get('revenue', []),
+        'op_income': stock_data.get('op_income', []),
+        'ordinary_income': stock_data.get('ordinary_income', []),
+        'net_income': stock_data.get('net_income', []),
+        'eps': stock_data.get('eps', []),
+        'dps': stock_data.get('dps', []),
+        'payout_ratio': stock_data.get('payout_ratio', [])
+    }
+
+    cf_history = {
+        'operating_cf': stock_data.get('operating_cf', []),
+        'investing_cf': stock_data.get('investing_cf', []),
+        'financing_cf': stock_data.get('financing_cf', []),
+        'cash': stock_data.get('cash', []),
+        'current_liabilities': stock_data.get('current_liabilities_list', []),
+        'current_assets': stock_data.get('current_assets_list', []),
+        'equity_ratio': stock_data.get('equity_ratio_list', []),
+        'roe': stock_data.get('roe', []),
+        'roa': stock_data.get('roa', [])
+    }
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    screened_data_full = {
+        'company_code': company_code,
+        'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
+        'sector': stock_data.get('sector_jp') or stock_data.get('sector', ''),
+        'market_cap': market_cap_oku,
+        'stock_price': stock_data.get('last_price'),
+        'revenue_cy': to_oku(revenue_vals[0]),
+        'revenue_1y': to_oku(revenue_vals[1]),
+        'revenue_2y': to_oku(revenue_vals[2]),
+        'op_cy': to_oku(op_vals[0]),
+        'op_1y': to_oku(op_vals[1]),
+        'op_2y': to_oku(op_vals[2]),
+        'operating_cf': to_oku(operating_cf),
+        'investing_cf': to_oku(investing_cf),
+        'free_cf': to_oku(operating_cf + investing_cf) if operating_cf and investing_cf else None,
+        'net_income': to_oku(net_income),
+        'cash': to_oku(cash),
+        'current_liabilities': to_oku(current_liabilities),
+        'current_assets': to_oku(current_assets),
+        'current_ratio': current_ratio,
+        'equity_ratio': get_latest_value(stock_data.get('equity_ratio_pct')),
+        'operating_margin': get_latest_value(stock_data.get('op_margin_pct')),
+        'roe': roe,
+        'roa': get_latest_value(stock_data.get('roa')),
+        'per_forward': stock_data.get('per'),
+        'pbr': stock_data.get('pbr'),
+        'dividend_yield': stock_data.get('dividend_yield'),
+        'eps': eps,
+        'dps': dps,
+        'payout_ratio': payout_ratio,
+        'margin_trading_ratio': stock_data.get('margin_trading_ratio'),
+        'margin_trading_buy': stock_data.get('margin_trading_buy'),
+        'margin_trading_sell': stock_data.get('margin_trading_sell'),
+        'forecast_revenue': stock_data.get('forecast_revenue'),
+        'forecast_op_income': stock_data.get('forecast_op_income'),
+        'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
+        'forecast_net_income': stock_data.get('forecast_net_income'),
+        'forecast_year': stock_data.get('forecast_year'),
+        'business_summary': stock_data.get('business_summary'),
+        'business_summary_jp': stock_data.get('business_summary_jp'),
+        'major_holders': json.dumps(stock_data.get('major_holders', []), ensure_ascii=False) if stock_data.get('major_holders') else None,
+        'institutional_holders': json.dumps(stock_data.get('institutional_holders', []), ensure_ascii=False) if stock_data.get('institutional_holders') else None,
+        'company_officers': json.dumps(stock_data.get('company_officers', []), ensure_ascii=False) if stock_data.get('company_officers') else None,
+        'major_shareholders_jp': json.dumps(stock_data.get('major_shareholders_jp', []), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
+        'financial_history': json.dumps(financial_history, ensure_ascii=False),
+        'cf_history': json.dumps(cf_history, ensure_ascii=False),
+        'analyzed_at': now,
+        'data_source': 'yfinance',
+        'data_status': 'fresh'
+    }
+
+    # Noneのフィールドを除外（既存データを保護）
+    screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
+
+    upsert_screened_data_with_match_rate(screened_data)
+    print(f"分析結果をscreened_latestに保存しました: {company_code} ({len(screened_data)}フィールド)")
+
+
 # バックグラウンド分析の進捗管理
 import threading
 gc_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
@@ -496,7 +626,7 @@ def _analyze_stock_and_save(analyzer, company_code):
     """1銘柄を分析してscreened_latestに保存。成功時にscreened_dataを返す。
     company_codeは '7203.T' でも '7203' でもOK。"""
     symbol = company_code if company_code.endswith('.T') else f"{company_code}.T"
-    code = company_code  # DB保存用（そのまま使う）
+    code = normalize_code(company_code)  # DB保存用（.Tなしで統一）
     stock_data = analyzer.analyze(symbol, skip_chart=True, skip_extras=True)
 
     if not stock_data.get('name'):
@@ -509,18 +639,10 @@ def _analyze_stock_and_save(analyzer, company_code):
     operating_cf = get_latest_value(stock_data.get('operating_cf'))
     investing_cf = get_latest_value(stock_data.get('investing_cf'))
 
-    financial_history = {
-        'revenue': stock_data.get('revenue', []),
-        'op_income': stock_data.get('op_income', []),
-    }
-    cf_history = {
-        'roa': stock_data.get('roa', []),
-    }
-
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
-    screened_data = {
+    screened_data_full = {
         'company_code': code,
         'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
         'sector': stock_data.get('sector_jp') or stock_data.get('sector', ''),
@@ -537,11 +659,13 @@ def _analyze_stock_and_save(analyzer, company_code):
         'analyzed_at': now,
         'forecast_revenue': stock_data.get('forecast_revenue'),
         'forecast_op_income': stock_data.get('forecast_op_income'),
-        'financial_history': json.dumps(financial_history, ensure_ascii=False),
-        'cf_history': json.dumps(cf_history, ensure_ascii=False),
         'data_source': 'yfinance',
         'data_status': 'fresh'
     }
+
+    # Noneのフィールドを除外（フル分析で保存済みのデータを上書きしない）
+    screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
+
     upsert_screened_data_with_match_rate(screened_data)
     return {**screened_data, 'raw': stock_data}
 
@@ -767,10 +891,8 @@ def api_scrape_dc_stocks():
 def api_get_screened_stock(company_code):
     """screened_latestから単一銘柄のキャッシュデータ取得"""
     try:
+        company_code = normalize_code(company_code)
         data = get_screened_data(company_code)
-        # .T付きでも検索
-        if not data and not company_code.endswith('.T'):
-            data = get_screened_data(company_code + '.T')
         if data:
             return jsonify(data), 200
         return jsonify({"error": "not found"}), 404

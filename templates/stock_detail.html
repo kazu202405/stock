@@ -72,26 +72,6 @@
         cursor: not-allowed;
     }
 
-    .register-button {
-        padding: 8px 20px;
-        background: var(--success-color, #10b981);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .register-button:hover {
-        background: #059669;
-    }
-
-    .register-button:disabled {
-        background: var(--text-secondary);
-        cursor: not-allowed;
-    }
 
     /* ローディング */
     .loading-overlay {
@@ -364,7 +344,6 @@
         <a href="/dashboard/admin" class="back-link">← 一覧に戻る</a>
         <div style="display: flex; gap: 10px; align-items: center;">
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
-            <button class="register-button" id="registerBtn" onclick="registerStock()" style="display: none;">登録</button>
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
         </div>
     </div>
@@ -1378,10 +1357,7 @@
             });
             const data = await response.json();
             if (response.ok) {
-                window.currentStockData = data;
                 displayFullAnalysis(data);
-                // 分析結果をscreened_latestに保存（事業概要含む）
-                saveAnalysisToCache(data);
             } else {
                 if (data.timeout || response.status === 504) {
                     alert('タイムアウト: データ取得に時間がかかりすぎました。時間をおいて再度お試しください。');
@@ -1395,79 +1371,6 @@
             btn.disabled = false;
             btn.textContent = '更新';
             document.getElementById('loadingOverlay').classList.remove('active');
-        }
-    }
-
-    // 分析結果をscreened_latestに保存
-    async function saveAnalysisToCache(stockData) {
-        try {
-            const symbol = stockData.symbol || (STOCK_CODE.endsWith('.T') ? STOCK_CODE : `${STOCK_CODE}.T`);
-            await fetch('/api/watchlist/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    company_code: symbol,
-                    stock_data: stockData
-                })
-            });
-            console.log('分析データを保存しました（事業概要含む）:', symbol);
-        } catch (error) {
-            console.error('データ保存エラー:', error);
-        }
-    }
-
-    // 登録ボタン
-    async function registerStock() {
-        const symbol = STOCK_CODE.endsWith('.T') ? STOCK_CODE : `${STOCK_CODE}.T`;
-        const registerBtn = document.getElementById('registerBtn');
-        registerBtn.disabled = true;
-        registerBtn.textContent = '登録中...';
-
-        try {
-            const payload = { company_code: symbol };
-            // 分析データがあれば一緒に送る
-            if (window.currentStockData) {
-                payload.stock_data = window.currentStockData;
-            }
-            const response = await fetch('/api/watchlist/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (response.ok) {
-                registerBtn.textContent = 'データ更新';
-                registerBtn.disabled = false;
-            } else {
-                const data = await response.json();
-                alert(`登録エラー: ${data.error}`);
-                registerBtn.disabled = false;
-                registerBtn.textContent = '登録';
-            }
-        } catch (error) {
-            alert(`通信エラー: ${error.message}`);
-            registerBtn.disabled = false;
-            registerBtn.textContent = '登録';
-        }
-    }
-
-    // 登録状態チェック
-    async function checkRegistrationStatus() {
-        try {
-            const symbol = STOCK_CODE.endsWith('.T') ? STOCK_CODE : `${STOCK_CODE}.T`;
-            const response = await fetch(`/api/watchlist/check/${symbol}`);
-            const registerBtn = document.getElementById('registerBtn');
-            if (response.ok) {
-                const data = await response.json();
-                if (data.is_registered) {
-                    registerBtn.textContent = 'データ更新';
-                } else {
-                    registerBtn.textContent = '登録';
-                }
-            }
-            registerBtn.style.display = 'inline-block';
-        } catch (error) {
-            console.error('登録状態チェックエラー:', error);
-            document.getElementById('registerBtn').style.display = 'inline-block';
         }
     }
 
@@ -1505,7 +1408,7 @@
             } else {
                 document.getElementById('companyName').textContent = STOCK_CODE;
                 document.title = `${STOCK_CODE} - Company Note`;
-                document.getElementById('dataStatus').textContent = 'キャッシュデータなし';
+                document.getElementById('dataStatus').textContent = 'データなし';
             }
         } catch (error) {
             console.error('キャッシュデータ取得エラー:', error);
@@ -1521,8 +1424,6 @@
             }
         }
 
-        // 登録状態チェック
-        checkRegistrationStatus();
     });
 </script>
 {% endblock %}
