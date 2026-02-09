@@ -54,12 +54,16 @@
         align-items: center;
     }
 
+    .search-input-wrapper {
+        position: relative;
+    }
+
     .stock-code-input {
         padding: 8px 16px;
         border: 1px solid var(--border-color);
         border-radius: 6px;
         font-size: 0.95rem;
-        width: 180px;
+        width: 280px;
         transition: all 0.2s;
     }
 
@@ -67,6 +71,46 @@
         outline: none;
         border-color: var(--accent-color);
         box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
+    }
+
+    .suggest-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        max-height: 240px;
+        overflow-y: auto;
+        z-index: 100;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        display: none;
+    }
+
+    .suggest-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .suggest-item:hover,
+    .suggest-item.active {
+        background: #f0f7f4;
+    }
+
+    .suggest-code {
+        font-weight: 600;
+        color: var(--primary-color);
+        min-width: 40px;
+    }
+
+    .suggest-name {
+        color: var(--text-secondary);
     }
 
     .analyze-button {
@@ -694,7 +738,10 @@
     <div class="report-header">
         <div class="report-title">銘柄検索</div>
         <div class="search-bar">
-            <input type="text" class="stock-code-input" id="stockCode" placeholder="銘柄コード (例: 7203 / 6758.T / AAPL)">
+            <div class="search-input-wrapper">
+                <input type="text" class="stock-code-input" id="stockCode" placeholder="銘柄コードまたは会社名" autocomplete="off">
+                <div class="suggest-list" id="suggestList"></div>
+            </div>
             <button class="analyze-button" onclick="analyzeStock()">抽出</button>
             <button class="register-button" id="registerBtn" onclick="registerStock()" style="display: none;">登録</button>
         </div>
@@ -1820,9 +1867,93 @@
         return formatAmount(num, window.currentCurrency || 'JPY');
     }
 
-    // Enterキーで分析
-    document.getElementById('stockCode').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') { analyzeStock(); }
+    // === サジェスト機能 ===
+    let companiesData = [];
+    let suggestIndex = -1;
+
+    // 上場企業リストを読み込み
+    fetch('/static/companies.json')
+        .then(r => r.json())
+        .then(data => { companiesData = data; })
+        .catch(err => console.error('企業リスト読み込みエラー:', err));
+
+    const stockInput = document.getElementById('stockCode');
+    const suggestList = document.getElementById('suggestList');
+
+    stockInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        suggestIndex = -1;
+
+        if (!query || query.length < 1) {
+            suggestList.style.display = 'none';
+            return;
+        }
+
+        const lower = query.toLowerCase();
+        const matches = companiesData.filter(c =>
+            c.c.startsWith(query) || c.n.toLowerCase().includes(lower)
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+            suggestList.style.display = 'none';
+            return;
+        }
+
+        suggestList.innerHTML = matches.map((m, i) =>
+            `<div class="suggest-item" data-code="${m.c}" data-index="${i}">
+                <span class="suggest-code">${m.c}</span>
+                <span class="suggest-name">${m.n}</span>
+            </div>`
+        ).join('');
+        suggestList.style.display = 'block';
+    });
+
+    // サジェスト項目クリック
+    suggestList.addEventListener('click', function(e) {
+        const item = e.target.closest('.suggest-item');
+        if (item) {
+            stockInput.value = item.dataset.code;
+            suggestList.style.display = 'none';
+            analyzeStock();
+        }
+    });
+
+    // キーボード操作（上下矢印・Enter・Escape）
+    stockInput.addEventListener('keydown', function(e) {
+        const items = suggestList.querySelectorAll('.suggest-item');
+        if (suggestList.style.display === 'none' || items.length === 0) {
+            if (e.key === 'Enter') { analyzeStock(); }
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            suggestIndex = Math.min(suggestIndex + 1, items.length - 1);
+            items.forEach((el, i) => el.classList.toggle('active', i === suggestIndex));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            suggestIndex = Math.max(suggestIndex - 1, 0);
+            items.forEach((el, i) => el.classList.toggle('active', i === suggestIndex));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (suggestIndex >= 0 && items[suggestIndex]) {
+                stockInput.value = items[suggestIndex].dataset.code;
+                suggestList.style.display = 'none';
+                analyzeStock();
+            } else {
+                suggestList.style.display = 'none';
+                analyzeStock();
+            }
+        } else if (e.key === 'Escape') {
+            suggestList.style.display = 'none';
+        }
+    });
+
+    // 入力欄外クリックでサジェスト閉じる
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-input-wrapper')) {
+            suggestList.style.display = 'none';
+        }
     });
 
     // 主要株主・役員情報を更新

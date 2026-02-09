@@ -1478,13 +1478,13 @@
                 displayFullAnalysis(data);
             } else {
                 if (data.timeout || response.status === 504) {
-                    alert('タイムアウト: データ取得に時間がかかりすぎました。時間をおいて再度お試しください。');
+                    showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');
                 } else {
-                    alert(`エラー: ${data.error || '分析に失敗しました'}`);
+                    showErrorModal('データを取得できませんでした。\n再度お試しください。');
                 }
             }
         } catch (error) {
-            alert(`通信エラー: ${error.message}`);
+            showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
         } finally {
             btn.disabled = false;
             btn.textContent = '更新';

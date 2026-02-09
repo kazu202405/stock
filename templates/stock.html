@@ -93,8 +93,6 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid var(--border-color);
     }
 
     .watchlist-title {
@@ -232,6 +230,90 @@
         font-size: 0.8rem;
         border-bottom: 1px solid var(--border-color);
         white-space: nowrap;
+    }
+
+    .watchlist-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .watchlist-table th.sortable:hover {
+        color: var(--primary-color);
+    }
+
+    .sort-icon {
+        font-size: 0.65rem;
+        margin-left: 3px;
+        opacity: 0.3;
+    }
+
+    .sort-icon.active {
+        opacity: 1;
+        color: var(--primary-color);
+    }
+
+    /* フィルター＆アクションバー */
+    .filter-action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        flex-wrap: wrap;
+    }
+
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .filter-item {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+    }
+
+    .filter-item label {
+        white-space: nowrap;
+        min-width: fit-content;
+    }
+
+    .filter-item input {
+        padding: 3px 6px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 0.78rem;
+        width: 58px;
+    }
+
+    .filter-sep {
+        color: #ccc;
+        font-size: 0.7rem;
+    }
+
+    .filter-reset-btn {
+        padding: 4px 10px;
+        background: transparent;
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .filter-reset-btn:hover {
+        background: var(--bg-light);
+    }
+
+    .action-buttons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
     }
 
     .watchlist-table td {
@@ -422,21 +504,55 @@
         <div class="tab-content active" id="tabContent-watchlist">
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    {% if is_admin %}
-                    <button class="bulk-register-btn" onclick="openBulkRegisterModal()">一括登録</button>
-                    <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
-                    {% endif %}
-                    <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn" style="background-color: #2563eb;">詳細取得</button>
-                    <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
-                    <span class="watchlist-count" id="watchlistCount">0件</span>
-                </div>
             </div>
             <div class="match-rate-description">
                 「合致度」は、自己資本比率・営業利益率・ROE等の財務指標が、一般的な投資基準にどの程度合致しているかを示す参考値です。投資判断を推奨するものではありません。
             </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="filterBar">
+                    <div class="filter-item">
+                        <label>合致度</label>
+                        <input type="number" id="filterMatchMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="filterMatchMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>時価総額(億)</label>
+                        <input type="number" id="filterCapMin" placeholder="以上" step="100">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="filterCapMax" placeholder="以下" step="100">
+                    </div>
+                    <div class="filter-item">
+                        <label>PER</label>
+                        <input type="number" id="filterPerMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="filterPerMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>PBR</label>
+                        <input type="number" id="filterPbrMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="filterPbrMax" placeholder="以下" step="0.1">
+                    </div>
+                    <div class="filter-item">
+                        <label>配当</label>
+                        <input type="number" id="filterDivMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="filterDivMax" placeholder="以下" step="0.1">
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetFilters()">リセット</button>
+                </div>
+                <div class="action-buttons">
+                    {% if is_admin %}
+                    <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">一括登録</button>
+                    <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
+                    {% endif %}
+                    <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                </div>
+            </div>
             <div id="watchlistContent">
-                <div class="watchlist-empty">読み込み中...</div>
+                <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
             </div>
         </div>
 
@@ -446,7 +562,7 @@
                 <span class="watchlist-title"></span>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <button class="gc-fetch-btn" onclick="fetchGcStocks()" id="gcFetchBtn">取得</button>
-                    <button class="gc-fetch-btn" onclick="analyzeGcStocks()" id="gcAnalyzeBtn" style="background-color: #2563eb;">詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="analyzeGcStocks()" id="gcAnalyzeBtn" style="background-color: var(--secondary-color);">詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopGcAnalyze()" id="gcStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <span class="watchlist-count" id="gcCount">0件</span>
                 </div>
@@ -516,21 +632,37 @@
 
     // ウォッチリストを読み込んで表示
     async function loadWatchlist() {
+        // キャッシュがあれば先に表示（ローディング回避）
+        const cached = sessionStorage.getItem('watchlistCache');
+        if (cached) {
+            try {
+                renderWatchlist(JSON.parse(cached));
+            } catch(e) {}
+        } else {
+            document.getElementById('watchlistContent').innerHTML =
+                '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>';
+        }
+
+        // バックグラウンドで最新データを取得
         try {
             const response = await fetch('/api/watchlist');
             const data = await response.json();
 
             if (response.ok) {
-                renderWatchlist(data.watchlist || []);
+                const list = data.watchlist || [];
+                sessionStorage.setItem('watchlistCache', JSON.stringify(list));
+                renderWatchlist(list);
             } else {
-                console.error('ウォッチリスト取得エラー:', data.error);
+                if (!cached) {
+                    document.getElementById('watchlistContent').innerHTML =
+                        '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                }
+            }
+        } catch (error) {
+            if (!cached) {
                 document.getElementById('watchlistContent').innerHTML =
                     '<div class="watchlist-empty">データの取得に失敗しました</div>';
             }
-        } catch (error) {
-            console.error('ウォッチリスト取得エラー:', error);
-            document.getElementById('watchlistContent').innerHTML =
-                '<div class="watchlist-empty">データの取得に失敗しました</div>';
         }
     }
 
@@ -538,32 +670,90 @@
     let watchlistCache = [];
 
     // ウォッチリストを描画
+    // ソート状態
+    let currentSort = { key: null, asc: true };
+
     function renderWatchlist(watchlist) {
         watchlistCache = watchlist;
+        applyFilterAndSort();
+    }
+
+    function applyFilterAndSort() {
+        let list = [...watchlistCache];
+
+        // フィルタリング
+        const matchMin = parseFloat(document.getElementById('filterMatchMin')?.value);
+        const matchMax = parseFloat(document.getElementById('filterMatchMax')?.value);
+        const capMin = parseFloat(document.getElementById('filterCapMin')?.value);
+        const capMax = parseFloat(document.getElementById('filterCapMax')?.value);
+        const perMin = parseFloat(document.getElementById('filterPerMin')?.value);
+        const perMax = parseFloat(document.getElementById('filterPerMax')?.value);
+        const pbrMin = parseFloat(document.getElementById('filterPbrMin')?.value);
+        const pbrMax = parseFloat(document.getElementById('filterPbrMax')?.value);
+        const divMin = parseFloat(document.getElementById('filterDivMin')?.value);
+        const divMax = parseFloat(document.getElementById('filterDivMax')?.value);
+
+        if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
+        if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
+        if (!isNaN(capMin)) list = list.filter(i => i.market_cap != null && i.market_cap >= capMin);
+        if (!isNaN(capMax)) list = list.filter(i => i.market_cap != null && i.market_cap <= capMax);
+        if (!isNaN(perMin)) list = list.filter(i => i.per_forward != null && i.per_forward >= perMin);
+        if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
+        if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
+        if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+
+        // ソート
+        if (currentSort.key) {
+            list.sort((a, b) => {
+                let va = a[currentSort.key], vb = b[currentSort.key];
+                if (va == null && vb == null) return 0;
+                if (va == null) return 1;
+                if (vb == null) return -1;
+                if (typeof va === 'string') return currentSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                return currentSort.asc ? va - vb : vb - va;
+            });
+        }
 
         const content = document.getElementById('watchlistContent');
-        const countElement = document.getElementById('watchlistCount');
+        const wlBtn = document.getElementById('wlAnalyzeBtn');
 
-        countElement.textContent = `${watchlist.length}件`;
+        const totalCount = watchlistCache.length;
+        const filteredCount = list.length;
+        const countLabel = totalCount === filteredCount ? `${totalCount}` : `${filteredCount}/${totalCount}`;
+        wlBtn.textContent = `${countLabel}件 詳細取得`;
 
-        if (watchlist.length === 0) {
+        if (watchlistCache.length === 0) {
             content.innerHTML = '<div class="watchlist-empty">登録銘柄がありません。<a href="/search">銘柄検索</a>から登録してください。</div>';
             return;
         }
+
+        if (list.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">条件に一致する銘柄がありません</div>';
+            return;
+        }
+
+        const sortIcon = (key) => {
+            if (currentSort.key !== key) return '<span class="sort-icon">▲▼</span>';
+            return currentSort.asc
+                ? '<span class="sort-icon active">▲</span>'
+                : '<span class="sort-icon active">▼</span>';
+        };
 
         let html = `
             <table class="watchlist-table">
                 <thead>
                     <tr>
-                        <th>コード</th>
-                        <th>会社名</th>
-                        <th>合致度</th>
+                        <th class="sortable" onclick="sortWatchlist('company_code')">コード${sortIcon('company_code')}</th>
+                        <th class="sortable" onclick="sortWatchlist('company_name')">会社名${sortIcon('company_name')}</th>
+                        <th class="sortable" onclick="sortWatchlist('match_rate')">合致度${sortIcon('match_rate')}</th>
                         <th>セクター</th>
-                        <th>時価総額</th>
-                        <th>株価</th>
-                        <th>PER</th>
-                        <th>PBR</th>
-                        <th>配当利回り</th>
+                        <th class="sortable" onclick="sortWatchlist('market_cap')">時価総額${sortIcon('market_cap')}</th>
+                        <th class="sortable" onclick="sortWatchlist('stock_price')">株価${sortIcon('stock_price')}</th>
+                        <th class="sortable" onclick="sortWatchlist('per_forward')">PER${sortIcon('per_forward')}</th>
+                        <th class="sortable" onclick="sortWatchlist('pbr')">PBR${sortIcon('pbr')}</th>
+                        <th class="sortable" onclick="sortWatchlist('dividend_yield')">配当利回り${sortIcon('dividend_yield')}</th>
                         <th>GC</th>
                         <th>DC</th>
                         <th>方向</th>
@@ -573,7 +763,7 @@
                 <tbody>
         `;
 
-        watchlist.forEach(item => {
+        list.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const sector = item.sector || '---';
@@ -610,6 +800,33 @@
         html += '</tbody></table>';
         content.innerHTML = html;
     }
+
+    function sortWatchlist(key) {
+        if (currentSort.key === key) {
+            currentSort.asc = !currentSort.asc;
+        } else {
+            currentSort.key = key;
+            currentSort.asc = true;
+        }
+        applyFilterAndSort();
+    }
+
+    const filterIds = ['filterMatchMin','filterMatchMax','filterCapMin','filterCapMax',
+        'filterPerMin','filterPerMax','filterPbrMin','filterPbrMax','filterDivMin','filterDivMax'];
+
+    function resetFilters() {
+        filterIds.forEach(id => { document.getElementById(id).value = ''; });
+        currentSort = { key: null, asc: true };
+        applyFilterAndSort();
+    }
+
+    // フィルター入力時にリアルタイム反映
+    document.addEventListener('DOMContentLoaded', function() {
+        filterIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', applyFilterAndSort);
+        });
+    });
 
     // 時価総額フォーマット（億円単位入力 → 兆/億表示）
     function formatMarketCapOku(oku) {
@@ -664,6 +881,10 @@
 
     let wlAnalyzePolling = null;
 
+    function getWlBtnLabel() {
+        return `${watchlistCache.length}件 詳細取得`;
+    }
+
     async function analyzeWlStocks() {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
@@ -680,7 +901,7 @@
             if (response.ok) {
                 if (data.status && data.status.total === 0) {
                     btn.disabled = false;
-                    btn.textContent = '詳細取得';
+                    btn.textContent = getWlBtnLabel();
                     stopBtn.style.display = 'none';
                     showSuccessModal('全銘柄の分析が完了済みです');
                 } else {
@@ -692,14 +913,14 @@
                 } else {
                     showErrorModal('データを取得できませんでした。\n再度お試しください。');
                     btn.disabled = false;
-                    btn.textContent = '詳細取得';
+                    btn.textContent = getWlBtnLabel();
                     stopBtn.style.display = 'none';
                 }
             }
         } catch (error) {
             showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
             btn.disabled = false;
-            btn.textContent = '詳細取得';
+            btn.textContent = getWlBtnLabel();
             stopBtn.style.display = 'none';
         }
     }
@@ -718,7 +939,7 @@
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
         btn.disabled = false;
-        btn.textContent = '詳細取得';
+        btn.textContent = getWlBtnLabel();
         stopBtn.style.display = 'none';
         stopBtn.disabled = false;
         stopBtn.textContent = '停止';

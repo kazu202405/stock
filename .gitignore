@@ -21,6 +21,7 @@ charts/
 *.png
 *.json
 !package.json
+!static/companies.json
 
 # ログ
 *.log
