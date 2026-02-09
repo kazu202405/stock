@@ -427,7 +427,7 @@
             <div class="score-header">合致度</div>
             <div class="score-main">
                 <div class="score-value" id="score-value">--</div>
-                <div class="score-label">/ 120</div>
+                <div class="score-label">/ 100</div>
             </div>
             <div class="score-details" id="score-details">
                 <div class="score-item">
@@ -723,7 +723,7 @@
             const sign = n0 < 0 ? '−' : '';
             const n = Math.abs(n0);
             if (n >= 1e12) return `${sign}${(n/1e12).toFixed(2)}兆円`;
-            if (n >= 1e8)  return `${sign}${(n/1e8).toFixed(2)}億円`;
+            if (n >= 1e8)  return `${sign}${Math.round(n/1e8)}億円`;
             if (n >= 1e4)  return `${sign}${(n/1e4).toFixed(2)}万円`;
             return `${sign}${Math.round(n).toLocaleString()}円`;
         } else {
@@ -755,28 +755,44 @@
                     }
                 }
                 const subElem = elem.querySelector('.metric-sub');
-                if (label === 'PER' && industryInfo && subElem) {
-                    const benchmark = getIndustryPERBenchmark(industryInfo);
-                    subElem.textContent = `業種基準: ${benchmark.good}-${benchmark.warning}倍`;
-                }
                 elem.classList.remove('good', 'warning', 'danger');
-                if (label === '自己資本比率' && value) {
-                    if (value >= 40) elem.classList.add('good');
-                    else if (value >= 20) elem.classList.add('warning');
-                    else elem.classList.add('danger');
-                } else if (label === '営業利益率' && value) {
-                    if (value >= 10) elem.classList.add('good');
-                    else if (value >= 5) elem.classList.add('warning');
-                    else elem.classList.add('danger');
-                } else if (label === 'PER' && value) {
+                const isBankOrRE = industryInfo && /銀行|不動産|bank|real estate|reit/i.test(industryInfo);
+                if (label === '自己資本比率' && value != null) {
+                    if (isBankOrRE) {
+                        if (value >= 10) { elem.classList.add('good'); if (subElem) subElem.textContent = '健全(業種考慮)'; }
+                        else if (value >= 5) { elem.classList.add('warning'); if (subElem) subElem.textContent = '標準(業種考慮)'; }
+                        else { elem.classList.add('danger'); if (subElem) subElem.textContent = '注意'; }
+                    } else {
+                        if (value >= 40) { elem.classList.add('good'); if (subElem) subElem.textContent = '健全'; }
+                        else if (value >= 30) { elem.classList.add('warning'); if (subElem) subElem.textContent = '標準'; }
+                        else { elem.classList.add('danger'); if (subElem) subElem.textContent = '注意'; }
+                    }
+                } else if (label === '営業利益率' && value != null) {
+                    if (value >= 15) { elem.classList.add('good'); if (subElem) subElem.textContent = '高収益'; }
+                    else if (value >= 10) { elem.classList.add('good'); if (subElem) subElem.textContent = '良好'; }
+                    else if (value >= 5) { elem.classList.add('warning'); if (subElem) subElem.textContent = '標準'; }
+                    else { elem.classList.add('danger'); if (subElem) subElem.textContent = '低い'; }
+                } else if (label === 'PER' && value != null) {
                     const benchmark = getIndustryPERBenchmark(industryInfo);
                     if (value <= benchmark.good) elem.classList.add('good');
                     else if (value <= benchmark.warning) elem.classList.add('warning');
                     else elem.classList.add('danger');
-                } else if (label === 'PBR' && value) {
-                    if (value <= 1) elem.classList.add('good');
-                    else if (value <= 2) elem.classList.add('warning');
-                    else elem.classList.add('danger');
+                    if (subElem) subElem.textContent = `業種基準: ${benchmark.good}-${benchmark.warning}倍`;
+                } else if (label === 'PBR' && value != null) {
+                    if (value <= 1) { elem.classList.add('good'); if (subElem) subElem.textContent = '割安'; }
+                    else if (value <= 2) { elem.classList.add('warning'); if (subElem) subElem.textContent = '適正'; }
+                    else { elem.classList.add('danger'); if (subElem) subElem.textContent = '割高'; }
+                } else if (label === '配当利回り' && value != null) {
+                    if (value >= 3) { elem.classList.add('good'); if (subElem) subElem.textContent = '高配当'; }
+                    else if (value >= 2) { elem.classList.add('warning'); if (subElem) subElem.textContent = '標準'; }
+                    else if (value > 0) { if (subElem) subElem.textContent = '低い'; }
+                    else { if (subElem) subElem.textContent = '無配'; }
+                } else if (label === '時価総額' && value != null) {
+                    const oku = value / 1e8;
+                    if (oku <= 300) { if (subElem) subElem.textContent = '小型株'; }
+                    else if (oku <= 700) { if (subElem) subElem.textContent = '中小型'; }
+                    else if (oku <= 3000) { if (subElem) subElem.textContent = '中型株'; }
+                    else { if (subElem) subElem.textContent = '大型株'; }
                 }
                 break;
             }
@@ -1199,12 +1215,13 @@
         if (pbrPass) calcScore += 10;
         updateScoreItem('score-pbr', pbrPass, pbr ? `${pbr.toFixed(2)}倍` : null);
 
-        // 合致度をJS側で再計算した値で表示（DB値は古い可能性があるため）
+        // 12項目×10点=120点を100点満点に正規化
+        const normalizedScore = Math.round(calcScore * 100 / 120);
         const scoreValue = document.getElementById('score-value');
-        scoreValue.textContent = calcScore;
+        scoreValue.textContent = normalizedScore;
         scoreValue.className = 'score-value';
-        if (calcScore >= 70) scoreValue.classList.add('high');
-        else if (calcScore >= 40) scoreValue.classList.add('medium');
+        if (normalizedScore >= 58) scoreValue.classList.add('high');
+        else if (normalizedScore >= 33) scoreValue.classList.add('medium');
         else scoreValue.classList.add('low');
     }
 
@@ -1230,14 +1247,15 @@
         // トレンド方向バッジ
         updateTrendBadge(data.gc_date, data.dc_date);
 
-        // 指標更新
-        updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率');
-        updateMetric('op-margin', data.operating_margin, '%', '営業利益率');
-        updateMetric('per', data.per_forward, '倍', 'PER');
-        updateMetric('pbr', data.pbr, '倍', 'PBR');
-        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り');
+        // 指標更新（業種情報を渡して評価テキスト生成）
+        const cachedSector = data.sector || '';
+        updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率', cachedSector);
+        updateMetric('op-margin', data.operating_margin, '%', '営業利益率', cachedSector);
+        updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
+        updateMetric('pbr', data.pbr, '倍', 'PBR', cachedSector);
+        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', cachedSector);
         if (data.market_cap) {
-            updateMetric('market-cap', data.market_cap * 1e8, 'JPY', '時価総額');
+            updateMetric('market-cap', data.market_cap * 1e8, 'JPY', '時価総額', cachedSector);
         }
 
         // 事業概要
@@ -1352,13 +1370,13 @@
         updateTrendBadge(data.gc_date, data.dc_date);
 
         const equityRatio = data.equity_ratio_pct ?? data.equity_ratio ?? (Array.isArray(data.equity_ratio_list) && data.equity_ratio_list.length > 0 ? [...data.equity_ratio_list].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.value : null);
-        updateMetric('equity-ratio', equityRatio, '%', '自己資本比率');
-        updateMetric('op-margin', data.op_margin_pct, '%', '営業利益率');
-        const industryForPER = data.industry_jp || data.industry;
+        const industryForPER = data.industry_jp || data.industry || '';
+        updateMetric('equity-ratio', equityRatio, '%', '自己資本比率', industryForPER);
+        updateMetric('op-margin', data.op_margin_pct, '%', '営業利益率', industryForPER);
         updateMetric('per', data.per, '倍', 'PER', industryForPER);
-        updateMetric('pbr', data.pbr, '倍', 'PBR');
-        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り');
-        updateMetric('market-cap', data.market_cap, data.currency, '時価総額');
+        updateMetric('pbr', data.pbr, '倍', 'PBR', industryForPER);
+        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', industryForPER);
+        updateMetric('market-cap', data.market_cap, data.currency, '時価総額', industryForPER);
 
         updateFinancialYearTable(data);
         updateBusinessSummary(data);
@@ -1432,7 +1450,7 @@
         if (pbr !== null && pbr > 0 && pbr < 10) score += 10;
 
         return {
-            match_rate: score, market_cap: marketCapOku, equity_ratio: equityRatio,
+            match_rate: Math.round(score * 100 / 120), market_cap: marketCapOku, equity_ratio: equityRatio,
             operating_margin: operatingMargin, operating_cf: operatingCf, free_cf: freeCf,
             roa: roa, per_forward: per, pbr: pbr,
             forecast_revenue: data.forecast_revenue, forecast_op_income: data.forecast_op_income,

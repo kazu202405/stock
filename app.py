@@ -537,6 +537,23 @@ def api_scrape_gc_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+def _convert_timestamps(obj):
+    """Pandas Timestamp/numpy型を再帰的にJSON化可能な型に変換"""
+    import pandas as pd
+    import numpy as np
+    if isinstance(obj, (pd.Timestamp,)):
+        return obj.isoformat()
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {k: _convert_timestamps(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_convert_timestamps(item) for item in obj]
+    return obj
+
+
 def _save_analysis_to_screened(symbol, stock_data):
     """フル分析結果をscreened_latestに保存（サーバー側で確実に保存）"""
     company_code = normalize_code(symbol)
@@ -626,15 +643,15 @@ def _save_analysis_to_screened(symbol, stock_data):
         'forecast_op_income': stock_data.get('forecast_op_income'),
         'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
         'forecast_net_income': stock_data.get('forecast_net_income'),
-        'forecast_year': stock_data.get('forecast_year'),
+        'forecast_year': _convert_timestamps(stock_data.get('forecast_year')),
         'business_summary': stock_data.get('business_summary'),
         'business_summary_jp': stock_data.get('business_summary_jp'),
-        'major_holders': json.dumps(stock_data.get('major_holders', []), ensure_ascii=False) if stock_data.get('major_holders') else None,
-        'institutional_holders': json.dumps(stock_data.get('institutional_holders', []), ensure_ascii=False) if stock_data.get('institutional_holders') else None,
-        'company_officers': json.dumps(stock_data.get('company_officers', []), ensure_ascii=False) if stock_data.get('company_officers') else None,
-        'major_shareholders_jp': json.dumps(stock_data.get('major_shareholders_jp', []), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
-        'financial_history': json.dumps(financial_history, ensure_ascii=False),
-        'cf_history': json.dumps(cf_history, ensure_ascii=False),
+        'major_holders': json.dumps(_convert_timestamps(stock_data.get('major_holders', [])), ensure_ascii=False) if stock_data.get('major_holders') else None,
+        'institutional_holders': json.dumps(_convert_timestamps(stock_data.get('institutional_holders', [])), ensure_ascii=False) if stock_data.get('institutional_holders') else None,
+        'company_officers': json.dumps(_convert_timestamps(stock_data.get('company_officers', [])), ensure_ascii=False) if stock_data.get('company_officers') else None,
+        'major_shareholders_jp': json.dumps(_convert_timestamps(stock_data.get('major_shareholders_jp', [])), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
+        'financial_history': json.dumps(_convert_timestamps(financial_history), ensure_ascii=False),
+        'cf_history': json.dumps(_convert_timestamps(cf_history), ensure_ascii=False),
         'analyzed_at': now,
         'data_source': 'yfinance',
         'data_status': 'fresh'

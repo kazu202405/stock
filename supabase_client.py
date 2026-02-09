@@ -127,9 +127,9 @@ def get_watchlist_with_details() -> list:
 
 def calculate_match_rate(data: dict) -> int:
     """
-    財務指標の投資基準への合致度を計算（0-120点）
+    財務指標の投資基準への合致度を計算（0-100点）
 
-    yomu.md基準（12項目 × 10点 = 120点満点）:
+    yomu.md基準（12項目、100点満点）:
     1. 時価総額 <= 700億円
     2. 自己資本比率 >= 30%
     3. 売上高増減率(2期前→前期) > 0%
@@ -274,7 +274,8 @@ def calculate_match_rate(data: dict) -> int:
         if pbr < 10:
             score += 10
 
-    return score
+    # 12項目×10点=120点を100点満点に正規化
+    return round(score * 100 / 120)
 
 
 def upsert_screened_data_with_match_rate(data: dict) -> dict:
