@@ -57,6 +57,9 @@
 
                 <!-- メインナビゲーション -->
                 <div class="hidden md:flex items-center space-x-6">
+                    <a href="/dashboard" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        ホーム
+                    </a>
                     <a href="/learning" class="nav-link px-2 py-1.5 text-sm font-medium">
                         学習ノート
                     </a>
@@ -68,6 +71,9 @@
                     </a>
                     <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
                         マイページ
+                    </a>
+                    <a href="/search" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        銘柄検索
                     </a>
                     <a href="/dashboard/admin" class="nav-link px-2 py-1.5 text-sm font-medium">
                         管理画面
@@ -115,6 +121,32 @@
         {% endblock %}
     </main>
 
+    <!-- エラーモーダル -->
+    <div id="errorModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; max-width:400px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.12); text-align:center;">
+            <div style="margin-bottom:16px;">
+                <i id="errorModalIcon" class="fas fa-exclamation-circle" style="font-size:36px; color:#e74c3c;"></i>
+            </div>
+            <p id="errorModalMessage" style="color:#1a1a1a; font-size:15px; line-height:1.6; margin-bottom:24px; white-space:pre-line;"></p>
+            <button onclick="closeErrorModal()" style="background:#1b4332; color:#fff; border:none; border-radius:8px; padding:10px 32px; font-size:14px; font-weight:500; cursor:pointer;">
+                閉じる
+            </button>
+        </div>
+    </div>
+
+    <!-- 成功モーダル -->
+    <div id="successModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; max-width:400px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.12); text-align:center;">
+            <div style="margin-bottom:16px;">
+                <i class="fas fa-check-circle" style="font-size:36px; color:#1b4332;"></i>
+            </div>
+            <p id="successModalMessage" style="color:#1a1a1a; font-size:15px; line-height:1.6; margin-bottom:24px;"></p>
+            <button onclick="closeSuccessModal()" style="background:#1b4332; color:#fff; border:none; border-radius:8px; padding:10px 32px; font-size:14px; font-weight:500; cursor:pointer;">
+                閉じる
+            </button>
+        </div>
+    </div>
+
     <!-- Alpine.js for interactive components -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
@@ -123,6 +155,36 @@
 
 
 <script>
+    // エラーモーダル表示
+    function showErrorModal(message) {
+        const modal = document.getElementById('errorModal');
+        document.getElementById('errorModalMessage').textContent = message;
+        modal.style.display = 'flex';
+    }
+    function closeErrorModal() {
+        document.getElementById('errorModal').style.display = 'none';
+    }
+    // 成功モーダル表示
+    function showSuccessModal(message) {
+        const modal = document.getElementById('successModal');
+        document.getElementById('successModalMessage').textContent = message;
+        modal.style.display = 'flex';
+    }
+    function closeSuccessModal() {
+        document.getElementById('successModal').style.display = 'none';
+    }
+    // モーダル背景クリックで閉じる
+    document.addEventListener('DOMContentLoaded', function() {
+        ['errorModal', 'successModal'].forEach(function(id) {
+            var modal = document.getElementById(id);
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) modal.style.display = 'none';
+                });
+            }
+        });
+    });
+
    // URLをリンクに変換する関数
     function linkifyMessage(message) {
         return message.replace(/(https?:\/\/[^\s]+)/g, function(url) {

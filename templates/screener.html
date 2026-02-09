@@ -229,7 +229,7 @@
 
         let html = '';
         favorites.forEach(item => {
-            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}%` : '---';
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchClass = getMatchRateClass(item.match_rate);
             const sectorBadge = getSectorBadge(item.sector);
 

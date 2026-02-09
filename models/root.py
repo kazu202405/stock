@@ -54,6 +54,12 @@ def stock_detail(code):
     return render_template('stock_detail.html', stock_code=code)
 
 
+@app.route('/search')
+def search():
+    """銘柄検索・抽出ページ"""
+    return render_template('search.html', is_admin=True)
+
+
 @app.route('/dashboard/admin')
 def admin():
     """管理画面（編集可能）"""
