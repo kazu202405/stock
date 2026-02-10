@@ -492,6 +492,9 @@
             <button class="watchlist-tab active" onclick="switchTab('watchlist')" id="tab-watchlist">
                 条件合致企業
             </button>
+            <button class="watchlist-tab" onclick="switchTab('technical')" id="tab-technical">
+                テクニカル分析
+            </button>
             <button class="watchlist-tab" onclick="switchTab('gc')" id="tab-gc">
                 GC銘柄
             </button>
@@ -591,6 +594,20 @@
                 <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
             </div>
         </div>
+
+        <!-- タブ4: テクニカル分析 -->
+        <div class="tab-content" id="tabContent-technical">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+                <span class="watchlist-count" id="technicalCount">0件</span>
+            </div>
+            <div class="match-rate-description">
+                過去にゴールデンクロス（GC）またはデッドクロス（DC）が検出された銘柄の一覧です。screened_latestに永続保存された日付を表示しています。
+            </div>
+            <div id="technicalContent">
+                <div class="watchlist-empty">タブを開くとデータを読み込みます</div>
+            </div>
+        </div>
     </div>
 
     {% if is_admin %}
@@ -621,13 +638,30 @@
     // 管理者モードフラグ
     const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 
+    // タブ即時復元（フラッシュ防止）
+    (function() {
+        const saved = sessionStorage.getItem('activeTab');
+        if (saved && saved !== 'watchlist') {
+            document.querySelectorAll('.watchlist-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const tab = document.getElementById(`tab-${saved}`);
+            const content = document.getElementById(`tabContent-${saved}`);
+            if (tab) tab.classList.add('active');
+            if (content) content.classList.add('active');
+        }
+    })();
+
     // ========================================
     // ウォッチリスト関連機能
     // ========================================
 
-    // ページ読み込み時にウォッチリストを取得
+    // ページ読み込み時にデータ取得＆遅延ロード
     document.addEventListener('DOMContentLoaded', function() {
         loadWatchlist();
+        const savedTab = sessionStorage.getItem('activeTab');
+        if (savedTab === 'gc') loadGcStocks();
+        if (savedTab === 'dc') loadDcStocks();
+        if (savedTab === 'technical') loadTechnicalStocks();
     });
 
     // ウォッチリストを読み込んで表示
@@ -1071,8 +1105,11 @@
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
         document.getElementById(`tabContent-${tabName}`).classList.add('active');
 
+        sessionStorage.setItem('activeTab', tabName);
+
         if (tabName === 'gc' && gcStocksCache.length === 0) loadGcStocks();
         if (tabName === 'dc' && dcStocksCache.length === 0) loadDcStocks();
+        if (tabName === 'technical' && technicalStocksCache.length === 0) loadTechnicalStocks();
     }
 
     // ========================================
@@ -1161,8 +1198,8 @@
             const per = item.per !== null && item.per !== undefined ? `${Number(item.per).toFixed(1)}倍` : '---';
             const pbr = item.pbr !== null && item.pbr !== undefined ? `${Number(item.pbr).toFixed(2)}倍` : '---';
             const divYield = item.dividend_yield !== null && item.dividend_yield !== undefined ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
-            const formedDate = formatScrapedDate(item.scraped_at);
-            const trend = getTrendDirection(item.scraped_at, item.dc_date);
+            const gcDate = formatScrapedDate(item.gc_date);
+            const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
                 <tr>
@@ -1175,7 +1212,7 @@
                     <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
-                    <td>${formedDate}</td>
+                    <td>${gcDate}</td>
                     <td class="${trend.cls}">${trend.label}</td>
                 </tr>
             `;
@@ -1377,8 +1414,8 @@
             const price = item.stock_price !== null && item.stock_price !== undefined ? Number(item.stock_price).toLocaleString() + '円' : '---';
             const per = item.per !== null && item.per !== undefined ? `${Number(item.per).toFixed(1)}倍` : '---';
             const pbr = item.pbr !== null && item.pbr !== undefined ? `${Number(item.pbr).toFixed(2)}倍` : '---';
-            const formedDate = formatScrapedDate(item.scraped_at);
-            const trend = getTrendDirection(item.gc_date, item.scraped_at);
+            const formedDate = formatScrapedDate(item.dc_date);
+            const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
                 <tr>
@@ -1396,6 +1433,136 @@
 
         html += '</tbody></table>';
         content.innerHTML = html;
+    }
+
+    // ========================================
+    // テクニカル分析関連機能
+    // ========================================
+
+    let technicalStocksCache = [];
+
+    async function loadTechnicalStocks() {
+        document.getElementById('technicalContent').innerHTML =
+            '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>';
+
+        try {
+            const response = await fetch('/api/technical-stocks');
+            const data = await response.json();
+            if (response.ok) {
+                renderTechnicalStocks(data.technical_stocks || []);
+            } else {
+                document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            }
+        } catch (error) {
+            document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+        }
+    }
+
+    function renderTechnicalStocks(stocks) {
+        technicalStocksCache = stocks;
+
+        const content = document.getElementById('technicalContent');
+        const countElement = document.getElementById('technicalCount');
+        countElement.textContent = `${stocks.length}件`;
+
+        if (stocks.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">GC/DC形成日を持つ銘柄がありません</div>';
+            return;
+        }
+
+        let html = `
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>コード</th>
+                        <th>会社名</th>
+                        <th>合致度</th>
+                        <th>セクター</th>
+                        <th>時価総額</th>
+                        <th>株価</th>
+                        <th>PER</th>
+                        <th>PBR</th>
+                        <th>配当利回り</th>
+                        <th>GC</th>
+                        <th>DC</th>
+                        <th>方向</th>
+                        <th>取得</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        stocks.forEach(item => {
+            const code = item.company_code || '---';
+            const name = item.company_name || '---';
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
+            const matchRateClass = getMatchRateClass(item.match_rate);
+            const sector = item.sector || '---';
+            const marketCap = item.market_cap ? formatMarketCapOku(item.market_cap) : '---';
+            const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
+            const per = item.per ? `${Number(item.per).toFixed(1)}倍` : '---';
+            const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const gcDate = formatScrapedDate(item.gc_date);
+            const dcDate = formatScrapedDate(item.dc_date);
+            const trend = getTrendDirection(item.gc_date, item.dc_date);
+
+            html += `
+                <tr id="tech-row-${code}">
+                    <td>${code}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
+                    <td class="${matchRateClass}">${matchRate}</td>
+                    <td>${sector}</td>
+                    <td>${marketCap}</td>
+                    <td>${price}</td>
+                    <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
+                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td>${divYield}</td>
+                    <td>${gcDate}</td>
+                    <td>${dcDate}</td>
+                    <td class="${trend.cls}">${trend.label}</td>
+                    <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    }
+
+    // テクニカル分析: 1銘柄の最新データ取得
+    async function refreshTechnicalStock(code) {
+        const btn = document.getElementById(`tech-btn-${code}`);
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 0.7rem;"></i>';
+
+        try {
+            const symbol = /^\d{3,4}[A-Z]?$/.test(code) ? `${code}.T` : code;
+            const response = await fetch('/api/stock/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: symbol })
+            });
+
+            if (response.ok) {
+                // signal_stocksの表示を更新するためリロード
+                await loadTechnicalStocks();
+            } else {
+                const data = await response.json();
+                if (data.timeout || response.status === 504) {
+                    showErrorModal('データ取得がタイムアウトしました。\n再度お試しください。');
+                } else {
+                    showErrorModal('データを取得できませんでした。\n再度お試しください。');
+                }
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-download" style="font-size: 0.7rem;"></i>';
+            }
+        } catch (error) {
+            showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-download" style="font-size: 0.7rem;"></i>';
+        }
     }
 
 </script>

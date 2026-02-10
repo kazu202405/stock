@@ -332,3 +332,43 @@ def get_dc_stocks() -> list:
         'company_code', desc=False
     ).execute()
     return result.data
+
+
+def get_technical_stocks() -> list:
+    """GC/DC形成日を持つ銘柄を一覧取得"""
+    client = get_supabase_client()
+    result = client.table('screened_latest').select('*').or_(
+        'gc_date.not.is.null,dc_date.not.is.null'
+    ).order('company_code').execute()
+    return result.data
+
+
+# =============================================
+# signal_stocks統合テーブル操作
+# =============================================
+
+def get_signal_gc_stocks() -> list:
+    """signal_stocksからGC銘柄を取得"""
+    client = get_supabase_client()
+    result = client.table('signal_stocks').select('*').not_.is_(
+        'gc_date', 'null'
+    ).order('company_code').execute()
+    return result.data
+
+
+def get_signal_dc_stocks() -> list:
+    """signal_stocksからDC銘柄を取得"""
+    client = get_supabase_client()
+    result = client.table('signal_stocks').select('*').not_.is_(
+        'dc_date', 'null'
+    ).order('company_code').execute()
+    return result.data
+
+
+def upsert_signal_stocks(stocks: list) -> list:
+    """signal_stocksに銘柄をupsert"""
+    client = get_supabase_client()
+    if stocks:
+        result = client.table('signal_stocks').upsert(stocks).execute()
+        return result.data
+    return []
