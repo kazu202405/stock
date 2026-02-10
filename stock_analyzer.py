@@ -14,6 +14,8 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import yahooquery as yq
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import rcParams

@@ -1071,14 +1071,14 @@
             }
         });
         importantOfficers.sort((a, b) => a.priority - b.priority);
-        let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f8f9fa;"><th style="padding:8px;text-align:left;border-bottom:2px solid #dee2e6;font-size:13px;">役職</th><th style="padding:8px;text-align:left;border-bottom:2px solid #dee2e6;font-size:13px;">氏名</th></tr></thead><tbody>';
+        let html = '<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr style="background:#f8f9fa;"><th style="padding:8px;text-align:left;border-bottom:2px solid #dee2e6;font-size:13px;width:70%;">役職</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dee2e6;font-size:13px;width:30%;white-space:nowrap;">氏名</th></tr></thead><tbody>';
         importantOfficers.forEach(o => {
             const age = o.age ? ` (${o.age}歳)` : '';
-            html += `<tr><td style="padding:8px;border-bottom:1px solid #eee;font-size:12px;">${o.title}</td><td style="padding:8px;border-bottom:1px solid #eee;font-size:13px;">${o.name}${age}</td></tr>`;
+            html += `<tr><td style="padding:8px;border-bottom:1px solid #eee;font-size:12px;">${o.title}</td><td style="padding:8px;border-bottom:1px solid #eee;font-size:13px;white-space:nowrap;text-align:right;">${o.name}${age}</td></tr>`;
         });
         otherOfficers.slice(0, 10).forEach(o => {
             const age = o.age ? ` (${o.age}歳)` : '';
-            html += `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:11px;color:#6b7280;">${o.title}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:12px;">${o.name}${age}</td></tr>`;
+            html += `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:11px;color:#6b7280;">${o.title}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;text-align:right;">${o.name}${age}</td></tr>`;
         });
         html += '</tbody></table>';
         const total = data.company_officers.length;
