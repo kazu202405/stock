@@ -63,14 +63,8 @@
                     <a href="/learning" class="nav-link px-2 py-1.5 text-sm font-medium">
                         学習ノート
                     </a>
-                    <a href="/screener" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        お気に入り
-                    </a>
                     <a href="/community" class="nav-link px-2 py-1.5 text-sm font-medium">
                         コミュニティ
-                    </a>
-                    <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        マイページ
                     </a>
                     <a href="/search" class="nav-link px-2 py-1.5 text-sm font-medium">
                         銘柄検索
@@ -83,25 +77,19 @@
                         ユーザー管理
                     </a>
                     {% endif %}
+                    <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        マイページ
+                    </a>
                 </div>
 
-                <!-- ユーザードロップダウン -->
-                <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm font-medium" style="color: #525252;">
-                        <div class="w-7 h-7 rounded-full flex items-center justify-center" style="background: #f0f0f0;">
-                            <i class="fas fa-user text-xs" style="color: #a3a3a3;"></i>
-                        </div>
-                        <span class="hidden sm:block">{{ current_user.company_name }}</span>
-                        <i class="fas fa-chevron-down text-xs" style="color: #d4d4d4;"></i>
-                    </button>
-
-                    <div x-show="open" @click.away="open = false"
-                        class="absolute right-0 mt-2 w-48 bg-white rounded-lg py-1 z-50" style="border: 1px solid #ebebeb; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-                        <a href="/settlements" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">決算情報設定</a>
-                        <a href="/change_password" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">パスワード変更</a>
-                        <div style="border-top: 1px solid #f0f0f0; margin: 4px 0;"></div>
-                        <a href="/logout" class="block px-4 py-2 text-sm hover:bg-gray-50" style="color: #525252;">ログアウト</a>
-                    </div>
+                <!-- ユーザー名・ログアウト -->
+                <div class="flex items-center space-x-3">
+                    {% if current_user and current_user.is_authenticated %}
+                    <span class="text-sm font-medium" style="color: #525252;">{{ current_user.name or current_user.username or '' }}</span>
+                    {% endif %}
+                    <a href="/logout" class="flex items-center px-2 py-1.5 rounded-md text-sm font-medium" style="color: #a3a3a3;" title="ログアウト">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
                 </div>
 
                 <!-- モバイルメニューボタン -->

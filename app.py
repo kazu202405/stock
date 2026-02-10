@@ -1040,6 +1040,27 @@ def api_get_technical_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/stock/summary-jp/<company_code>', methods=['POST'])
+def api_retry_summary_jp(company_code):
+    """日本語事業概要を再取得"""
+    try:
+        from jp_company_scraper import get_yahoo_japan_profile
+        code = company_code.replace('.T', '').strip()
+        yahoo_data = get_yahoo_japan_profile(code)
+        summary_jp = yahoo_data.get('business_summary_jp')
+        segments = yahoo_data.get('business_segments')
+        if summary_jp and segments:
+            summary_jp += f"<br>【連結事業】{segments}"
+        elif segments:
+            summary_jp = f"【連結事業】{segments}"
+        if summary_jp:
+            return jsonify({"business_summary_jp": summary_jp}), 200
+        else:
+            return jsonify({"error": "日本語の事業概要を取得できませんでした"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])
 def api_get_screened_stock(company_code):
     """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）"""

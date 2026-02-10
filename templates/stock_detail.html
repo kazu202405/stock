@@ -902,19 +902,18 @@
             });
         }
 
-        // CF・指標テーブル
+        // CF・指標テーブル（予想年を除外して実績のみ5年分表示）
+        const cfYears = sortedYears.filter(y => !(yearDataMap.get(y) || {})._forecast).slice(-5);
         const tbody2 = document.getElementById('cf-metrics-tbody');
         if (tbody2) {
-            sortedYears.forEach((year, index) => {
+            cfYears.forEach((year, index) => {
                 const row = tbody2.querySelector(`tr[data-year="${index + 1}"]`);
                 if (!row) return;
                 const yearLabel = row.querySelector('.year-label');
                 if (yearLabel) {
                     const yearData = yearDataMap.get(year) || {};
                     const month = yearData._month;
-                    const forecast = yearData._forecast ? '(予)' : '';
-                    yearLabel.textContent = month ? `${year}年${month}月${forecast}` : `${year}年${forecast}`;
-                    if (yearData._forecast) { yearLabel.style.color = '#1b4332'; yearLabel.style.whiteSpace = 'nowrap'; }
+                    yearLabel.textContent = month ? `${year}年${month}月` : `${year}年`;
                 }
                 const yd = yearDataMap.get(year) || {};
                 updateCellValue(row, 'operating_cf', yd.operating_cf);
@@ -997,10 +996,42 @@
         if (data.business_summary_jp) {
             summaryContent.innerHTML = `<div style="line-height: 1.7; color: var(--text-primary);">${data.business_summary_jp}</div>`;
         } else if (data.business_summary) {
-            summaryContent.innerHTML = `<div style="line-height: 1.7; color: var(--text-primary);">${data.business_summary}</div>`;
+            summaryContent.innerHTML = `
+                <div style="margin-bottom: 10px; padding: 8px 12px; background: #fef9e7; border-left: 3px solid #f0c040; border-radius: 4px; font-size: 0.82rem; color: #7a6c2a; display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fas fa-info-circle" style="margin-right: 6px;"></i>日本語の取得に失敗したため英語で表示しています</span>
+                    <button onclick="retryJpSummary()" id="retry-jp-btn" style="background: #1b4332; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; white-space: nowrap; margin-left: 12px;">
+                        <i class="fas fa-redo" style="margin-right: 4px;"></i>日本語を再取得
+                    </button>
+                </div>
+                <div style="line-height: 1.7; color: var(--text-primary);">${data.business_summary}</div>`;
         } else {
             summaryContent.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">事業概要データが取得できませんでした</div>';
         }
+    }
+
+    // 日本語事業概要の再取得
+    function retryJpSummary() {
+        const btn = document.getElementById('retry-jp-btn');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 4px;"></i>取得中...';
+        fetch(`/api/stock/summary-jp/${STOCK_CODE}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                const summaryContent = document.getElementById('business-summary-content');
+                if (data.business_summary_jp) {
+                    summaryContent.innerHTML = `<div style="line-height: 1.7; color: var(--text-primary);">${data.business_summary_jp}</div>`;
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-redo" style="margin-right: 4px;"></i>日本語を再取得';
+                    showErrorModal(data.error || '日本語の事業概要を取得できませんでした');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-redo" style="margin-right: 4px;"></i>日本語を再取得';
+                showErrorModal('再取得に失敗しました');
+            });
     }
 
     // 株主・役員表示
