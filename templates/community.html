@@ -1,110 +1,87 @@
 {% extends "layout.html" %}
 
-{% block title %}みんなの企業研究ノート - Company Note{% endblock %}
+{% block title %}コミュニティ - Company Note{% endblock %}
 
 {% block content %}
 <style>
-    .community {
-        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
-    }
-    .community-hero {
-        background: #fafaf8;
-        border-bottom: 1px solid #e8e8e4;
-    }
-    .cm-card {
-        background: #fff;
-        border: 1px solid #ebebeb;
-        border-radius: 12px;
-        transition: all 0.2s ease;
-    }
-    .cm-card:hover {
-        border-color: #d4d4d4;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-    }
+    .community { font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif; }
+    .community-hero { background: #fafaf8; border-bottom: 1px solid #e8e8e4; }
+    .cm-card { background: #fff; border: 1px solid #ebebeb; border-radius: 12px; transition: all 0.2s ease; }
+    .cm-card:hover { border-color: #d4d4d4; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
     .note-card {
-        background: #fff;
-        border: 1px solid #ebebeb;
-        border-radius: 10px;
-        border-left: 3px solid #1b4332;
-        padding: 16px 18px;
-        transition: all 0.2s ease;
+        background: #fff; border: 1px solid #ebebeb; border-radius: 10px;
+        border-left: 3px solid #1b4332; padding: 16px 18px; transition: all 0.2s ease;
     }
-    .note-card:hover {
-        border-color: #d4d4d4;
-        border-left-color: #1b4332;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    .note-card:hover { border-color: #d4d4d4; border-left-color: #1b4332; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .q-card {
+        background: #fff; border: 1px solid #ebebeb; border-radius: 10px;
+        padding: 16px 18px; transition: all 0.2s ease; cursor: pointer;
     }
-    .section-head {
-        font-size: 13px;
-        font-weight: 700;
-        color: #1a1a1a;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 12px;
-    }
+    .q-card:hover { border-color: #d4d4d4; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .q-card.unresolved { border-left: 3px solid #f59e0b; }
+    .q-card.resolved { border-left: 3px solid #22c55e; }
+    .section-head { font-size: 13px; font-weight: 700; color: #1a1a1a; display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
     .section-head i { color: #2d6a4f; font-size: 12px; }
-    .tag {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 500;
-        background: #f0fdf4;
-        color: #15803d;
-        cursor: pointer;
-        transition: all 0.15s;
-    }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #f0fdf4; color: #15803d; cursor: pointer; transition: all 0.15s; }
     .tag:hover { background: #dcfce7; }
     .tag.active { background: #1b4332; color: #fff; }
-    .sort-btn {
-        font-size: 11px; padding: 4px 10px; border-radius: 5px;
-        border: 1px solid #ebebeb; background: #fff; color: #525252;
-        cursor: pointer; transition: all 0.15s;
-    }
+    .sort-btn { font-size: 11px; padding: 4px 10px; border-radius: 5px; border: 1px solid #ebebeb; background: #fff; color: #525252; cursor: pointer; transition: all 0.15s; }
     .sort-btn:hover, .sort-btn.active { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
     .star { color: #eab308; font-size: 11px; }
     .star-empty { color: #d4d4d4; font-size: 11px; }
-    .user-icon {
-        width: 32px; height: 32px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 11px; font-weight: 700; flex-shrink: 0;
-    }
+    .user-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
     .user-icon.anonymous { background: #f3f4f6; color: #9ca3af; }
     .user-icon.named { background: #f0fdf4; color: #1b4332; }
-    .empty-state {
-        text-align: center; padding: 40px 20px;
-    }
+    .user-icon-sm { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .empty-state { text-align: center; padding: 40px 20px; }
     .empty-state i { font-size: 36px; color: #d4d4d4; margin-bottom: 12px; }
     .empty-state p { font-size: 13px; color: #a3a3a3; margin-bottom: 10px; }
-    .sidebar-tag {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 6px 10px; border-radius: 6px; cursor: pointer;
-        transition: all 0.15s; font-size: 12px;
-    }
+    .sidebar-tag { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s; font-size: 12px; }
     .sidebar-tag:hover { background: #f0fdf4; }
     .sidebar-tag.active { background: #1b4332; color: #fff; }
-    .sidebar-tag .tag-count {
-        font-size: 10px; padding: 1px 6px; border-radius: 10px;
-        background: #f3f4f6; color: #737373;
-    }
+    .sidebar-tag .tag-count { font-size: 10px; padding: 1px 6px; border-radius: 10px; background: #f3f4f6; color: #737373; }
     .sidebar-tag.active .tag-count { background: rgba(255,255,255,0.2); color: #fff; }
-    .form-input-cm {
-        width: 100%; padding: 8px 12px 8px 34px;
-        border: 1px solid #ebebeb; border-radius: 8px;
-        font-size: 13px; color: #1a1a1a; background: #fff;
-        outline: none; transition: border-color 0.2s;
-    }
+    .form-input-cm { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid #ebebeb; border-radius: 8px; font-size: 13px; color: #1a1a1a; background: #fff; outline: none; transition: border-color 0.2s; }
     .form-input-cm:focus { border-color: #2d6a4f; }
-    .load-more-btn {
-        background: #fff; color: #2d6a4f; border: 1px solid #ebebeb;
-        border-radius: 8px; padding: 8px 24px; font-size: 13px;
-        font-weight: 500; cursor: pointer; transition: all 0.2s;
-    }
+    .load-more-btn { background: #fff; color: #2d6a4f; border: 1px solid #ebebeb; border-radius: 8px; padding: 8px 24px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
     .load-more-btn:hover { border-color: #2d6a4f; background: #f0fdf4; }
+    /* タブ */
+    .cm-tab { padding: 8px 20px; font-size: 13px; font-weight: 600; border: none; background: none; cursor: pointer; color: #a3a3a3; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .cm-tab:hover { color: #525252; }
+    .cm-tab.active { color: #1b4332; border-bottom-color: #1b4332; }
+    /* いいねボタン */
+    .like-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; border: 1px solid #ebebeb; background: #fff; color: #a3a3a3; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+    .like-btn:hover { border-color: #f472b6; color: #ec4899; background: #fdf2f8; }
+    .like-btn.liked { border-color: #f472b6; color: #ec4899; background: #fdf2f8; }
+    /* 解決バッジ */
+    .badge-resolved { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #f0fdf4; color: #16a34a; }
+    .badge-unresolved { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #fffbeb; color: #d97706; }
+    .badge-answer { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; background: #f3f4f6; color: #525252; }
+    /* モーダル */
+    .cm-modal-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+    .cm-modal-content { background: #fff; border-radius: 12px; padding: 24px 28px; max-width: 560px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+    .cm-modal-lg { max-width: 700px; }
+    .cm-form-label { display: block; font-size: 12px; font-weight: 600; color: #525252; margin-bottom: 4px; }
+    .cm-form-input { width: 100%; padding: 8px 12px; border: 1px solid #ebebeb; border-radius: 8px; font-size: 13px; color: #1a1a1a; background: #fff; outline: none; transition: border-color 0.2s; }
+    .cm-form-input:focus { border-color: #2d6a4f; }
+    .cm-form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #ebebeb; border-radius: 8px; font-size: 13px; color: #1a1a1a; background: #fff; outline: none; resize: vertical; min-height: 120px; transition: border-color 0.2s; }
+    .cm-form-textarea:focus { border-color: #2d6a4f; }
+    .cm-star-input { cursor: pointer; font-size: 18px; transition: color 0.15s; }
+    .cm-toggle-switch { position: relative; width: 36px; height: 20px; background: #d4d4d4; border-radius: 10px; cursor: pointer; transition: background 0.2s; }
+    .cm-toggle-switch.on { background: #1b4332; }
+    .cm-toggle-switch .toggle-dot { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+    .cm-toggle-switch.on .toggle-dot { left: 18px; }
+    .cm-btn-green { background: #1b4332; color: #fff; border: none; border-radius: 6px; padding: 6px 20px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .cm-btn-green:hover { background: #2d6a4f; }
+    .cm-btn-outline { background: transparent; color: #2d6a4f; border: 1px solid #d4d4d4; border-radius: 6px; padding: 6px 20px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .cm-btn-outline:hover { border-color: #2d6a4f; background: #f0fdf4; }
+    /* 回答カード */
+    .answer-card { padding: 14px 16px; border-radius: 8px; border: 1px solid #ebebeb; background: #fff; }
+    .answer-card.best { border-color: #bbf7d0; background: #f0fdf4; }
+    .best-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #1b4332; color: #fff; }
 </style>
 
-<div class="community min-h-screen" style="background: #f7f7f5;" x-data="communityApp()">
+<div class="community min-h-screen" style="background: #f7f7f5;" x-data="communityApp()" x-cloak>
 
     <!-- ヘッダー -->
     <div class="community-hero">
@@ -112,18 +89,30 @@
             <div class="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <p class="text-xs font-semibold tracking-widest uppercase mb-1" style="color: #16a34a;">Community</p>
-                    <h1 class="text-xl font-bold" style="color: #1a1a1a;">みんなの企業研究ノート</h1>
-                    <p class="text-xs mt-1" style="color: #737373;">他のユーザーの企業研究を読んで、新しい視点を学ぼう</p>
+                    <h1 class="text-xl font-bold" style="color: #1a1a1a;">コミュニティ</h1>
+                    <p class="text-xs mt-1" style="color: #737373;">企業研究ノートや質問を共有して、みんなで学ぼう</p>
                 </div>
                 <div class="flex items-center gap-3">
                     <div class="text-center px-3 py-1.5 rounded-lg" style="background:#fff; border:1px solid #ebebeb;">
-                        <div class="text-base font-bold" style="color:#1b4332;" x-text="notes.length"></div>
-                        <div class="text-xs" style="color:#737373;">公開ノート</div>
+                        <div class="text-base font-bold" style="color:#1b4332;" x-text="tab === 'notes' ? notes.length : questions.length"></div>
+                        <div class="text-xs" style="color:#737373;" x-text="tab === 'notes' ? '公開ノート' : '質問'"></div>
                     </div>
-                    <a href="/mypage" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium" style="background:#1b4332; color:#fff; text-decoration:none;">
-                        <i class="fas fa-pen" style="font-size:10px;"></i>自分のノートを書く
-                    </a>
+                    <button x-show="tab === 'notes'" @click="openNoteModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium" style="background:#1b4332; color:#fff; border:none; cursor:pointer;">
+                        <i class="fas fa-pen" style="font-size:10px;"></i>ノートを書く
+                    </button>
+                    <button x-show="tab === 'questions'" @click="openQuestionModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium" style="background:#1b4332; color:#fff; border:none; cursor:pointer;">
+                        <i class="fas fa-question-circle" style="font-size:10px;"></i>質問する
+                    </button>
                 </div>
+            </div>
+            <!-- タブ -->
+            <div class="flex gap-0 mt-4" style="border-bottom: 1px solid #e8e8e4; margin-bottom: -1px;">
+                <button class="cm-tab" :class="{ active: tab === 'notes' }" @click="switchTab('notes')">
+                    <i class="fas fa-book-open mr-1.5" style="font-size:11px;"></i>ノート
+                </button>
+                <button class="cm-tab" :class="{ active: tab === 'questions' }" @click="switchTab('questions')">
+                    <i class="fas fa-comments mr-1.5" style="font-size:11px;"></i>質問
+                </button>
             </div>
         </div>
     </div>
@@ -137,12 +126,12 @@
                 <div class="cm-card p-4">
                     <div style="position:relative;">
                         <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
-                        <input type="text" placeholder="ノートを検索..." x-model="searchQuery" class="form-input-cm">
+                        <input type="text" :placeholder="tab === 'notes' ? 'ノートを検索...' : '質問を検索...'" x-model="searchQuery" class="form-input-cm">
                     </div>
                 </div>
 
-                <!-- 並び替え -->
-                <div class="cm-card p-4">
+                <!-- 並び替え（ノートタブ） -->
+                <div class="cm-card p-4" x-show="tab === 'notes'">
                     <h3 class="section-head"><i class="fas fa-sort"></i>並び替え</h3>
                     <div class="flex flex-col gap-1.5">
                         <button class="sort-btn" :class="{ 'active': sortBy === 'date' }" @click="sortBy = 'date'" style="text-align:left;">
@@ -154,108 +143,343 @@
                     </div>
                 </div>
 
+                <!-- フィルタ（質問タブ） -->
+                <div class="cm-card p-4" x-show="tab === 'questions'">
+                    <h3 class="section-head"><i class="fas fa-filter"></i>フィルタ</h3>
+                    <div class="flex flex-col gap-1.5">
+                        <button class="sort-btn" :class="{ 'active': qFilter === 'all' }" @click="qFilter = 'all'" style="text-align:left;">すべて</button>
+                        <button class="sort-btn" :class="{ 'active': qFilter === 'unresolved' }" @click="qFilter = 'unresolved'" style="text-align:left;">
+                            <i class="fas fa-circle mr-1" style="font-size:6px; color:#f59e0b;"></i>未解決
+                        </button>
+                        <button class="sort-btn" :class="{ 'active': qFilter === 'resolved' }" @click="qFilter = 'resolved'" style="text-align:left;">
+                            <i class="fas fa-check-circle mr-1" style="font-size:10px; color:#22c55e;"></i>解決済み
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 人気タグ -->
                 <div class="cm-card p-4">
                     <h3 class="section-head"><i class="fas fa-tags"></i>人気タグ</h3>
-                    <div x-show="loading" class="text-center py-2">
-                        <i class="fas fa-spinner fa-spin" style="color:#a3a3a3; font-size:12px;"></i>
-                    </div>
-                    <div class="space-y-0.5" x-show="!loading">
+                    <div class="space-y-0.5">
                         <div class="sidebar-tag" :class="{ 'active': activeTag === '' }" @click="activeTag = ''">
                             <span>すべて</span>
-                            <span class="tag-count" x-text="notes.length"></span>
+                            <span class="tag-count" x-text="tab === 'notes' ? notes.length : questions.length"></span>
                         </div>
-                        <template x-for="tag in popularTags" :key="tag.name">
+                        <template x-for="tag in currentTags" :key="tag.name">
                             <div class="sidebar-tag" :class="{ 'active': activeTag === tag.name }" @click="activeTag = activeTag === tag.name ? '' : tag.name">
                                 <span x-text="tag.name"></span>
                                 <span class="tag-count" x-text="tag.count"></span>
                             </div>
                         </template>
-                        <p x-show="popularTags.length === 0 && !loading" class="text-xs py-2" style="color:#a3a3a3;">タグはまだありません</p>
+                        <p x-show="currentTags.length === 0" class="text-xs py-2" style="color:#a3a3a3;">タグはまだありません</p>
                     </div>
                 </div>
             </div>
 
-            <!-- ===== メイン: ノート一覧 ===== -->
+            <!-- ===== メイン ===== -->
             <div class="lg:col-span-9">
 
-                <!-- ローディング -->
-                <div x-show="loading" class="empty-state">
-                    <div><i class="fas fa-spinner fa-spin" style="font-size:28px; color:#2d6a4f;"></i></div>
-                    <p>ノートを読み込み中...</p>
-                </div>
-
-                <!-- ノート一覧 -->
-                <div class="space-y-3" x-show="!loading">
-                    <template x-for="note in filteredNotes" :key="note.id">
-                        <div class="note-card">
-                            <div class="flex items-start gap-3">
-                                <!-- ユーザーアイコン -->
-                                <div class="user-icon" :class="note.is_anonymous ? 'anonymous' : 'named'" x-text="note.is_anonymous ? '匿' : (note.user_id || '').slice(-2).toUpperCase()"></div>
-
-                                <!-- コンテンツ -->
-                                <div style="flex:1; min-width:0;">
-                                    <!-- ヘッダー行 -->
-                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
-                                        <span class="text-xs font-medium" style="color:#525252;" x-text="note.is_anonymous ? '匿名ユーザー' : note.user_id"></span>
-                                        <span x-show="note.company_name" class="text-xs px-1.5 py-0.5 rounded" style="background:#eff6ff; color:#2563eb;">
-                                            <i class="fas fa-building mr-0.5" style="font-size:9px;"></i>
-                                            <span x-text="note.company_name"></span>
-                                            <span x-show="note.company_code" class="ml-0.5" style="color:#93c5fd;" x-text="note.company_code"></span>
-                                        </span>
-                                        <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
-                                    </div>
-
-                                    <!-- タイトル -->
-                                    <h3 class="text-sm font-bold mb-1" style="color:#1a1a1a;" x-text="note.title"></h3>
-
-                                    <!-- 本文プレビュー -->
-                                    <p class="text-xs leading-relaxed mb-2" style="color:#525252; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
-
-                                    <!-- フッター: タグ + 理解度 -->
-                                    <div class="flex items-center justify-between flex-wrap gap-2">
-                                        <div class="flex items-center gap-1.5 flex-wrap">
-                                            <template x-for="t in (note.tags || [])" :key="t">
-                                                <span class="tag" @click="activeTag = t" x-text="t"></span>
-                                            </template>
+                <!-- ===== ノートタブ ===== -->
+                <div x-show="tab === 'notes'">
+                    <div x-show="notesLoading" class="empty-state">
+                        <div><i class="fas fa-spinner fa-spin" style="font-size:28px; color:#2d6a4f;"></i></div>
+                        <p>ノートを読み込み中...</p>
+                    </div>
+                    <div class="space-y-3" x-show="!notesLoading">
+                        <template x-for="note in filteredNotes" :key="note.id">
+                            <div class="note-card">
+                                <div class="flex items-start gap-3">
+                                    <div class="user-icon" :class="note.is_anonymous ? 'anonymous' : 'named'" x-text="note.is_anonymous ? '匿' : (note.user_display_name || '').slice(0, 1)"></div>
+                                    <div style="flex:1; min-width:0;">
+                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span class="text-xs font-medium" style="color:#525252;" x-text="note.user_display_name || '匿名ユーザー'"></span>
+                                            <span x-show="note.company_name" class="text-xs px-1.5 py-0.5 rounded" style="background:#eff6ff; color:#2563eb;">
+                                                <i class="fas fa-building mr-0.5" style="font-size:9px;"></i>
+                                                <span x-text="note.company_name"></span>
+                                                <span x-show="note.company_code" class="ml-0.5" style="color:#93c5fd;" x-text="note.company_code"></span>
+                                            </span>
+                                            <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
                                         </div>
-                                        <div x-show="note.stars > 0" class="flex items-center gap-0.5">
-                                            <span class="text-xs" style="color:#a3a3a3;">理解度</span>
-                                            <template x-for="i in 5" :key="i">
-                                                <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
-                                            </template>
+                                        <h3 class="text-sm font-bold mb-1" style="color:#1a1a1a;" x-text="note.title"></h3>
+                                        <p class="text-xs leading-relaxed mb-2" style="color:#525252; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
+                                        <div class="flex items-center justify-between flex-wrap gap-2">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <template x-for="t in (note.tags || [])" :key="t">
+                                                    <span class="tag" @click="activeTag = t" x-text="t"></span>
+                                                </template>
+                                            </div>
+                                            <div x-show="note.stars > 0" class="flex items-center gap-0.5">
+                                                <span class="text-xs" style="color:#a3a3a3;">理解度</span>
+                                                <template x-for="i in 5" :key="i">
+                                                    <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                        </template>
+                        <div x-show="filteredNotes.length === 0 && !notesLoading" class="empty-state">
+                            <div><i class="fas fa-book-open"></i></div>
+                            <p x-show="searchQuery || activeTag">条件に一致するノートが見つかりません</p>
+                            <p x-show="!searchQuery && !activeTag">まだ公開ノートがありません</p>
+                            <div class="mt-3" x-show="searchQuery || activeTag">
+                                <button class="sort-btn" @click="searchQuery = ''; activeTag = ''">フィルタをリセット</button>
+                            </div>
+                            <div class="mt-3" x-show="!searchQuery && !activeTag">
+                                <button class="sort-btn" @click="openNoteModal()"><i class="fas fa-pen mr-1" style="font-size:10px;"></i>ノートを書く</button>
+                            </div>
                         </div>
-                    </template>
-
-                    <!-- 空状態 -->
-                    <div x-show="filteredNotes.length === 0 && !loading" class="empty-state">
-                        <div><i class="fas fa-book-open"></i></div>
-                        <p x-show="searchQuery || activeTag">条件に一致するノートが見つかりません</p>
-                        <p x-show="!searchQuery && !activeTag">まだ公開ノートがありません</p>
-                        <p x-show="!searchQuery && !activeTag" class="text-xs" style="color:#a3a3a3;">マイページからノートを書いて「コミュニティに公開」してみましょう</p>
-                        <div class="mt-3" x-show="searchQuery || activeTag">
-                            <button class="sort-btn" @click="searchQuery = ''; activeTag = ''">フィルタをリセット</button>
-                        </div>
-                        <div class="mt-3" x-show="!searchQuery && !activeTag">
-                            <a href="/mypage" class="sort-btn" style="text-decoration:none; display:inline-block;">
-                                <i class="fas fa-pen mr-1" style="font-size:10px;"></i>ノートを書く
-                            </a>
+                        <div x-show="notesHasMore && filteredNotes.length > 0" class="text-center py-4">
+                            <button class="load-more-btn" @click="loadMoreNotes()" :disabled="notesLoadingMore">
+                                <span x-show="!notesLoadingMore">もっと読み込む</span>
+                                <span x-show="notesLoadingMore"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</span>
+                            </button>
                         </div>
                     </div>
+                </div>
 
-                    <!-- もっと読み込むボタン -->
-                    <div x-show="hasMore && filteredNotes.length > 0" class="text-center py-4">
-                        <button class="load-more-btn" @click="loadMore()" :disabled="loadingMore">
-                            <span x-show="!loadingMore">もっと読み込む</span>
-                            <span x-show="loadingMore"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</span>
-                        </button>
+                <!-- ===== 質問タブ ===== -->
+                <div x-show="tab === 'questions'">
+                    <div x-show="questionsLoading" class="empty-state">
+                        <div><i class="fas fa-spinner fa-spin" style="font-size:28px; color:#2d6a4f;"></i></div>
+                        <p>質問を読み込み中...</p>
+                    </div>
+                    <div class="space-y-3" x-show="!questionsLoading">
+                        <template x-for="q in filteredQuestions" :key="q.id">
+                            <div class="q-card" :class="q.is_resolved ? 'resolved' : 'unresolved'" @click="openQuestionDetail(q.id)">
+                                <div class="flex items-start gap-3">
+                                    <div class="user-icon" :class="q.is_anonymous ? 'anonymous' : 'named'" x-text="q.is_anonymous ? '匿' : (q.user_display_name || '').slice(0, 1)"></div>
+                                    <div style="flex:1; min-width:0;">
+                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span x-show="q.is_resolved" class="badge-resolved"><i class="fas fa-check-circle" style="font-size:9px;"></i>解決済み</span>
+                                            <span x-show="!q.is_resolved" class="badge-unresolved"><i class="fas fa-circle" style="font-size:6px;"></i>未解決</span>
+                                            <span class="text-xs font-medium" style="color:#525252;" x-text="q.user_display_name || '匿名ユーザー'"></span>
+                                            <span x-show="q.company_name" class="text-xs px-1.5 py-0.5 rounded" style="background:#eff6ff; color:#2563eb;">
+                                                <i class="fas fa-building mr-0.5" style="font-size:9px;"></i><span x-text="q.company_name"></span>
+                                            </span>
+                                            <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(q.created_at)"></span>
+                                        </div>
+                                        <h3 class="text-sm font-bold mb-1" style="color:#1a1a1a;" x-text="q.title"></h3>
+                                        <p class="text-xs leading-relaxed mb-2" style="color:#525252; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" x-text="q.content"></p>
+                                        <div class="flex items-center gap-3 flex-wrap">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <template x-for="t in (q.tags || [])" :key="t">
+                                                    <span class="tag" @click.stop="activeTag = t" x-text="t"></span>
+                                                </template>
+                                            </div>
+                                            <span class="badge-answer"><i class="fas fa-comment-dots" style="font-size:9px;"></i><span x-text="(q.answer_count || 0) + '件の回答'"></span></span>
+                                            <button class="like-btn" :class="{ liked: questionLikes[q.id] }" @click.stop="toggleQuestionLike(q)">
+                                                <i class="fas fa-thumbs-up" style="font-size:10px;"></i><span x-text="q.like_count || 0"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="filteredQuestions.length === 0 && !questionsLoading" class="empty-state">
+                            <div><i class="fas fa-comments"></i></div>
+                            <p x-show="searchQuery || activeTag || qFilter !== 'all'">条件に一致する質問が見つかりません</p>
+                            <p x-show="!searchQuery && !activeTag && qFilter === 'all'">まだ質問がありません</p>
+                            <div class="mt-3" x-show="searchQuery || activeTag || qFilter !== 'all'">
+                                <button class="sort-btn" @click="searchQuery = ''; activeTag = ''; qFilter = 'all'">フィルタをリセット</button>
+                            </div>
+                            <div class="mt-3" x-show="!searchQuery && !activeTag && qFilter === 'all'">
+                                <button class="sort-btn" @click="openQuestionModal()"><i class="fas fa-question-circle mr-1" style="font-size:10px;"></i>最初の質問をする</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ===== ノート作成モーダル ===== -->
+    <div x-show="showNoteModal" class="cm-modal-overlay" @click.self="showNoteModal = false" x-cloak>
+        <div class="cm-modal-content" @click.stop>
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-base font-bold" style="color:#1a1a1a;">新しいノートを作成</h3>
+                <button @click="showNoteModal = false" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="cm-form-label">投稿名</label>
+                    <input type="text" class="cm-form-input" x-model="noteForm.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
+                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
+                </div>
+                <div>
+                    <label class="cm-form-label">タイトル <span style="color:#dc2626;">*</span></label>
+                    <input type="text" class="cm-form-input" x-model="noteForm.title" placeholder="例: キーエンスの営業利益率の秘密">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="cm-form-label">銘柄コード（任意）</label><input type="text" class="cm-form-input" x-model="noteForm.company_code" placeholder="例: 6861"></div>
+                    <div><label class="cm-form-label">企業名（任意）</label><input type="text" class="cm-form-input" x-model="noteForm.company_name" placeholder="例: キーエンス"></div>
+                </div>
+                <div>
+                    <label class="cm-form-label">本文 <span style="color:#dc2626;">*</span></label>
+                    <textarea class="cm-form-textarea" x-model="noteForm.content" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
+                </div>
+                <div>
+                    <label class="cm-form-label">理解度</label>
+                    <div class="flex items-center gap-1">
+                        <template x-for="i in 5" :key="i"><span class="cm-star-input" :style="{ color: i <= noteForm.stars ? '#eab308' : '#d4d4d4' }" @click="noteForm.stars = i">&#9733;</span></template>
+                        <button x-show="noteForm.stars > 0" @click="noteForm.stars = 0" class="text-xs ml-2" style="color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
+                    </div>
+                </div>
+                <div><label class="cm-form-label">タグ（カンマ区切り）</label><input type="text" class="cm-form-input" x-model="noteForm.tagsInput" placeholder="例: 高収益, IoT, ファブレス"></div>
+                <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f0fdf4; border:1px solid #d4edda;">
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">コミュニティに公開</p><p class="text-xs" style="color:#737373;">他のユーザーがあなたのノートを閲覧できます</p></div>
+                    <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_public }" @click="noteForm.is_public = !noteForm.is_public"><div class="toggle-dot"></div></div>
+                </div>
+                <div x-show="noteForm.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p></div>
+                    <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_anonymous }" @click="noteForm.is_anonymous = !noteForm.is_anonymous"><div class="toggle-dot"></div></div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-5" style="border-top:1px solid #ebebeb; padding-top:16px;">
+                <button class="cm-btn-outline" @click="showNoteModal = false">キャンセル</button>
+                <button class="cm-btn-green" @click="saveNote()" :disabled="saving">
+                    <span x-show="!saving">投稿する</span><span x-show="saving"><i class="fas fa-spinner fa-spin mr-1"></i>保存中...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 質問作成モーダル ===== -->
+    <div x-show="showQuestionModal" class="cm-modal-overlay" @click.self="showQuestionModal = false" x-cloak>
+        <div class="cm-modal-content" @click.stop>
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-base font-bold" style="color:#1a1a1a;">質問する</h3>
+                <button @click="showQuestionModal = false" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="cm-form-label">投稿名</label>
+                    <input type="text" class="cm-form-input" x-model="questionForm.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
+                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
+                </div>
+                <div>
+                    <label class="cm-form-label">質問タイトル <span style="color:#dc2626;">*</span></label>
+                    <input type="text" class="cm-form-input" x-model="questionForm.title" placeholder="例: ROEとROAの違いがわかりません">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="cm-form-label">銘柄コード（任意）</label><input type="text" class="cm-form-input" x-model="questionForm.company_code" placeholder="例: 6861"></div>
+                    <div><label class="cm-form-label">企業名（任意）</label><input type="text" class="cm-form-input" x-model="questionForm.company_name" placeholder="例: キーエンス"></div>
+                </div>
+                <div>
+                    <label class="cm-form-label">質問の詳細 <span style="color:#dc2626;">*</span></label>
+                    <textarea class="cm-form-textarea" x-model="questionForm.content" placeholder="どんなことがわからないか、具体的に書いてください..."></textarea>
+                </div>
+                <div><label class="cm-form-label">タグ（カンマ区切り）</label><input type="text" class="cm-form-input" x-model="questionForm.tagsInput" placeholder="例: 財務指標, 初心者"></div>
+                <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p></div>
+                    <div class="cm-toggle-switch" :class="{ 'on': questionForm.is_anonymous }" @click="questionForm.is_anonymous = !questionForm.is_anonymous"><div class="toggle-dot"></div></div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-5" style="border-top:1px solid #ebebeb; padding-top:16px;">
+                <button class="cm-btn-outline" @click="showQuestionModal = false">キャンセル</button>
+                <button class="cm-btn-green" @click="saveQuestion()" :disabled="saving">
+                    <span x-show="!saving">質問を投稿する</span><span x-show="saving"><i class="fas fa-spinner fa-spin mr-1"></i>投稿中...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 質問詳細モーダル ===== -->
+    <div x-show="showDetailModal" class="cm-modal-overlay" @click.self="showDetailModal = false" x-cloak>
+        <div class="cm-modal-content cm-modal-lg" @click.stop>
+            <template x-if="detailQuestion">
+                <div>
+                    <!-- 質問ヘッダー -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span x-show="detailQuestion.is_resolved" class="badge-resolved"><i class="fas fa-check-circle" style="font-size:9px;"></i>解決済み</span>
+                            <span x-show="!detailQuestion.is_resolved" class="badge-unresolved"><i class="fas fa-circle" style="font-size:6px;"></i>未解決</span>
+                        </div>
+                        <button @click="showDetailModal = false" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;"><i class="fas fa-times"></i></button>
+                    </div>
+
+                    <!-- 質問本文 -->
+                    <h3 class="text-base font-bold mb-2" style="color:#1a1a1a;" x-text="detailQuestion.title"></h3>
+                    <div class="flex items-center gap-2 mb-3 flex-wrap">
+                        <span class="text-xs font-medium" style="color:#525252;" x-text="detailQuestion.user_display_name || '匿名ユーザー'"></span>
+                        <span x-show="detailQuestion.company_name" class="text-xs px-1.5 py-0.5 rounded" style="background:#eff6ff; color:#2563eb;">
+                            <i class="fas fa-building mr-0.5" style="font-size:9px;"></i><span x-text="detailQuestion.company_name"></span>
+                        </span>
+                        <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(detailQuestion.created_at)"></span>
+                    </div>
+                    <p class="text-xs leading-relaxed mb-3" style="color:#525252; white-space:pre-line;" x-text="detailQuestion.content"></p>
+                    <div class="flex items-center gap-2 mb-4 flex-wrap">
+                        <template x-for="t in (detailQuestion.tags || [])" :key="t">
+                            <span class="tag" x-text="t" style="cursor:default;"></span>
+                        </template>
+                        <button class="like-btn" :class="{ liked: detailLikes[detailQuestion.id] }" @click="toggleDetailQuestionLike()">
+                            <i class="fas fa-thumbs-up" style="font-size:10px;"></i><span x-text="detailQuestion.like_count || 0"></span><span class="ml-0.5">参考になった</span>
+                        </button>
+                    </div>
+
+                    <!-- 回答一覧 -->
+                    <div style="border-top:1px solid #ebebeb; padding-top:16px;">
+                        <h4 class="text-sm font-bold mb-3" style="color:#1a1a1a;">
+                            <i class="fas fa-comment-dots mr-1" style="color:#2d6a4f; font-size:12px;"></i>回答 (<span x-text="detailAnswers.length"></span>件)
+                        </h4>
+
+                        <div x-show="detailLoading" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin" style="color:#a3a3a3;"></i>
+                        </div>
+
+                        <div class="space-y-3" x-show="!detailLoading">
+                            <template x-for="ans in detailAnswers" :key="ans.id">
+                                <div class="answer-card" :class="{ best: ans.is_best }">
+                                    <div class="flex items-start gap-2.5">
+                                        <div class="user-icon-sm" :class="ans.is_anonymous ? 'anonymous' : 'named'" :style="{ background: ans.is_anonymous ? '#f3f4f6' : '#f0fdf4', color: ans.is_anonymous ? '#9ca3af' : '#1b4332' }" x-text="ans.is_anonymous ? '匿' : (ans.user_display_name || '').slice(0, 1)"></div>
+                                        <div style="flex:1; min-width:0;">
+                                            <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                                <span x-show="ans.is_best" class="best-badge"><i class="fas fa-check" style="font-size:8px;"></i>ベストアンサー</span>
+                                                <span class="text-xs font-medium" style="color:#525252;" x-text="ans.user_display_name || '匿名ユーザー'"></span>
+                                                <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(ans.created_at)"></span>
+                                            </div>
+                                            <p class="text-xs leading-relaxed mb-2" style="color:#525252; white-space:pre-line;" x-text="ans.content"></p>
+                                            <div class="flex items-center gap-2">
+                                                <button class="like-btn" :class="{ liked: detailLikes[ans.id] }" @click="toggleAnswerLike(ans)">
+                                                    <i class="fas fa-thumbs-up" style="font-size:10px;"></i><span x-text="ans.like_count || 0"></span>
+                                                </button>
+                                                <button x-show="isMyQuestion && !ans.is_best && !detailQuestion.is_resolved" class="like-btn" @click="markBestAnswer(ans.id)" style="border-color:#bbf7d0; color:#16a34a;">
+                                                    <i class="fas fa-check" style="font-size:10px;"></i>ベストアンサーに選ぶ
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div x-show="detailAnswers.length === 0 && !detailLoading" class="text-center py-4">
+                                <p class="text-xs" style="color:#a3a3a3;">まだ回答がありません。最初の回答を書いてみましょう！</p>
+                            </div>
+                        </div>
+
+                        <!-- 回答フォーム -->
+                        <div class="mt-4 p-4 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
+                            <h4 class="text-xs font-bold mb-2" style="color:#1a1a1a;"><i class="fas fa-pen mr-1" style="font-size:10px; color:#2d6a4f;"></i>回答を書く</h4>
+                            <div class="mb-2">
+                                <input type="text" class="cm-form-input" x-model="answerForm.poster_name" placeholder="投稿名（空欄でデフォルト名を使用）" maxlength="30" style="font-size:12px; padding:6px 10px;">
+                            </div>
+                            <textarea class="cm-form-textarea" x-model="answerForm.content" placeholder="回答を入力してください..." style="min-height:80px;"></textarea>
+                            <div class="flex items-center justify-between mt-2">
+                                <label class="flex items-center gap-2 text-xs" style="color:#737373; cursor:pointer;">
+                                    <div class="cm-toggle-switch" :class="{ 'on': answerForm.is_anonymous }" @click="answerForm.is_anonymous = !answerForm.is_anonymous" style="width:30px; height:16px;">
+                                        <div class="toggle-dot" style="width:12px; height:12px;"></div>
+                                    </div>
+                                    匿名で回答
+                                </label>
+                                <button class="cm-btn-green" @click="submitAnswer()" :disabled="savingAnswer" style="padding:5px 16px;">
+                                    <span x-show="!savingAnswer">回答する</span><span x-show="savingAnswer"><i class="fas fa-spinner fa-spin mr-1"></i></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
         </div>
     </div>
 </div>
@@ -263,92 +487,232 @@
 <script>
 function communityApp() {
     return {
-        notes: [],
-        tags: [],
+        tab: 'notes',
         searchQuery: '',
-        sortBy: 'date',
         activeTag: '',
-        loading: true,
-        loadingMore: false,
-        hasMore: false,
-        offset: 0,
-        limit: 50,
+        saving: false,
+
+        // ユーザー情報
+        userDisplayName: '',
+        isLoggedIn: false,
+
+        // ノート
+        notes: [], noteTags: [], sortBy: 'date',
+        notesLoading: true, notesLoadingMore: false, notesHasMore: false,
+        notesOffset: 0, notesLimit: 50,
+        showNoteModal: false,
+        noteForm: { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false, poster_name: '' },
+
+        // 質問
+        questions: [], questionTags: [], qFilter: 'all',
+        questionsLoading: true, questionLikes: {},
+        showQuestionModal: false,
+        questionForm: { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false, poster_name: '' },
+
+        // 質問詳細
+        showDetailModal: false, detailQuestion: null, detailAnswers: [], detailLikes: {},
+        detailLoading: false, savingAnswer: false,
+        answerForm: { content: '', is_anonymous: false, poster_name: '' },
 
         async init() {
-            await Promise.all([this.loadNotes(), this.loadTags()]);
+            // ユーザー情報を取得してデフォルト投稿名を設定
+            try {
+                const meRes = await fetch('/api/auth/me');
+                const meData = await meRes.json();
+                if (meData.logged_in && meData.user) {
+                    this.isLoggedIn = true;
+                    this.userDisplayName = meData.user.display_name || meData.user.name || '';
+                }
+            } catch (e) {}
+            await Promise.all([this.loadNotes(), this.loadNoteTags()]);
         },
 
+        async switchTab(t) {
+            this.tab = t;
+            this.searchQuery = '';
+            this.activeTag = '';
+            if (t === 'questions' && this.questions.length === 0) {
+                await Promise.all([this.loadQuestions(), this.loadQuestionTags()]);
+            }
+        },
+
+        get currentTags() {
+            const tags = this.tab === 'notes' ? this.noteTags : this.questionTags;
+            return tags.slice(0, 15);
+        },
+
+        get isMyQuestion() {
+            if (!this.detailQuestion) return false;
+            const userId = document.cookie.match(/session/) ? true : false;
+            return this.detailQuestion._is_mine || false;
+        },
+
+        // ===== ノート =====
         async loadNotes() {
-            this.loading = true;
+            this.notesLoading = true;
             try {
-                const res = await fetch('/api/notes?limit=' + this.limit + '&offset=0');
+                const res = await fetch('/api/notes?limit=' + this.notesLimit + '&offset=0');
                 const data = await res.json();
-                if (data.notes) {
-                    this.notes = data.notes;
-                    this.offset = data.notes.length;
-                    this.hasMore = data.notes.length >= this.limit;
-                }
-            } catch (e) {
-                console.error('公開ノート取得エラー:', e);
-            }
-            this.loading = false;
+                if (data.notes) { this.notes = data.notes; this.notesOffset = data.notes.length; this.notesHasMore = data.notes.length >= this.notesLimit; }
+            } catch (e) { console.error('ノート取得エラー:', e); }
+            this.notesLoading = false;
         },
-
-        async loadMore() {
-            this.loadingMore = true;
+        async loadMoreNotes() {
+            this.notesLoadingMore = true;
             try {
-                const res = await fetch('/api/notes?limit=' + this.limit + '&offset=' + this.offset);
+                const res = await fetch('/api/notes?limit=' + this.notesLimit + '&offset=' + this.notesOffset);
                 const data = await res.json();
-                if (data.notes && data.notes.length > 0) {
-                    this.notes = [...this.notes, ...data.notes];
-                    this.offset += data.notes.length;
-                    this.hasMore = data.notes.length >= this.limit;
-                } else {
-                    this.hasMore = false;
-                }
-            } catch (e) {
-                console.error('追加読み込みエラー:', e);
-            }
-            this.loadingMore = false;
+                if (data.notes && data.notes.length > 0) { this.notes = [...this.notes, ...data.notes]; this.notesOffset += data.notes.length; this.notesHasMore = data.notes.length >= this.notesLimit; }
+                else { this.notesHasMore = false; }
+            } catch (e) { console.error('追加読み込みエラー:', e); }
+            this.notesLoadingMore = false;
         },
-
-        async loadTags() {
-            try {
-                const res = await fetch('/api/notes/tags');
-                const data = await res.json();
-                if (data.tags) {
-                    this.tags = data.tags;
-                }
-            } catch (e) {
-                console.error('タグ取得エラー:', e);
-            }
+        async loadNoteTags() {
+            try { const res = await fetch('/api/notes/tags'); const data = await res.json(); if (data.tags) this.noteTags = data.tags; } catch (e) {}
         },
-
-        get popularTags() {
-            return this.tags.slice(0, 15);
-        },
-
         get filteredNotes() {
             let result = [...this.notes];
-            if (this.searchQuery) {
-                const q = this.searchQuery.toLowerCase();
-                result = result.filter(n =>
-                    (n.title || '').toLowerCase().includes(q) ||
-                    (n.company_code || '').includes(q) ||
-                    (n.company_name || '').toLowerCase().includes(q) ||
-                    (n.content || '').toLowerCase().includes(q) ||
-                    (n.tags || []).some(t => t.toLowerCase().includes(q))
-                );
-            }
-            if (this.activeTag) {
-                result = result.filter(n => (n.tags || []).includes(this.activeTag));
-            }
-            if (this.sortBy === 'star') {
-                result.sort((a, b) => (b.stars || 0) - (a.stars || 0));
-            } else {
-                result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            }
+            if (this.searchQuery) { const q = this.searchQuery.toLowerCase(); result = result.filter(n => (n.title||'').toLowerCase().includes(q) || (n.company_code||'').includes(q) || (n.company_name||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q) || (n.tags||[]).some(t => t.toLowerCase().includes(q))); }
+            if (this.activeTag) { result = result.filter(n => (n.tags||[]).includes(this.activeTag)); }
+            if (this.sortBy === 'star') { result.sort((a, b) => (b.stars||0) - (a.stars||0)); }
+            else { result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); }
             return result;
+        },
+        openNoteModal() {
+            this.noteForm = { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false, poster_name: this.userDisplayName };
+            this.showNoteModal = true;
+        },
+        async saveNote() {
+            if (!this.noteForm.title.trim() || !this.noteForm.content.trim()) { showErrorModal('タイトルと本文は必須です'); return; }
+            this.saving = true;
+            const tags = this.noteForm.tagsInput.split(/[,、]/).map(t => t.trim()).filter(t => t.length > 0);
+            try {
+                const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.noteForm.title.trim(), content: this.noteForm.content.trim(), company_code: this.noteForm.company_code.trim() || null, company_name: this.noteForm.company_name.trim() || null, stars: this.noteForm.stars, tags, is_public: this.noteForm.is_public, is_anonymous: this.noteForm.is_anonymous, poster_name: this.noteForm.poster_name.trim() || null }) });
+                const data = await res.json();
+                if (res.ok) { this.showNoteModal = false; showSuccessModal('ノートを投稿しました'); await Promise.all([this.loadNotes(), this.loadNoteTags()]); }
+                else { showErrorModal(data.error || '保存に失敗しました'); }
+            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+            this.saving = false;
+        },
+
+        // ===== 質問 =====
+        async loadQuestions() {
+            this.questionsLoading = true;
+            try {
+                const res = await fetch('/api/community/questions?limit=50&offset=0');
+                const data = await res.json();
+                if (data.questions) { this.questions = data.questions; }
+                if (data.user_likes) { this.questionLikes = data.user_likes; }
+            } catch (e) { console.error('質問取得エラー:', e); }
+            this.questionsLoading = false;
+        },
+        async loadQuestionTags() {
+            try { const res = await fetch('/api/community/questions/tags'); const data = await res.json(); if (data.tags) this.questionTags = data.tags; } catch (e) {}
+        },
+        get filteredQuestions() {
+            let result = [...this.questions];
+            if (this.qFilter === 'resolved') { result = result.filter(q => q.is_resolved); }
+            else if (this.qFilter === 'unresolved') { result = result.filter(q => !q.is_resolved); }
+            if (this.searchQuery) { const s = this.searchQuery.toLowerCase(); result = result.filter(q => (q.title||'').toLowerCase().includes(s) || (q.content||'').toLowerCase().includes(s) || (q.company_name||'').toLowerCase().includes(s) || (q.tags||[]).some(t => t.toLowerCase().includes(s))); }
+            if (this.activeTag) { result = result.filter(q => (q.tags||[]).includes(this.activeTag)); }
+            return result;
+        },
+        openQuestionModal() {
+            this.questionForm = { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false, poster_name: this.userDisplayName };
+            this.showQuestionModal = true;
+        },
+        async saveQuestion() {
+            if (!this.questionForm.title.trim() || !this.questionForm.content.trim()) { showErrorModal('タイトルと詳細は必須です'); return; }
+            this.saving = true;
+            const tags = this.questionForm.tagsInput.split(/[,、]/).map(t => t.trim()).filter(t => t.length > 0);
+            try {
+                const res = await fetch('/api/community/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.questionForm.title.trim(), content: this.questionForm.content.trim(), company_code: this.questionForm.company_code.trim() || null, company_name: this.questionForm.company_name.trim() || null, tags, is_anonymous: this.questionForm.is_anonymous, poster_name: this.questionForm.poster_name.trim() || null }) });
+                const data = await res.json();
+                if (res.ok) { this.showQuestionModal = false; showSuccessModal('質問を投稿しました'); await Promise.all([this.loadQuestions(), this.loadQuestionTags()]); }
+                else { showErrorModal(data.error || '投稿に失敗しました'); }
+            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+            this.saving = false;
+        },
+        async toggleQuestionLike(q) {
+            try {
+                const res = await fetch('/api/community/likes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_type: 'question', target_id: q.id }) });
+                const data = await res.json();
+                if (res.ok) { q.like_count = data.like_count; if (data.liked) this.questionLikes[q.id] = true; else delete this.questionLikes[q.id]; }
+            } catch (e) {}
+        },
+
+        // ===== 質問詳細 =====
+        async openQuestionDetail(qId) {
+            this.showDetailModal = true;
+            this.detailLoading = true;
+            this.detailQuestion = null;
+            this.detailAnswers = [];
+            this.detailLikes = {};
+            this.answerForm = { content: '', is_anonymous: false, poster_name: this.userDisplayName };
+            try {
+                const res = await fetch('/api/community/questions/' + qId);
+                const data = await res.json();
+                if (data.question) {
+                    // 自分の質問かチェック（user_idとの比較はサーバー側で行うべきだが簡易実装）
+                    data.question._is_mine = false;
+                    try {
+                        const meRes = await fetch('/api/auth/me');
+                        const meData = await meRes.json();
+                        if (meData.user && meData.user.id === data.question.user_id) { data.question._is_mine = true; }
+                    } catch (e) {}
+                    this.detailQuestion = data.question;
+                    this.detailAnswers = data.answers || [];
+                    this.detailLikes = data.user_likes || {};
+                }
+            } catch (e) { showErrorModal('質問の取得に失敗しました'); }
+            this.detailLoading = false;
+        },
+        async toggleDetailQuestionLike() {
+            if (!this.detailQuestion) return;
+            try {
+                const res = await fetch('/api/community/likes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_type: 'question', target_id: this.detailQuestion.id }) });
+                const data = await res.json();
+                if (res.ok) { this.detailQuestion.like_count = data.like_count; if (data.liked) this.detailLikes[this.detailQuestion.id] = true; else delete this.detailLikes[this.detailQuestion.id]; }
+            } catch (e) {}
+        },
+        async toggleAnswerLike(ans) {
+            try {
+                const res = await fetch('/api/community/likes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_type: 'answer', target_id: ans.id }) });
+                const data = await res.json();
+                if (res.ok) { ans.like_count = data.like_count; if (data.liked) this.detailLikes[ans.id] = true; else delete this.detailLikes[ans.id]; }
+            } catch (e) {}
+        },
+        async markBestAnswer(answerId) {
+            if (!this.detailQuestion) return;
+            try {
+                const res = await fetch('/api/community/questions/' + this.detailQuestion.id + '/best-answer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer_id: answerId }) });
+                if (res.ok) {
+                    showSuccessModal('ベストアンサーを選択しました');
+                    this.detailQuestion.is_resolved = true;
+                    this.detailAnswers.forEach(a => { a.is_best = (a.id === answerId); });
+                    // 一覧も更新
+                    const listQ = this.questions.find(q => q.id === this.detailQuestion.id);
+                    if (listQ) listQ.is_resolved = true;
+                } else { const data = await res.json(); showErrorModal(data.error || '設定に失敗しました'); }
+            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+        },
+        async submitAnswer() {
+            if (!this.answerForm.content.trim()) { showErrorModal('回答内容を入力してください'); return; }
+            if (!this.detailQuestion) return;
+            this.savingAnswer = true;
+            try {
+                const res = await fetch('/api/community/questions/' + this.detailQuestion.id + '/answers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: this.answerForm.content.trim(), is_anonymous: this.answerForm.is_anonymous, poster_name: this.answerForm.poster_name.trim() || null }) });
+                const data = await res.json();
+                if (res.ok && data.answer) {
+                    this.detailAnswers.push(data.answer);
+                    this.detailQuestion.answer_count = (this.detailQuestion.answer_count || 0) + 1;
+                    this.answerForm = { content: '', is_anonymous: false, poster_name: this.userDisplayName };
+                    // 一覧のanswer_countも更新
+                    const listQ = this.questions.find(q => q.id === this.detailQuestion.id);
+                    if (listQ) listQ.answer_count = this.detailQuestion.answer_count;
+                } else { showErrorModal(data.error || '回答の投稿に失敗しました'); }
+            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+            this.savingAnswer = false;
         },
 
         formatDate(dateStr) {

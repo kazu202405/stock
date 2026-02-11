@@ -13,6 +13,35 @@
         border-bottom: 1px solid #e8e8e4;
     }
 
+    /* タブバー */
+    .learning-tabs {
+        display: flex;
+        gap: 24px;
+        margin-top: 16px;
+    }
+    .learning-tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 0;
+        font-size: 14px;
+        font-weight: 400;
+        color: #a3a3a3;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: color 0.2s, border-color 0.2s;
+    }
+    .learning-tab-btn:hover {
+        color: #525252;
+    }
+    .learning-tab-btn.active {
+        color: #1b4332;
+        font-weight: 600;
+        border-bottom-color: #1b4332;
+    }
+
     /* カード */
     .term-card {
         transition: all 0.2s ease;
@@ -51,113 +80,594 @@
         letter-spacing: 0.02em;
         margin-bottom: 8px;
     }
+
+    /* === セクター分析タブ用スタイル === */
+
+    /* セクターカード */
+    .sector-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        border-left: 3px solid #1b4332;
+        padding: 20px 22px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .sector-card:hover {
+        border-color: #d4d4d4;
+        border-left-color: #1b4332;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .sector-card.active {
+        border-color: #2d6a4f;
+        border-left-color: #1b4332;
+        box-shadow: 0 2px 16px rgba(27,67,50,0.10);
+    }
+
+    /* カウントバッジ */
+    .count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #f0fdf4;
+        color: #15803d;
+    }
+
+    /* メトリクスグリッド */
+    .metric-cell {
+        padding: 8px 0;
+    }
+    .metric-label {
+        font-size: 11px;
+        color: #a3a3a3;
+        font-weight: 500;
+        margin-bottom: 2px;
+    }
+    .metric-value {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1a1a1a;
+    }
+
+    /* 詳細パネル */
+    .detail-panel {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .detail-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #ebebeb;
+        background: #fafaf8;
+    }
+
+    /* サマリー統計バー */
+    .stat-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 16px 24px;
+        border-bottom: 1px solid #ebebeb;
+        background: #fff;
+    }
+    .stat-item {
+        flex: 1;
+        min-width: 100px;
+        text-align: center;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: #fafaf8;
+    }
+    .stat-item-label {
+        font-size: 11px;
+        color: #a3a3a3;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    .stat-item-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1b4332;
+    }
+
+    /* テーブル */
+    .company-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .company-table thead {
+        background: #fafaf8;
+    }
+    .company-table th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #737373;
+        border-bottom: 1px solid #ebebeb;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+        transition: color 0.15s;
+    }
+    .company-table th:hover {
+        color: #1b4332;
+    }
+    .company-table th.sorted {
+        color: #1b4332;
+    }
+    .sort-arrow {
+        display: inline-block;
+        margin-left: 4px;
+        font-size: 10px;
+        color: #1b4332;
+    }
+    .company-table td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #f3f4f6;
+        color: #525252;
+    }
+    .company-table tbody tr:hover {
+        background: #fafaf8;
+    }
+    .company-table .avg-row {
+        background: #f0fdf4;
+        font-weight: 600;
+    }
+    .company-table .avg-row td {
+        color: #1b4332;
+        border-bottom: 2px solid #bbf7d0;
+    }
+    .company-link {
+        color: #2d6a4f;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.15s;
+    }
+    .company-link:hover {
+        color: #1b4332;
+        text-decoration: underline;
+    }
+
+    /* チャートコンテナ */
+    .chart-container {
+        padding: 20px 24px;
+        border-bottom: 1px solid #ebebeb;
+    }
+
+    /* ローディングスピナー */
+    .sector-spinner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 80px 0;
+    }
+    .sector-spinner .spinner-ring {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #ebebeb;
+        border-top-color: #1b4332;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* 空状態 */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    .empty-state i {
+        font-size: 40px;
+        color: #d4d4d4;
+        margin-bottom: 16px;
+    }
+    .empty-state p {
+        font-size: 14px;
+        color: #a3a3a3;
+    }
+
+    /* 合致度バー */
+    .match-bar-bg {
+        width: 60px;
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        overflow: hidden;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    .match-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: #2d6a4f;
+    }
 </style>
 
-<div class="learning-page min-h-screen" style="background: #f7f7f5;">
+<div class="learning-page min-h-screen" style="background: #f7f7f5;" x-data="{ activeTab: 'glossary', sectorLoaded: false }">
 
     <!-- ヘッダー -->
     <div class="learning-hero">
-        <div class="max-w-3xl mx-auto px-6 py-10">
+        <div class="max-w-3xl mx-auto px-6 py-10" :class="{ 'max-w-3xl': activeTab === 'glossary', 'max-w-7xl': activeTab === 'sector' }">
             <p class="text-xs font-semibold tracking-widest uppercase mb-3" style="color: #16a34a;">Learning Note</p>
             <h1 class="text-2xl font-bold mb-3" style="color: #1a1a1a;">企業を見る目を養う基礎知識</h1>
             <p class="text-sm leading-relaxed" style="color: #737373; max-width: 440px;">
-                難しそうな指標も、意味がわかれば怖くない。<br>
                 ひとつずつ、企業の読み解き方を身につけていきましょう。
             </p>
+            <!-- タブバー -->
+            <div class="learning-tabs">
+                <button class="learning-tab-btn"
+                        :class="{ 'active': activeTab === 'glossary' }"
+                        @click="activeTab = 'glossary'">
+                    <i class="fas fa-book-open" style="font-size: 13px;"></i>
+                    用語解説
+                </button>
+                <button class="learning-tab-btn"
+                        :class="{ 'active': activeTab === 'sector' }"
+                        @click="activeTab = 'sector'; if (!sectorLoaded) { sectorLoaded = true; }">
+                    <i class="fas fa-chart-pie" style="font-size: 13px;"></i>
+                    セクター分析
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="max-w-3xl mx-auto px-6 py-8" x-data="learningApp()">
+    <!-- ===== 用語解説タブ ===== -->
+    <div x-show="activeTab === 'glossary'" x-data="learningApp()">
+        <div class="max-w-3xl mx-auto px-6 py-8">
 
-        <!-- 全カテゴリを順に表示 -->
-        <template x-for="(cat, catIdx) in categories" :key="cat.id">
-            <div class="mb-12">
-                <!-- カテゴリ見出し -->
-                <div class="mb-5 flex items-start gap-4">
-                    <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;">
-                        <span x-text="catIdx + 1"></span>
+            <!-- 全カテゴリを順に表示 -->
+            <template x-for="(cat, catIdx) in categories" :key="cat.id">
+                <div class="mb-12">
+                    <!-- カテゴリ見出し -->
+                    <div class="mb-5 flex items-start gap-4">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;">
+                            <span x-text="catIdx + 1"></span>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold mb-1" style="color: #1a1a1a;" x-text="cat.name"></h2>
+                            <p class="text-sm leading-relaxed" style="color: #737373;" x-text="cat.description"></p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 class="text-lg font-bold mb-1" style="color: #1a1a1a;" x-text="cat.name"></h2>
-                        <p class="text-sm leading-relaxed" style="color: #737373;" x-text="cat.description"></p>
-                    </div>
-                </div>
 
-                <!-- 用語カード一覧 -->
-                <div class="space-y-3 ml-14">
-                    <template x-for="term in getTermsByCategory(cat.id)" :key="term.id">
-                        <div class="term-card bg-white rounded-xl overflow-hidden">
-                            <!-- カードヘッダー -->
-                            <button @click="toggle(term.id)" class="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                                        :style="'background:' + term.accentBg">
-                                        <i :class="term.icon" :style="'color:' + term.accent"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="text-sm font-bold" style="color: #1a1a1a;" x-text="term.title"></h3>
-                                        <p class="text-xs mt-0.5" style="color: #a3a3a3;" x-text="term.subtitle"></p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <span class="text-xs px-2 py-0.5 rounded font-medium"
-                                        :style="term.level === '基本'
-                                            ? 'background: #f0fdf4; color: #15803d;'
-                                            : 'background: #fefce8; color: #a16207;'"
-                                        x-text="term.level"></span>
-                                    <i class="fas fa-chevron-down text-xs chevron-icon" style="color: #d4d4d4;"
-                                        :style="openTerms.includes(term.id) ? 'transform: rotate(180deg)' : ''"></i>
-                                </div>
-                            </button>
-
-                            <!-- 展開コンテンツ -->
-                            <div x-show="openTerms.includes(term.id)" x-collapse>
-                                <div class="px-5 pb-5 space-y-3" style="border-top: 1px solid #f5f5f5;">
-                                    <div class="pt-4"></div>
-
-                                    <!-- ひとことで -->
-                                    <div class="content-section" style="background: #f8faf8; border-left: 3px solid #22c55e;">
-                                        <p class="section-label" style="color: #16a34a;">ひとことで</p>
-                                        <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.oneLiner"></p>
-                                    </div>
-
-                                    <!-- くわしく -->
-                                    <div class="content-section" style="background: #fafafa;">
-                                        <p class="section-label" style="color: #525252;">くわしく見てみると</p>
-                                        <div class="space-y-3">
-                                            <template x-for="(p, i) in term.explanation" :key="i">
-                                                <div class="flex items-start gap-3">
-                                                    <div class="step-num mt-0.5 text-white" :style="'background:' + term.accent"
-                                                        x-text="i + 1"></div>
-                                                    <p class="text-sm leading-relaxed" style="color: #525252;" x-text="p"></p>
-                                                </div>
-                                            </template>
+                    <!-- 用語カード一覧 -->
+                    <div class="space-y-3 ml-14">
+                        <template x-for="term in getTermsByCategory(cat.id)" :key="term.id">
+                            <div class="term-card bg-white rounded-xl overflow-hidden">
+                                <!-- カードヘッダー -->
+                                <button @click="toggle(term.id)" class="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                                            :style="'background:' + term.accentBg">
+                                            <i :class="term.icon" :style="'color:' + term.accent"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-sm font-bold" style="color: #1a1a1a;" x-text="term.title"></h3>
+                                            <p class="text-xs mt-0.5" style="color: #a3a3a3;" x-text="term.subtitle"></p>
                                         </div>
                                     </div>
-
-                                    <!-- 具体例 -->
-                                    <div class="content-section" style="background: #f8f9fc;" x-show="term.example">
-                                        <p class="section-label" style="color: #4b5563;">具体例でイメージすると</p>
-                                        <p class="text-sm leading-relaxed" style="color: #525252;" x-text="term.example"></p>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs px-2 py-0.5 rounded font-medium"
+                                            :style="term.level === '基本'
+                                                ? 'background: #f0fdf4; color: #15803d;'
+                                                : 'background: #fefce8; color: #a16207;'"
+                                            x-text="term.level"></span>
+                                        <i class="fas fa-chevron-down text-xs chevron-icon" style="color: #d4d4d4;"
+                                            :style="openTerms.includes(term.id) ? 'transform: rotate(180deg)' : ''"></i>
                                     </div>
+                                </button>
 
-                                    <!-- ポイント -->
-                                    <div class="content-section" style="background: #fefcf3; border-left: 3px solid #eab308;">
-                                        <p class="section-label" style="color: #a16207;">つまり、ここが大事</p>
-                                        <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.whyItMatters"></p>
+                                <!-- 展開コンテンツ -->
+                                <div x-show="openTerms.includes(term.id)" x-collapse>
+                                    <div class="px-5 pb-5 space-y-3" style="border-top: 1px solid #f5f5f5;">
+                                        <div class="pt-4"></div>
+
+                                        <!-- ひとことで -->
+                                        <div class="content-section" style="background: #f8faf8; border-left: 3px solid #22c55e;">
+                                            <p class="section-label" style="color: #16a34a;">ひとことで</p>
+                                            <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.oneLiner"></p>
+                                        </div>
+
+                                        <!-- くわしく -->
+                                        <div class="content-section" style="background: #fafafa;">
+                                            <p class="section-label" style="color: #525252;">くわしく見てみると</p>
+                                            <div class="space-y-3">
+                                                <template x-for="(p, i) in term.explanation" :key="i">
+                                                    <div class="flex items-start gap-3">
+                                                        <div class="step-num mt-0.5 text-white" :style="'background:' + term.accent"
+                                                            x-text="i + 1"></div>
+                                                        <p class="text-sm leading-relaxed" style="color: #525252;" x-text="p"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <!-- 具体例 -->
+                                        <div class="content-section" style="background: #f8f9fc;" x-show="term.example">
+                                            <p class="section-label" style="color: #4b5563;">具体例でイメージすると</p>
+                                            <p class="text-sm leading-relaxed" style="color: #525252;" x-text="term.example"></p>
+                                        </div>
+
+                                        <!-- ポイント -->
+                                        <div class="content-section" style="background: #fefcf3; border-left: 3px solid #eab308;">
+                                            <p class="section-label" style="color: #a16207;">つまり、ここが大事</p>
+                                            <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.whyItMatters"></p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- フッター -->
+            <div class="mt-4 text-center pb-8">
+                <p class="text-xs" style="color: #a3a3a3;">気になる用語をタップすると、解説が開きます</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== セクター分析タブ ===== -->
+    <div x-show="activeTab === 'sector'" x-cloak>
+        <template x-if="sectorLoaded">
+            <div x-data="sectorApp()" x-init="fetchData()">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+                    <!-- セクターサマリー情報 -->
+                    <div class="flex items-center gap-4 mb-6" x-show="!loading && sectors.length > 0">
+                        <span class="text-xs font-medium px-3 py-1 rounded-md" style="background: #fff; border: 1px solid #ebebeb; color: #525252;">
+                            <i class="fas fa-layer-group mr-1" style="color: #2d6a4f;"></i>
+                            <span x-text="sectors.length"></span> セクター
+                        </span>
+                        <span class="text-xs font-medium px-3 py-1 rounded-md" style="background: #fff; border: 1px solid #ebebeb; color: #525252;">
+                            <i class="fas fa-building mr-1" style="color: #2d6a4f;"></i>
+                            <span x-text="totalCompanies"></span> 社
+                        </span>
+                    </div>
+
+                    <!-- ローディング状態 -->
+                    <div x-show="loading" class="sector-spinner">
+                        <div class="spinner-ring"></div>
+                        <p class="mt-4 text-sm" style="color: #a3a3a3;">セクターデータを読み込み中...</p>
+                    </div>
+
+                    <!-- 空状態 -->
+                    <div x-show="!loading && sectors.length === 0" class="empty-state">
+                        <i class="fas fa-chart-pie"></i>
+                        <p>分析済みの企業データがありません。</p>
+                        <p class="mt-1" style="font-size: 12px;">ダッシュボードから企業を分析すると、ここにセクター別の集計が表示されます。</p>
+                    </div>
+
+                    <!-- メインコンテンツ -->
+                    <div x-show="!loading && sectors.length > 0">
+
+                        <!-- セクターカードグリッド -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                            <template x-for="(s, idx) in sectors" :key="s.sector">
+                                <div class="sector-card"
+                                     :class="{ 'active': selectedSector && selectedSector.sector === s.sector }"
+                                     @click="selectSector(s)">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h3 class="text-sm font-bold" style="color: #1a1a1a;" x-text="s.sector"></h3>
+                                        <span class="count-badge" x-text="s.count + '社'"></span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-x-6 gap-y-1">
+                                        <div class="metric-cell">
+                                            <div class="metric-label">平均PER</div>
+                                            <div class="metric-value" x-text="formatNum(s.avg_per, 1)"></div>
+                                        </div>
+                                        <div class="metric-cell">
+                                            <div class="metric-label">平均PBR</div>
+                                            <div class="metric-value" x-text="formatNum(s.avg_pbr, 2)"></div>
+                                        </div>
+                                        <div class="metric-cell">
+                                            <div class="metric-label">平均配当利回り</div>
+                                            <div class="metric-value">
+                                                <span x-text="formatNum(s.avg_dividend_yield, 2)"></span>
+                                                <span x-show="s.avg_dividend_yield != null" class="text-xs font-normal" style="color: #a3a3a3;">%</span>
+                                            </div>
+                                        </div>
+                                        <div class="metric-cell">
+                                            <div class="metric-label">平均ROE</div>
+                                            <div class="metric-value">
+                                                <span x-text="formatNum(s.avg_roe, 1)"></span>
+                                                <span x-show="s.avg_roe != null" class="text-xs font-normal" style="color: #a3a3a3;">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
-                    </template>
+
+                        <!-- セクター詳細パネル -->
+                        <div x-show="selectedSector" x-transition class="detail-panel mb-8">
+
+                            <!-- 詳細ヘッダー -->
+                            <div class="detail-header">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-1 h-8 rounded-sm" style="background: #1b4332;"></div>
+                                        <h2 class="text-lg font-bold" style="color: #1a1a1a;" x-text="selectedSector ? selectedSector.sector : ''"></h2>
+                                    </div>
+                                    <button @click="selectedSector = null; destroyChart();"
+                                            class="text-xs px-3 py-1.5 rounded-md" style="background: #f3f4f6; color: #525252; border: none; cursor: pointer;">
+                                        <i class="fas fa-times mr-1"></i>閉じる
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- サマリー統計バー -->
+                            <div class="stat-bar" x-show="selectedSector">
+                                <div class="stat-item">
+                                    <div class="stat-item-label">銘柄数</div>
+                                    <div class="stat-item-value" x-text="selectedSector ? selectedSector.count : ''"></div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">平均PER</div>
+                                    <div class="stat-item-value" x-text="selectedSector ? formatNum(selectedSector.avg_per, 1) : ''"></div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">平均PBR</div>
+                                    <div class="stat-item-value" x-text="selectedSector ? formatNum(selectedSector.avg_pbr, 2) : ''"></div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">平均ROE</div>
+                                    <div class="stat-item-value">
+                                        <span x-text="selectedSector ? formatNum(selectedSector.avg_roe, 1) : ''"></span>
+                                        <span class="text-xs font-normal" style="color: #a3a3a3;" x-show="selectedSector && selectedSector.avg_roe != null">%</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">平均営業利益率</div>
+                                    <div class="stat-item-value">
+                                        <span x-text="selectedSector ? formatNum(selectedSector.avg_operating_margin, 1) : ''"></span>
+                                        <span class="text-xs font-normal" style="color: #a3a3a3;" x-show="selectedSector && selectedSector.avg_operating_margin != null">%</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">平均自己資本比率</div>
+                                    <div class="stat-item-value">
+                                        <span x-text="selectedSector ? formatNum(selectedSector.avg_equity_ratio, 1) : ''"></span>
+                                        <span class="text-xs font-normal" style="color: #a3a3a3;" x-show="selectedSector && selectedSector.avg_equity_ratio != null">%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PER分布チャート -->
+                            <div class="chart-container" x-show="selectedSector && selectedSector.companies && selectedSector.companies.length > 0">
+                                <h3 class="text-xs font-semibold mb-3" style="color: #737373;">
+                                    <i class="fas fa-chart-bar mr-1" style="color: #2d6a4f;"></i>PER分布
+                                </h3>
+                                <div style="position: relative; width: 100%;" :style="'height:' + chartHeight + 'px'">
+                                    <canvas id="perChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- 企業テーブル -->
+                            <div class="overflow-x-auto" x-show="selectedSector">
+                                <table class="company-table">
+                                    <thead>
+                                        <tr>
+                                            <th @click="sortBy('company_code')" :class="{ 'sorted': sortKey === 'company_code' }">
+                                                銘柄コード
+                                                <span class="sort-arrow" x-show="sortKey === 'company_code'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('company_name')" :class="{ 'sorted': sortKey === 'company_name' }">
+                                                会社名
+                                                <span class="sort-arrow" x-show="sortKey === 'company_name'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('market_cap')" :class="{ 'sorted': sortKey === 'market_cap' }">
+                                                時価総額(億円)
+                                                <span class="sort-arrow" x-show="sortKey === 'market_cap'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('per_forward')" :class="{ 'sorted': sortKey === 'per_forward' }">
+                                                PER
+                                                <span class="sort-arrow" x-show="sortKey === 'per_forward'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('pbr')" :class="{ 'sorted': sortKey === 'pbr' }">
+                                                PBR
+                                                <span class="sort-arrow" x-show="sortKey === 'pbr'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('dividend_yield')" :class="{ 'sorted': sortKey === 'dividend_yield' }">
+                                                配当利回り
+                                                <span class="sort-arrow" x-show="sortKey === 'dividend_yield'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('roe')" :class="{ 'sorted': sortKey === 'roe' }">
+                                                ROE
+                                                <span class="sort-arrow" x-show="sortKey === 'roe'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('operating_margin')" :class="{ 'sorted': sortKey === 'operating_margin' }">
+                                                営業利益率
+                                                <span class="sort-arrow" x-show="sortKey === 'operating_margin'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                            <th @click="sortBy('match_rate')" :class="{ 'sorted': sortKey === 'match_rate' }">
+                                                合致度
+                                                <span class="sort-arrow" x-show="sortKey === 'match_rate'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- 業界平均行 -->
+                                        <tr class="avg-row" x-show="selectedSector">
+                                            <td style="color: #1b4332;">--</td>
+                                            <td style="color: #1b4332; font-weight: 700;">
+                                                <i class="fas fa-calculator mr-1" style="font-size: 10px;"></i>業界平均
+                                            </td>
+                                            <td>--</td>
+                                            <td x-text="selectedSector ? formatNum(selectedSector.avg_per, 1) : ''"></td>
+                                            <td x-text="selectedSector ? formatNum(selectedSector.avg_pbr, 2) : ''"></td>
+                                            <td>
+                                                <span x-text="selectedSector ? formatNum(selectedSector.avg_dividend_yield, 2) : ''"></span>
+                                                <span x-show="selectedSector && selectedSector.avg_dividend_yield != null" style="color: #a3a3a3;">%</span>
+                                            </td>
+                                            <td>
+                                                <span x-text="selectedSector ? formatNum(selectedSector.avg_roe, 1) : ''"></span>
+                                                <span x-show="selectedSector && selectedSector.avg_roe != null" style="color: #a3a3a3;">%</span>
+                                            </td>
+                                            <td>
+                                                <span x-text="selectedSector ? formatNum(selectedSector.avg_operating_margin, 1) : ''"></span>
+                                                <span x-show="selectedSector && selectedSector.avg_operating_margin != null" style="color: #a3a3a3;">%</span>
+                                            </td>
+                                            <td>--</td>
+                                        </tr>
+                                        <!-- 個別企業行 -->
+                                        <template x-for="c in sortedCompanies" :key="c.company_code">
+                                            <tr>
+                                                <td>
+                                                    <a :href="'/stock/' + c.company_code" class="company-link" x-text="c.company_code"></a>
+                                                </td>
+                                                <td>
+                                                    <a :href="'/stock/' + c.company_code" class="company-link" x-text="c.company_name"></a>
+                                                </td>
+                                                <td x-text="formatMarketCap(c.market_cap)"></td>
+                                                <td x-text="formatNum(c.per_forward, 1)"></td>
+                                                <td x-text="formatNum(c.pbr, 2)"></td>
+                                                <td>
+                                                    <span x-text="formatNum(c.dividend_yield, 2)"></span>
+                                                    <span x-show="c.dividend_yield != null" style="color: #a3a3a3;">%</span>
+                                                </td>
+                                                <td>
+                                                    <span x-text="formatNum(c.roe, 1)"></span>
+                                                    <span x-show="c.roe != null" style="color: #a3a3a3;">%</span>
+                                                </td>
+                                                <td>
+                                                    <span x-text="formatNum(c.operating_margin, 1)"></span>
+                                                    <span x-show="c.operating_margin != null" style="color: #a3a3a3;">%</span>
+                                                </td>
+                                                <td>
+                                                    <template x-if="c.match_rate != null">
+                                                        <span class="flex items-center">
+                                                            <span class="match-bar-bg">
+                                                                <span class="match-bar-fill" :style="'width:' + Math.min(c.match_rate, 100) + '%'"></span>
+                                                            </span>
+                                                            <span x-text="c.match_rate + '%'" class="text-xs font-medium" style="color: #525252;"></span>
+                                                        </span>
+                                                    </template>
+                                                    <template x-if="c.match_rate == null">
+                                                        <span style="color: #d4d4d4;">&mdash;</span>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </template>
-
-        <!-- フッター -->
-        <div class="mt-4 text-center pb-8">
-            <p class="text-xs" style="color: #a3a3a3;">気になる用語をタップすると、解説が開きます</p>
-        </div>
     </div>
 </div>
 
@@ -200,7 +710,7 @@ function learningApp() {
                 title: '時価総額', subtitle: 'Market Capitalization',
                 icon: 'fa-solid fa-building', accent: '#64748b', accentBg: '#f1f5f9',
                 level: '基本',
-                oneLiner: '企業の「値段」そのもの。株価 × 発行済株式数で計算される、市場が評価した企業の総額です。',
+                oneLiner: '企業の「値段」そのもの。株価 \u00d7 発行済株式数で計算される、市場が評価した企業の総額です。',
                 explanation: [
                     '時価総額は「株価 \u00d7 発行済株式数」で計算します。たとえば株価5,000円で発行済株式が1億株なら、時価総額は5,000億円です。',
                     '一般的に、時価総額が大きい企業（大型株）は安定感がありますが成長余地は限られます。小さい企業（小型株）は成長余地が大きい反面、値動きが激しくなりやすいです。',
@@ -224,6 +734,22 @@ function learningApp() {
                 ],
                 example: 'A社（80%）とB社（20%）。A社は資産のほとんどが自分のお金なので不況でも余裕。B社は80%が借金なので、売上が落ちると返済に苦しむ可能性があります。',
                 whyItMatters: '不況に強く、倒産リスクが低い企業を見分けるための基本指標。安心して長期で見ていられる会社かどうかの重要な判断材料になります。'
+            },
+
+            {
+                id: 'payout_ratio', category: 'safety',
+                title: '配当性向', subtitle: 'Payout Ratio',
+                icon: 'fa-solid fa-hand-holding-dollar', accent: '#2563eb', accentBg: '#eff6ff',
+                level: '基本',
+                oneLiner: '稼いだ利益のうち、どれだけを株主に配当で還元しているか。出しすぎていないかをチェックする指標です。',
+                explanation: [
+                    '「1株あたり配当金（DPS） \u00f7 1株あたり利益（EPS） \u00d7 100」で計算します。EPSが100円でDPSが30円なら配当性向30%。',
+                    '30〜50%が一般的な目安。この範囲なら「適度に株主に還元しつつ、成長投資にもお金を回せている」バランスの良い状態です。',
+                    '50%を超えると「利益の半分以上を配当に回している」状態。70%以上は要注意で、利益が少し減っただけで減配リスクが出てきます。100%超えは利益以上に配当を出しており、貯金（内部留保）を取り崩している可能性があります。',
+                    '逆に低すぎる（10%未満など）場合は、株主還元に消極的か、成長投資に積極的かのどちらか。成長企業なら低くても問題ありません。'
+                ],
+                example: 'A社（配当性向35%）は利益の1/3を還元し、残りを設備投資や研究開発に使えるバランス型。B社（配当性向90%）は利回りが高く魅力的に見えますが、業績が少しでも悪化すれば減配の可能性が高く、配当を維持するための余力がほとんどありません。',
+                whyItMatters: '高配当企業を探すときに「利回り」だけ見ると危険。配当性向が高すぎる企業は無理をして配当を出している可能性があり、減配リスクが高いです。利回りと配当性向をセットで確認することで、配当の「持続可能性」を判断できます。'
             },
 
             // === 成長性 ===
@@ -402,6 +928,252 @@ function learningApp() {
             }
         }
     }
+}
+
+function sectorApp() {
+    return {
+        loading: true,
+        sectors: [],
+        selectedSector: null,
+        sortKey: 'company_code',
+        sortDir: 'asc',
+        chartInstance: null,
+
+        // セクターに含まれる企業数に応じたチャート高さ
+        get chartHeight() {
+            if (!this.selectedSector || !this.selectedSector.companies) return 200;
+            var count = this.selectedSector.companies.length;
+            // 各バーに30px、最低200px
+            return Math.max(200, count * 30 + 60);
+        },
+
+        // 全企業数合計
+        get totalCompanies() {
+            var total = 0;
+            for (var i = 0; i < this.sectors.length; i++) {
+                total += this.sectors[i].count || 0;
+            }
+            return total;
+        },
+
+        // ソート済み企業リスト
+        get sortedCompanies() {
+            if (!this.selectedSector || !this.selectedSector.companies) return [];
+            var companies = this.selectedSector.companies.slice();
+            var key = this.sortKey;
+            var dir = this.sortDir;
+            companies.sort(function(a, b) {
+                var valA = a[key];
+                var valB = b[key];
+                // null値は末尾に
+                if (valA == null && valB == null) return 0;
+                if (valA == null) return 1;
+                if (valB == null) return -1;
+                // 文字列比較
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    return dir === 'asc' ? valA.localeCompare(valB, 'ja') : valB.localeCompare(valA, 'ja');
+                }
+                // 数値比較
+                return dir === 'asc' ? valA - valB : valB - valA;
+            });
+            return companies;
+        },
+
+        // APIからデータ取得
+        fetchData() {
+            var self = this;
+            self.loading = true;
+            fetch('/api/sector/summary')
+                .then(function(res) {
+                    if (!res.ok) throw new Error('データの取得に失敗しました');
+                    return res.json();
+                })
+                .then(function(data) {
+                    self.sectors = data.sectors || [];
+                    self.loading = false;
+                })
+                .catch(function(err) {
+                    console.error('セクターデータ取得エラー:', err);
+                    self.sectors = [];
+                    self.loading = false;
+                });
+        },
+
+        // セクターを選択
+        selectSector(sector) {
+            // 同じセクターをクリックした場合はトグル
+            if (this.selectedSector && this.selectedSector.sector === sector.sector) {
+                this.selectedSector = null;
+                this.destroyChart();
+                return;
+            }
+            this.selectedSector = sector;
+            this.sortKey = 'company_code';
+            this.sortDir = 'asc';
+            // チャートは次フレームで描画（DOM更新後）
+            var self = this;
+            this.$nextTick(function() {
+                self.renderChart();
+                // 詳細パネルまでスクロール
+                var panel = document.querySelector('.detail-panel');
+                if (panel) {
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        },
+
+        // ソートキー切り替え
+        sortBy(key) {
+            if (this.sortKey === key) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortKey = key;
+                this.sortDir = 'asc';
+            }
+        },
+
+        // 数値フォーマット（null安全）
+        formatNum(val, decimals) {
+            if (val == null || val === '' || isNaN(val)) return '\u2014';
+            return Number(val).toLocaleString('ja-JP', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        },
+
+        // 時価総額フォーマット
+        formatMarketCap(val) {
+            if (val == null || val === '' || isNaN(val)) return '\u2014';
+            return Number(val).toLocaleString('ja-JP');
+        },
+
+        // チャート破棄
+        destroyChart() {
+            if (this.chartInstance) {
+                this.chartInstance.destroy();
+                this.chartInstance = null;
+            }
+        },
+
+        // PER分布バーチャートを描画
+        renderChart() {
+            this.destroyChart();
+            if (!this.selectedSector || !this.selectedSector.companies || this.selectedSector.companies.length === 0) return;
+
+            var canvas = document.getElementById('perChart');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+
+            // PERの値でソート（nullは除外）
+            var companies = this.selectedSector.companies
+                .filter(function(c) { return c.per_forward != null && !isNaN(c.per_forward); })
+                .sort(function(a, b) { return b.per_forward - a.per_forward; });
+
+            if (companies.length === 0) return;
+
+            var labels = companies.map(function(c) { return c.company_name; });
+            var dataValues = companies.map(function(c) { return c.per_forward; });
+            var avgPer = this.selectedSector.avg_per;
+
+            this.chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'PER',
+                        data: dataValues,
+                        backgroundColor: '#2d6a4f',
+                        borderColor: '#2d6a4f',
+                        borderWidth: 0,
+                        borderRadius: 3,
+                        barThickness: 16
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#1a1a1a',
+                            titleFont: { family: "'Inter', 'Noto Sans JP', sans-serif", size: 12 },
+                            bodyFont: { family: "'Inter', 'Noto Sans JP', sans-serif", size: 12 },
+                            padding: 10,
+                            cornerRadius: 6,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'PER: ' + context.parsed.x.toFixed(1) + '\u500D';
+                                }
+                            }
+                        },
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f3f4f6',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { family: "'Inter', 'Noto Sans JP', sans-serif", size: 11 },
+                                color: '#a3a3a3',
+                                callback: function(value) {
+                                    return value + '\u500D';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'PER (\u500D)',
+                                font: { family: "'Inter', 'Noto Sans JP', sans-serif", size: 11, weight: '500' },
+                                color: '#a3a3a3'
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                font: { family: "'Inter', 'Noto Sans JP', sans-serif", size: 11 },
+                                color: '#525252'
+                            }
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'avgLine',
+                    afterDraw: function(chart) {
+                        if (avgPer == null || isNaN(avgPer)) return;
+                        var xScale = chart.scales.x;
+                        var chartArea = chart.chartArea;
+                        var xPos = xScale.getPixelForValue(avgPer);
+                        if (xPos < chartArea.left || xPos > chartArea.right) return;
+
+                        var ctx2 = chart.ctx;
+                        ctx2.save();
+                        ctx2.strokeStyle = '#ef4444';
+                        ctx2.lineWidth = 2;
+                        ctx2.setLineDash([6, 4]);
+                        ctx2.beginPath();
+                        ctx2.moveTo(xPos, chartArea.top);
+                        ctx2.lineTo(xPos, chartArea.bottom);
+                        ctx2.stroke();
+
+                        // ラベル
+                        ctx2.setLineDash([]);
+                        ctx2.fillStyle = '#ef4444';
+                        ctx2.font = "500 10px 'Inter', 'Noto Sans JP', sans-serif";
+                        ctx2.textAlign = 'center';
+                        ctx2.fillText('\u5E73\u5747 ' + avgPer.toFixed(1), xPos, chartArea.top - 6);
+                        ctx2.restore();
+                    }
+                }]
+            });
+        }
+    };
 }
 </script>
 {% endblock %}

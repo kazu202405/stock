@@ -580,14 +580,52 @@
             </div>
         </div>
 
-        <!-- タブ: 高配当企業（モック） -->
+        <!-- タブ: 高配当企業 -->
         <div class="tab-content" id="tabContent-dividend">
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
-                <span class="watchlist-count" id="dividendCount">0件</span>
             </div>
             <div class="match-rate-description">
-                配当利回りの高い企業を一覧表示しています。（現在はモックデータです）
+                配当利回りの高い企業を一覧表示しています。
+            </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="divFilterBar">
+                    <div class="filter-item">
+                        <label>合致度</label>
+                        <input type="number" id="divFilterMatchMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="divFilterMatchMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>時価総額(億)</label>
+                        <input type="number" id="divFilterCapMin" placeholder="以上" step="100">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="divFilterCapMax" placeholder="以下" step="100">
+                    </div>
+                    <div class="filter-item">
+                        <label>PER</label>
+                        <input type="number" id="divFilterPerMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="divFilterPerMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>PBR</label>
+                        <input type="number" id="divFilterPbrMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="divFilterPbrMax" placeholder="以下" step="0.1">
+                    </div>
+                    <div class="filter-item">
+                        <label>配当</label>
+                        <input type="number" id="divFilterDivMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="divFilterDivMax" placeholder="以下" step="0.1">
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetDivFilters()">リセット</button>
+                </div>
+                <div class="action-buttons">
+                    <button class="gc-fetch-btn" onclick="analyzeDivStocks()" id="divAnalyzeBtn">0件 詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="stopDivAnalyze()" id="divStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                </div>
             </div>
             <div id="dividendContent">
                 <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
@@ -636,10 +674,56 @@
         <div class="tab-content" id="tabContent-technical">
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
-                <span class="watchlist-count" id="technicalCount">0件</span>
             </div>
             <div class="match-rate-description">
                 過去にゴールデンクロス（GC）またはデッドクロス（DC）が検出された銘柄の一覧です。screened_latestに永続保存された日付を表示しています。
+            </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="techFilterBar">
+                    <div class="filter-item">
+                        <label>合致度</label>
+                        <input type="number" id="techFilterMatchMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="techFilterMatchMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>時価総額(億)</label>
+                        <input type="number" id="techFilterCapMin" placeholder="以上" step="100">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="techFilterCapMax" placeholder="以下" step="100">
+                    </div>
+                    <div class="filter-item">
+                        <label>PER</label>
+                        <input type="number" id="techFilterPerMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="techFilterPerMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>PBR</label>
+                        <input type="number" id="techFilterPbrMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="techFilterPbrMax" placeholder="以下" step="0.1">
+                    </div>
+                    <div class="filter-item">
+                        <label>配当</label>
+                        <input type="number" id="techFilterDivMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="techFilterDivMax" placeholder="以下" step="0.1">
+                    </div>
+                    <div class="filter-item">
+                        <label>方向</label>
+                        <select id="techFilterTrend" style="padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                            <option value="">すべて</option>
+                            <option value="gc">GC（上昇）</option>
+                            <option value="dc">DC（下降）</option>
+                        </select>
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetTechFilters()">リセット</button>
+                </div>
+                <div class="action-buttons">
+                    <button class="gc-fetch-btn" onclick="analyzeTechStocks()" id="techAnalyzeBtn">0件 詳細取得</button>
+                    <button class="gc-fetch-btn" onclick="stopTechAnalyze()" id="techStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                </div>
             </div>
             <div id="technicalContent">
                 <div class="watchlist-empty">タブを開くとデータを読み込みます</div>
@@ -852,10 +936,11 @@
                         <th class="sortable" onclick="sortWatchlist('per_forward')">PER${sortIcon('per_forward')}</th>
                         <th class="sortable" onclick="sortWatchlist('pbr')">PBR${sortIcon('pbr')}</th>
                         <th class="sortable" onclick="sortWatchlist('dividend_yield')">配当利回り${sortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortWatchlist('payout_ratio')">配当性向${sortIcon('payout_ratio')}</th>
                         <th>GC</th>
                         <th>DC</th>
                         <th>方向</th>
-                        <th>操作</th>
+                        ${IS_ADMIN ? '<th>操作</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -870,6 +955,7 @@
             const per = item.per_forward ? `${item.per_forward.toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${item.pbr.toFixed(2)}倍` : '---';
             const divYield = item.dividend_yield ? `${item.dividend_yield.toFixed(2)}%` : '---';
+            const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item.match_rate);
             const gcDate = formatScrapedDate(item.gc_date);
@@ -887,10 +973,11 @@
                     <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
+                    <td>${payoutRatio}</td>
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
                     <td class="${trend.cls}">${trend.label}</td>
-                    <td><button class="delete-btn" onclick="removeFromWatchlist('${code}')">削除</button></td>
+                    ${IS_ADMIN ? `<td><button class="delete-btn" onclick="removeFromWatchlist('${code}')">削除</button></td>` : ''}
                 </tr>
             `;
         });
@@ -983,7 +1070,7 @@
         return `${watchlistCache.length}件 詳細取得`;
     }
 
-    async function analyzeWlStocks() {
+    async function analyzeWlStocks(force = false) {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
         btn.disabled = true;
@@ -992,7 +1079,8 @@
         try {
             const response = await fetch('/api/watchlist/analyze', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force })
             });
             const data = await response.json();
 
@@ -1001,7 +1089,10 @@
                     btn.disabled = false;
                     btn.textContent = getWlBtnLabel();
                     stopBtn.style.display = 'none';
-                    showSuccessModal('全銘柄の分析が完了済みです');
+                    if (!force) {
+                        const ok = await showConfirmModal('本日解析済ですが再度解析しますか？');
+                        if (ok) analyzeWlStocks(true);
+                    }
                 } else {
                     startWlAnalyzePolling();
                 }
@@ -1278,6 +1369,7 @@
 
     let dividendLoaded = false;
     let dividendCache = [];
+    let divSort = { key: 'dividend_yield', dir: 'desc' };
 
     async function loadDividendStocks() {
         dividendLoaded = true;
@@ -1289,7 +1381,7 @@
             const data = await response.json();
             if (response.ok) {
                 dividendCache = data.dividend_stocks || [];
-                renderDividendStocks(dividendCache);
+                applyDivFilters();
             } else {
                 content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
             }
@@ -1298,17 +1390,89 @@
         }
     }
 
+    // フィルタ入力イベント
+    document.getElementById('divFilterBar')?.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', () => applyDivFilters());
+    });
+
+    function applyDivFilters() {
+        let list = [...dividendCache];
+
+        const matchMin = parseFloat(document.getElementById('divFilterMatchMin')?.value);
+        const matchMax = parseFloat(document.getElementById('divFilterMatchMax')?.value);
+        const capMin = parseFloat(document.getElementById('divFilterCapMin')?.value);
+        const capMax = parseFloat(document.getElementById('divFilterCapMax')?.value);
+        const perMin = parseFloat(document.getElementById('divFilterPerMin')?.value);
+        const perMax = parseFloat(document.getElementById('divFilterPerMax')?.value);
+        const pbrMin = parseFloat(document.getElementById('divFilterPbrMin')?.value);
+        const pbrMax = parseFloat(document.getElementById('divFilterPbrMax')?.value);
+        const divMin = parseFloat(document.getElementById('divFilterDivMin')?.value);
+        const divMax = parseFloat(document.getElementById('divFilterDivMax')?.value);
+
+        if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
+        if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
+        if (!isNaN(capMin)) list = list.filter(i => i.market_cap != null && i.market_cap >= capMin);
+        if (!isNaN(capMax)) list = list.filter(i => i.market_cap != null && i.market_cap <= capMax);
+        if (!isNaN(perMin)) list = list.filter(i => i.per_forward != null && i.per_forward >= perMin);
+        if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
+        if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
+        if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+
+        // ソート
+        if (divSort.key) {
+            list.sort((a, b) => {
+                const aVal = a[divSort.key] || 0;
+                const bVal = b[divSort.key] || 0;
+                return divSort.dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        // 詳細取得ボタンのラベル更新
+        const totalCount = dividendCache.length;
+        const filteredCount = list.length;
+        const countLabel = totalCount === filteredCount ? `${totalCount}` : `${filteredCount}/${totalCount}`;
+        const divBtn = document.getElementById('divAnalyzeBtn');
+        if (divBtn && !div_analyze_status_running) divBtn.textContent = `${countLabel}件 詳細取得`;
+
+        renderDividendStocks(list);
+    }
+
+    function resetDivFilters() {
+        document.getElementById('divFilterBar')?.querySelectorAll('input').forEach(input => input.value = '');
+        applyDivFilters();
+    }
+
+    function sortDivColumn(key) {
+        if (divSort.key === key) {
+            divSort.dir = divSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            divSort.key = key;
+            divSort.dir = key === 'dividend_yield' ? 'desc' : 'asc';
+        }
+        applyDivFilters();
+    }
+
+    function divSortIcon(key) {
+        if (divSort.key !== key) return '<i class="fas fa-sort" style="color:#999;font-size:10px;margin-left:3px;"></i>';
+        return divSort.dir === 'asc'
+            ? '<i class="fas fa-sort-up" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>'
+            : '<i class="fas fa-sort-down" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>';
+    }
+
     function renderDividendStocks(list) {
         const content = document.getElementById('dividendContent');
-        document.getElementById('dividendCount').textContent = `${list.length}件`;
 
-        if (list.length === 0) {
+
+        if (list.length === 0 && dividendCache.length === 0) {
             content.innerHTML = '<div class="watchlist-empty">高配当企業が登録されていません。「高配当企業登録」ボタンから銘柄を登録してください。</div>';
             return;
         }
-
-        // 配当利回りで降順ソート
-        list.sort((a, b) => (b.dividend_yield || 0) - (a.dividend_yield || 0));
+        if (list.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">条件に一致する企業がありません</div>';
+            return;
+        }
 
         let html = `
             <table class="watchlist-table">
@@ -1316,14 +1480,15 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th>合致度</th>
+                        <th class="sortable" onclick="sortDivColumn('match_rate')">合致度${divSortIcon('match_rate')}</th>
                         <th>セクター</th>
-                        <th>時価総額</th>
-                        <th>株価</th>
-                        <th>PER</th>
-                        <th>PBR</th>
-                        <th>配当利回り</th>
-                        <th>操作</th>
+                        <th class="sortable" onclick="sortDivColumn('market_cap')">時価総額${divSortIcon('market_cap')}</th>
+                        <th class="sortable" onclick="sortDivColumn('stock_price')">株価${divSortIcon('stock_price')}</th>
+                        <th class="sortable" onclick="sortDivColumn('per_forward')">PER${divSortIcon('per_forward')}</th>
+                        <th class="sortable" onclick="sortDivColumn('pbr')">PBR${divSortIcon('pbr')}</th>
+                        <th class="sortable" onclick="sortDivColumn('dividend_yield')">配当利回り${divSortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortDivColumn('payout_ratio')">配当性向${divSortIcon('payout_ratio')}</th>
+                        ${IS_ADMIN ? '<th>操作</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -1338,6 +1503,7 @@
             const per = item.per_forward ? `${Number(item.per_forward).toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
             const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item.match_rate);
 
@@ -1352,7 +1518,8 @@
                     <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td><strong>${divYield}</strong></td>
-                    <td><button class="delete-btn" onclick="removeDividendStock('${code}')">解除</button></td>
+                    <td>${payoutRatio}</td>
+                    ${IS_ADMIN ? `<td><button class="delete-btn" onclick="removeDividendStock('${code}')">解除</button></td>` : ''}
                 </tr>
             `;
         });
@@ -1367,12 +1534,101 @@
             const response = await fetch(`/api/dividend-stocks/remove/${code}`, { method: 'DELETE' });
             if (response.ok) {
                 dividendCache = dividendCache.filter(item => item.company_code !== code);
-                renderDividendStocks(dividendCache);
+                applyDivFilters();
             } else {
                 alert('解除に失敗しました');
             }
         } catch (error) {
             alert('解除に失敗しました');
+        }
+    }
+
+    // ========================================
+    // 高配当企業 - 詳細取得（バックグラウンド分析）
+    // ========================================
+
+    let div_analyze_status_running = false;
+    let divAnalyzePolling = null;
+
+    async function analyzeDivStocks(force = false) {
+        const btn = document.getElementById('divAnalyzeBtn');
+        const stopBtn = document.getElementById('divStopBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 開始中...';
+        stopBtn.style.display = 'inline-block';
+
+        try {
+            const response = await fetch('/api/dividend-stocks/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.status && data.status.total === 0) {
+                    btn.disabled = false;
+                    btn.textContent = `${dividendCache.length}件 詳細取得`;
+                    stopBtn.style.display = 'none';
+                    if (!force) {
+                        const ok = await showConfirmModal('本日解析済ですが再度解析しますか？');
+                        if (ok) analyzeDivStocks(true);
+                    }
+                } else {
+                    div_analyze_status_running = true;
+                    divAnalyzePolling = setInterval(pollDivAnalyzeStatus, 2000);
+                }
+            } else {
+                showErrorModal(data.error || '分析の開始に失敗しました');
+                btn.disabled = false;
+                btn.textContent = `${dividendCache.length}件 詳細取得`;
+                stopBtn.style.display = 'none';
+            }
+        } catch (error) {
+            showErrorModal('通信エラー: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = `${dividendCache.length}件 詳細取得`;
+            stopBtn.style.display = 'none';
+        }
+    }
+
+    async function pollDivAnalyzeStatus() {
+        try {
+            const response = await fetch('/api/dividend-stocks/analyze/status');
+            const status = await response.json();
+
+            const btn = document.getElementById('divAnalyzeBtn');
+            const stopBtn = document.getElementById('divStopBtn');
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${status.done}/${status.total}件 分析中...`;
+
+            // 順次表示: 分析中もデータをリロード
+            dividendLoaded = false;
+            await loadDividendStocks();
+
+            if (!status.running) {
+                clearInterval(divAnalyzePolling);
+                divAnalyzePolling = null;
+                div_analyze_status_running = false;
+                btn.disabled = false;
+                btn.textContent = `${dividendCache.length}件 詳細取得`;
+                stopBtn.style.display = 'none';
+
+                const errMsg = status.errors > 0 ? `（${status.errors}件エラー）` : '';
+                showSuccessModal(`${status.done}件の分析が完了しました${errMsg}`);
+            }
+        } catch (error) {
+            console.error('ステータス取得エラー:', error);
+        }
+    }
+
+    async function stopDivAnalyze() {
+        const stopBtn = document.getElementById('divStopBtn');
+        stopBtn.disabled = true;
+        stopBtn.textContent = '停止中...';
+        try {
+            await fetch('/api/dividend-stocks/analyze/stop', { method: 'POST' });
+        } catch (error) {
+            console.error('停止リクエストエラー:', error);
         }
     }
 
@@ -1704,6 +1960,7 @@
     // ========================================
 
     let technicalStocksCache = [];
+    let techSort = { key: '', dir: 'asc' };
 
     async function loadTechnicalStocks() {
         document.getElementById('technicalContent').innerHTML =
@@ -1713,7 +1970,8 @@
             const response = await fetch('/api/technical-stocks');
             const data = await response.json();
             if (response.ok) {
-                renderTechnicalStocks(data.technical_stocks || []);
+                technicalStocksCache = data.technical_stocks || [];
+                applyTechFilters();
             } else {
                 document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
             }
@@ -1722,15 +1980,102 @@
         }
     }
 
-    function renderTechnicalStocks(stocks) {
-        technicalStocksCache = stocks;
+    // フィルタ入力イベント
+    document.getElementById('techFilterBar')?.querySelectorAll('input, select').forEach(el => {
+        el.addEventListener('input', () => applyTechFilters());
+        el.addEventListener('change', () => applyTechFilters());
+    });
+
+    function applyTechFilters() {
+        let list = [...technicalStocksCache];
+
+        const matchMin = parseFloat(document.getElementById('techFilterMatchMin')?.value);
+        const matchMax = parseFloat(document.getElementById('techFilterMatchMax')?.value);
+        const capMin = parseFloat(document.getElementById('techFilterCapMin')?.value);
+        const capMax = parseFloat(document.getElementById('techFilterCapMax')?.value);
+        const perMin = parseFloat(document.getElementById('techFilterPerMin')?.value);
+        const perMax = parseFloat(document.getElementById('techFilterPerMax')?.value);
+        const pbrMin = parseFloat(document.getElementById('techFilterPbrMin')?.value);
+        const pbrMax = parseFloat(document.getElementById('techFilterPbrMax')?.value);
+        const divMin = parseFloat(document.getElementById('techFilterDivMin')?.value);
+        const divMax = parseFloat(document.getElementById('techFilterDivMax')?.value);
+        const trendFilter = document.getElementById('techFilterTrend')?.value || '';
+
+        if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
+        if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
+        if (!isNaN(capMin)) list = list.filter(i => i.market_cap != null && i.market_cap >= capMin);
+        if (!isNaN(capMax)) list = list.filter(i => i.market_cap != null && i.market_cap <= capMax);
+        if (!isNaN(perMin)) list = list.filter(i => i.per != null && i.per >= perMin);
+        if (!isNaN(perMax)) list = list.filter(i => i.per != null && i.per <= perMax);
+        if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
+        if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+
+        if (trendFilter === 'gc') {
+            list = list.filter(i => {
+                const t = getTrendDirection(i.gc_date, i.dc_date);
+                return t.cls === 'gc-trend';
+            });
+        } else if (trendFilter === 'dc') {
+            list = list.filter(i => {
+                const t = getTrendDirection(i.gc_date, i.dc_date);
+                return t.cls === 'dc-trend';
+            });
+        }
+
+        // ソート
+        if (techSort.key) {
+            list.sort((a, b) => {
+                const aVal = a[techSort.key] || 0;
+                const bVal = b[techSort.key] || 0;
+                return techSort.dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        renderTechnicalStocks(list, false);
+
+        // 分析中でなければボタンラベル更新
+        if (!tech_analyze_status_running) {
+            document.getElementById('techAnalyzeBtn').textContent = `${technicalStocksCache.length}件 詳細取得`;
+        }
+    }
+
+    function resetTechFilters() {
+        document.getElementById('techFilterBar')?.querySelectorAll('input').forEach(input => input.value = '');
+        const sel = document.getElementById('techFilterTrend');
+        if (sel) sel.value = '';
+        applyTechFilters();
+    }
+
+    function sortTechColumn(key) {
+        if (techSort.key === key) {
+            techSort.dir = techSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            techSort.key = key;
+            techSort.dir = 'asc';
+        }
+        applyTechFilters();
+    }
+
+    function techSortIcon(key) {
+        if (techSort.key !== key) return '<i class="fas fa-sort" style="color:#999;font-size:10px;margin-left:3px;"></i>';
+        return techSort.dir === 'asc'
+            ? '<i class="fas fa-sort-up" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>'
+            : '<i class="fas fa-sort-down" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>';
+    }
+
+    function renderTechnicalStocks(stocks, updateCache) {
+        if (updateCache !== false) technicalStocksCache = stocks;
 
         const content = document.getElementById('technicalContent');
-        const countElement = document.getElementById('technicalCount');
-        countElement.textContent = `${stocks.length}件`;
 
-        if (stocks.length === 0) {
+        if (stocks.length === 0 && technicalStocksCache.length === 0) {
             content.innerHTML = '<div class="watchlist-empty">GC/DC形成日を持つ銘柄がありません</div>';
+            return;
+        }
+        if (stocks.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">条件に一致する銘柄がありません</div>';
             return;
         }
 
@@ -1740,13 +2085,13 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th>合致度</th>
+                        <th class="sortable" onclick="sortTechColumn('match_rate')">合致度${techSortIcon('match_rate')}</th>
                         <th>セクター</th>
-                        <th>時価総額</th>
-                        <th>株価</th>
-                        <th>PER</th>
-                        <th>PBR</th>
-                        <th>配当利回り</th>
+                        <th class="sortable" onclick="sortTechColumn('market_cap')">時価総額${techSortIcon('market_cap')}</th>
+                        <th class="sortable" onclick="sortTechColumn('stock_price')">株価${techSortIcon('stock_price')}</th>
+                        <th class="sortable" onclick="sortTechColumn('per')">PER${techSortIcon('per')}</th>
+                        <th class="sortable" onclick="sortTechColumn('pbr')">PBR${techSortIcon('pbr')}</th>
+                        <th class="sortable" onclick="sortTechColumn('dividend_yield')">配当利回り${techSortIcon('dividend_yield')}</th>
                         <th>GC</th>
                         <th>DC</th>
                         <th>方向</th>
@@ -1792,6 +2137,87 @@
 
         html += '</tbody></table>';
         content.innerHTML = html;
+    }
+
+    // ========================================
+    // テクニカル分析: 一括詳細取得
+    // ========================================
+
+    let tech_analyze_status_running = false;
+    let techAnalyzePolling = null;
+
+    async function analyzeTechStocks() {
+        const btn = document.getElementById('techAnalyzeBtn');
+        const stopBtn = document.getElementById('techStopBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 開始中...';
+        stopBtn.style.display = 'inline-block';
+
+        try {
+            const response = await fetch('/api/technical-stocks/analyze', { method: 'POST' });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.status && data.status.total === 0) {
+                    btn.disabled = false;
+                    btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                    stopBtn.style.display = 'none';
+                    showSuccessModal('全銘柄の分析が完了済みです');
+                } else {
+                    tech_analyze_status_running = true;
+                    techAnalyzePolling = setInterval(pollTechAnalyzeStatus, 2000);
+                }
+            } else {
+                showErrorModal(data.error || '分析の開始に失敗しました');
+                btn.disabled = false;
+                btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                stopBtn.style.display = 'none';
+            }
+        } catch (error) {
+            showErrorModal('通信エラー: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+            stopBtn.style.display = 'none';
+        }
+    }
+
+    async function pollTechAnalyzeStatus() {
+        try {
+            const response = await fetch('/api/technical-stocks/analyze/status');
+            const status = await response.json();
+
+            const btn = document.getElementById('techAnalyzeBtn');
+            const stopBtn = document.getElementById('techStopBtn');
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${status.done}/${status.total}件 分析中...`;
+
+            // 順次表示: 分析中もデータをリロード
+            await loadTechnicalStocks();
+
+            if (!status.running) {
+                clearInterval(techAnalyzePolling);
+                techAnalyzePolling = null;
+                tech_analyze_status_running = false;
+                btn.disabled = false;
+                btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                stopBtn.style.display = 'none';
+
+                const errMsg = status.errors > 0 ? `（${status.errors}件エラー）` : '';
+                showSuccessModal(`${status.done}件の分析が完了しました${errMsg}`);
+            }
+        } catch (error) {
+            console.error('ステータス取得エラー:', error);
+        }
+    }
+
+    async function stopTechAnalyze() {
+        const stopBtn = document.getElementById('techStopBtn');
+        stopBtn.disabled = true;
+        stopBtn.textContent = '停止中...';
+        try {
+            await fetch('/api/technical-stocks/analyze/stop', { method: 'POST' });
+        } catch (error) {
+            console.error('停止リクエストエラー:', error);
+        }
     }
 
     // テクニカル分析: 1銘柄の最新データ取得

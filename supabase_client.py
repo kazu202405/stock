@@ -472,6 +472,8 @@ def create_note(user_id: str, data: dict) -> dict:
         'is_public': data.get('is_public', False),
         'is_anonymous': data.get('is_anonymous', False),
     }
+    if data.get('poster_name'):
+        note_data['poster_name'] = data['poster_name']
     result = client.table('notes').insert(note_data).execute()
     return result.data[0] if result.data else {}
 
@@ -508,7 +510,7 @@ def update_note(note_id: str, user_id: str, data: dict) -> dict:
     client = get_supabase_client()
     update_data = {}
     for key in ['title', 'content', 'company_code', 'company_name',
-                'stars', 'tags', 'is_public', 'is_anonymous']:
+                'stars', 'tags', 'is_public', 'is_anonymous', 'poster_name']:
         if key in data:
             update_data[key] = data[key]
     result = client.table('notes').update(update_data).eq(
@@ -681,6 +683,60 @@ def get_all_users(role: str = None) -> list:
     return result.data
 
 
+def update_display_name(user_id: str, display_name: str) -> dict:
+    """ユーザーの表示名を更新"""
+    client = get_supabase_client()
+    result = client.table('app_users').update(
+        {'display_name': display_name.strip() if display_name else None}
+    ).eq('id', user_id).execute()
+    return result.data[0] if result.data else None
+
+
+def update_user_email(user_id: str, new_email: str, current_password: str) -> dict:
+    """メールアドレスを変更（現パスワードで本人確認）"""
+    client = get_supabase_client()
+    new_email = new_email.strip().lower()
+    if not new_email:
+        raise ValueError("メールアドレスを入力してください")
+
+    # 本人確認
+    user = client.table('app_users').select('*').eq('id', user_id).execute()
+    if not user.data:
+        raise ValueError("ユーザーが見つかりません")
+    if not check_password_hash(user.data[0]['password_hash'], current_password):
+        raise ValueError("現在のパスワードが正しくありません")
+
+    # 重複チェック
+    existing = client.table('app_users').select('id').eq('email', new_email).execute()
+    if existing.data and existing.data[0]['id'] != user_id:
+        raise ValueError("このメールアドレスは既に使用されています")
+
+    result = client.table('app_users').update(
+        {'email': new_email}
+    ).eq('id', user_id).execute()
+    return result.data[0] if result.data else None
+
+
+def update_user_password(user_id: str, current_password: str, new_password: str) -> dict:
+    """パスワードを変更（現パスワードで本人確認）"""
+    client = get_supabase_client()
+    if len(new_password) < 6:
+        raise ValueError("新しいパスワードは6文字以上で入力してください")
+
+    # 本人確認
+    user = client.table('app_users').select('*').eq('id', user_id).execute()
+    if not user.data:
+        raise ValueError("ユーザーが見つかりません")
+    if not check_password_hash(user.data[0]['password_hash'], current_password):
+        raise ValueError("現在のパスワードが正しくありません")
+
+    new_hash = generate_password_hash(new_password)
+    result = client.table('app_users').update(
+        {'password_hash': new_hash}
+    ).eq('id', user_id).execute()
+    return result.data[0] if result.data else None
+
+
 def update_user_role(user_id: str, new_role: str) -> dict:
     """ユーザーのロールを変更"""
     if new_role not in ('user', 'agent', 'admin'):
@@ -699,3 +755,199 @@ def migrate_guest_notes(guest_user_id: str, real_user_id: str) -> int:
         {'user_id': real_user_id}
     ).eq('user_id', guest_user_id).execute()
     return len(result.data)
+
+
+# =============================================
+# コミュニティQ&A（質問・回答・いいね）
+# =============================================
+
+def create_question(user_id: str, data: dict) -> dict:
+    """質問を新規作成"""
+    client = get_supabase_client()
+    q_data = {
+        'user_id': user_id,
+        'title': data['title'],
+        'content': data['content'],
+        'company_code': data.get('company_code') or None,
+        'company_name': data.get('company_name') or None,
+        'tags': data.get('tags', []),
+        'is_anonymous': data.get('is_anonymous', False),
+    }
+    if data.get('poster_name'):
+        q_data['poster_name'] = data['poster_name']
+    result = client.table('community_questions').insert(q_data).execute()
+    return result.data[0] if result.data else {}
+
+
+def get_public_questions(limit: int = 50, offset: int = 0, filter_resolved: str = 'all') -> list:
+    """質問一覧を取得（新しい順）"""
+    client = get_supabase_client()
+    query = client.table('community_questions').select('*')
+    if filter_resolved == 'resolved':
+        query = query.eq('is_resolved', True)
+    elif filter_resolved == 'unresolved':
+        query = query.eq('is_resolved', False)
+    result = query.order('created_at', desc=True).range(
+        offset, offset + limit - 1
+    ).execute()
+    return result.data
+
+
+def get_questions_by_company(company_code: str) -> list:
+    """企業別の質問一覧を取得"""
+    client = get_supabase_client()
+    result = client.table('community_questions').select('*').eq(
+        'company_code', company_code
+    ).order('created_at', desc=True).execute()
+    return result.data
+
+
+def get_question_by_id(question_id: str) -> dict:
+    """質問を1件取得"""
+    client = get_supabase_client()
+    result = client.table('community_questions').select('*').eq(
+        'id', question_id
+    ).execute()
+    return result.data[0] if result.data else None
+
+
+def delete_question(question_id: str, user_id: str) -> bool:
+    """質問を削除（所有者チェック付き）"""
+    client = get_supabase_client()
+    result = client.table('community_questions').delete().eq(
+        'id', question_id
+    ).eq('user_id', user_id).execute()
+    return len(result.data) > 0
+
+
+def create_answer(question_id: str, user_id: str, data: dict) -> dict:
+    """回答を作成し、質問のanswer_countを更新"""
+    client = get_supabase_client()
+    a_data = {
+        'question_id': question_id,
+        'user_id': user_id,
+        'content': data['content'],
+        'is_anonymous': data.get('is_anonymous', False),
+    }
+    if data.get('poster_name'):
+        a_data['poster_name'] = data['poster_name']
+    result = client.table('community_answers').insert(a_data).execute()
+    if result.data:
+        # answer_countを+1
+        q = client.table('community_questions').select('answer_count').eq(
+            'id', question_id
+        ).execute()
+        if q.data:
+            new_count = (q.data[0].get('answer_count') or 0) + 1
+            client.table('community_questions').update(
+                {'answer_count': new_count}
+            ).eq('id', question_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def get_answers_for_question(question_id: str) -> list:
+    """質問に対する回答一覧を取得（ベストアンサー優先、古い順）"""
+    client = get_supabase_client()
+    result = client.table('community_answers').select('*').eq(
+        'question_id', question_id
+    ).order('is_best', desc=True).order('created_at').execute()
+    return result.data
+
+
+def delete_answer(answer_id: str, user_id: str) -> bool:
+    """回答を削除（所有者チェック付き）"""
+    client = get_supabase_client()
+    # 回答情報を取得（question_idが必要）
+    ans = client.table('community_answers').select('question_id').eq(
+        'id', answer_id
+    ).eq('user_id', user_id).execute()
+    if not ans.data:
+        return False
+    question_id = ans.data[0]['question_id']
+    # 削除
+    result = client.table('community_answers').delete().eq(
+        'id', answer_id
+    ).eq('user_id', user_id).execute()
+    if result.data:
+        # answer_countを-1
+        q = client.table('community_questions').select('answer_count').eq(
+            'id', question_id
+        ).execute()
+        if q.data:
+            new_count = max(0, (q.data[0].get('answer_count') or 0) - 1)
+            client.table('community_questions').update(
+                {'answer_count': new_count}
+            ).eq('id', question_id).execute()
+    return len(result.data) > 0
+
+
+def set_best_answer(question_id: str, answer_id: str, user_id: str) -> bool:
+    """ベストアンサーを設定（質問者のみ可能）"""
+    client = get_supabase_client()
+    # 質問の所有者チェック
+    q = client.table('community_questions').select('user_id').eq(
+        'id', question_id
+    ).execute()
+    if not q.data or q.data[0]['user_id'] != user_id:
+        return False
+    # 既存のベストアンサーを解除
+    client.table('community_answers').update(
+        {'is_best': False}
+    ).eq('question_id', question_id).eq('is_best', True).execute()
+    # 新しいベストアンサーを設定
+    client.table('community_answers').update(
+        {'is_best': True}
+    ).eq('id', answer_id).eq('question_id', question_id).execute()
+    # 質問を解決済みに
+    client.table('community_questions').update(
+        {'is_resolved': True}
+    ).eq('id', question_id).execute()
+    return True
+
+
+def toggle_like(user_id: str, target_type: str, target_id: str) -> dict:
+    """いいねをトグル（付ける/外す）。新しいlike_countとliked状態を返す"""
+    client = get_supabase_client()
+    # 既存のいいねを確認
+    existing = client.table('community_likes').select('id').eq(
+        'user_id', user_id
+    ).eq('target_type', target_type).eq('target_id', target_id).execute()
+
+    if existing.data:
+        # いいね解除
+        client.table('community_likes').delete().eq(
+            'id', existing.data[0]['id']
+        ).execute()
+        liked = False
+    else:
+        # いいね追加
+        client.table('community_likes').insert({
+            'user_id': user_id,
+            'target_type': target_type,
+            'target_id': target_id,
+        }).execute()
+        liked = True
+
+    # like_countを再計算して対象テーブルを更新
+    count_result = client.table('community_likes').select('id').eq(
+        'target_type', target_type
+    ).eq('target_id', target_id).execute()
+    new_count = len(count_result.data)
+
+    table = 'community_questions' if target_type == 'question' else 'community_answers'
+    client.table(table).update(
+        {'like_count': new_count}
+    ).eq('id', target_id).execute()
+
+    return {'liked': liked, 'like_count': new_count}
+
+
+def get_user_likes(user_id: str, target_type: str, target_ids: list) -> set:
+    """ユーザーが指定ターゲットにいいねしているかをセットで返す"""
+    if not target_ids:
+        return set()
+    client = get_supabase_client()
+    result = client.table('community_likes').select('target_id').eq(
+        'user_id', user_id
+    ).eq('target_type', target_type).in_('target_id', target_ids).execute()
+    return set(r['target_id'] for r in result.data)

@@ -3,6 +3,7 @@
 
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+    [x-cloak] { display: none !important; }
     body {
         font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
     }
@@ -68,6 +69,9 @@
                     </a>
                     <a href="/search" class="nav-link px-2 py-1.5 text-sm font-medium">
                         銘柄検索
+                    </a>
+                    <a href="/compare" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        企業比較
                     </a>
                     {% if is_logged_in and user_role == 'admin' %}
                     <a href="/dashboard/admin" class="nav-link px-2 py-1.5 text-sm font-medium">
@@ -142,6 +146,24 @@
         </div>
     </div>
 
+    <!-- 確認モーダル（汎用） -->
+    <div id="confirmModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:28px 32px; max-width:400px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.12); text-align:center;">
+            <div style="margin-bottom:16px;">
+                <i class="fas fa-question-circle" style="font-size:36px; color:#2d6a4f;"></i>
+            </div>
+            <p id="confirmModalMessage" style="color:#1a1a1a; font-size:15px; line-height:1.6; margin-bottom:24px;"></p>
+            <div style="display:flex; gap:12px; justify-content:center;">
+                <button onclick="closeConfirmModal(false)" style="background:#f3f4f6; color:#525252; border:none; border-radius:8px; padding:10px 32px; font-size:14px; font-weight:500; cursor:pointer;">
+                    キャンセル
+                </button>
+                <button onclick="closeConfirmModal(true)" style="background:#1b4332; color:#fff; border:none; border-radius:8px; padding:10px 32px; font-size:14px; font-weight:500; cursor:pointer;">
+                    実行する
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ログアウト確認モーダル -->
     {% if is_logged_in %}
     <div id="logoutModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
@@ -188,9 +210,22 @@
     function closeSuccessModal() {
         document.getElementById('successModal').style.display = 'none';
     }
+    // 確認モーダル表示（Promise返却）
+    let _confirmResolve = null;
+    function showConfirmModal(message) {
+        return new Promise(resolve => {
+            _confirmResolve = resolve;
+            document.getElementById('confirmModalMessage').textContent = message;
+            document.getElementById('confirmModal').style.display = 'flex';
+        });
+    }
+    function closeConfirmModal(result) {
+        document.getElementById('confirmModal').style.display = 'none';
+        if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+    }
     // モーダル背景クリックで閉じる
     document.addEventListener('DOMContentLoaded', function() {
-        ['errorModal', 'successModal'].forEach(function(id) {
+        ['errorModal', 'successModal', 'confirmModal'].forEach(function(id) {
             var modal = document.getElementById(id);
             if (modal) {
                 modal.addEventListener('click', function(e) {

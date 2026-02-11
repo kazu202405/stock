@@ -1,0 +1,1209 @@
+{% extends "layout.html" %}
+
+{% block title %}企業比較 - Company Note{% endblock %}
+
+{% block content %}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+
+    :root {
+        --primary-color: #1b4332;
+        --secondary-color: #2d6a4f;
+        --accent-color: #2d6a4f;
+        --success-color: #22c55e;
+        --text-primary: #1a1a1a;
+        --text-secondary: #525252;
+        --text-muted: #737373;
+        --text-light: #a3a3a3;
+        --border-color: #ebebeb;
+        --bg-page: #f7f7f5;
+        --bg-card: #ffffff;
+        --bg-light: #fafaf8;
+        --good-bg: #f0fdf4;
+        --bad-bg: #fef2f2;
+    }
+
+    body {
+        background: var(--bg-page);
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+        color: var(--text-primary);
+    }
+
+    .compare-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px 20px 60px;
+    }
+
+    /* ページヘッダー */
+    .page-header {
+        padding: 20px 0;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 28px;
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 0 0 6px 0;
+    }
+
+    .page-header p {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    /* 企業選択カード */
+    .selection-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .selection-card-title {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        padding-left: 12px;
+        border-left: 3px solid var(--primary-color);
+    }
+
+    .company-slots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+    }
+
+    .company-slot {
+        position: relative;
+        flex: 1;
+        min-width: 240px;
+        max-width: 360px;
+    }
+
+    .slot-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .slot-label .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .slot-label .dot-a { background: #1b4332; }
+    .slot-label .dot-b { background: #3b82f6; }
+    .slot-label .dot-c { background: #ea580c; }
+
+    .slot-input-wrapper {
+        position: relative;
+    }
+
+    .slot-input {
+        width: 100%;
+        padding: 10px 36px 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: var(--bg-card);
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+    }
+
+    .slot-input:focus {
+        outline: none;
+        border-color: var(--secondary-color);
+        box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+    }
+
+    .slot-input::placeholder {
+        color: var(--text-light);
+    }
+
+    .slot-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        font-size: 0.8rem;
+        padding: 2px 4px;
+        display: none;
+    }
+
+    .slot-clear:hover {
+        color: var(--text-secondary);
+    }
+
+    .suggest-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        max-height: 220px;
+        overflow-y: auto;
+        z-index: 200;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        display: none;
+    }
+
+    .suggest-option {
+        padding: 8px 14px;
+        cursor: pointer;
+        font-size: 0.8125rem;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        transition: background 0.15s;
+    }
+
+    .suggest-option:hover,
+    .suggest-option.highlighted {
+        background: #f0f7f4;
+    }
+
+    .suggest-option-code {
+        font-weight: 600;
+        color: var(--primary-color);
+        min-width: 44px;
+    }
+
+    .suggest-option-name {
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ボタン群 */
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-add {
+        padding: 8px 16px;
+        background: var(--bg-light);
+        color: var(--text-secondary);
+        border: 1px dashed var(--border-color);
+        border-radius: 8px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .btn-add:hover {
+        border-color: var(--secondary-color);
+        color: var(--primary-color);
+        background: #f0f7f4;
+    }
+
+    .btn-add:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .btn-compare {
+        padding: 10px 28px;
+        background: var(--primary-color);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-compare:hover {
+        background: var(--secondary-color);
+    }
+
+    .btn-compare:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-remove-slot {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 20px;
+        height: 20px;
+        background: #ef4444;
+        color: #fff;
+        border: 2px solid var(--bg-card);
+        border-radius: 50%;
+        font-size: 0.625rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        line-height: 1;
+        z-index: 10;
+    }
+
+    .btn-remove-slot:hover {
+        background: #dc2626;
+    }
+
+    /* 空状態 */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-state-icon {
+        font-size: 2.5rem;
+        color: var(--text-light);
+        margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+        font-size: 1.0625rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .empty-state p {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        line-height: 1.7;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    /* ローディング */
+    .loading-state {
+        text-align: center;
+        padding: 48px 20px;
+    }
+
+    .loading-spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .loading-state p {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+    }
+
+    /* 結果エリア */
+    .results-section {
+        margin-top: 8px;
+    }
+
+    .result-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .result-card-title {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+        padding-left: 12px;
+        border-left: 3px solid var(--success-color);
+    }
+
+    /* レーダーチャート */
+    .radar-chart-wrapper {
+        max-width: 520px;
+        margin: 0 auto;
+        position: relative;
+    }
+
+    /* 比較テーブル */
+    .compare-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .compare-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.8125rem;
+    }
+
+    .compare-table thead th {
+        background: var(--bg-light);
+        font-weight: 600;
+        color: var(--text-primary);
+        padding: 10px 14px;
+        text-align: center;
+        border-bottom: 2px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .compare-table thead th:first-child {
+        text-align: left;
+        padding-left: 16px;
+        border-radius: 8px 0 0 0;
+    }
+
+    .compare-table thead th:last-child {
+        border-radius: 0 8px 0 0;
+    }
+
+    .compare-table tbody td {
+        padding: 10px 14px;
+        text-align: center;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        transition: background 0.15s;
+    }
+
+    .compare-table tbody td:first-child {
+        text-align: left;
+        padding-left: 16px;
+        font-weight: 500;
+        color: var(--text-primary);
+        white-space: nowrap;
+        min-width: 140px;
+    }
+
+    .compare-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .compare-table tbody tr:hover td {
+        background: var(--bg-light);
+    }
+
+    .cell-best {
+        background: var(--good-bg) !important;
+        font-weight: 600;
+        color: var(--primary-color) !important;
+    }
+
+    .cell-worst {
+        background: var(--bad-bg) !important;
+        color: #b91c1c !important;
+    }
+
+    .company-header-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .company-header-code {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        font-weight: 400;
+    }
+
+    /* レスポンシブ */
+    @media (max-width: 768px) {
+        .compare-container {
+            padding: 16px 12px 40px;
+        }
+
+        .company-slots {
+            flex-direction: column;
+        }
+
+        .company-slot {
+            max-width: 100%;
+        }
+
+        .radar-chart-wrapper {
+            max-width: 100%;
+        }
+
+        .compare-table {
+            font-size: 0.75rem;
+        }
+
+        .compare-table thead th,
+        .compare-table tbody td {
+            padding: 8px 10px;
+        }
+    }
+</style>
+
+<div class="compare-container" x-data="compareApp()" x-init="init()">
+
+    <!-- ページヘッダー -->
+    <div class="page-header">
+        <h1><i class="fas fa-balance-scale" style="font-size: 1.25rem; margin-right: 8px;"></i>企業比較</h1>
+        <p>2~3社の財務指標をレーダーチャートとテーブルで比較できます</p>
+    </div>
+
+    <!-- 企業選択カード -->
+    <div class="selection-card">
+        <div class="selection-card-title">比較する企業を選択</div>
+
+        <div class="company-slots">
+            <!-- 企業スロット A -->
+            <div class="company-slot">
+                <div class="slot-label">
+                    <span class="dot dot-a"></span>
+                    企業 A
+                </div>
+                <div class="slot-input-wrapper">
+                    <input
+                        type="text"
+                        class="slot-input"
+                        placeholder="銘柄コードまたは企業名"
+                        x-model="slots[0].query"
+                        @input="onInput(0)"
+                        @focus="onFocus(0)"
+                        @blur="onBlur(0)"
+                        @keydown="onKeydown($event, 0)"
+                        autocomplete="off"
+                    >
+                    <button
+                        class="slot-clear"
+                        x-show="slots[0].selected"
+                        @click="clearSlot(0)"
+                        style="display:none;"
+                        :style="slots[0].selected ? 'display:block' : 'display:none'"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div
+                        class="suggest-dropdown"
+                        x-ref="dropdown0"
+                        :style="slots[0].showDropdown ? 'display:block' : 'display:none'"
+                    >
+                        <template x-for="(item, idx) in slots[0].filtered" :key="item.c">
+                            <div
+                                class="suggest-option"
+                                :class="{ 'highlighted': slots[0].highlightIndex === idx }"
+                                @mousedown.prevent="selectCompany(0, item)"
+                            >
+                                <span class="suggest-option-code" x-text="item.c"></span>
+                                <span class="suggest-option-name" x-text="item.n"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 企業スロット B -->
+            <div class="company-slot">
+                <div class="slot-label">
+                    <span class="dot dot-b"></span>
+                    企業 B
+                </div>
+                <div class="slot-input-wrapper">
+                    <input
+                        type="text"
+                        class="slot-input"
+                        placeholder="銘柄コードまたは企業名"
+                        x-model="slots[1].query"
+                        @input="onInput(1)"
+                        @focus="onFocus(1)"
+                        @blur="onBlur(1)"
+                        @keydown="onKeydown($event, 1)"
+                        autocomplete="off"
+                    >
+                    <button
+                        class="slot-clear"
+                        x-show="slots[1].selected"
+                        @click="clearSlot(1)"
+                        style="display:none;"
+                        :style="slots[1].selected ? 'display:block' : 'display:none'"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div
+                        class="suggest-dropdown"
+                        x-ref="dropdown1"
+                        :style="slots[1].showDropdown ? 'display:block' : 'display:none'"
+                    >
+                        <template x-for="(item, idx) in slots[1].filtered" :key="item.c">
+                            <div
+                                class="suggest-option"
+                                :class="{ 'highlighted': slots[1].highlightIndex === idx }"
+                                @mousedown.prevent="selectCompany(1, item)"
+                            >
+                                <span class="suggest-option-code" x-text="item.c"></span>
+                                <span class="suggest-option-name" x-text="item.n"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 企業スロット C（オプション） -->
+            <div class="company-slot" x-show="slotCount >= 3" x-cloak style="position: relative;">
+                <button
+                    class="btn-remove-slot"
+                    @click="removeThirdSlot()"
+                    title="3社目を削除"
+                >
+                    <i class="fas fa-times" style="font-size: 0.5rem;"></i>
+                </button>
+                <div class="slot-label">
+                    <span class="dot dot-c"></span>
+                    企業 C
+                </div>
+                <div class="slot-input-wrapper">
+                    <input
+                        type="text"
+                        class="slot-input"
+                        placeholder="銘柄コードまたは企業名"
+                        x-model="slots[2].query"
+                        @input="onInput(2)"
+                        @focus="onFocus(2)"
+                        @blur="onBlur(2)"
+                        @keydown="onKeydown($event, 2)"
+                        autocomplete="off"
+                    >
+                    <button
+                        class="slot-clear"
+                        x-show="slots[2].selected"
+                        @click="clearSlot(2)"
+                        style="display:none;"
+                        :style="slots[2].selected ? 'display:block' : 'display:none'"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div
+                        class="suggest-dropdown"
+                        x-ref="dropdown2"
+                        :style="slots[2].showDropdown ? 'display:block' : 'display:none'"
+                    >
+                        <template x-for="(item, idx) in slots[2].filtered" :key="item.c">
+                            <div
+                                class="suggest-option"
+                                :class="{ 'highlighted': slots[2].highlightIndex === idx }"
+                                @mousedown.prevent="selectCompany(2, item)"
+                            >
+                                <span class="suggest-option-code" x-text="item.c"></span>
+                                <span class="suggest-option-name" x-text="item.n"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ボタン群 -->
+        <div class="action-buttons">
+            <button
+                class="btn-add"
+                @click="addThirdSlot()"
+                :disabled="slotCount >= 3"
+                x-show="slotCount < 3"
+            >
+                <i class="fas fa-plus" style="font-size: 0.7rem;"></i>
+                追加
+            </button>
+            <button
+                class="btn-compare"
+                @click="fetchComparison()"
+                :disabled="!canCompare || loading"
+            >
+                <template x-if="!loading">
+                    <span><i class="fas fa-chart-radar" style="font-size: 0.8rem;"></i> 比較する</span>
+                </template>
+                <template x-if="loading">
+                    <span><i class="fas fa-circle-notch fa-spin" style="font-size: 0.8rem;"></i> 取得中...</span>
+                </template>
+            </button>
+        </div>
+    </div>
+
+    <!-- 空状態（初期表示） -->
+    <div x-show="!loading && !hasResults" class="selection-card" x-cloak>
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <h3>企業を選んで比較しましょう</h3>
+            <p>
+                上の入力欄に銘柄コードまたは企業名を入力してください。
+                2社以上を選択し「比較する」ボタンを押すと、
+                財務指標のレーダーチャートと比較テーブルが表示されます。
+            </p>
+            <p style="margin-top: 12px; font-size: 0.75rem; color: var(--text-light);">
+                ※ 比較にはダッシュボードで事前に分析済みの企業が必要です
+            </p>
+        </div>
+    </div>
+
+    <!-- ローディング -->
+    <div x-show="loading" class="selection-card" x-cloak>
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>財務データを取得しています...</p>
+        </div>
+    </div>
+
+    <!-- 結果エリア -->
+    <div x-show="hasResults && !loading" class="results-section" x-cloak>
+
+        <!-- レーダーチャート -->
+        <div class="result-card">
+            <div class="result-card-title">レーダーチャート</div>
+            <div class="radar-chart-wrapper">
+                <canvas id="radarChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 比較テーブル -->
+        <div class="result-card">
+            <div class="result-card-title">指標比較テーブル</div>
+            <div class="compare-table-wrapper">
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th>指標</th>
+                            <template x-for="(co, ci) in companies" :key="ci">
+                                <th>
+                                    <div class="company-header-cell">
+                                        <span x-text="co.company_name || co.company_code"></span>
+                                        <span class="company-header-code" x-text="co.company_code"></span>
+                                    </div>
+                                </th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- セクター -->
+                        <tr>
+                            <td>セクター</td>
+                            <template x-for="(co, ci) in companies" :key="'sector-'+ci">
+                                <td x-text="co.sector || '\u2014'"></td>
+                            </template>
+                        </tr>
+                        <!-- 時価総額 -->
+                        <tr>
+                            <td>時価総額（億円）</td>
+                            <template x-for="(co, ci) in companies" :key="'mcap-'+ci">
+                                <td x-text="formatMarketCap(co.market_cap)"></td>
+                            </template>
+                        </tr>
+                        <!-- 株価 -->
+                        <tr>
+                            <td>株価（円）</td>
+                            <template x-for="(co, ci) in companies" :key="'price-'+ci">
+                                <td x-text="formatNum(co.stock_price, 0)"></td>
+                            </template>
+                        </tr>
+                        <!-- 合致度 (higher better) -->
+                        <tr>
+                            <td>合致度（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'match-'+ci">
+                                <td
+                                    :class="cellClass('match_rate', ci, 'higher')"
+                                    x-text="formatNum(co.match_rate, 1)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- PER (lower better) -->
+                        <tr>
+                            <td>PER（倍）</td>
+                            <template x-for="(co, ci) in companies" :key="'per-'+ci">
+                                <td
+                                    :class="cellClass('per_forward', ci, 'lower')"
+                                    x-text="formatNum(co.per_forward, 1)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- PBR (lower better) -->
+                        <tr>
+                            <td>PBR（倍）</td>
+                            <template x-for="(co, ci) in companies" :key="'pbr-'+ci">
+                                <td
+                                    :class="cellClass('pbr', ci, 'lower')"
+                                    x-text="formatNum(co.pbr, 2)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- 配当利回り (higher better) -->
+                        <tr>
+                            <td>配当利回り（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'divy-'+ci">
+                                <td
+                                    :class="cellClass('dividend_yield', ci, 'higher')"
+                                    x-text="formatNum(co.dividend_yield, 2)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- 配当性向 (no color, moderate is best) -->
+                        <tr>
+                            <td>配当性向（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'payout-'+ci">
+                                <td x-text="formatNum(co.payout_ratio, 1)"></td>
+                            </template>
+                        </tr>
+                        <!-- ROE (higher better) -->
+                        <tr>
+                            <td>ROE（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'roe-'+ci">
+                                <td
+                                    :class="cellClass('roe', ci, 'higher')"
+                                    x-text="formatNum(co.roe, 2)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- ROA (higher better) -->
+                        <tr>
+                            <td>ROA（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'roa-'+ci">
+                                <td
+                                    :class="cellClass('roa', ci, 'higher')"
+                                    x-text="formatNum(co.roa, 2)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- 営業利益率 (higher better) -->
+                        <tr>
+                            <td>営業利益率（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'opm-'+ci">
+                                <td
+                                    :class="cellClass('operating_margin', ci, 'higher')"
+                                    x-text="formatNum(co.operating_margin, 2)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- 自己資本比率 (higher better) -->
+                        <tr>
+                            <td>自己資本比率（%）</td>
+                            <template x-for="(co, ci) in companies" :key="'eq-'+ci">
+                                <td
+                                    :class="cellClass('equity_ratio', ci, 'higher')"
+                                    x-text="formatNum(co.equity_ratio, 1)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- EPS (higher better) -->
+                        <tr>
+                            <td>EPS（円）</td>
+                            <template x-for="(co, ci) in companies" :key="'eps-'+ci">
+                                <td
+                                    :class="cellClass('eps', ci, 'higher')"
+                                    x-text="formatNum(co.eps, 1)"
+                                ></td>
+                            </template>
+                        </tr>
+                        <!-- 1株配当 (higher better) -->
+                        <tr>
+                            <td>1株配当（円）</td>
+                            <template x-for="(co, ci) in companies" :key="'dps-'+ci">
+                                <td
+                                    :class="cellClass('dps', ci, 'higher')"
+                                    x-text="formatNum(co.dps, 1)"
+                                ></td>
+                            </template>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function compareApp() {
+    return {
+        /* --- 状態 --- */
+        allCompanies: [],
+        slotCount: 2,
+        slots: [
+            { query: '', selected: null, filtered: [], showDropdown: false, highlightIndex: -1 },
+            { query: '', selected: null, filtered: [], showDropdown: false, highlightIndex: -1 },
+            { query: '', selected: null, filtered: [], showDropdown: false, highlightIndex: -1 }
+        ],
+        loading: false,
+        hasResults: false,
+        companies: [],
+        radarChart: null,
+
+        /* --- 算出プロパティ --- */
+        get canCompare() {
+            let count = 0;
+            for (let i = 0; i < this.slotCount; i++) {
+                if (this.slots[i].selected) count++;
+            }
+            return count >= 2;
+        },
+
+        /* --- 初期化 --- */
+        async init() {
+            try {
+                const res = await fetch('/static/companies.json');
+                if (res.ok) {
+                    this.allCompanies = await res.json();
+                }
+            } catch (e) {
+                console.error('企業リストの読み込みに失敗しました', e);
+            }
+        },
+
+        /* --- オートコンプリート --- */
+        onInput(index) {
+            const slot = this.slots[index];
+            slot.selected = null;
+            slot.highlightIndex = -1;
+            const q = slot.query.trim().toLowerCase();
+            if (q.length === 0) {
+                slot.filtered = [];
+                slot.showDropdown = false;
+                return;
+            }
+            /* 既に選択済みのコードを除外 */
+            const usedCodes = new Set();
+            for (let i = 0; i < this.slotCount; i++) {
+                if (i !== index && this.slots[i].selected) {
+                    usedCodes.add(this.slots[i].selected.c);
+                }
+            }
+            slot.filtered = this.allCompanies
+                .filter(function(item) {
+                    if (usedCodes.has(item.c)) return false;
+                    return item.c.indexOf(q) !== -1 || item.n.toLowerCase().indexOf(q) !== -1;
+                })
+                .slice(0, 30);
+            slot.showDropdown = slot.filtered.length > 0;
+        },
+
+        onFocus(index) {
+            const slot = this.slots[index];
+            if (slot.filtered.length > 0 && slot.query.trim().length > 0) {
+                slot.showDropdown = true;
+            }
+        },
+
+        onBlur(index) {
+            /* mousedownでの選択を拾うため遅延して閉じる */
+            const self = this;
+            setTimeout(function() {
+                self.slots[index].showDropdown = false;
+            }, 200);
+        },
+
+        onKeydown(event, index) {
+            const slot = this.slots[index];
+            if (!slot.showDropdown || slot.filtered.length === 0) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                slot.highlightIndex = (slot.highlightIndex + 1) % slot.filtered.length;
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                slot.highlightIndex = slot.highlightIndex <= 0
+                    ? slot.filtered.length - 1
+                    : slot.highlightIndex - 1;
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                if (slot.highlightIndex >= 0 && slot.highlightIndex < slot.filtered.length) {
+                    this.selectCompany(index, slot.filtered[slot.highlightIndex]);
+                }
+            } else if (event.key === 'Escape') {
+                slot.showDropdown = false;
+            }
+        },
+
+        selectCompany(index, item) {
+            var slot = this.slots[index];
+            slot.query = item.c + ' ' + item.n;
+            slot.selected = item;
+            slot.showDropdown = false;
+            slot.highlightIndex = -1;
+        },
+
+        clearSlot(index) {
+            var slot = this.slots[index];
+            slot.query = '';
+            slot.selected = null;
+            slot.filtered = [];
+            slot.showDropdown = false;
+            slot.highlightIndex = -1;
+        },
+
+        /* --- スロット追加・削除 --- */
+        addThirdSlot() {
+            if (this.slotCount < 3) {
+                this.slotCount = 3;
+            }
+        },
+
+        removeThirdSlot() {
+            this.clearSlot(2);
+            this.slotCount = 2;
+        },
+
+        /* --- API呼び出し --- */
+        async fetchComparison() {
+            var codes = [];
+            for (var i = 0; i < this.slotCount; i++) {
+                if (this.slots[i].selected) {
+                    codes.push(this.slots[i].selected.c);
+                }
+            }
+            if (codes.length < 2) {
+                showErrorModal('2社以上の企業を選択してください。');
+                return;
+            }
+
+            this.loading = true;
+            this.hasResults = false;
+
+            try {
+                var res = await fetch('/api/compare?codes=' + codes.join(','));
+                var data = await res.json();
+
+                if (!res.ok) {
+                    showErrorModal(data.error || 'データの取得に失敗しました。');
+                    this.loading = false;
+                    return;
+                }
+
+                this.companies = data.companies;
+                this.hasResults = true;
+                this.loading = false;
+
+                /* チャートの描画はDOMの更新後に実行 */
+                var self = this;
+                this.$nextTick(function() {
+                    self.renderRadarChart();
+                });
+
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。しばらくしてからお試しください。');
+                this.loading = false;
+            }
+        },
+
+        /* --- レーダーチャート描画 --- */
+        renderRadarChart() {
+            var canvas = document.getElementById('radarChart');
+            if (!canvas) return;
+
+            /* 既存チャートの破棄 */
+            if (this.radarChart) {
+                this.radarChart.destroy();
+                this.radarChart = null;
+            }
+
+            var labels = ['合致度', '自己資本比率', '営業利益率', 'ROE', 'PER逆数', '配当利回り'];
+
+            /* 各企業のレーダー値を計算（0-100スケールに正規化） */
+            var datasets = [];
+            var colors = [
+                { border: 'rgba(27,67,50,0.7)',  fill: 'rgba(27,67,50,0.15)' },
+                { border: 'rgba(59,130,246,0.7)', fill: 'rgba(59,130,246,0.15)' },
+                { border: 'rgba(234,88,12,0.7)',  fill: 'rgba(234,88,12,0.15)' }
+            ];
+
+            for (var i = 0; i < this.companies.length; i++) {
+                var co = this.companies[i];
+                var perInverse = (co.per_forward && co.per_forward > 0)
+                    ? Math.min(100 / co.per_forward, 20)
+                    : 0;
+
+                datasets.push({
+                    label: (co.company_name || co.company_code),
+                    data: [
+                        this.safeNum(co.match_rate),
+                        this.safeNum(co.equity_ratio),
+                        this.safeNum(co.operating_margin),
+                        this.safeNum(co.roe),
+                        perInverse,
+                        this.safeNum(co.dividend_yield)
+                    ],
+                    borderColor: colors[i].border,
+                    backgroundColor: colors[i].fill,
+                    borderWidth: 2,
+                    pointBackgroundColor: colors[i].border,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 1,
+                    pointRadius: 3
+                });
+            }
+
+            /* スケール上限の計算 */
+            var allValues = [];
+            for (var d = 0; d < datasets.length; d++) {
+                for (var v = 0; v < datasets[d].data.length; v++) {
+                    allValues.push(datasets[d].data[v]);
+                }
+            }
+            var maxVal = Math.max.apply(null, allValues);
+            var suggestedMax = Math.ceil(maxVal / 10) * 10;
+            if (suggestedMax < 10) suggestedMax = 10;
+
+            this.radarChart = new Chart(canvas, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    family: "'Inter', 'Noto Sans JP', sans-serif",
+                                    size: 12
+                                },
+                                padding: 16,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    var val = context.parsed.r;
+                                    return context.dataset.label + ': ' + (val != null ? val.toFixed(2) : '\u2014');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            suggestedMax: suggestedMax,
+                            ticks: {
+                                stepSize: suggestedMax > 50 ? 20 : 10,
+                                font: {
+                                    family: "'Inter', 'Noto Sans JP', sans-serif",
+                                    size: 10
+                                },
+                                color: '#a3a3a3',
+                                backdropColor: 'transparent'
+                            },
+                            pointLabels: {
+                                font: {
+                                    family: "'Inter', 'Noto Sans JP', sans-serif",
+                                    size: 12,
+                                    weight: '500'
+                                },
+                                color: '#525252'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.06)'
+                            },
+                            angleLines: {
+                                color: 'rgba(0,0,0,0.06)'
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        /* --- テーブル色分け --- */
+        cellClass(field, companyIndex, direction) {
+            /* direction: 'higher' = 大きいほうが良い, 'lower' = 小さいほうが良い */
+            var values = [];
+            for (var i = 0; i < this.companies.length; i++) {
+                var v = this.companies[i][field];
+                values.push(v != null && typeof v === 'number' ? v : null);
+            }
+
+            var currentVal = values[companyIndex];
+            if (currentVal === null) return '';
+
+            /* 有効な数値のみ抽出 */
+            var validValues = [];
+            for (var j = 0; j < values.length; j++) {
+                if (values[j] !== null) validValues.push(values[j]);
+            }
+            if (validValues.length < 2) return '';
+
+            var best, worst;
+            if (direction === 'higher') {
+                best = Math.max.apply(null, validValues);
+                worst = Math.min.apply(null, validValues);
+            } else {
+                best = Math.min.apply(null, validValues);
+                worst = Math.max.apply(null, validValues);
+            }
+
+            /* 全て同じ値の場合は色付けしない */
+            if (best === worst) return '';
+
+            if (currentVal === best) return 'cell-best';
+            if (currentVal === worst) return 'cell-worst';
+            return '';
+        },
+
+        /* --- ユーティリティ --- */
+        safeNum(val) {
+            if (val === null || val === undefined || typeof val !== 'number' || isNaN(val)) return 0;
+            return val;
+        },
+
+        formatNum(val, decimals) {
+            if (val === null || val === undefined || typeof val !== 'number' || isNaN(val)) return '\u2014';
+            return val.toLocaleString('ja-JP', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        },
+
+        formatMarketCap(val) {
+            if (val === null || val === undefined || typeof val !== 'number' || isNaN(val)) return '\u2014';
+            /* market_capが円単位の場合、億円に変換 */
+            var oku = val;
+            if (val > 100000) {
+                oku = val / 100000000;
+            }
+            return oku.toLocaleString('ja-JP', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+        }
+    };
+}
+</script>
+
+{% endblock %}

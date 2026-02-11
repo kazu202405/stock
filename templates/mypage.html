@@ -116,6 +116,8 @@
         border: 1px solid #ebebeb; border-radius: 8px;
         font-size: 13px; color: #1a1a1a; background: #fff;
         outline: none; transition: border-color 0.2s;
+        box-sizing: border-box;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
     }
     .form-input:focus { border-color: #2d6a4f; }
     .form-textarea {
@@ -151,9 +153,402 @@
     }
     .note-action-btn:hover { background: #f0fdf4; color: #1b4332; }
     .note-action-btn.delete:hover { background: #fef2f2; color: #dc2626; }
+
+    /* メインタブ */
+    .main-tab-bar {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid #ebebeb;
+        margin-bottom: 16px;
+    }
+    .main-tab-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #a3a3a3;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .main-tab-btn:hover {
+        color: #525252;
+    }
+    .main-tab-btn.active {
+        color: #1b4332;
+        font-weight: 600;
+        border-bottom-color: #1b4332;
+    }
+    .main-tab-btn i {
+        font-size: 11px;
+    }
+
+    /* デモ売買スタイル */
+    .demo-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .demo-summary-card {
+        background: #f8faf8;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+    .demo-summary-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: #737373;
+        margin-bottom: 4px;
+    }
+    .demo-summary-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a1a;
+        letter-spacing: -0.01em;
+        font-variant-numeric: tabular-nums;
+    }
+    .demo-summary-value.loading-placeholder {
+        color: #a3a3a3;
+        font-size: 12px;
+        font-weight: 400;
+    }
+    .demo-action-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+    .demo-btn-buy {
+        padding: 7px 16px;
+        background: #1b4332;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .demo-btn-buy:hover { background: #2d6a4f; }
+    .demo-btn-outline {
+        padding: 7px 16px;
+        background: #fff;
+        color: #525252;
+        border: 1px solid #ebebeb;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .demo-btn-outline:hover {
+        border-color: #2d6a4f;
+        color: #1b4332;
+        background: #f0fdf4;
+    }
+    .demo-btn-outline.active {
+        border-color: #2d6a4f;
+        color: #1b4332;
+        background: #f0fdf4;
+    }
+    .demo-btn-reset {
+        margin-left: auto;
+        padding: 5px 10px;
+        background: none;
+        color: #a3a3a3;
+        border: 1px solid #ebebeb;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .demo-btn-reset:hover {
+        color: #525252;
+        border-color: #d4d4d4;
+    }
+    .demo-holdings-section {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-left: 3px solid #1b4332;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .demo-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 14px;
+        padding-left: 6px;
+    }
+    .demo-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .demo-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+    .demo-table thead th {
+        background: #fafaf8;
+        font-weight: 600;
+        color: #1a1a1a;
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 2px solid #ebebeb;
+        white-space: nowrap;
+        font-size: 11px;
+    }
+    .demo-table thead th:first-child { border-radius: 6px 0 0 0; }
+    .demo-table thead th:last-child { border-radius: 0 6px 0 0; }
+    .demo-table tbody td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #ebebeb;
+        color: #525252;
+        vertical-align: middle;
+    }
+    .demo-table tbody tr:last-child td { border-bottom: none; }
+    .demo-table tbody tr:hover td { background: #fafaf8; }
+    .demo-table .col-code {
+        font-weight: 600;
+        color: #1b4332;
+        white-space: nowrap;
+    }
+    .demo-table .col-name a {
+        color: #1a1a1a;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .demo-table .col-name a:hover {
+        color: #2d6a4f;
+        text-decoration: underline;
+    }
+    .demo-table .col-num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .demo-table .col-reason {
+        max-width: 180px;
+        font-size: 11px;
+        color: #737373;
+        line-height: 1.5;
+    }
+    .demo-table .col-action { text-align: center; white-space: nowrap; }
+    .demo-btn-sell-sm {
+        padding: 4px 10px;
+        background: none;
+        color: #525252;
+        border: 1px solid #ebebeb;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .demo-btn-sell-sm:hover {
+        border-color: #2d6a4f;
+        color: #1b4332;
+        background: #f0fdf4;
+    }
+    .demo-empty-state {
+        text-align: center;
+        padding: 32px 16px;
+    }
+    .demo-empty-state-icon {
+        font-size: 24px;
+        color: #d4d4d4;
+        margin-bottom: 8px;
+    }
+    .demo-empty-state p {
+        font-size: 12px;
+        color: #a3a3a3;
+    }
+    .demo-history-section {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .demo-trade-type-buy {
+        color: #2d6a4f;
+        font-weight: 600;
+    }
+    .demo-trade-type-sell {
+        color: #6b7280;
+        font-weight: 600;
+    }
+    /* デモ売買モーダル */
+    .demo-modal-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px 28px;
+        max-width: 480px;
+        width: 92%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .demo-modal-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 16px;
+    }
+    .demo-form-group { margin-bottom: 14px; }
+    .demo-form-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 5px;
+    }
+    .demo-form-helper {
+        font-size: 11px;
+        color: #a3a3a3;
+        margin-top: 3px;
+        line-height: 1.5;
+    }
+    .demo-form-info {
+        font-size: 12px;
+        color: #525252;
+        padding: 10px 12px;
+        background: #fafaf8;
+        border-radius: 8px;
+        margin-bottom: 14px;
+    }
+    .demo-form-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 3px 0;
+    }
+    .demo-form-info-label {
+        color: #737373;
+        font-size: 11px;
+    }
+    .demo-form-info-value {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .demo-modal-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 18px;
+    }
+    .demo-btn-cancel {
+        padding: 7px 16px;
+        background: #f3f4f6;
+        color: #525252;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .demo-btn-cancel:hover { background: #e5e7eb; }
+    .demo-btn-confirm {
+        padding: 7px 16px;
+        background: #1b4332;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .demo-btn-confirm:hover { background: #2d6a4f; }
+    .demo-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* オートコンプリート */
+    .demo-autocomplete-wrapper { position: relative; }
+    .demo-suggest-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 10100;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .demo-suggest-option {
+        padding: 7px 12px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        transition: background 0.15s;
+    }
+    .demo-suggest-option:hover,
+    .demo-suggest-option.highlighted { background: #f0f7f4; }
+    .demo-suggest-option-code {
+        font-weight: 600;
+        color: #1b4332;
+        min-width: 40px;
+    }
+    .demo-suggest-option-name {
+        color: #737373;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .demo-loading-spinner-sm {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #ebebeb;
+        border-top-color: #1b4332;
+        border-radius: 50%;
+        animation: demoSpin 0.8s linear infinite;
+        display: inline-block;
+    }
+    @keyframes demoSpin {
+        to { transform: rotate(360deg); }
+    }
+    textarea.form-input {
+        resize: vertical;
+        min-height: 60px;
+    }
+    @media (max-width: 768px) {
+        .demo-summary-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .demo-summary-card { padding: 10px 14px; }
+        .demo-summary-value { font-size: 13px; }
+        .demo-table { font-size: 11px; }
+        .demo-table thead th,
+        .demo-table tbody td { padding: 6px 6px; }
+        .demo-table .col-reason { max-width: 100px; }
+        .demo-modal-card { padding: 18px 18px; width: 95%; }
+    }
 </style>
 
-<div class="mypage min-h-screen" style="background: #f7f7f5;" x-data="mypageApp()">
+<div class="mypage min-h-screen" style="background: #f7f7f5;" x-data="mypageApp()" x-cloak>
 
     <!-- ヘッダー（コンパクト） -->
     <div class="mypage-hero">
@@ -222,116 +617,386 @@
                     <p x-show="allTags.length === 0" class="text-xs" style="color:#a3a3a3;">タグはまだありません</p>
                 </div>
 
-                <!-- 設定 -->
+                <!-- 投稿名設定 -->
                 <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-cog"></i>設定</h2>
+                    <h2 class="section-head"><i class="fas fa-user-edit"></i>投稿名</h2>
+                    <p class="text-xs mb-2" style="color:#737373;">コミュニティで表示されるデフォルトの名前です</p>
+                    <div class="flex items-center gap-2">
+                        <input type="text" class="form-input" x-model="displayName" placeholder="投稿名を入力（30文字以内）" maxlength="30" style="flex:1; font-size:12px; padding:6px 10px;">
+                        <button class="btn-sm-green" @click="saveDisplayName()" :disabled="savingDisplayName" style="white-space:nowrap; padding:6px 12px;">
+                            <span x-show="!savingDisplayName">保存</span>
+                            <span x-show="savingDisplayName"><i class="fas fa-spinner fa-spin"></i></span>
+                        </button>
+                    </div>
+                    <p x-show="displayNameMsg" class="text-xs mt-1.5" :style="{ color: displayNameOk ? '#16a34a' : '#dc2626' }" x-text="displayNameMsg"></p>
+                </div>
+
+                <!-- アカウント設定 -->
+                <div class="mp-card p-4">
+                    <h2 class="section-head"><i class="fas fa-cog"></i>アカウント設定</h2>
+
+                    <!-- メールアドレス表示 -->
+                    <div class="mb-3">
+                        <p class="text-xs mb-1" style="color:#737373;">メールアドレス</p>
+                        <p class="text-xs font-medium" style="color:#1a1a1a;" x-text="userEmail || '未設定'"></p>
+                    </div>
+
                     <div class="space-y-1">
-                        <div class="setting-row" style="opacity:0.45;">
+                        <!-- メールアドレス変更 -->
+                        <div class="setting-row" @click="showEmailForm = !showEmailForm" style="cursor:pointer;">
                             <div class="flex items-center gap-2.5">
-                                <i class="fas fa-bell" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">通知設定</span>
+                                <i class="fas fa-envelope" style="color:#525252; font-size:11px;"></i>
+                                <span class="text-xs font-medium" style="color:#1a1a1a;">メールアドレス変更</span>
                             </div>
-                            <span class="text-xs" style="color:#a3a3a3;">準備中</span>
+                            <i class="fas fa-chevron-down text-xs" style="color:#d4d4d4; transition:transform 0.2s;"
+                                :style="showEmailForm ? 'transform:rotate(180deg)' : ''"></i>
                         </div>
-                        <div class="setting-row" style="opacity:0.45;">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fas fa-palette" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">表示設定</span>
+                        <!-- メール変更フォーム -->
+                        <div x-show="showEmailForm" x-collapse class="px-2 pb-2">
+                            <div class="space-y-2 mt-2 p-3 rounded-lg" style="background:#fafaf8; border:1px solid #ebebeb;">
+                                <div>
+                                    <label class="form-label">新しいメールアドレス</label>
+                                    <input type="email" class="form-input" x-model="emailForm.newEmail" placeholder="example@mail.com" style="font-size:12px; padding:6px 10px;">
+                                </div>
+                                <div>
+                                    <label class="form-label">現在のパスワード（確認用）</label>
+                                    <input type="password" class="form-input" x-model="emailForm.password" placeholder="現在のパスワード" style="font-size:12px; padding:6px 10px;">
+                                </div>
+                                <div class="flex justify-end">
+                                    <button class="btn-sm-green" @click="changeEmail()" :disabled="emailForm.saving" style="padding:5px 14px;">
+                                        <span x-show="!emailForm.saving">変更する</span>
+                                        <span x-show="emailForm.saving"><i class="fas fa-spinner fa-spin"></i></span>
+                                    </button>
+                                </div>
+                                <p x-show="emailForm.msg" class="text-xs" :style="{ color: emailForm.ok ? '#16a34a' : '#dc2626' }" x-text="emailForm.msg"></p>
                             </div>
-                            <span class="text-xs" style="color:#a3a3a3;">準備中</span>
+                        </div>
+
+                        <!-- パスワード変更 -->
+                        <div class="setting-row" @click="showPasswordForm = !showPasswordForm" style="cursor:pointer;">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fas fa-lock" style="color:#525252; font-size:11px;"></i>
+                                <span class="text-xs font-medium" style="color:#1a1a1a;">パスワード変更</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-xs" style="color:#d4d4d4; transition:transform 0.2s;"
+                                :style="showPasswordForm ? 'transform:rotate(180deg)' : ''"></i>
+                        </div>
+                        <!-- パスワード変更フォーム -->
+                        <div x-show="showPasswordForm" x-collapse class="px-2 pb-2">
+                            <div class="space-y-2 mt-2 p-3 rounded-lg" style="background:#fafaf8; border:1px solid #ebebeb;">
+                                <div>
+                                    <label class="form-label">現在のパスワード</label>
+                                    <input type="password" class="form-input" x-model="passwordForm.current" placeholder="現在のパスワード" style="font-size:12px; padding:6px 10px;">
+                                </div>
+                                <div>
+                                    <label class="form-label">新しいパスワード（6文字以上）</label>
+                                    <input type="password" class="form-input" x-model="passwordForm.newPass" placeholder="新しいパスワード" style="font-size:12px; padding:6px 10px;">
+                                </div>
+                                <div>
+                                    <label class="form-label">新しいパスワード（確認）</label>
+                                    <input type="password" class="form-input" x-model="passwordForm.confirm" placeholder="もう一度入力" style="font-size:12px; padding:6px 10px;">
+                                </div>
+                                <div class="flex justify-end">
+                                    <button class="btn-sm-green" @click="changePassword()" :disabled="passwordForm.saving" style="padding:5px 14px;">
+                                        <span x-show="!passwordForm.saving">変更する</span>
+                                        <span x-show="passwordForm.saving"><i class="fas fa-spinner fa-spin"></i></span>
+                                    </button>
+                                </div>
+                                <p x-show="passwordForm.msg" class="text-xs" :style="{ color: passwordForm.ok ? '#16a34a' : '#dc2626' }" x-text="passwordForm.msg"></p>
+                            </div>
                         </div>
                     </div>
+
                     <div style="border-top: 1px solid #ebebeb; margin-top: 12px; padding-top: 10px;">
                         <p class="text-xs" style="color:#a3a3a3;">ユーザーID: <span x-text="userId" style="font-family:monospace;"></span></p>
                     </div>
                 </div>
             </div>
 
-            <!-- ===== 中央カラム: マイノート ===== -->
+            <!-- ===== 右カラム: タブ切替（マイノート / デモ売買） ===== -->
             <div class="lg:col-span-8 xl:col-span-9">
                 <div class="mp-card p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
-                        <button class="btn-sm-green" @click="openCreateModal()"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
+                    <!-- タブバー -->
+                    <div class="main-tab-bar">
+                        <button class="main-tab-btn" :class="{ 'active': mainTab === 'notes' }" @click="mainTab = 'notes'">
+                            <i class="fas fa-book"></i>マイノート
+                        </button>
+                        <button class="main-tab-btn" :class="{ 'active': mainTab === 'demo' }" @click="switchToDemo()">
+                            <i class="fas fa-flask"></i>デモ売買
+                        </button>
                     </div>
 
-                    <!-- ソート＆フィルタ -->
-                    <div class="mb-3 flex items-center gap-2 flex-wrap">
-                        <!-- 検索 -->
-                        <div style="position:relative; flex:1; min-width:120px;">
-                            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
-                            <input type="text" placeholder="ノートを検索..." x-model="noteSearch" class="form-input" style="padding-left:32px;">
+                    <!-- ========== マイノートタブ ========== -->
+                    <div x-show="mainTab === 'notes'">
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
+                            <button class="btn-sm-green" @click="openCreateModal()"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
                         </div>
-                        <!-- ソートボタン -->
-                        <div class="flex items-center gap-1">
-                            <button class="sort-btn" :class="{ 'active': noteSort === 'date' }" @click="noteSort = 'date'">
-                                <i class="fas fa-clock mr-0.5" style="font-size:9px;"></i>新しい順
-                            </button>
-                            <button class="sort-btn" :class="{ 'active': noteSort === 'star' }" @click="noteSort = 'star'">
-                                <i class="fas fa-star mr-0.5" style="font-size:9px;"></i>評価順
-                            </button>
+
+                        <!-- ソート＆フィルタ -->
+                        <div class="mb-3 flex items-center gap-2 flex-wrap">
+                            <!-- 検索 -->
+                            <div style="position:relative; flex:1; min-width:120px;">
+                                <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
+                                <input type="text" placeholder="ノートを検索..." x-model="noteSearch" class="form-input" style="padding-left:32px;">
+                            </div>
+                            <!-- ソートボタン -->
+                            <div class="flex items-center gap-1">
+                                <button class="sort-btn" :class="{ 'active': noteSort === 'date' }" @click="noteSort = 'date'">
+                                    <i class="fas fa-clock mr-0.5" style="font-size:9px;"></i>新しい順
+                                </button>
+                                <button class="sort-btn" :class="{ 'active': noteSort === 'star' }" @click="noteSort = 'star'">
+                                    <i class="fas fa-star mr-0.5" style="font-size:9px;"></i>評価順
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- ローディング -->
-                    <div x-show="loading" class="empty-state">
-                        <div><i class="fas fa-spinner fa-spin" style="font-size:24px; color:#2d6a4f;"></i></div>
-                        <p>ノートを読み込み中...</p>
-                    </div>
+                        <!-- ローディング -->
+                        <div x-show="loading" class="empty-state">
+                            <div><i class="fas fa-spinner fa-spin" style="font-size:24px; color:#2d6a4f;"></i></div>
+                            <p>ノートを読み込み中...</p>
+                        </div>
 
-                    <!-- ノート一覧 -->
-                    <div class="space-y-2" x-show="!loading">
-                        <template x-for="note in filteredNotes" :key="note.id">
-                            <div class="note-card" @click="openEditModal(note)">
-                                <div class="flex items-start justify-between mb-1">
-                                    <div style="min-width:0; flex:1;">
-                                        <span class="text-sm font-bold" style="color:#1a1a1a;" x-text="note.title"></span>
-                                        <span class="text-xs ml-1.5" style="color:#a3a3a3;" x-text="note.company_name ? note.company_name + ' (' + note.company_code + ')' : ''"></span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span x-show="note.is_public" class="text-xs px-1.5 py-0.5 rounded" style="background:#f0fdf4; color:#15803d; font-size:10px;">公開</span>
-                                        <span>
-                                            <template x-for="i in 5" :key="i">
-                                                <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
-                                            </template>
-                                        </span>
-                                        <!-- 操作ボタン -->
-                                        <div class="note-actions">
-                                            <button class="note-action-btn delete" @click.stop="confirmDelete(note)" title="削除">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
+                        <!-- ノート一覧 -->
+                        <div class="space-y-2" x-show="!loading">
+                            <template x-for="note in filteredNotes" :key="note.id">
+                                <div class="note-card" @click="openEditModal(note)">
+                                    <div class="flex items-start justify-between mb-1">
+                                        <div style="min-width:0; flex:1;">
+                                            <span class="text-sm font-bold" style="color:#1a1a1a;" x-text="note.title"></span>
+                                            <span class="text-xs ml-1.5" style="color:#a3a3a3;" x-text="note.company_name ? note.company_name + ' (' + note.company_code + ')' : ''"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span x-show="note.is_public" class="text-xs px-1.5 py-0.5 rounded" style="background:#f0fdf4; color:#15803d; font-size:10px;">公開</span>
+                                            <span>
+                                                <template x-for="i in 5" :key="i">
+                                                    <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
+                                                </template>
+                                            </span>
+                                            <!-- 操作ボタン -->
+                                            <div class="note-actions">
+                                                <button class="note-action-btn delete" @click.stop="confirmDelete(note)" title="削除">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <p class="text-xs leading-relaxed mb-1.5" style="color:#525252; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-1.5">
-                                        <template x-for="t in (note.tags || [])" :key="t">
-                                            <span class="tag" x-text="t" style="cursor:default;"></span>
-                                        </template>
+                                    <p class="text-xs leading-relaxed mb-1.5" style="color:#525252; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-1.5">
+                                            <template x-for="t in (note.tags || [])" :key="t">
+                                                <span class="tag" x-text="t" style="cursor:default;"></span>
+                                            </template>
+                                        </div>
+                                        <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
                                     </div>
-                                    <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
                                 </div>
-                            </div>
-                        </template>
+                            </template>
 
-                        <!-- 空状態 -->
-                        <div x-show="filteredNotes.length === 0 && !loading" class="empty-state">
-                            <div><i class="fas fa-book-open"></i></div>
-                            <p x-show="noteSearch || activeTag">条件に一致するノートが見つかりません</p>
-                            <p x-show="!noteSearch && !activeTag">まだノートがありません</p>
-                            <button x-show="noteSearch || activeTag" class="btn-sm-outline" @click="noteSearch = ''; activeTag = ''">フィルタをリセット</button>
-                            <button x-show="!noteSearch && !activeTag" class="btn-sm-green" @click="openCreateModal()">
-                                <i class="fas fa-plus mr-1" style="font-size:10px;"></i>最初のノートを作成
-                            </button>
+                            <!-- 空状態 -->
+                            <div x-show="filteredNotes.length === 0 && !loading" class="empty-state">
+                                <div><i class="fas fa-book-open"></i></div>
+                                <p x-show="noteSearch || activeTag">条件に一致するノートが見つかりません</p>
+                                <p x-show="!noteSearch && !activeTag">まだノートがありません</p>
+                                <button x-show="noteSearch || activeTag" class="btn-sm-outline" @click="noteSearch = ''; activeTag = ''">フィルタをリセット</button>
+                                <button x-show="!noteSearch && !activeTag" class="btn-sm-green" @click="openCreateModal()">
+                                    <i class="fas fa-plus mr-1" style="font-size:10px;"></i>最初のノートを作成
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- ========== デモ売買タブ ========== -->
+                    <div x-show="mainTab === 'demo'">
+                        <!-- 説明文 -->
+                        <div style="margin-bottom: 14px;">
+                            <p class="text-xs" style="color:#737373;">仮想資金で売買を体験し、投資判断力を磨きましょう</p>
+                            <p class="text-xs" style="color:#a3a3a3; margin-top:2px;">※ デモ用の参考価格です（最終分析時の株価を使用）</p>
+                        </div>
+
+                        <!-- デモローディング -->
+                        <div x-show="!demoLoaded" class="demo-empty-state">
+                            <div><i class="fas fa-spinner fa-spin" style="font-size:20px; color:#2d6a4f;"></i></div>
+                            <p style="margin-top:8px;">デモ口座を読み込み中...</p>
+                        </div>
+
+                        <div x-show="demoLoaded">
+                            <!-- アカウントサマリー -->
+                            <div class="demo-summary-grid">
+                                <div class="demo-summary-card">
+                                    <div class="demo-summary-label">現金残高</div>
+                                    <div class="demo-summary-value">
+                                        <template x-if="demoAccountLoaded">
+                                            <span x-text="formatYen(demoAccount.cash_balance)"></span>
+                                        </template>
+                                        <template x-if="!demoAccountLoaded">
+                                            <span class="loading-placeholder">---</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="demo-summary-card">
+                                    <div class="demo-summary-label">評価額合計</div>
+                                    <div class="demo-summary-value">
+                                        <template x-if="demoAccountLoaded">
+                                            <span x-text="formatYen(demoAccount.total_value)"></span>
+                                        </template>
+                                        <template x-if="!demoAccountLoaded">
+                                            <span class="loading-placeholder">---</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="demo-summary-card">
+                                    <div class="demo-summary-label">総資産</div>
+                                    <div class="demo-summary-value">
+                                        <template x-if="demoAccountLoaded">
+                                            <span x-text="formatYen(demoAccount.total_assets)"></span>
+                                        </template>
+                                        <template x-if="!demoAccountLoaded">
+                                            <span class="loading-placeholder">---</span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- アクションボタン行 -->
+                            <div class="demo-action-row">
+                                <button class="demo-btn-buy" @click="openDemoBuyModal()">
+                                    <i class="fas fa-plus" style="font-size:10px;"></i>
+                                    購入する
+                                </button>
+                                <button class="demo-btn-outline" :class="{ 'active': showDemoHistory }" @click="toggleDemoHistory()">
+                                    <i class="fas fa-list" style="font-size:10px;"></i>
+                                    売買履歴
+                                </button>
+                                <button class="demo-btn-reset" @click="confirmDemoReset()">
+                                    <i class="fas fa-undo" style="font-size:9px; margin-right:2px;"></i>
+                                    リセット
+                                </button>
+                            </div>
+
+                            <!-- 保有銘柄テーブル -->
+                            <div class="demo-holdings-section">
+                                <div class="demo-card-title">保有銘柄</div>
+
+                                <template x-if="demoAccountLoaded && demoAccount.holdings && demoAccount.holdings.length > 0">
+                                    <div class="demo-table-wrapper">
+                                        <table class="demo-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>銘柄コード</th>
+                                                    <th>会社名</th>
+                                                    <th style="text-align:right;">保有数</th>
+                                                    <th style="text-align:right;">平均取得単価</th>
+                                                    <th style="text-align:right;">参考価格</th>
+                                                    <th style="text-align:right;">評価額</th>
+                                                    <th>購入理由メモ</th>
+                                                    <th style="text-align:center;">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(h, idx) in demoAccount.holdings" :key="h.company_code">
+                                                    <tr>
+                                                        <td class="col-code" x-text="h.company_code"></td>
+                                                        <td class="col-name">
+                                                            <a :href="'/stock/' + h.company_code" x-text="h.company_name || '\u2014'"></a>
+                                                        </td>
+                                                        <td class="col-num" x-text="formatNumber(h.shares)"></td>
+                                                        <td class="col-num" x-text="formatYen(h.avg_cost)"></td>
+                                                        <td class="col-num" x-text="h.current_price != null ? formatYen(h.current_price) : '\u2014'"></td>
+                                                        <td class="col-num" x-text="h.market_value != null ? formatYen(h.market_value) : '\u2014'"></td>
+                                                        <td class="col-reason" x-text="h.buy_reason || '\u2014'"></td>
+                                                        <td class="col-action">
+                                                            <button class="demo-btn-sell-sm" @click="openDemoSellModal(h)">売却</button>
+                                                        </td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </template>
+
+                                <template x-if="demoAccountLoaded && (!demoAccount.holdings || demoAccount.holdings.length === 0)">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-empty-state-icon">
+                                            <i class="fas fa-folder-open"></i>
+                                        </div>
+                                        <p>保有銘柄はありません。購入してみましょう。</p>
+                                    </div>
+                                </template>
+
+                                <template x-if="!demoAccountLoaded">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-loading-spinner-sm" style="width:24px; height:24px; border-width:3px; margin:0 auto 10px;"></div>
+                                        <p>読み込み中...</p>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- 売買履歴パネル -->
+                            <div class="demo-history-section" x-show="showDemoHistory" x-cloak>
+                                <div class="demo-card-title">売買履歴</div>
+
+                                <template x-if="demoHistoryLoaded && demoTrades.length > 0">
+                                    <div class="demo-table-wrapper">
+                                        <table class="demo-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>日時</th>
+                                                    <th>銘柄</th>
+                                                    <th>売買区分</th>
+                                                    <th style="text-align:right;">株数</th>
+                                                    <th style="text-align:right;">単価</th>
+                                                    <th style="text-align:right;">金額</th>
+                                                    <th>理由メモ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(t, idx) in demoTrades" :key="idx">
+                                                    <tr>
+                                                        <td style="white-space:nowrap; font-size:11px;" x-text="formatDemoDate(t.traded_at)"></td>
+                                                        <td>
+                                                            <span class="col-code" x-text="t.company_code" style="margin-right:4px;"></span>
+                                                            <span style="color:#525252; font-size:11px;" x-text="t.company_name || ''"></span>
+                                                        </td>
+                                                        <td>
+                                                            <span :class="t.trade_type === 'buy' ? 'demo-trade-type-buy' : 'demo-trade-type-sell'" x-text="t.trade_type === 'buy' ? '購入' : '売却'"></span>
+                                                        </td>
+                                                        <td class="col-num" x-text="formatNumber(t.shares)"></td>
+                                                        <td class="col-num" x-text="formatYen(t.price)"></td>
+                                                        <td class="col-num" x-text="formatYen(t.total_amount)"></td>
+                                                        <td class="col-reason" x-text="t.reason || '\u2014'"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </template>
+
+                                <template x-if="demoHistoryLoaded && demoTrades.length === 0">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-empty-state-icon">
+                                            <i class="fas fa-receipt"></i>
+                                        </div>
+                                        <p>売買履歴はまだありません。</p>
+                                    </div>
+                                </template>
+
+                                <template x-if="!demoHistoryLoaded">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-loading-spinner-sm" style="width:24px; height:24px; border-width:3px; margin:0 auto 10px;"></div>
+                                        <p>読み込み中...</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ===== 作成/編集モーダル ===== -->
+    <!-- ===== ノート作成/編集モーダル ===== -->
     <div x-show="showModal" class="modal-overlay" @click.self="showModal = false" x-cloak>
         <div class="modal-content" @click.stop>
             <div class="flex items-center justify-between mb-5">
@@ -342,6 +1007,13 @@
             </div>
 
             <div class="space-y-4">
+                <!-- 投稿名 -->
+                <div x-show="form.is_public">
+                    <label class="form-label">投稿名</label>
+                    <input type="text" class="form-input" x-model="form.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
+                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
+                </div>
+
                 <!-- タイトル -->
                 <div>
                     <label class="form-label">タイトル <span style="color:#dc2626;">*</span></label>
@@ -398,7 +1070,7 @@
                 <div x-show="form.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                     <div>
                         <p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p>
-                        <p class="text-xs" style="color:#a3a3a3;">ユーザーIDを非表示にします</p>
+                        <p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_anonymous }" @click="form.is_anonymous = !form.is_anonymous">
                         <div class="toggle-dot"></div>
@@ -417,7 +1089,7 @@
         </div>
     </div>
 
-    <!-- ===== 削除確認モーダル ===== -->
+    <!-- ===== ノート削除確認モーダル ===== -->
     <div x-show="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false" x-cloak>
         <div class="modal-content" style="max-width:380px; text-align:center;" @click.stop>
             <div style="margin-bottom:16px;">
@@ -431,11 +1103,165 @@
             </div>
         </div>
     </div>
+
+    <!-- ===== デモ購入モーダル ===== -->
+    <div class="modal-overlay" x-show="demoBuyModalOpen" x-cloak @click.self="closeDemoBuyModal()">
+        <div class="demo-modal-card" @click.stop>
+            <div class="demo-modal-title">銘柄を購入する</div>
+
+            <!-- 企業選択 -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">銘柄</label>
+                <div class="demo-autocomplete-wrapper">
+                    <input
+                        type="text"
+                        class="form-input"
+                        placeholder="銘柄コードまたは企業名を入力"
+                        x-model="demoBuyForm.query"
+                        @input="onDemoBuyInput()"
+                        @focus="onDemoBuyFocus()"
+                        @blur="onDemoBuyBlur()"
+                        @keydown="onDemoBuyKeydown($event)"
+                        autocomplete="off"
+                    >
+                    <div class="demo-suggest-dropdown" x-show="demoBuyForm.showDropdown && demoBuyForm.filtered.length > 0" x-cloak>
+                        <template x-for="(item, idx) in demoBuyForm.filtered" :key="item.c">
+                            <div class="demo-suggest-option" :class="{ 'highlighted': demoBuyForm.highlightIndex === idx }" @mousedown.prevent="selectDemoBuyCompany(item)">
+                                <span class="demo-suggest-option-code" x-text="item.c"></span>
+                                <span class="demo-suggest-option-name" x-text="item.n"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 参考価格表示 -->
+            <template x-if="demoBuyForm.selectedCode">
+                <div class="demo-form-info">
+                    <div class="demo-form-info-row">
+                        <span class="demo-form-info-label">参考価格</span>
+                        <span class="demo-form-info-value">
+                            <template x-if="demoBuyForm.priceLoading">
+                                <span class="demo-loading-spinner-sm"></span>
+                            </template>
+                            <template x-if="!demoBuyForm.priceLoading">
+                                <span x-text="demoBuyForm.refPrice != null ? formatYen(demoBuyForm.refPrice) : '\u2014'"></span>
+                            </template>
+                        </span>
+                    </div>
+                </div>
+            </template>
+
+            <!-- 株数 -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">株数</label>
+                <input type="number" class="form-input" placeholder="購入する株数を入力" x-model.number="demoBuyForm.shares" min="1" step="1">
+            </div>
+
+            <!-- 購入理由メモ -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">購入理由メモ</label>
+                <textarea class="form-input" placeholder="なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう" x-model="demoBuyForm.reason" rows="3" style="resize:vertical; min-height:60px;"></textarea>
+                <div class="demo-form-helper">なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう</div>
+            </div>
+
+            <!-- 合計金額・残高 -->
+            <template x-if="demoBuyForm.refPrice != null && demoBuyForm.shares > 0">
+                <div class="demo-form-info">
+                    <div class="demo-form-info-row">
+                        <span class="demo-form-info-label">購入金額（税抜概算）</span>
+                        <span class="demo-form-info-value" x-text="formatYen(demoBuyForm.refPrice * demoBuyForm.shares)"></span>
+                    </div>
+                    <div class="demo-form-info-row" style="border-top:1px solid #ebebeb; margin-top:4px; padding-top:6px;">
+                        <span class="demo-form-info-label">現在の現金残高</span>
+                        <span class="demo-form-info-value" x-text="formatYen(demoAccount.cash_balance)"></span>
+                    </div>
+                </div>
+            </template>
+
+            <div class="demo-modal-actions">
+                <button class="demo-btn-cancel" @click="closeDemoBuyModal()">キャンセル</button>
+                <button class="demo-btn-confirm" @click="executeDemoBuy()" :disabled="!canDemoBuy || demoBuyForm.submitting">
+                    <template x-if="demoBuyForm.submitting">
+                        <span><span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...</span>
+                    </template>
+                    <template x-if="!demoBuyForm.submitting">
+                        <span>購入する</span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== デモ売却モーダル ===== -->
+    <div class="modal-overlay" x-show="demoSellModalOpen" x-cloak @click.self="closeDemoSellModal()">
+        <div class="demo-modal-card" @click.stop>
+            <div class="demo-modal-title">銘柄を売却する</div>
+
+            <!-- 銘柄情報 -->
+            <div class="demo-form-info" style="margin-bottom:16px;">
+                <div class="demo-form-info-row">
+                    <span class="demo-form-info-label">銘柄</span>
+                    <span class="demo-form-info-value">
+                        <span x-text="demoSellForm.companyCode" style="margin-right:4px;"></span>
+                        <span x-text="demoSellForm.companyName" style="font-weight:400; color:#525252;"></span>
+                    </span>
+                </div>
+                <div class="demo-form-info-row">
+                    <span class="demo-form-info-label">保有数</span>
+                    <span class="demo-form-info-value" x-text="formatNumber(demoSellForm.currentShares) + ' 株'"></span>
+                </div>
+                <div class="demo-form-info-row">
+                    <span class="demo-form-info-label">参考価格</span>
+                    <span class="demo-form-info-value" x-text="demoSellForm.currentPrice != null ? formatYen(demoSellForm.currentPrice) : '\u2014'"></span>
+                </div>
+            </div>
+
+            <!-- 売却株数 -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">売却株数</label>
+                <input type="number" class="form-input" placeholder="売却する株数を入力" x-model.number="demoSellForm.shares" min="1" :max="demoSellForm.currentShares" step="1">
+            </div>
+
+            <!-- 売却理由メモ -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">売却理由メモ</label>
+                <textarea class="form-input" placeholder="売却の判断理由を記録しましょう" x-model="demoSellForm.reason" rows="3" style="resize:vertical; min-height:60px;"></textarea>
+                <div class="demo-form-helper">売却の判断理由を記録しましょう</div>
+            </div>
+
+            <!-- 売却金額 -->
+            <template x-if="demoSellForm.currentPrice != null && demoSellForm.shares > 0">
+                <div class="demo-form-info">
+                    <div class="demo-form-info-row">
+                        <span class="demo-form-info-label">売却金額（税抜概算）</span>
+                        <span class="demo-form-info-value" x-text="formatYen(demoSellForm.currentPrice * demoSellForm.shares)"></span>
+                    </div>
+                </div>
+            </template>
+
+            <div class="demo-modal-actions">
+                <button class="demo-btn-cancel" @click="closeDemoSellModal()">キャンセル</button>
+                <button class="demo-btn-confirm" @click="executeDemoSell()" :disabled="!canDemoSell || demoSellForm.submitting">
+                    <template x-if="demoSellForm.submitting">
+                        <span><span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...</span>
+                    </template>
+                    <template x-if="!demoSellForm.submitting">
+                        <span>売却する</span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 function mypageApp() {
     return {
+        /* --- タブ状態 --- */
+        mainTab: 'notes',
+
+        /* --- マイノート状態 --- */
         noteSearch: '',
         noteSort: 'date',
         activeTag: '',
@@ -447,6 +1273,17 @@ function mypageApp() {
         editingNote: null,
         deletingNote: null,
         saving: false,
+        // 投稿名設定
+        displayName: '',
+        savingDisplayName: false,
+        displayNameMsg: '',
+        displayNameOk: false,
+        // アカウント設定
+        userEmail: '',
+        showEmailForm: false,
+        showPasswordForm: false,
+        emailForm: { newEmail: '', password: '', saving: false, msg: '', ok: false },
+        passwordForm: { current: '', newPass: '', confirm: '', saving: false, msg: '', ok: false },
         form: {
             title: '',
             content: '',
@@ -458,7 +1295,49 @@ function mypageApp() {
             is_anonymous: false,
         },
 
+        /* --- デモ売買状態 --- */
+        demoLoaded: false,
+        allCompanies: [],
+        demoAccount: { cash_balance: 0, total_value: 0, total_assets: 0, holdings: [] },
+        demoAccountLoaded: false,
+        demoTrades: [],
+        demoHistoryLoaded: false,
+        showDemoHistory: false,
+        demoBuyModalOpen: false,
+        demoBuyForm: {
+            query: '',
+            selectedCode: null,
+            selectedName: null,
+            filtered: [],
+            showDropdown: false,
+            highlightIndex: -1,
+            refPrice: null,
+            priceLoading: false,
+            shares: '',
+            reason: '',
+            submitting: false
+        },
+        demoSellModalOpen: false,
+        demoSellForm: {
+            companyCode: '',
+            companyName: '',
+            currentShares: 0,
+            currentPrice: null,
+            shares: '',
+            reason: '',
+            submitting: false
+        },
+
         async init() {
+            // ユーザー情報を取得
+            try {
+                const meRes = await fetch('/api/auth/me');
+                const meData = await meRes.json();
+                if (meData.logged_in && meData.user) {
+                    this.displayName = meData.user.display_name || '';
+                    this.userEmail = meData.user.email || '';
+                }
+            } catch (e) {}
             await this.loadNotes();
         },
 
@@ -534,6 +1413,7 @@ function mypageApp() {
             this.form = {
                 title: '', content: '', company_code: '', company_name: '',
                 stars: 0, tagsInput: '', is_public: false, is_anonymous: false,
+                poster_name: this.displayName,
             };
             this.showModal = true;
         },
@@ -549,6 +1429,7 @@ function mypageApp() {
                 tagsInput: (note.tags || []).join(', '),
                 is_public: note.is_public || false,
                 is_anonymous: note.is_anonymous || false,
+                poster_name: note.poster_name || this.displayName,
             };
             this.showModal = true;
         },
@@ -572,6 +1453,7 @@ function mypageApp() {
                 tags: tags,
                 is_public: this.form.is_public,
                 is_anonymous: this.form.is_anonymous,
+                poster_name: (this.form.poster_name || '').trim() || null,
             };
             try {
                 let res;
@@ -620,6 +1502,427 @@ function mypageApp() {
                 }
             } catch (e) {
                 showErrorModal('通信エラーが発生しました');
+            }
+        },
+
+        async saveDisplayName() {
+            this.savingDisplayName = true;
+            this.displayNameMsg = '';
+            try {
+                const res = await fetch('/api/auth/display-name', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name: this.displayName.trim() }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.displayNameOk = true;
+                    this.displayNameMsg = '保存しました';
+                    setTimeout(() => { this.displayNameMsg = ''; }, 3000);
+                } else {
+                    this.displayNameOk = false;
+                    this.displayNameMsg = data.error || '保存に失敗しました';
+                }
+            } catch (e) {
+                this.displayNameOk = false;
+                this.displayNameMsg = '通信エラーが発生しました';
+            }
+            this.savingDisplayName = false;
+        },
+
+        async changeEmail() {
+            var f = this.emailForm;
+            f.msg = '';
+            if (!f.newEmail.trim()) { f.ok = false; f.msg = '新しいメールアドレスを入力してください'; return; }
+            if (!f.password) { f.ok = false; f.msg = '現在のパスワードを入力してください'; return; }
+            f.saving = true;
+            try {
+                var res = await fetch('/api/auth/email', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_email: f.newEmail.trim(), current_password: f.password }),
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    f.ok = true;
+                    f.msg = 'メールアドレスを変更しました';
+                    this.userEmail = data.email || f.newEmail.trim();
+                    f.newEmail = '';
+                    f.password = '';
+                    setTimeout(() => { f.msg = ''; this.showEmailForm = false; }, 2000);
+                } else {
+                    f.ok = false;
+                    f.msg = data.error || '変更に失敗しました';
+                }
+            } catch (e) {
+                f.ok = false;
+                f.msg = '通信エラーが発生しました';
+            }
+            f.saving = false;
+        },
+
+        async changePassword() {
+            var f = this.passwordForm;
+            f.msg = '';
+            if (!f.current) { f.ok = false; f.msg = '現在のパスワードを入力してください'; return; }
+            if (!f.newPass || f.newPass.length < 6) { f.ok = false; f.msg = '新しいパスワードは6文字以上で入力してください'; return; }
+            if (f.newPass !== f.confirm) { f.ok = false; f.msg = '新しいパスワードが一致しません'; return; }
+            f.saving = true;
+            try {
+                var res = await fetch('/api/auth/password', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password: f.current, new_password: f.newPass, new_password_confirm: f.confirm }),
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    f.ok = true;
+                    f.msg = 'パスワードを変更しました';
+                    f.current = '';
+                    f.newPass = '';
+                    f.confirm = '';
+                    setTimeout(() => { f.msg = ''; this.showPasswordForm = false; }, 2000);
+                } else {
+                    f.ok = false;
+                    f.msg = data.error || '変更に失敗しました';
+                }
+            } catch (e) {
+                f.ok = false;
+                f.msg = '通信エラーが発生しました';
+            }
+            f.saving = false;
+        },
+
+        /* ========================================
+         * デモ売買機能
+         * ======================================== */
+
+        /* デモタブに切り替え（遅延読み込み） */
+        switchToDemo() {
+            this.mainTab = 'demo';
+            if (!this.demoLoaded) {
+                this.loadDemo();
+            }
+        },
+
+        /* デモデータ初期読み込み */
+        async loadDemo() {
+            var companiesPromise = fetch('/static/companies.json')
+                .then(function(res) { return res.ok ? res.json() : []; })
+                .catch(function() { return []; });
+
+            var accountPromise = this.fetchDemoAccount();
+
+            try {
+                this.allCompanies = await companiesPromise;
+            } catch (e) {
+                console.error('企業リストの読み込みに失敗しました', e);
+            }
+
+            await accountPromise;
+            this.demoLoaded = true;
+        },
+
+        /* デモアカウント情報取得 */
+        async fetchDemoAccount() {
+            try {
+                var res = await fetch('/api/demo/account');
+                if (res.ok) {
+                    var data = await res.json();
+                    this.demoAccount = {
+                        cash_balance: data.cash_balance || 0,
+                        total_value: data.total_value || 0,
+                        total_assets: data.total_assets || 0,
+                        holdings: data.holdings || []
+                    };
+                } else {
+                    showErrorModal('アカウント情報の取得に失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。しばらくしてからお試しください。');
+            }
+            this.demoAccountLoaded = true;
+        },
+
+        /* デモ売買履歴取得 */
+        async fetchDemoHistory() {
+            this.demoHistoryLoaded = false;
+            try {
+                var res = await fetch('/api/demo/history');
+                if (res.ok) {
+                    var data = await res.json();
+                    this.demoTrades = data.trades || [];
+                } else {
+                    showErrorModal('売買履歴の取得に失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。');
+            }
+            this.demoHistoryLoaded = true;
+        },
+
+        /* デモ参考価格取得 */
+        async fetchDemoRefPrice(code) {
+            this.demoBuyForm.priceLoading = true;
+            this.demoBuyForm.refPrice = null;
+            try {
+                var res = await fetch('/api/stock/screened/' + encodeURIComponent(code));
+                if (res.ok) {
+                    var data = await res.json();
+                    if (data && data.stock_price != null) {
+                        this.demoBuyForm.refPrice = data.stock_price;
+                    }
+                }
+            } catch (e) {
+                /* 価格取得失敗は静かに処理 */
+            }
+            this.demoBuyForm.priceLoading = false;
+        },
+
+        /* 売買履歴表示切替 */
+        toggleDemoHistory() {
+            this.showDemoHistory = !this.showDemoHistory;
+            if (this.showDemoHistory && !this.demoHistoryLoaded) {
+                this.fetchDemoHistory();
+            }
+        },
+
+        /* デモリセット */
+        async confirmDemoReset() {
+            var confirmed = await showConfirmModal('デモ口座をリセットしますか？\n保有銘柄と売買履歴がすべて削除され、初期資金に戻ります。');
+            if (!confirmed) return;
+
+            try {
+                var res = await fetch('/api/demo/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    showSuccessModal(data.message || 'デモ口座をリセットしました。');
+                    this.demoAccountLoaded = false;
+                    this.demoHistoryLoaded = false;
+                    this.demoTrades = [];
+                    this.showDemoHistory = false;
+                    await this.fetchDemoAccount();
+                } else {
+                    showErrorModal(data.message || 'リセットに失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。');
+            }
+        },
+
+        /* --- デモ購入モーダル --- */
+        openDemoBuyModal() {
+            this.demoBuyForm = {
+                query: '',
+                selectedCode: null,
+                selectedName: null,
+                filtered: [],
+                showDropdown: false,
+                highlightIndex: -1,
+                refPrice: null,
+                priceLoading: false,
+                shares: '',
+                reason: '',
+                submitting: false
+            };
+            this.demoBuyModalOpen = true;
+        },
+
+        closeDemoBuyModal() {
+            this.demoBuyModalOpen = false;
+        },
+
+        /* オートコンプリート：購入 */
+        onDemoBuyInput() {
+            this.demoBuyForm.selectedCode = null;
+            this.demoBuyForm.selectedName = null;
+            this.demoBuyForm.refPrice = null;
+            this.demoBuyForm.highlightIndex = -1;
+            var q = this.demoBuyForm.query.trim().toLowerCase();
+            if (q.length === 0) {
+                this.demoBuyForm.filtered = [];
+                this.demoBuyForm.showDropdown = false;
+                return;
+            }
+            this.demoBuyForm.filtered = this.allCompanies
+                .filter(function(item) {
+                    return item.c.indexOf(q) !== -1 || item.n.toLowerCase().indexOf(q) !== -1;
+                })
+                .slice(0, 30);
+            this.demoBuyForm.showDropdown = this.demoBuyForm.filtered.length > 0;
+        },
+
+        onDemoBuyFocus() {
+            if (this.demoBuyForm.filtered.length > 0 && this.demoBuyForm.query.trim().length > 0) {
+                this.demoBuyForm.showDropdown = true;
+            }
+        },
+
+        onDemoBuyBlur() {
+            var self = this;
+            setTimeout(function() {
+                self.demoBuyForm.showDropdown = false;
+            }, 200);
+        },
+
+        onDemoBuyKeydown(event) {
+            var form = this.demoBuyForm;
+            if (!form.showDropdown || form.filtered.length === 0) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                form.highlightIndex = (form.highlightIndex + 1) % form.filtered.length;
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                form.highlightIndex = form.highlightIndex <= 0
+                    ? form.filtered.length - 1
+                    : form.highlightIndex - 1;
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                if (form.highlightIndex >= 0 && form.highlightIndex < form.filtered.length) {
+                    this.selectDemoBuyCompany(form.filtered[form.highlightIndex]);
+                }
+            } else if (event.key === 'Escape') {
+                form.showDropdown = false;
+            }
+        },
+
+        selectDemoBuyCompany(item) {
+            this.demoBuyForm.query = item.c + ' ' + item.n;
+            this.demoBuyForm.selectedCode = item.c;
+            this.demoBuyForm.selectedName = item.n;
+            this.demoBuyForm.showDropdown = false;
+            this.demoBuyForm.highlightIndex = -1;
+            this.fetchDemoRefPrice(item.c);
+        },
+
+        get canDemoBuy() {
+            if (!this.demoBuyForm.selectedCode) return false;
+            if (this.demoBuyForm.refPrice == null) return false;
+            if (!this.demoBuyForm.shares || this.demoBuyForm.shares <= 0) return false;
+            var total = this.demoBuyForm.refPrice * this.demoBuyForm.shares;
+            if (total > this.demoAccount.cash_balance) return false;
+            return true;
+        },
+
+        async executeDemoBuy() {
+            if (!this.canDemoBuy || this.demoBuyForm.submitting) return;
+            this.demoBuyForm.submitting = true;
+
+            try {
+                var res = await fetch('/api/demo/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        company_code: this.demoBuyForm.selectedCode,
+                        shares: this.demoBuyForm.shares,
+                        reason: this.demoBuyForm.reason
+                    })
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    showSuccessModal(data.message || '購入が完了しました。');
+                    this.closeDemoBuyModal();
+                    this.demoAccountLoaded = false;
+                    this.demoHistoryLoaded = false;
+                    await this.fetchDemoAccount();
+                    if (this.showDemoHistory) {
+                        this.fetchDemoHistory();
+                    }
+                } else {
+                    showErrorModal(data.message || '購入に失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。');
+            }
+            this.demoBuyForm.submitting = false;
+        },
+
+        /* --- デモ売却モーダル --- */
+        openDemoSellModal(holding) {
+            this.demoSellForm = {
+                companyCode: holding.company_code,
+                companyName: holding.company_name || '',
+                currentShares: holding.shares || 0,
+                currentPrice: holding.current_price,
+                shares: '',
+                reason: '',
+                submitting: false
+            };
+            this.demoSellModalOpen = true;
+        },
+
+        closeDemoSellModal() {
+            this.demoSellModalOpen = false;
+        },
+
+        get canDemoSell() {
+            if (!this.demoSellForm.companyCode) return false;
+            if (!this.demoSellForm.shares || this.demoSellForm.shares <= 0) return false;
+            if (this.demoSellForm.shares > this.demoSellForm.currentShares) return false;
+            return true;
+        },
+
+        async executeDemoSell() {
+            if (!this.canDemoSell || this.demoSellForm.submitting) return;
+            this.demoSellForm.submitting = true;
+
+            try {
+                var res = await fetch('/api/demo/sell', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        company_code: this.demoSellForm.companyCode,
+                        shares: this.demoSellForm.shares,
+                        reason: this.demoSellForm.reason
+                    })
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    showSuccessModal(data.message || '売却が完了しました。');
+                    this.closeDemoSellModal();
+                    this.demoAccountLoaded = false;
+                    this.demoHistoryLoaded = false;
+                    await this.fetchDemoAccount();
+                    if (this.showDemoHistory) {
+                        this.fetchDemoHistory();
+                    }
+                } else {
+                    showErrorModal(data.message || '売却に失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。');
+            }
+            this.demoSellForm.submitting = false;
+        },
+
+        /* --- デモ用フォーマットユーティリティ --- */
+        formatYen(val) {
+            if (val == null || typeof val !== 'number' || isNaN(val)) return '\u2014';
+            return '\u00a5' + val.toLocaleString('ja-JP');
+        },
+
+        formatNumber(val) {
+            if (val == null || isNaN(val)) return '\u2014';
+            return Number(val).toLocaleString('ja-JP');
+        },
+
+        formatDemoDate(dateStr) {
+            if (!dateStr) return '\u2014';
+            try {
+                var d = new Date(dateStr);
+                if (isNaN(d.getTime())) return '\u2014';
+                var year = d.getFullYear();
+                var month = String(d.getMonth() + 1).padStart(2, '0');
+                var day = String(d.getDate()).padStart(2, '0');
+                var hours = String(d.getHours()).padStart(2, '0');
+                var minutes = String(d.getMinutes()).padStart(2, '0');
+                return year + '/' + month + '/' + day + ' ' + hours + ':' + minutes;
+            } catch (e) {
+                return '\u2014';
             }
         },
     };

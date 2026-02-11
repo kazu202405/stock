@@ -28,7 +28,12 @@ from supabase_client import (
     get_notes_by_company, update_note, delete_note,
     create_user as create_app_user, authenticate_user, get_user_by_id,
     get_user_by_referral_code, get_direct_referrals, get_referral_tree,
-    get_referral_chain, get_all_users, update_user_role, migrate_guest_notes
+    get_referral_chain, get_all_users, update_user_role, update_display_name,
+    migrate_guest_notes, update_user_email, update_user_password,
+    create_question, get_public_questions, get_questions_by_company,
+    get_question_by_id, delete_question,
+    create_answer, get_answers_for_question, delete_answer, set_best_answer,
+    toggle_like, get_user_likes
 )
 from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
@@ -43,6 +48,47 @@ def get_current_user():
     if not user_id:
         return None
     return get_user_by_id(user_id)
+
+
+def _resolve_display_name(item, user_map):
+    """投稿アイテムの表示名を解決。poster_name > display_name > name の優先順"""
+    if item.get('is_anonymous'):
+        item['user_display_name'] = '匿名ユーザー'
+    elif item.get('poster_name'):
+        item['user_display_name'] = item['poster_name']
+    else:
+        user = user_map.get(item.get('user_id'))
+        if user:
+            item['user_display_name'] = user.get('display_name') or user.get('name', 'ユーザー')
+        else:
+            item['user_display_name'] = 'ユーザー'
+
+
+def _build_user_map(user_ids):
+    """ユーザーIDリストからID→ユーザー情報のマップを構築"""
+    user_map = {}
+    for uid in user_ids:
+        try:
+            user = get_user_by_id(uid)
+            if user:
+                user_map[uid] = user
+        except Exception:
+            pass
+    return user_map
+
+
+def _get_poster_name_for_session():
+    """現在のセッションユーザーのデフォルト投稿名を取得"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    try:
+        user = get_user_by_id(user_id)
+        if user:
+            return user.get('display_name') or user.get('name')
+    except Exception:
+        pass
+    return session.get('user_name')
 
 
 def login_required_api(f):
@@ -204,8 +250,86 @@ def api_auth_me():
             "email": user['email'],
             "role": user['role'],
             "referral_code": user['referral_code'],
+            "display_name": user.get('display_name') or '',
         }
     }), 200
+
+
+@app.route('/api/auth/display-name', methods=['PUT'])
+@login_required_api
+def api_update_display_name():
+    """投稿名（display_name）を更新"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        display_name = (data.get('display_name') or '').strip() if data else ''
+        if display_name and len(display_name) > 30:
+            return jsonify({"error": "投稿名は30文字以内にしてください"}), 400
+        result = update_display_name(user_id, display_name if display_name else None)
+        if result:
+            return jsonify({"success": True, "display_name": result.get('display_name') or ''}), 200
+        return jsonify({"error": "更新に失敗しました"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/email', methods=['PUT'])
+@login_required_api
+def api_update_email():
+    """メールアドレスを変更"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        new_email = (data.get('new_email') or '').strip()
+        current_password = data.get('current_password') or ''
+
+        if not new_email:
+            return jsonify({"error": "新しいメールアドレスを入力してください"}), 400
+        if not current_password:
+            return jsonify({"error": "現在のパスワードを入力してください"}), 400
+
+        result = update_user_email(user_id, new_email, current_password)
+        if result:
+            return jsonify({"success": True, "email": result.get('email', '')}), 200
+        return jsonify({"error": "更新に失敗しました"}), 500
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/password', methods=['PUT'])
+@login_required_api
+def api_update_password():
+    """パスワードを変更"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        current_password = data.get('current_password') or ''
+        new_password = data.get('new_password') or ''
+        new_password_confirm = data.get('new_password_confirm') or ''
+
+        if not current_password:
+            return jsonify({"error": "現在のパスワードを入力してください"}), 400
+        if not new_password:
+            return jsonify({"error": "新しいパスワードを入力してください"}), 400
+        if new_password != new_password_confirm:
+            return jsonify({"error": "新しいパスワードが一致しません"}), 400
+
+        result = update_user_password(user_id, current_password, new_password)
+        if result:
+            return jsonify({"success": True}), 200
+        return jsonify({"error": "更新に失敗しました"}), 500
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # =============================================
@@ -800,31 +924,63 @@ def api_get_gc_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+def _fetch_and_save_gc_stocks():
+    """GC銘柄をスクレイピングしてsignal_stocks+screened_latestに保存"""
+    from datetime import datetime, timezone
+    stocks = scrape_gc_stocks()
+
+    now = datetime.now(timezone.utc).isoformat()
+    for s in stocks:
+        s['gc_date'] = now
+
+    # signal_stocksにupsert（既存のdc_dateは保持される）
+    upsert_signal_stocks(stocks)
+
+    # screened_latestにもGC形成日を永続保存
+    try:
+        client = get_supabase_client()
+        codes = [s['company_code'] for s in stocks]
+        for code in codes:
+            client.table('screened_latest').update(
+                {'gc_date': now}
+            ).eq('company_code', code).execute()
+    except Exception as e:
+        print(f"GC日付の永続保存エラー: {e}")
+
+    return stocks
+
+
+def _fetch_and_save_dc_stocks():
+    """DC銘柄をスクレイピングしてsignal_stocks+screened_latestに保存"""
+    from datetime import datetime, timezone
+    stocks = scrape_dc_stocks()
+
+    now = datetime.now(timezone.utc).isoformat()
+    for s in stocks:
+        s['dc_date'] = now
+
+    # signal_stocksにupsert（既存のgc_dateは保持される）
+    upsert_signal_stocks(stocks)
+
+    # screened_latestにもDC形成日を永続保存
+    try:
+        client = get_supabase_client()
+        codes = [s['company_code'] for s in stocks]
+        for code in codes:
+            client.table('screened_latest').update(
+                {'dc_date': now}
+            ).eq('company_code', code).execute()
+    except Exception as e:
+        print(f"DC日付の永続保存エラー: {e}")
+
+    return stocks
+
+
 @app.route('/api/gc-stocks/scrape', methods=['POST'])
 def api_scrape_gc_stocks():
     """kabutan.jpからGC銘柄をスクレイピングしてsignal_stocksに保存"""
     try:
-        from datetime import datetime, timezone
-        stocks = scrape_gc_stocks()
-
-        now = datetime.now(timezone.utc).isoformat()
-        for s in stocks:
-            s['gc_date'] = now
-
-        # signal_stocksにupsert（既存のdc_dateは保持される）
-        upsert_signal_stocks(stocks)
-
-        # screened_latestにもGC形成日を永続保存
-        try:
-            client = get_supabase_client()
-            codes = [s['company_code'] for s in stocks]
-            for code in codes:
-                client.table('screened_latest').update(
-                    {'gc_date': now}
-                ).eq('company_code', code).execute()
-        except Exception as e:
-            print(f"GC日付の永続保存エラー: {e}")
-
+        stocks = _fetch_and_save_gc_stocks()
         return jsonify({
             "success": True,
             "count": len(stocks),
@@ -1044,6 +1200,10 @@ def _analyze_stock_and_save(analyzer, company_code):
         'per_forward': stock_data.get('per'),
         'pbr': stock_data.get('pbr'),
         'dividend_yield': stock_data.get('dividend_yield'),
+        'eps': get_latest_value(stock_data.get('eps')),
+        'dps': get_latest_value(stock_data.get('dps')),
+        'payout_ratio': get_latest_value(stock_data.get('payout_ratio')),
+        'roe': get_latest_value(stock_data.get('roe')),
         'analyzed_at': now,
         'forecast_revenue': stock_data.get('forecast_revenue'),
         'forecast_op_income': stock_data.get('forecast_op_income'),
@@ -1055,6 +1215,11 @@ def _analyze_stock_and_save(analyzer, company_code):
         'data_source': 'yfinance',
         'data_status': 'fresh'
     }
+
+    # デバッグログ: 配当性向データの確認
+    pr_raw = stock_data.get('payout_ratio')
+    pr_val = get_latest_value(pr_raw)
+    print(f"[DEBUG] {code} payout_ratio raw={pr_raw}, latest={pr_val}, eps={get_latest_value(stock_data.get('eps'))}, dps={get_latest_value(stock_data.get('dps'))}")
 
     # Noneのフィールドを除外（フル分析で保存済みのデータを上書きしない）
     screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
@@ -1201,11 +1366,17 @@ def api_analyze_watchlist():
         if not watchlist:
             return jsonify({"error": "ウォッチリストが空です"}), 400
 
-        # 今日未分析の銘柄のみ対象（.T付きのまま渡す）
+        # forceパラメータで今日分析済みも再実行可能
+        data = request.get_json(silent=True) or {}
+        force = data.get('force', False)
+
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        codes = [s['company_code'] for s in watchlist
-                 if not (s.get('analyzed_at') or '').startswith(today)]
+        if force:
+            codes = [s['company_code'] for s in watchlist]
+        else:
+            codes = [s['company_code'] for s in watchlist
+                     if not (s.get('analyzed_at') or '').startswith(today)]
 
         if not codes:
             return jsonify({
@@ -1292,27 +1463,7 @@ def api_get_dc_stocks():
 def api_scrape_dc_stocks():
     """kabutan.jpからDC銘柄をスクレイピングしてsignal_stocksに保存"""
     try:
-        from datetime import datetime, timezone
-        stocks = scrape_dc_stocks()
-
-        now = datetime.now(timezone.utc).isoformat()
-        for s in stocks:
-            s['dc_date'] = now
-
-        # signal_stocksにupsert（既存のgc_dateは保持される）
-        upsert_signal_stocks(stocks)
-
-        # screened_latestにもDC形成日を永続保存
-        try:
-            client = get_supabase_client()
-            codes = [s['company_code'] for s in stocks]
-            for code in codes:
-                client.table('screened_latest').update(
-                    {'dc_date': now}
-                ).eq('company_code', code).execute()
-        except Exception as e:
-            print(f"DC日付の永続保存エラー: {e}")
-
+        stocks = _fetch_and_save_dc_stocks()
         return jsonify({
             "success": True,
             "count": len(stocks),
@@ -1357,6 +1508,213 @@ def api_remove_dividend_stock(company_code):
         return jsonify({"message": f"{company_code}の高配当フラグを解除しました"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+div_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+
+
+def _analyze_div_background(codes):
+    """高配当銘柄をバックグラウンドで1銘柄ずつ分析"""
+    global div_analyze_status
+    analyzer = StockAnalyzer()
+
+    for i, code in enumerate(codes):
+        if div_analyze_status["stop_requested"]:
+            break
+
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if not result:
+                div_analyze_status["errors"] += 1
+        except Exception as e:
+            print(f"高配当分析エラー ({code}): {e}")
+            div_analyze_status["errors"] += 1
+
+        div_analyze_status["done"] += 1
+        if i < len(codes) - 1:
+            import time
+            time.sleep(0.35)
+
+    div_analyze_status["running"] = False
+    div_analyze_status["stop_requested"] = False
+
+
+@app.route('/api/dividend-stocks/analyze', methods=['POST'])
+def api_analyze_dividend_stocks():
+    """高配当銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
+    global div_analyze_status
+    try:
+        if div_analyze_status["running"]:
+            return jsonify({
+                "error": "分析が既に実行中です",
+                "status": div_analyze_status
+            }), 409
+
+        stocks = get_dividend_stocks()
+        if not stocks:
+            return jsonify({"error": "高配当企業がありません"}), 400
+
+        # forceパラメータで今日分析済みも再実行可能
+        data = request.get_json(silent=True) or {}
+        force = data.get('force', False)
+
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        if force:
+            codes = [s['company_code'] for s in stocks]
+        else:
+            codes = [s['company_code'] for s in stocks
+                     if not (s.get('analyzed_at') or '').startswith(today)]
+
+        if not codes:
+            return jsonify({
+                "success": True,
+                "message": "本日の分析は全銘柄完了済みです",
+                "status": {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+            }), 200
+
+        div_analyze_status = {
+            "running": True, "done": 0, "total": len(codes),
+            "errors": 0, "stop_requested": False
+        }
+
+        thread = threading.Thread(target=_analyze_div_background, args=(codes,), daemon=True)
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"未分析 {len(codes)}件の分析を開始しました",
+            "status": div_analyze_status
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dividend-stocks/analyze/stop', methods=['POST'])
+def api_div_analyze_stop():
+    """高配当分析を停止"""
+    global div_analyze_status
+    if div_analyze_status["running"]:
+        div_analyze_status["stop_requested"] = True
+        return jsonify({"success": True, "message": "停止リクエストを送信しました"}), 200
+    return jsonify({"success": True, "message": "分析は実行されていません"}), 200
+
+
+@app.route('/api/dividend-stocks/analyze/status', methods=['GET'])
+def api_div_analyze_status():
+    """高配当分析の進捗状況を取得"""
+    return jsonify(div_analyze_status), 200
+
+
+tech_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+
+
+def _analyze_tech_background(codes):
+    """テクニカル銘柄をバックグラウンドで1銘柄ずつ分析"""
+    global tech_analyze_status
+    analyzer = StockAnalyzer()
+
+    for i, code in enumerate(codes):
+        if tech_analyze_status["stop_requested"]:
+            break
+
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if result:
+                # signal_stocksも更新
+                try:
+                    client = get_supabase_client()
+                    client.table('signal_stocks').update({
+                        'sector': result.get('sector'),
+                        'market_cap': result.get('market_cap'),
+                        'stock_price': result.get('raw', {}).get('last_price'),
+                        'per': result.get('raw', {}).get('per'),
+                        'pbr': result.get('raw', {}).get('pbr'),
+                        'dividend_yield': result.get('raw', {}).get('dividend_yield'),
+                        'match_rate': result.get('match_rate'),
+                        'analyzed_at': result.get('analyzed_at'),
+                    }).eq('company_code', code).execute()
+                except Exception:
+                    pass
+            else:
+                tech_analyze_status["errors"] += 1
+        except Exception as e:
+            print(f"テクニカル分析エラー ({code}): {e}")
+            tech_analyze_status["errors"] += 1
+
+        tech_analyze_status["done"] += 1
+        if i < len(codes) - 1:
+            import time
+            time.sleep(0.35)
+
+    tech_analyze_status["running"] = False
+    tech_analyze_status["stop_requested"] = False
+
+
+@app.route('/api/technical-stocks/analyze', methods=['POST'])
+def api_analyze_technical_stocks():
+    """テクニカル銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
+    global tech_analyze_status
+    try:
+        if tech_analyze_status["running"]:
+            return jsonify({
+                "error": "分析が既に実行中です",
+                "status": tech_analyze_status
+            }), 409
+
+        # テクニカル銘柄一覧を取得
+        client = get_supabase_client()
+        signals = client.table('signal_stocks').select('company_code,analyzed_at').or_(
+            'gc_date.not.is.null,dc_date.not.is.null'
+        ).execute()
+        stocks = signals.data or []
+
+        if not stocks:
+            return jsonify({"error": "テクニカル銘柄がありません"}), 400
+
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        codes = [s['company_code'] for s in stocks
+                 if not (s.get('analyzed_at') or '').startswith(today)]
+
+        if not codes:
+            return jsonify({
+                "success": True,
+                "message": "本日の分析は全銘柄完了済みです",
+                "status": {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
+            }), 200
+
+        tech_analyze_status = {
+            "running": True, "done": 0, "total": len(codes),
+            "errors": 0, "stop_requested": False
+        }
+
+        thread = threading.Thread(target=_analyze_tech_background, args=(codes,), daemon=True)
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"未分析 {len(codes)}件の分析を開始しました",
+            "status": tech_analyze_status
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/technical-stocks/analyze/stop', methods=['POST'])
+def api_tech_analyze_stop():
+    """テクニカル分析を停止"""
+    global tech_analyze_status
+    if tech_analyze_status["running"]:
+        tech_analyze_status["stop_requested"] = True
+        return jsonify({"success": True, "message": "停止リクエストを送信しました"}), 200
+    return jsonify({"success": True, "message": "分析は実行されていません"}), 200
+
+
+@app.route('/api/technical-stocks/analyze/status', methods=['GET'])
+def api_tech_analyze_status():
+    """テクニカル分析の進捗状況を取得"""
+    return jsonify(tech_analyze_status), 200
 
 
 @app.route('/api/technical-stocks', methods=['GET'])
@@ -1420,6 +1778,12 @@ def api_retry_summary_jp(company_code):
         elif segments:
             summary_jp = f"【連結事業】{segments}"
         if summary_jp:
+            # screened_latestに保存
+            try:
+                update_screened_data(code, {'business_summary_jp': summary_jp})
+                print(f"日本語事業概要を保存しました: {code}")
+            except Exception as e:
+                print(f"日本語事業概要の保存エラー: {e}")
             return jsonify({"business_summary_jp": summary_jp}), 200
         else:
             return jsonify({"error": "日本語の事業概要を取得できませんでした"}), 404
@@ -1491,6 +1855,15 @@ def api_get_notes():
         else:
             notes = get_public_notes(limit=limit, offset=offset)
 
+        # ユーザー名を解決（poster_name > display_name > name）
+        user_ids = list(set(
+            n['user_id'] for n in notes
+            if n.get('user_id') and not n.get('is_anonymous') and not n.get('poster_name')
+        ))
+        user_map = _build_user_map(user_ids)
+        for note in notes:
+            _resolve_display_name(note, user_map)
+
         return jsonify({"notes": notes}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1555,6 +1928,617 @@ def api_get_note_tags():
         # 使用回数の多い順にソート
         sorted_tags = sorted(tag_count.items(), key=lambda x: x[1], reverse=True)
         return jsonify({"tags": [{"name": t[0], "count": t[1]} for t in sorted_tags]}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# コミュニティQ&A API
+# =============================================
+
+@app.route('/api/community/questions', methods=['GET'])
+def api_get_questions():
+    """質問一覧を取得"""
+    try:
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        filter_resolved = request.args.get('filter', 'all')
+        company_code = request.args.get('company_code')
+
+        if company_code:
+            questions = get_questions_by_company(company_code)
+        else:
+            questions = get_public_questions(limit=limit, offset=offset, filter_resolved=filter_resolved)
+
+        # ユーザー名を解決（poster_name > display_name > name）
+        user_ids = list(set(
+            q['user_id'] for q in questions
+            if q.get('user_id') and not q.get('is_anonymous') and not q.get('poster_name')
+        ))
+        user_map = _build_user_map(user_ids)
+        for q in questions:
+            _resolve_display_name(q, user_map)
+
+        # ログインユーザーのいいね状態を取得
+        user_likes = {}
+        current_user_id = session.get('user_id')
+        if current_user_id and questions:
+            q_ids = [q['id'] for q in questions]
+            liked_set = get_user_likes(current_user_id, 'question', q_ids)
+            user_likes = {qid: True for qid in liked_set}
+
+        return jsonify({"questions": questions, "user_likes": user_likes}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions', methods=['POST'])
+@login_required_api
+def api_create_question():
+    """質問を作成"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        if not data or not data.get('title') or not data.get('content'):
+            return jsonify({"error": "タイトルと本文は必須です"}), 400
+        question = create_question(user_id, data)
+        return jsonify({"question": question}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions/<question_id>', methods=['GET'])
+def api_get_question_detail(question_id):
+    """質問詳細＋回答一覧を取得"""
+    try:
+        question = get_question_by_id(question_id)
+        if not question:
+            return jsonify({"error": "質問が見つかりません"}), 404
+
+        # 質問者名を解決（poster_name > display_name > name）
+        q_user_ids = [] if question.get('is_anonymous') or question.get('poster_name') else [question['user_id']]
+        answers = get_answers_for_question(question_id)
+        ans_user_ids = [a['user_id'] for a in answers if a.get('user_id') and not a.get('is_anonymous') and not a.get('poster_name')]
+        all_ids = list(set(q_user_ids + ans_user_ids))
+        user_map = _build_user_map(all_ids)
+        _resolve_display_name(question, user_map)
+        for a in answers:
+            _resolve_display_name(a, user_map)
+
+        # ログインユーザーのいいね状態
+        user_likes = {}
+        current_user_id = session.get('user_id')
+        if current_user_id:
+            # 質問へのいいね
+            q_liked = get_user_likes(current_user_id, 'question', [question_id])
+            if question_id in q_liked:
+                user_likes[question_id] = True
+            # 回答へのいいね
+            if answers:
+                a_ids = [a['id'] for a in answers]
+                a_liked = get_user_likes(current_user_id, 'answer', a_ids)
+                for aid in a_liked:
+                    user_likes[aid] = True
+
+        return jsonify({
+            "question": question,
+            "answers": answers,
+            "user_likes": user_likes,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions/<question_id>', methods=['DELETE'])
+@login_required_api
+def api_delete_question(question_id):
+    """質問を削除（所有者のみ）"""
+    try:
+        user_id = session['user_id']
+        success = delete_question(question_id, user_id)
+        if not success:
+            return jsonify({"error": "質問が見つかりません（または権限がありません）"}), 404
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions/<question_id>/answers', methods=['POST'])
+@login_required_api
+def api_create_answer(question_id):
+    """回答を作成"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        if not data or not data.get('content'):
+            return jsonify({"error": "回答内容は必須です"}), 400
+        # poster_nameが未指定ならデフォルト投稿名を設定
+        if not data.get('poster_name') and not data.get('is_anonymous'):
+            data['poster_name'] = _get_poster_name_for_session()
+        answer = create_answer(question_id, user_id, data)
+        # 回答者名を付与
+        if answer.get('is_anonymous'):
+            answer['user_display_name'] = '匿名ユーザー'
+        elif answer.get('poster_name'):
+            answer['user_display_name'] = answer['poster_name']
+        else:
+            answer['user_display_name'] = session.get('user_name', 'ユーザー')
+        return jsonify({"answer": answer}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions/<question_id>/best-answer', methods=['PUT'])
+@login_required_api
+def api_set_best_answer(question_id):
+    """ベストアンサーを設定（質問者のみ）"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        answer_id = data.get('answer_id') if data else None
+        if not answer_id:
+            return jsonify({"error": "answer_idは必須です"}), 400
+        success = set_best_answer(question_id, answer_id, user_id)
+        if not success:
+            return jsonify({"error": "権限がありません（質問者のみ設定可能です）"}), 403
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/answers/<answer_id>', methods=['DELETE'])
+@login_required_api
+def api_delete_answer(answer_id):
+    """回答を削除（所有者のみ）"""
+    try:
+        user_id = session['user_id']
+        success = delete_answer(answer_id, user_id)
+        if not success:
+            return jsonify({"error": "回答が見つかりません（または権限がありません）"}), 404
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/likes', methods=['POST'])
+@login_required_api
+def api_toggle_like():
+    """いいねをトグル"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+        target_type = data.get('target_type')
+        target_id = data.get('target_id')
+        if target_type not in ('question', 'answer') or not target_id:
+            return jsonify({"error": "target_typeとtarget_idは必須です"}), 400
+        result = toggle_like(user_id, target_type, target_id)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/community/questions/tags', methods=['GET'])
+def api_get_question_tags():
+    """質問から使われているタグ一覧を取得"""
+    try:
+        questions = get_public_questions(limit=200, offset=0)
+        tag_count = {}
+        for q in questions:
+            for tag in (q.get('tags') or []):
+                tag_count[tag] = tag_count.get(tag, 0) + 1
+        sorted_tags = sorted(tag_count.items(), key=lambda x: x[1], reverse=True)
+        return jsonify({"tags": [{"name": t[0], "count": t[1]} for t in sorted_tags]}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# スケジューラ: GC/DC銘柄の自動定期取得
+# =============================================
+
+from apscheduler.schedulers.background import BackgroundScheduler
+import pytz
+import atexit
+
+def scheduled_fetch_gc_dc():
+    """定期実行: GC/DC銘柄を自動取得"""
+    from datetime import datetime
+    print(f"[Scheduler] GC/DC自動取得開始: {datetime.now()}")
+    try:
+        gc = _fetch_and_save_gc_stocks()
+        print(f"[Scheduler] GC: {len(gc)}件取得")
+    except Exception as e:
+        print(f"[Scheduler] GCエラー: {e}")
+    try:
+        dc = _fetch_and_save_dc_stocks()
+        print(f"[Scheduler] DC: {len(dc)}件取得")
+    except Exception as e:
+        print(f"[Scheduler] DCエラー: {e}")
+
+scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
+scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
+scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
+scheduler.start()
+print("[Scheduler] GC/DC自動取得スケジューラ起動（9:15/17:15 JST）")
+
+# アプリ終了時にスケジューラも停止
+atexit.register(lambda: scheduler.shutdown(wait=False))
+
+
+@app.route('/api/scheduler/status', methods=['GET'])
+def api_scheduler_status():
+    """スケジューラの状態と次回実行時刻を取得"""
+    try:
+        jobs = []
+        for job in scheduler.get_jobs():
+            jobs.append({
+                'id': job.id,
+                'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+                'trigger': str(job.trigger),
+            })
+        return jsonify({
+            "running": scheduler.running,
+            "jobs": jobs,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/scheduler/trigger', methods=['POST'])
+def api_scheduler_trigger():
+    """GC/DC取得を今すぐ手動実行（テスト用）"""
+    try:
+        thread = threading.Thread(target=scheduled_fetch_gc_dc, daemon=True)
+        thread.start()
+        return jsonify({
+            "success": True,
+            "message": "GC/DC自動取得をバックグラウンドで開始しました"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# 企業比較API
+# =============================================
+
+@app.route('/api/compare', methods=['GET'])
+def api_compare():
+    """2〜3社の財務指標を比較用に返却"""
+    try:
+        codes_param = request.args.get('codes', '')
+        if not codes_param:
+            return jsonify({"error": "銘柄コードを指定してください"}), 400
+
+        codes = [c.strip() for c in codes_param.split(',') if c.strip()]
+        if len(codes) < 2 or len(codes) > 3:
+            return jsonify({"error": "2〜3銘柄を指定してください"}), 400
+
+        results = []
+        for code in codes:
+            data = get_screened_data(normalize_code(code))
+            if data:
+                results.append(data)
+            else:
+                return jsonify({"error": f"{code} のデータがありません。先に分析してください。"}), 404
+
+        return jsonify({"companies": results}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# セクター分析API
+# =============================================
+
+def _safe_avg(values):
+    """None/非数値を除外して平均値を計算"""
+    nums = [v for v in values if v is not None and isinstance(v, (int, float))]
+    return round(sum(nums) / len(nums), 2) if nums else None
+
+
+@app.route('/api/sector/summary', methods=['GET'])
+def api_sector_summary():
+    """セクター別集計データを返却"""
+    try:
+        client = get_supabase_client()
+        result = client.table('screened_latest').select(
+            'company_code,company_name,sector,market_cap,per_forward,pbr,'
+            'dividend_yield,roe,operating_margin,equity_ratio,match_rate,'
+            'payout_ratio,stock_price,roa'
+        ).not_.is_('sector', 'null').execute()
+
+        sector_map = {}
+        for item in result.data:
+            sector = item.get('sector')
+            if not sector:
+                continue
+            if sector not in sector_map:
+                sector_map[sector] = []
+            sector_map[sector].append(item)
+
+        summary = []
+        for sector, companies in sorted(sector_map.items(), key=lambda x: len(x[1]), reverse=True):
+            summary.append({
+                'sector': sector,
+                'count': len(companies),
+                'avg_per': _safe_avg([c.get('per_forward') for c in companies]),
+                'avg_pbr': _safe_avg([c.get('pbr') for c in companies]),
+                'avg_dividend_yield': _safe_avg([c.get('dividend_yield') for c in companies]),
+                'avg_roe': _safe_avg([c.get('roe') for c in companies]),
+                'avg_operating_margin': _safe_avg([c.get('operating_margin') for c in companies]),
+                'avg_equity_ratio': _safe_avg([c.get('equity_ratio') for c in companies]),
+                'companies': companies
+            })
+
+        return jsonify({"sectors": summary}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# デモ売買API
+# =============================================
+
+def _get_demo_user_id():
+    """デモ売買用のユーザーIDを取得（セッションベース）"""
+    user_id = session.get('user_id')
+    if not user_id:
+        # ゲストユーザーの場合はセッションIDを使用
+        if not session.get('demo_user_id'):
+            session['demo_user_id'] = str(uuid.uuid4())
+        user_id = session['demo_user_id']
+    return user_id
+
+
+def _get_or_create_demo_account(user_id):
+    """デモ口座を取得（なければ作成）"""
+    client = get_supabase_client()
+    result = client.table('demo_account').select('*').eq('user_id', user_id).execute()
+    if result.data:
+        return result.data[0]
+    # 新規作成（初期100万円）
+    new_account = {'user_id': user_id, 'cash_balance': 1000000}
+    client.table('demo_account').insert(new_account).execute()
+    return new_account
+
+
+@app.route('/api/demo/account', methods=['GET'])
+def api_demo_account():
+    """デモ口座情報（残高 + ポートフォリオ）を取得"""
+    try:
+        user_id = _get_demo_user_id()
+        account = _get_or_create_demo_account(user_id)
+        client = get_supabase_client()
+
+        # ポートフォリオ取得
+        portfolio = client.table('demo_portfolio').select('*').eq(
+            'user_id', user_id
+        ).order('created_at', desc=True).execute()
+
+        # 各銘柄の現在価格をscreened_latestから取得
+        holdings = []
+        total_value = 0
+        for p in portfolio.data:
+            screened = get_screened_data(p['company_code'])
+            current_price = screened.get('stock_price', 0) if screened else 0
+            market_value = (current_price or 0) * p['shares']
+            cost_value = p['avg_cost'] * p['shares']
+            pnl = market_value - cost_value
+            total_value += market_value
+            holdings.append({
+                **p,
+                'current_price': current_price,
+                'market_value': market_value,
+                'pnl': pnl,
+            })
+
+        return jsonify({
+            "cash_balance": float(account['cash_balance']),
+            "total_value": total_value,
+            "total_assets": float(account['cash_balance']) + total_value,
+            "holdings": holdings,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/demo/buy', methods=['POST'])
+def api_demo_buy():
+    """デモ買い注文"""
+    try:
+        from datetime import datetime, timezone
+        user_id = _get_demo_user_id()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        code = normalize_code(data.get('company_code', ''))
+        shares = int(data.get('shares', 0))
+        reason = data.get('reason', '')
+
+        if not code or shares <= 0:
+            return jsonify({"error": "銘柄コードと株数を正しく指定してください"}), 400
+
+        # 現在価格をscreened_latestから取得
+        stock = get_screened_data(code)
+        if not stock or not stock.get('stock_price'):
+            return jsonify({"error": f"{code} の価格データがありません。先に分析してください。"}), 404
+
+        price = float(stock['stock_price'])
+        total = price * shares
+
+        # 残高チェック
+        account = _get_or_create_demo_account(user_id)
+        cash = float(account['cash_balance'])
+        if cash < total:
+            return jsonify({"error": f"残高不足です（残高: ¥{cash:,.0f}、必要: ¥{total:,.0f}）"}), 400
+
+        client = get_supabase_client()
+        now = datetime.now(timezone.utc).isoformat()
+
+        # 残高を減算
+        client.table('demo_account').update({
+            'cash_balance': cash - total
+        }).eq('user_id', user_id).execute()
+
+        # ポートフォリオを更新（既存保有があれば平均取得単価を再計算）
+        existing = client.table('demo_portfolio').select('*').eq(
+            'user_id', user_id
+        ).eq('company_code', code).execute()
+
+        if existing.data:
+            old = existing.data[0]
+            new_shares = old['shares'] + shares
+            new_avg_cost = (float(old['avg_cost']) * old['shares'] + total) / new_shares
+            client.table('demo_portfolio').update({
+                'shares': new_shares,
+                'avg_cost': new_avg_cost,
+                'buy_reason': reason if reason else old.get('buy_reason', ''),
+                'updated_at': now,
+            }).eq('id', old['id']).execute()
+        else:
+            client.table('demo_portfolio').insert({
+                'user_id': user_id,
+                'company_code': code,
+                'company_name': stock.get('company_name', ''),
+                'shares': shares,
+                'avg_cost': price,
+                'buy_reason': reason,
+            }).execute()
+
+        # 売買履歴を記録
+        client.table('demo_trades').insert({
+            'user_id': user_id,
+            'company_code': code,
+            'company_name': stock.get('company_name', ''),
+            'trade_type': 'buy',
+            'shares': shares,
+            'price': price,
+            'total_amount': total,
+            'reason': reason,
+        }).execute()
+
+        return jsonify({
+            "success": True,
+            "message": f"{stock.get('company_name', code)} を {shares}株 購入しました（¥{total:,.0f}）",
+            "new_balance": cash - total,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/demo/sell', methods=['POST'])
+def api_demo_sell():
+    """デモ売り注文"""
+    try:
+        from datetime import datetime, timezone
+        user_id = _get_demo_user_id()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        code = normalize_code(data.get('company_code', ''))
+        shares = int(data.get('shares', 0))
+        reason = data.get('reason', '')
+
+        if not code or shares <= 0:
+            return jsonify({"error": "銘柄コードと株数を正しく指定してください"}), 400
+
+        client = get_supabase_client()
+
+        # 保有チェック
+        existing = client.table('demo_portfolio').select('*').eq(
+            'user_id', user_id
+        ).eq('company_code', code).execute()
+
+        if not existing.data:
+            return jsonify({"error": f"{code} を保有していません"}), 400
+
+        holding = existing.data[0]
+        if holding['shares'] < shares:
+            return jsonify({"error": f"保有数（{holding['shares']}株）を超える売却はできません"}), 400
+
+        # 現在価格を取得
+        stock = get_screened_data(code)
+        if not stock or not stock.get('stock_price'):
+            return jsonify({"error": f"{code} の価格データがありません"}), 404
+
+        price = float(stock['stock_price'])
+        total = price * shares
+
+        # 残高を加算
+        account = _get_or_create_demo_account(user_id)
+        new_cash = float(account['cash_balance']) + total
+        client.table('demo_account').update({
+            'cash_balance': new_cash
+        }).eq('user_id', user_id).execute()
+
+        # ポートフォリオを更新
+        remaining = holding['shares'] - shares
+        if remaining == 0:
+            client.table('demo_portfolio').delete().eq('id', holding['id']).execute()
+        else:
+            client.table('demo_portfolio').update({
+                'shares': remaining,
+                'updated_at': datetime.now(timezone.utc).isoformat(),
+            }).eq('id', holding['id']).execute()
+
+        # 売買履歴を記録
+        client.table('demo_trades').insert({
+            'user_id': user_id,
+            'company_code': code,
+            'company_name': stock.get('company_name', ''),
+            'trade_type': 'sell',
+            'shares': shares,
+            'price': price,
+            'total_amount': total,
+            'reason': reason,
+        }).execute()
+
+        return jsonify({
+            "success": True,
+            "message": f"{stock.get('company_name', code)} を {shares}株 売却しました（¥{total:,.0f}）",
+            "new_balance": new_cash,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/demo/history', methods=['GET'])
+def api_demo_history():
+    """デモ売買履歴を取得"""
+    try:
+        user_id = _get_demo_user_id()
+        client = get_supabase_client()
+        result = client.table('demo_trades').select('*').eq(
+            'user_id', user_id
+        ).order('traded_at', desc=True).limit(100).execute()
+        return jsonify({"trades": result.data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/demo/reset', methods=['POST'])
+def api_demo_reset():
+    """デモ口座をリセット（残高100万円、ポートフォリオ・履歴クリア）"""
+    try:
+        user_id = _get_demo_user_id()
+        client = get_supabase_client()
+
+        # ポートフォリオ削除
+        client.table('demo_portfolio').delete().eq('user_id', user_id).execute()
+        # 履歴削除
+        client.table('demo_trades').delete().eq('user_id', user_id).execute()
+        # 残高リセット
+        client.table('demo_account').upsert({
+            'user_id': user_id,
+            'cash_balance': 1000000,
+        }).execute()
+
+        return jsonify({"success": True, "message": "デモ口座をリセットしました（残高: ¥1,000,000）"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

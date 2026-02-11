@@ -228,6 +228,14 @@ def admin():
     return render_template('stock.html', is_admin=True)
 
 
+@app.route('/compare')
+def compare_page():
+    """企業比較ページ"""
+    guard = _require_login()
+    if guard: return guard
+    return render_template('compare.html')
+
+
 @app.route('/admin/users')
 def admin_users():
     """ユーザー管理画面（admin専用）"""
