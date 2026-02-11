@@ -70,13 +70,27 @@
     }
 
     .trend-up {
-        color: #dc2626;
+        color: #16a34a;
         font-weight: 600;
     }
 
     .trend-down {
-        color: #2563eb;
+        color: #dc2626;
         font-weight: 600;
+    }
+
+    tr.row-trend-up {
+        background-color: rgba(22, 163, 74, 0.04) !important;
+    }
+    tr.row-trend-up:hover {
+        background-color: rgba(22, 163, 74, 0.08) !important;
+    }
+
+    tr.row-trend-down {
+        background-color: rgba(220, 38, 38, 0.04) !important;
+    }
+    tr.row-trend-down:hover {
+        background-color: rgba(220, 38, 38, 0.08) !important;
     }
 
     /* ウォッチリスト一覧 */
@@ -492,15 +506,20 @@
             <button class="watchlist-tab active" onclick="switchTab('watchlist')" id="tab-watchlist">
                 条件合致企業
             </button>
+            <button class="watchlist-tab" onclick="switchTab('dividend')" id="tab-dividend">
+                高配当企業
+            </button>
             <button class="watchlist-tab" onclick="switchTab('technical')" id="tab-technical">
                 テクニカル分析
             </button>
+            {% if is_admin %}
             <button class="watchlist-tab" onclick="switchTab('gc')" id="tab-gc">
                 GC銘柄
             </button>
             <button class="watchlist-tab" onclick="switchTab('dc')" id="tab-dc">
                 DC銘柄
             </button>
+            {% endif %}
         </div>
 
         <!-- タブ1: 条件合致企業（既存ウォッチリスト） -->
@@ -547,11 +566,13 @@
                 </div>
                 <div class="action-buttons">
                     {% if is_admin %}
-                    <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">一括登録</button>
+                    <button class="gc-fetch-btn" onclick="openDividendRegisterModal()">高配当企業登録</button>
+                    <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">条件合致企業登録</button>
                     <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
                     <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                    <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">合致度再計算</button>
                 </div>
             </div>
             <div id="watchlistContent">
@@ -559,6 +580,21 @@
             </div>
         </div>
 
+        <!-- タブ: 高配当企業（モック） -->
+        <div class="tab-content" id="tabContent-dividend">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+                <span class="watchlist-count" id="dividendCount">0件</span>
+            </div>
+            <div class="match-rate-description">
+                配当利回りの高い企業を一覧表示しています。（現在はモックデータです）
+            </div>
+            <div id="dividendContent">
+                <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
+            </div>
+        </div>
+
+        {% if is_admin %}
         <!-- タブ2: GC達成銘柄 -->
         <div class="tab-content" id="tabContent-gc">
             <div class="watchlist-header">
@@ -594,6 +630,7 @@
                 <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
             </div>
         </div>
+        {% endif %}
 
         <!-- タブ4: テクニカル分析 -->
         <div class="tab-content" id="tabContent-technical">
@@ -611,11 +648,32 @@
     </div>
 
     {% if is_admin %}
+    <!-- 高配当企業登録モーダル -->
+    <div class="modal-overlay" id="dividendRegisterModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>高配当企業登録</h3>
+                <button class="modal-close" onclick="closeDividendRegisterModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 10px; color: #666; font-size: 13px;">
+                    銘柄コードをカンマ区切りまたは改行で入力してください
+                </p>
+                <textarea id="dividendCodesInput" placeholder="例: 8316, 8411, 2914&#10;または&#10;8316&#10;8411&#10;2914" rows="8" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>
+                <div id="dividendRegisterStatus" style="margin-top: 10px; font-size: 13px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-cancel-btn" onclick="closeDividendRegisterModal()">キャンセル</button>
+                <button class="modal-submit-btn" onclick="submitDividendRegister()">登録</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 一括登録モーダル -->
     <div class="modal-overlay" id="bulkRegisterModal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>銘柄一括登録</h3>
+                <h3>条件合致企業登録</h3>
                 <button class="modal-close" onclick="closeBulkRegisterModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -642,10 +700,15 @@
     (function() {
         const saved = sessionStorage.getItem('activeTab');
         if (saved && saved !== 'watchlist') {
-            document.querySelectorAll('.watchlist-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             const tab = document.getElementById(`tab-${saved}`);
             const content = document.getElementById(`tabContent-${saved}`);
+            // タブが存在しない場合（非admin時のGC/DC等）はwatchlistに戻す
+            if (!tab || !content) {
+                sessionStorage.setItem('activeTab', 'watchlist');
+                return;
+            }
+            document.querySelectorAll('.watchlist-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             if (tab) tab.classList.add('active');
             if (content) content.classList.add('active');
         }
@@ -659,6 +722,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadWatchlist();
         const savedTab = sessionStorage.getItem('activeTab');
+        if (savedTab === 'dividend') loadDividendStocks();
         if (savedTab === 'gc') loadGcStocks();
         if (savedTab === 'dc') loadDcStocks();
         if (savedTab === 'technical') loadTechnicalStocks();
@@ -813,7 +877,7 @@
             const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
-                <tr>
+                <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
@@ -969,6 +1033,29 @@
         }
     }
 
+    async function recalculateMatchRates() {
+        const btn = document.getElementById('recalcBtn');
+        btn.disabled = true;
+        btn.textContent = '再計算中...';
+
+        try {
+            const response = await fetch('/api/watchlist/recalculate', { method: 'POST' });
+            const data = await response.json();
+
+            if (response.ok) {
+                showSuccessModal(data.message);
+                loadWatchlist();
+            } else {
+                showErrorModal(data.error || '再計算に失敗しました');
+            }
+        } catch (e) {
+            showErrorModal('通信エラーが発生しました');
+        }
+
+        btn.disabled = false;
+        btn.textContent = '合致度再計算';
+    }
+
     function finishWlAnalyzeUI() {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
@@ -1025,7 +1112,79 @@
     }
 
     // ========================================
-    // 一括登録機能
+    // 高配当企業登録機能
+    // ========================================
+
+    function openDividendRegisterModal() {
+        document.getElementById('dividendRegisterModal').style.display = 'flex';
+        document.getElementById('dividendCodesInput').value = '';
+        document.getElementById('dividendRegisterStatus').innerHTML = '';
+    }
+
+    function closeDividendRegisterModal() {
+        document.getElementById('dividendRegisterModal').style.display = 'none';
+    }
+
+    document.getElementById('dividendRegisterModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeDividendRegisterModal();
+    });
+
+    async function submitDividendRegister() {
+        const input = document.getElementById('dividendCodesInput').value.trim();
+        const statusDiv = document.getElementById('dividendRegisterStatus');
+        const submitBtn = document.querySelector('#dividendRegisterModal .modal-submit-btn');
+
+        if (!input) {
+            statusDiv.innerHTML = '<span style="color: #dc2626;">銘柄コードを入力してください</span>';
+            return;
+        }
+
+        const codes = input.split(/[,\n\s]+/).map(code => code.trim().replace('.T', '')).filter(code => code && /^\d{3,4}[A-Z]?$/.test(code));
+
+        if (codes.length === 0) {
+            statusDiv.innerHTML = '<span style="color: #dc2626;">有効な銘柄コード（3〜4桁の数字+英字）が見つかりません</span>';
+            return;
+        }
+
+        const uniqueCodes = [...new Set(codes)];
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登録中...';
+        statusDiv.innerHTML = `<span style="color: #3b82f6;">登録中... (0/${uniqueCodes.length})</span>`;
+
+        let successCount = 0;
+        let failedCodes = [];
+
+        for (let i = 0; i < uniqueCodes.length; i++) {
+            const code = uniqueCodes[i] + '.T';
+            try {
+                const response = await fetch('/api/dividend-stocks/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_code: code })
+                });
+                if (response.ok) { successCount++; } else { failedCodes.push(uniqueCodes[i]); }
+            } catch (error) { failedCodes.push(uniqueCodes[i]); }
+            statusDiv.innerHTML = `<span style="color: #3b82f6;">登録中... (${i + 1}/${uniqueCodes.length})</span>`;
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = '登録';
+
+        let resultMsg = `<span style="color: #16a34a;">${successCount}件を登録しました</span>`;
+        if (failedCodes.length > 0) {
+            resultMsg += `<br><span style="color: #dc2626;">失敗: ${failedCodes.join(', ')}</span>`;
+        }
+        statusDiv.innerHTML = resultMsg;
+
+        if (successCount > 0) {
+            dividendLoaded = false;
+            loadDividendStocks();
+        }
+    }
+
+    // ========================================
+    // 条件合致企業登録機能（一括登録）
     // ========================================
 
     function openBulkRegisterModal() {
@@ -1107,9 +1266,114 @@
 
         sessionStorage.setItem('activeTab', tabName);
 
+        if (tabName === 'dividend' && !dividendLoaded) loadDividendStocks();
         if (tabName === 'gc' && gcStocksCache.length === 0) loadGcStocks();
         if (tabName === 'dc' && dcStocksCache.length === 0) loadDcStocks();
         if (tabName === 'technical' && technicalStocksCache.length === 0) loadTechnicalStocks();
+    }
+
+    // ========================================
+    // 高配当企業
+    // ========================================
+
+    let dividendLoaded = false;
+    let dividendCache = [];
+
+    async function loadDividendStocks() {
+        dividendLoaded = true;
+        const content = document.getElementById('dividendContent');
+        content.innerHTML = '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>';
+
+        try {
+            const response = await fetch('/api/dividend-stocks');
+            const data = await response.json();
+            if (response.ok) {
+                dividendCache = data.dividend_stocks || [];
+                renderDividendStocks(dividendCache);
+            } else {
+                content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            }
+        } catch (error) {
+            content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+        }
+    }
+
+    function renderDividendStocks(list) {
+        const content = document.getElementById('dividendContent');
+        document.getElementById('dividendCount').textContent = `${list.length}件`;
+
+        if (list.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">高配当企業が登録されていません。「高配当企業登録」ボタンから銘柄を登録してください。</div>';
+            return;
+        }
+
+        // 配当利回りで降順ソート
+        list.sort((a, b) => (b.dividend_yield || 0) - (a.dividend_yield || 0));
+
+        let html = `
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>コード</th>
+                        <th>会社名</th>
+                        <th>合致度</th>
+                        <th>セクター</th>
+                        <th>時価総額</th>
+                        <th>株価</th>
+                        <th>PER</th>
+                        <th>PBR</th>
+                        <th>配当利回り</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        list.forEach(item => {
+            const code = item.company_code || '---';
+            const name = item.company_name || '---';
+            const sector = item.sector || '---';
+            const marketCap = item.market_cap ? formatMarketCapOku(item.market_cap) : '---';
+            const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
+            const per = item.per_forward ? `${Number(item.per_forward).toFixed(1)}倍` : '---';
+            const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
+            const matchRateClass = getMatchRateClass(item.match_rate);
+
+            html += `
+                <tr>
+                    <td>${code}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
+                    <td class="${matchRateClass}">${matchRate}</td>
+                    <td>${sector}</td>
+                    <td>${marketCap}</td>
+                    <td>${price}</td>
+                    <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
+                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td><strong>${divYield}</strong></td>
+                    <td><button class="delete-btn" onclick="removeDividendStock('${code}')">解除</button></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    }
+
+    async function removeDividendStock(code) {
+        if (!confirm('この企業を高配当リストから解除しますか？')) return;
+        try {
+            const response = await fetch(`/api/dividend-stocks/remove/${code}`, { method: 'DELETE' });
+            if (response.ok) {
+                dividendCache = dividendCache.filter(item => item.company_code !== code);
+                renderDividendStocks(dividendCache);
+            } else {
+                alert('解除に失敗しました');
+            }
+        } catch (error) {
+            alert('解除に失敗しました');
+        }
     }
 
     // ========================================
@@ -1202,7 +1466,7 @@
             const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
-                <tr>
+                <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td>${matchRate}</td>
@@ -1418,7 +1682,7 @@
             const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
-                <tr>
+                <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td>${market}</td>
@@ -1508,7 +1772,7 @@
             const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
-                <tr id="tech-row-${code}">
+                <tr id="tech-row-${code}" class="${trend.cls ? 'row-' + trend.cls : ''}">
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>

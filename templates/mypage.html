@@ -77,22 +77,6 @@
     .btn-sm-outline:hover { border-color: #2d6a4f; background: #f0fdf4; }
     .star { color: #eab308; font-size: 11px; }
     .star-empty { color: #d4d4d4; font-size: 11px; }
-    .company-chip {
-        display: flex; align-items: center; gap: 8px;
-        padding: 8px 10px; border-radius: 8px;
-        border: 1px solid #ebebeb; background: #fff;
-        transition: all 0.15s;
-        text-decoration: none; color: inherit;
-        position: relative;
-    }
-    .company-chip:hover { border-color: #2d6a4f; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-    .status-badge {
-        font-size: 9px; font-weight: 600;
-        padding: 1px 5px; border-radius: 3px;
-        line-height: 1.4;
-    }
-    .status-noted { background: #f0fdf4; color: #15803d; }
-    .status-pending { background: #fef9c3; color: #a16207; }
     .setting-row {
         display: flex; align-items: center; justify-content: space-between;
         padding: 8px 10px; border-radius: 8px;
@@ -106,18 +90,67 @@
         cursor: pointer; transition: all 0.15s;
     }
     .sort-btn:hover, .sort-btn.active { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
-    .recent-item {
-        display: flex; align-items: center; gap: 8px;
-        padding: 6px 8px; border-radius: 6px;
-        transition: background 0.15s;
-        text-decoration: none; color: inherit;
-    }
-    .recent-item:hover { background: #f8faf8; }
     .empty-state {
         text-align: center; padding: 24px 16px;
     }
     .empty-state i { font-size: 28px; color: #d4d4d4; margin-bottom: 8px; }
     .empty-state p { font-size: 12px; color: #a3a3a3; margin-bottom: 10px; }
+    /* モーダル */
+    .modal-overlay {
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.4);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .modal-content {
+        background: #fff; border-radius: 12px;
+        padding: 24px 28px; max-width: 560px; width: 92%;
+        max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .form-label {
+        display: block; font-size: 12px; font-weight: 600;
+        color: #525252; margin-bottom: 4px;
+    }
+    .form-input {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: #2d6a4f; }
+    .form-textarea {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; resize: vertical; min-height: 120px;
+        transition: border-color 0.2s;
+    }
+    .form-textarea:focus { border-color: #2d6a4f; }
+    .star-input { cursor: pointer; font-size: 18px; transition: color 0.15s; }
+    .toggle-switch {
+        position: relative; width: 36px; height: 20px;
+        background: #d4d4d4; border-radius: 10px;
+        cursor: pointer; transition: background 0.2s;
+    }
+    .toggle-switch.on { background: #1b4332; }
+    .toggle-switch .toggle-dot {
+        position: absolute; top: 2px; left: 2px;
+        width: 16px; height: 16px; background: #fff;
+        border-radius: 50%; transition: left 0.2s;
+    }
+    .toggle-switch.on .toggle-dot { left: 18px; }
+    .note-actions {
+        display: flex; gap: 4px; opacity: 0;
+        transition: opacity 0.15s;
+    }
+    .note-card:hover .note-actions { opacity: 1; }
+    .note-action-btn {
+        padding: 2px 6px; border-radius: 4px; border: none;
+        background: transparent; cursor: pointer; font-size: 11px;
+        color: #a3a3a3; transition: all 0.15s;
+    }
+    .note-action-btn:hover { background: #f0fdf4; color: #1b4332; }
+    .note-action-btn.delete:hover { background: #fef2f2; color: #dc2626; }
 </style>
 
 <div class="mypage min-h-screen" style="background: #f7f7f5;" x-data="mypageApp()">
@@ -128,21 +161,21 @@
             <div class="flex items-center justify-between flex-wrap gap-4">
                 <!-- 左: プロフィール -->
                 <div class="flex items-center gap-4">
-                    <div class="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;">田</div>
+                    <div class="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;" x-text="userId.slice(-2).toUpperCase()"></div>
                     <div>
                         <p class="text-xs font-semibold tracking-widest uppercase" style="color: #16a34a;">My Page</p>
-                        <h1 class="text-lg font-bold leading-tight" style="color: #1a1a1a;">田中 太郎</h1>
+                        <h1 class="text-lg font-bold leading-tight" style="color: #1a1a1a;">マイノート</h1>
                     </div>
                 </div>
                 <!-- 右: 学習ステータス -->
                 <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style="background:#f0fdf4; border:1px solid #dcfce7;">
-                        <i class="fas fa-fire" style="color:#f97316; font-size:12px;"></i>
-                        <span class="text-xs font-bold" style="color:#1b4332;">7日連続</span>
+                    <div class="text-center">
+                        <div class="text-lg font-bold" style="color:#1b4332;" x-text="notes.length"></div>
+                        <div class="text-xs" style="color:#737373;">ノート数</div>
                     </div>
                     <div class="text-center">
-                        <div class="text-lg font-bold" style="color:#1b4332;">23</div>
-                        <div class="text-xs" style="color:#737373;">学習日数</div>
+                        <div class="text-lg font-bold" style="color:#1b4332;" x-text="uniqueCompanies"></div>
+                        <div class="text-xs" style="color:#737373;">研究企業</div>
                     </div>
                 </div>
             </div>
@@ -153,175 +186,46 @@
     <div class="max-w-7xl mx-auto px-6 py-5">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-            <!-- ===== 左カラム: 研究対象企業 + 最近見た企業 ===== -->
+            <!-- ===== 左カラム: 統計 + 設定 ===== -->
             <div class="lg:col-span-4 xl:col-span-3 space-y-5">
-                <!-- 研究対象企業 -->
+                <!-- 学習の記録 -->
                 <div class="mp-card p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="section-head mb-0"><i class="fas fa-building"></i>研究対象企業</h2>
-                        <button class="btn-sm-outline"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>追加</button>
-                    </div>
-                    <div class="grid grid-cols-1 gap-2">
-                        <a href="/stock/6861" class="company-chip">
-                            <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:#f0fdf4;">
-                                <i class="fas fa-industry" style="color:#15803d; font-size:11px;"></i>
-                            </div>
-                            <div style="min-width:0; flex:1;">
-                                <p class="text-xs font-bold truncate" style="color:#1a1a1a;">キーエンス</p>
-                                <p class="text-xs truncate" style="color:#a3a3a3;">6861</p>
-                            </div>
-                            <span class="status-badge status-noted">ノート済</span>
-                        </a>
-                        <a href="/stock/7974" class="company-chip">
-                            <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:#fef2f8;">
-                                <i class="fas fa-gamepad" style="color:#db2777; font-size:11px;"></i>
-                            </div>
-                            <div style="min-width:0; flex:1;">
-                                <p class="text-xs font-bold truncate" style="color:#1a1a1a;">任天堂</p>
-                                <p class="text-xs truncate" style="color:#a3a3a3;">7974</p>
-                            </div>
-                            <span class="status-badge status-noted">ノート済</span>
-                        </a>
-                        <a href="/stock/4063" class="company-chip">
-                            <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:#eff6ff;">
-                                <i class="fas fa-flask" style="color:#2563eb; font-size:11px;"></i>
-                            </div>
-                            <div style="min-width:0; flex:1;">
-                                <p class="text-xs font-bold truncate" style="color:#1a1a1a;">信越化学</p>
-                                <p class="text-xs truncate" style="color:#a3a3a3;">4063</p>
-                            </div>
-                            <span class="status-badge status-noted">ノート済</span>
-                        </a>
-                        <a href="/stock/7203" class="company-chip">
-                            <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:#fefce8;">
-                                <i class="fas fa-car" style="color:#ca8a04; font-size:11px;"></i>
-                            </div>
-                            <div style="min-width:0; flex:1;">
-                                <p class="text-xs font-bold truncate" style="color:#1a1a1a;">トヨタ</p>
-                                <p class="text-xs truncate" style="color:#a3a3a3;">7203</p>
-                            </div>
-                            <span class="status-badge status-pending">未分析</span>
-                        </a>
+                    <h2 class="section-head"><i class="fas fa-seedling"></i>学習の記録</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
+                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="uniqueCompanies + '社'"></div>
+                            <div class="text-xs" style="color:#737373;">研究した企業</div>
+                        </div>
+                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
+                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="notes.length + '件'"></div>
+                            <div class="text-xs" style="color:#737373;">書いたノート</div>
+                        </div>
+                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
+                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="publicCount + '件'"></div>
+                            <div class="text-xs" style="color:#737373;">公開ノート</div>
+                        </div>
+                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
+                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="avgStars"></div>
+                            <div class="text-xs" style="color:#737373;">平均理解度</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 最近見た企業 -->
+                <!-- タグ一覧 -->
                 <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-history"></i>最近見た企業</h2>
-                    <div class="space-y-0.5">
-                        <a href="/stock/6758" class="recent-item">
-                            <div class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background:#f0fdf4;">
-                                <i class="fas fa-music" style="color:#15803d; font-size:8px;"></i>
-                            </div>
-                            <span class="text-xs font-medium flex-1" style="color:#1a1a1a;">ソニーG</span>
-                            <span class="text-xs" style="color:#a3a3a3;">3時間前</span>
-                        </a>
-                        <a href="/stock/9984" class="recent-item">
-                            <div class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background:#eff6ff;">
-                                <i class="fas fa-globe" style="color:#2563eb; font-size:8px;"></i>
-                            </div>
-                            <span class="text-xs font-medium flex-1" style="color:#1a1a1a;">ソフトバンクG</span>
-                            <span class="text-xs" style="color:#a3a3a3;">昨日</span>
-                        </a>
-                        <a href="/stock/6501" class="recent-item">
-                            <div class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background:#fef2f8;">
-                                <i class="fas fa-bolt" style="color:#db2777; font-size:8px;"></i>
-                            </div>
-                            <span class="text-xs font-medium flex-1" style="color:#1a1a1a;">日立製作所</span>
-                            <span class="text-xs" style="color:#a3a3a3;">2日前</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ===== 中央カラム: マイノート ===== -->
-            <div class="lg:col-span-5 xl:col-span-6">
-                <div class="mp-card p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
-                        <button class="btn-sm-green"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
-                    </div>
-
-                    <!-- ソート＆フィルタ -->
-                    <div class="mb-3 flex items-center gap-2 flex-wrap">
-                        <!-- 検索 -->
-                        <div style="position:relative; flex:1; min-width:120px;">
-                            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
-                            <input type="text" placeholder="ノートを検索..." x-model="noteSearch" style="width:100%; padding:7px 10px 7px 32px; border:1px solid #ebebeb; border-radius:7px; font-size:12px; color:#1a1a1a; background:#fff; outline:none;" onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ebebeb'">
-                        </div>
-                        <!-- ソートボタン -->
-                        <div class="flex items-center gap-1">
-                            <button class="sort-btn" :class="{ 'active': noteSort === 'date' }" @click="noteSort = 'date'">
-                                <i class="fas fa-clock mr-0.5" style="font-size:9px;"></i>新しい順
-                            </button>
-                            <button class="sort-btn" :class="{ 'active': noteSort === 'star' }" @click="noteSort = 'star'">
-                                <i class="fas fa-star mr-0.5" style="font-size:9px;"></i>評価順
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- タグフィルタ -->
-                    <div class="mb-3 flex items-center gap-1.5 flex-wrap">
-                        <span class="text-xs" style="color:#a3a3a3; margin-right:2px;">タグ:</span>
+                    <h2 class="section-head"><i class="fas fa-tags"></i>マイタグ</h2>
+                    <div class="flex flex-wrap gap-1.5" x-show="allTags.length > 0">
                         <template x-for="tag in allTags" :key="tag">
                             <span class="tag" :class="{ 'active': activeTag === tag }" @click="activeTag = activeTag === tag ? '' : tag" x-text="tag"></span>
                         </template>
                     </div>
-
-                    <!-- ノート一覧 -->
-                    <div class="space-y-2">
-                        <template x-for="note in filteredNotes" :key="note.code">
-                            <a :href="'/stock/' + note.code" class="note-card">
-                                <div class="flex items-start justify-between mb-1">
-                                    <div>
-                                        <span class="text-sm font-bold" style="color:#1a1a1a;" x-text="note.name"></span>
-                                        <span class="text-xs ml-1.5" style="color:#a3a3a3;" x-text="note.code"></span>
-                                    </div>
-                                    <span>
-                                        <template x-for="i in 5" :key="i">
-                                            <span :class="i <= note.stars ? 'star' : 'star-empty'">★</span>
-                                        </template>
-                                    </span>
-                                </div>
-                                <p class="text-xs leading-relaxed mb-1.5" style="color:#525252;" x-text="note.summary"></p>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-1.5">
-                                        <template x-for="t in note.tags" :key="t">
-                                            <span class="tag" x-text="t" style="cursor:default;"></span>
-                                        </template>
-                                    </div>
-                                    <span class="text-xs" style="color:#a3a3a3;" x-text="note.date"></span>
-                                </div>
-                            </a>
-                        </template>
-
-                        <!-- 空状態 -->
-                        <div x-show="filteredNotes.length === 0" class="empty-state">
-                            <div><i class="fas fa-book-open"></i></div>
-                            <p x-show="noteSearch || activeTag">条件に一致するノートが見つかりません</p>
-                            <p x-show="!noteSearch && !activeTag">まだノートがありません</p>
-                            <button x-show="noteSearch || activeTag" class="btn-sm-outline" @click="noteSearch = ''; activeTag = ''">フィルタをリセット</button>
-                            <button x-show="!noteSearch && !activeTag" class="btn-sm-green">
-                                <i class="fas fa-plus mr-1" style="font-size:10px;"></i>最初のノートを作成
-                            </button>
-                        </div>
-                    </div>
+                    <p x-show="allTags.length === 0" class="text-xs" style="color:#a3a3a3;">タグはまだありません</p>
                 </div>
-            </div>
 
-            <!-- ===== 右カラム ===== -->
-            <div class="lg:col-span-3 space-y-5">
                 <!-- 設定 -->
                 <div class="mp-card p-4">
                     <h2 class="section-head"><i class="fas fa-cog"></i>設定</h2>
                     <div class="space-y-1">
-                        <a href="/change_password" class="setting-row" style="text-decoration:none;">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fas fa-key" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">パスワード変更</span>
-                            </div>
-                            <i class="fas fa-chevron-right" style="color:#d4d4d4; font-size:10px;"></i>
-                        </a>
                         <div class="setting-row" style="opacity:0.45;">
                             <div class="flex items-center gap-2.5">
                                 <i class="fas fa-bell" style="color:#525252; font-size:11px;"></i>
@@ -336,41 +240,194 @@
                             </div>
                             <span class="text-xs" style="color:#a3a3a3;">準備中</span>
                         </div>
-                        <div class="setting-row" style="opacity:0.45;">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fas fa-download" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">エクスポート</span>
-                            </div>
-                            <span class="text-xs" style="color:#a3a3a3;">準備中</span>
+                    </div>
+                    <div style="border-top: 1px solid #ebebeb; margin-top: 12px; padding-top: 10px;">
+                        <p class="text-xs" style="color:#a3a3a3;">ユーザーID: <span x-text="userId" style="font-family:monospace;"></span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== 中央カラム: マイノート ===== -->
+            <div class="lg:col-span-8 xl:col-span-9">
+                <div class="mp-card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
+                        <button class="btn-sm-green" @click="openCreateModal()"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
+                    </div>
+
+                    <!-- ソート＆フィルタ -->
+                    <div class="mb-3 flex items-center gap-2 flex-wrap">
+                        <!-- 検索 -->
+                        <div style="position:relative; flex:1; min-width:120px;">
+                            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
+                            <input type="text" placeholder="ノートを検索..." x-model="noteSearch" class="form-input" style="padding-left:32px;">
+                        </div>
+                        <!-- ソートボタン -->
+                        <div class="flex items-center gap-1">
+                            <button class="sort-btn" :class="{ 'active': noteSort === 'date' }" @click="noteSort = 'date'">
+                                <i class="fas fa-clock mr-0.5" style="font-size:9px;"></i>新しい順
+                            </button>
+                            <button class="sort-btn" :class="{ 'active': noteSort === 'star' }" @click="noteSort = 'star'">
+                                <i class="fas fa-star mr-0.5" style="font-size:9px;"></i>評価順
+                            </button>
                         </div>
                     </div>
-                    <!-- 学習の記録 -->
-                    <div style="border-top: 1px solid #ebebeb; margin-top: 12px; padding-top: 12px;">
-                        <p class="text-xs font-bold mb-2.5" style="color:#525252; letter-spacing:0.02em;"><i class="fas fa-seedling mr-1" style="color:#2d6a4f; font-size:11px;"></i>学習の記録</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                                <div class="text-base mb-0.5">🏢</div>
-                                <div class="text-sm font-bold" style="color:#1b4332;">12社</div>
-                                <div class="text-xs" style="color:#737373;">研究した企業</div>
+
+                    <!-- ローディング -->
+                    <div x-show="loading" class="empty-state">
+                        <div><i class="fas fa-spinner fa-spin" style="font-size:24px; color:#2d6a4f;"></i></div>
+                        <p>ノートを読み込み中...</p>
+                    </div>
+
+                    <!-- ノート一覧 -->
+                    <div class="space-y-2" x-show="!loading">
+                        <template x-for="note in filteredNotes" :key="note.id">
+                            <div class="note-card" @click="openEditModal(note)">
+                                <div class="flex items-start justify-between mb-1">
+                                    <div style="min-width:0; flex:1;">
+                                        <span class="text-sm font-bold" style="color:#1a1a1a;" x-text="note.title"></span>
+                                        <span class="text-xs ml-1.5" style="color:#a3a3a3;" x-text="note.company_name ? note.company_name + ' (' + note.company_code + ')' : ''"></span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span x-show="note.is_public" class="text-xs px-1.5 py-0.5 rounded" style="background:#f0fdf4; color:#15803d; font-size:10px;">公開</span>
+                                        <span>
+                                            <template x-for="i in 5" :key="i">
+                                                <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
+                                            </template>
+                                        </span>
+                                        <!-- 操作ボタン -->
+                                        <div class="note-actions">
+                                            <button class="note-action-btn delete" @click.stop="confirmDelete(note)" title="削除">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-xs leading-relaxed mb-1.5" style="color:#525252; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5">
+                                        <template x-for="t in (note.tags || [])" :key="t">
+                                            <span class="tag" x-text="t" style="cursor:default;"></span>
+                                        </template>
+                                    </div>
+                                    <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
+                                </div>
                             </div>
-                            <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                                <div class="text-base mb-0.5">📝</div>
-                                <div class="text-sm font-bold" style="color:#1b4332;">8件</div>
-                                <div class="text-xs" style="color:#737373;">書いたノート</div>
-                            </div>
-                            <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                                <div class="text-base mb-0.5">📖</div>
-                                <div class="text-sm font-bold" style="color:#1b4332;">15個</div>
-                                <div class="text-xs" style="color:#737373;">学習した用語</div>
-                            </div>
-                            <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                                <div class="text-base mb-0.5">⚖️</div>
-                                <div class="text-sm font-bold" style="color:#1b4332;">6回</div>
-                                <div class="text-xs" style="color:#737373;">比較した回数</div>
-                            </div>
+                        </template>
+
+                        <!-- 空状態 -->
+                        <div x-show="filteredNotes.length === 0 && !loading" class="empty-state">
+                            <div><i class="fas fa-book-open"></i></div>
+                            <p x-show="noteSearch || activeTag">条件に一致するノートが見つかりません</p>
+                            <p x-show="!noteSearch && !activeTag">まだノートがありません</p>
+                            <button x-show="noteSearch || activeTag" class="btn-sm-outline" @click="noteSearch = ''; activeTag = ''">フィルタをリセット</button>
+                            <button x-show="!noteSearch && !activeTag" class="btn-sm-green" @click="openCreateModal()">
+                                <i class="fas fa-plus mr-1" style="font-size:10px;"></i>最初のノートを作成
+                            </button>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 作成/編集モーダル ===== -->
+    <div x-show="showModal" class="modal-overlay" @click.self="showModal = false" x-cloak>
+        <div class="modal-content" @click.stop>
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-base font-bold" style="color:#1a1a1a;" x-text="editingNote ? 'ノートを編集' : '新しいノートを作成'"></h3>
+                <button @click="showModal = false" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <!-- タイトル -->
+                <div>
+                    <label class="form-label">タイトル <span style="color:#dc2626;">*</span></label>
+                    <input type="text" class="form-input" x-model="form.title" placeholder="例: キーエンスの営業利益率の秘密">
+                </div>
+
+                <!-- 企業紐づけ（任意） -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">銘柄コード（任意）</label>
+                        <input type="text" class="form-input" x-model="form.company_code" placeholder="例: 6861">
+                    </div>
+                    <div>
+                        <label class="form-label">企業名（任意）</label>
+                        <input type="text" class="form-input" x-model="form.company_name" placeholder="例: キーエンス">
+                    </div>
+                </div>
+
+                <!-- 本文 -->
+                <div>
+                    <label class="form-label">本文 <span style="color:#dc2626;">*</span></label>
+                    <textarea class="form-textarea" x-model="form.content" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
+                </div>
+
+                <!-- 理解度 -->
+                <div>
+                    <label class="form-label">理解度</label>
+                    <div class="flex items-center gap-1">
+                        <template x-for="i in 5" :key="i">
+                            <span class="star-input" :style="{ color: i <= form.stars ? '#eab308' : '#d4d4d4' }" @click="form.stars = i">&#9733;</span>
+                        </template>
+                        <button x-show="form.stars > 0" @click="form.stars = 0" class="text-xs ml-2" style="color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
+                    </div>
+                </div>
+
+                <!-- タグ -->
+                <div>
+                    <label class="form-label">タグ（カンマ区切り）</label>
+                    <input type="text" class="form-input" x-model="form.tagsInput" placeholder="例: 高収益, IoT, ファブレス">
+                </div>
+
+                <!-- 公開設定 -->
+                <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
+                    <div>
+                        <p class="text-xs font-bold" style="color:#1a1a1a;">コミュニティに公開</p>
+                        <p class="text-xs" style="color:#a3a3a3;">他のユーザーがあなたのノートを閲覧できます</p>
+                    </div>
+                    <div class="toggle-switch" :class="{ 'on': form.is_public }" @click="form.is_public = !form.is_public">
+                        <div class="toggle-dot"></div>
+                    </div>
+                </div>
+
+                <!-- 匿名設定 -->
+                <div x-show="form.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
+                    <div>
+                        <p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p>
+                        <p class="text-xs" style="color:#a3a3a3;">ユーザーIDを非表示にします</p>
+                    </div>
+                    <div class="toggle-switch" :class="{ 'on': form.is_anonymous }" @click="form.is_anonymous = !form.is_anonymous">
+                        <div class="toggle-dot"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ボタン -->
+            <div class="flex justify-end gap-2 mt-5" style="border-top:1px solid #ebebeb; padding-top:16px;">
+                <button class="btn-sm-outline" @click="showModal = false">キャンセル</button>
+                <button class="btn-sm-green" @click="saveNote()" :disabled="saving" style="padding:6px 20px;">
+                    <span x-show="!saving" x-text="editingNote ? '更新する' : '作成する'"></span>
+                    <span x-show="saving"><i class="fas fa-spinner fa-spin mr-1"></i>保存中...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 削除確認モーダル ===== -->
+    <div x-show="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false" x-cloak>
+        <div class="modal-content" style="max-width:380px; text-align:center;" @click.stop>
+            <div style="margin-bottom:16px;">
+                <i class="fas fa-trash-alt" style="font-size:32px; color:#dc2626;"></i>
+            </div>
+            <p class="text-sm font-bold mb-1" style="color:#1a1a1a;">ノートを削除しますか？</p>
+            <p class="text-xs mb-4" style="color:#a3a3a3;">この操作は取り消せません</p>
+            <div class="flex justify-center gap-2">
+                <button class="btn-sm-outline" @click="showDeleteConfirm = false">キャンセル</button>
+                <button class="btn-sm-green" @click="deleteNote()" style="background:#dc2626; padding:6px 20px;">削除する</button>
             </div>
         </div>
     </div>
@@ -382,55 +439,189 @@ function mypageApp() {
         noteSearch: '',
         noteSort: 'date',
         activeTag: '',
-        notes: [
-            {
-                name: 'キーエンス', code: '6861', stars: 5, date: '01/15',
-                sortDate: 20250115,
-                summary: '営業利益率50%超は国内製造業でも異次元。ファブレスモデルと直販体制が競争優位の源泉。',
-                tags: ['高収益', 'IoT', 'ファブレス']
-            },
-            {
-                name: '任天堂', code: '7974', stars: 4, date: '01/10',
-                sortDate: 20250110,
-                summary: 'IP（知的財産）の力が圧倒的。ハード＋ソフト＋映画の垂直統合。現金保有量が異常に多い。',
-                tags: ['IP経営', 'エンタメ', '高自己資本']
-            },
-            {
-                name: '信越化学工業', code: '4063', stars: 4, date: '12/28',
-                sortDate: 20241228,
-                summary: '塩ビとシリコンウェハーで世界トップシェア。地味だが着実に利益を積む「静かな巨人」。',
-                tags: ['素材', '世界シェア', '半導体']
+        notes: [],
+        userId: '',
+        loading: true,
+        showModal: false,
+        showDeleteConfirm: false,
+        editingNote: null,
+        deletingNote: null,
+        saving: false,
+        form: {
+            title: '',
+            content: '',
+            company_code: '',
+            company_name: '',
+            stars: 0,
+            tagsInput: '',
+            is_public: false,
+            is_anonymous: false,
+        },
+
+        async init() {
+            await this.loadNotes();
+        },
+
+        async loadNotes() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/notes/my');
+                const data = await res.json();
+                if (data.notes) {
+                    this.notes = data.notes;
+                    this.userId = data.user_id || '';
+                }
+            } catch (e) {
+                console.error('ノート取得エラー:', e);
             }
-        ],
+            this.loading = false;
+        },
+
+        get uniqueCompanies() {
+            const codes = new Set();
+            this.notes.forEach(n => { if (n.company_code) codes.add(n.company_code); });
+            return codes.size;
+        },
+
+        get publicCount() {
+            return this.notes.filter(n => n.is_public).length;
+        },
+
+        get avgStars() {
+            const rated = this.notes.filter(n => n.stars > 0);
+            if (rated.length === 0) return '-';
+            const avg = rated.reduce((s, n) => s + n.stars, 0) / rated.length;
+            return '\u2605' + avg.toFixed(1);
+        },
+
         get allTags() {
             const tags = new Set();
-            this.notes.forEach(n => n.tags.forEach(t => tags.add(t)));
+            this.notes.forEach(n => (n.tags || []).forEach(t => tags.add(t)));
             return [...tags];
         },
+
         get filteredNotes() {
             let result = [...this.notes];
-            // 検索フィルタ
             if (this.noteSearch) {
                 const q = this.noteSearch.toLowerCase();
                 result = result.filter(n =>
-                    n.name.toLowerCase().includes(q) ||
-                    n.code.includes(q) ||
-                    n.summary.toLowerCase().includes(q) ||
-                    n.tags.some(t => t.toLowerCase().includes(q))
+                    (n.title || '').toLowerCase().includes(q) ||
+                    (n.company_code || '').includes(q) ||
+                    (n.company_name || '').toLowerCase().includes(q) ||
+                    (n.content || '').toLowerCase().includes(q) ||
+                    (n.tags || []).some(t => t.toLowerCase().includes(q))
                 );
             }
-            // タグフィルタ
             if (this.activeTag) {
-                result = result.filter(n => n.tags.includes(this.activeTag));
+                result = result.filter(n => (n.tags || []).includes(this.activeTag));
             }
-            // ソート
             if (this.noteSort === 'star') {
-                result.sort((a, b) => b.stars - a.stars);
+                result.sort((a, b) => (b.stars || 0) - (a.stars || 0));
             } else {
-                result.sort((a, b) => b.sortDate - a.sortDate);
+                result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             }
             return result;
-        }
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return (d.getMonth() + 1) + '/' + d.getDate();
+        },
+
+        openCreateModal() {
+            this.editingNote = null;
+            this.form = {
+                title: '', content: '', company_code: '', company_name: '',
+                stars: 0, tagsInput: '', is_public: false, is_anonymous: false,
+            };
+            this.showModal = true;
+        },
+
+        openEditModal(note) {
+            this.editingNote = note;
+            this.form = {
+                title: note.title || '',
+                content: note.content || '',
+                company_code: note.company_code || '',
+                company_name: note.company_name || '',
+                stars: note.stars || 0,
+                tagsInput: (note.tags || []).join(', '),
+                is_public: note.is_public || false,
+                is_anonymous: note.is_anonymous || false,
+            };
+            this.showModal = true;
+        },
+
+        async saveNote() {
+            if (!this.form.title.trim() || !this.form.content.trim()) {
+                showErrorModal('タイトルと本文は必須です');
+                return;
+            }
+            this.saving = true;
+            const tags = this.form.tagsInput
+                .split(/[,、]/)
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
+            const payload = {
+                title: this.form.title.trim(),
+                content: this.form.content.trim(),
+                company_code: this.form.company_code.trim() || null,
+                company_name: this.form.company_name.trim() || null,
+                stars: this.form.stars,
+                tags: tags,
+                is_public: this.form.is_public,
+                is_anonymous: this.form.is_anonymous,
+            };
+            try {
+                let res;
+                if (this.editingNote) {
+                    res = await fetch('/api/notes/' + this.editingNote.id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                } else {
+                    res = await fetch('/api/notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                }
+                const data = await res.json();
+                if (res.ok) {
+                    this.showModal = false;
+                    await this.loadNotes();
+                } else {
+                    showErrorModal(data.error || '保存に失敗しました');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました');
+            }
+            this.saving = false;
+        },
+
+        confirmDelete(note) {
+            this.deletingNote = note;
+            this.showDeleteConfirm = true;
+        },
+
+        async deleteNote() {
+            if (!this.deletingNote) return;
+            try {
+                const res = await fetch('/api/notes/' + this.deletingNote.id, { method: 'DELETE' });
+                if (res.ok) {
+                    this.showDeleteConfirm = false;
+                    this.deletingNote = null;
+                    await this.loadNotes();
+                } else {
+                    const data = await res.json();
+                    showErrorModal(data.error || '削除に失敗しました');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました');
+            }
+        },
     };
 }
 </script>

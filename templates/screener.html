@@ -124,54 +124,51 @@
 </style>
 
 <script>
-    // ダミーデータ（将来的にはAPI/ログイン連携に置き換え）
-    let favorites = [
-        {
-            company_code: '6861.T', company_name: 'キーエンス', sector: 'テクノロジー',
-            market_cap: 152000, stock_price: 68450, equity_ratio: 87.3,
-            operating_margin: 54.2, per_forward: 22.1, pbr: 12.5,
-            dividend_yield: 0.8, match_rate: 85
-        },
-        {
-            company_code: '7974.T', company_name: '任天堂', sector: '消費財',
-            market_cap: 89000, stock_price: 9245, equity_ratio: 89.1,
-            operating_margin: 35.6, per_forward: 16.8, pbr: 3.2,
-            dividend_yield: 2.4, match_rate: 78
-        },
-        {
-            company_code: '4063.T', company_name: '信越化学工業', sector: '素材',
-            market_cap: 71000, stock_price: 5632, equity_ratio: 73.8,
-            operating_margin: 38.4, per_forward: 12.3, pbr: 2.8,
-            dividend_yield: 3.2, match_rate: 92
-        },
-        {
-            company_code: '7203.T', company_name: 'トヨタ自動車', sector: '製造業',
-            market_cap: 402000, stock_price: 2815, equity_ratio: 42.5,
-            operating_margin: 9.8, per_forward: 11.2, pbr: 0.95,
-            dividend_yield: 2.8, match_rate: 55
-        },
-        {
-            company_code: '6758.T', company_name: 'ソニーグループ', sector: 'テクノロジー',
-            market_cap: 148000, stock_price: 3420, equity_ratio: 28.3,
-            operating_margin: 13.2, per_forward: 15.6, pbr: 2.1,
-            dividend_yield: 1.2, match_rate: 48
-        },
-        {
-            company_code: '9983.T', company_name: 'ファーストリテイリング', sector: '消費財',
-            market_cap: 134000, stock_price: 42350, equity_ratio: 52.1,
-            operating_margin: 16.8, per_forward: 32.5, pbr: 7.8,
-            dividend_yield: 1.1, match_rate: 35
-        },
-        {
-            company_code: '8035.T', company_name: '東京エレクトロン', sector: 'テクノロジー',
-            market_cap: 112000, stock_price: 23780, equity_ratio: 68.5,
-            operating_margin: 28.9, per_forward: 18.4, pbr: 5.6,
-            dividend_yield: 2.1, match_rate: 72
-        }
-    ];
-
+    let favorites = [];
     let sortColumn = '';
     let sortDirection = 'asc';
+    let isLoading = true;
+
+    // APIからウォッチリストデータを取得
+    async function loadFavorites() {
+        const tbody = document.getElementById('favoritesTableBody');
+        const emptyState = document.getElementById('emptyState');
+        const tableContainer = document.getElementById('tableContainer');
+
+        // ローディング表示
+        tableContainer.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
+                    データを読み込み中...
+                </td>
+            </tr>
+        `;
+
+        try {
+            const response = await fetch('/api/watchlist');
+            if (!response.ok) throw new Error('データの取得に失敗しました');
+            const data = await response.json();
+            favorites = data.watchlist || [];
+        } catch (err) {
+            console.error('ウォッチリスト取得エラー:', err);
+            favorites = [];
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="px-4 py-12 text-center text-red-500">
+                        <i class="fas fa-exclamation-circle text-2xl mb-3 block"></i>
+                        データの取得に失敗しました。再読み込みしてください。
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        isLoading = false;
+        renderFavorites();
+    }
 
     // 時価総額フォーマット（億円単位 → 兆/億表示）
     function formatMarketCapOku(oku) {
@@ -233,13 +230,24 @@
             const matchClass = getMatchRateClass(item.match_rate);
             const sectorBadge = getSectorBadge(item.sector);
 
+            const equityRatio = item.equity_ratio;
+            const equityClass = equityRatio == null ? 'bg-gray-100 text-gray-800'
+                : equityRatio >= 50 ? 'bg-green-100 text-green-800'
+                : equityRatio >= 30 ? 'bg-yellow-100 text-yellow-800'
+                : 'bg-red-100 text-red-800';
+            const opMargin = item.operating_margin;
+            const opClass = opMargin == null ? 'bg-gray-100 text-gray-800'
+                : opMargin >= 15 ? 'bg-green-100 text-green-800'
+                : opMargin >= 5 ? 'bg-yellow-100 text-yellow-800'
+                : 'bg-red-100 text-red-800';
+
             html += `
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="px-4 py-4 whitespace-nowrap">
                         <div>
                             <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600"
                                  onclick="analyzeFromFavorite('${item.company_code}')">
-                                ${item.company_name}
+                                ${item.company_name || '---'}
                             </div>
                             <div class="text-xs text-gray-500">${item.company_code}</div>
                         </div>
@@ -248,7 +256,7 @@
                         <span class="text-sm font-semibold ${matchClass}">${matchRate}</span>
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sectorBadge}">${item.sector}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sectorBadge}">${item.sector || '---'}</span>
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                         ${formatMarketCapOku(item.market_cap)}
@@ -257,23 +265,23 @@
                         ${formatWatchlistPrice(item.stock_price)}
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.equity_ratio >= 50 ? 'bg-green-100 text-green-800' : item.equity_ratio >= 30 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
-                            ${item.equity_ratio}%
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${equityClass}">
+                            ${equityRatio != null ? equityRatio + '%' : '---'}
                         </span>
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.operating_margin >= 15 ? 'bg-green-100 text-green-800' : item.operating_margin >= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
-                            ${item.operating_margin}%
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${opClass}">
+                            ${opMargin != null ? opMargin + '%' : '---'}
                         </span>
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.per_forward ? item.per_forward.toFixed(1) + '倍' : '---'}
+                        ${item.per_forward ? Number(item.per_forward).toFixed(1) + '倍' : '---'}
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.pbr ? item.pbr.toFixed(2) + '倍' : '---'}
+                        ${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.dividend_yield ? item.dividend_yield.toFixed(2) + '%' : '---'}
+                        ${item.dividend_yield ? Number(item.dividend_yield).toFixed(2) + '%' : '---'}
                     </td>
                     <td class="px-4 py-4 whitespace-nowrap">
                         <button onclick="removeFavorite('${item.company_code}')"
@@ -288,10 +296,19 @@
         tbody.innerHTML = html;
     }
 
-    // お気に入りから削除
-    function removeFavorite(code) {
-        favorites = favorites.filter(item => item.company_code !== code);
-        renderFavorites();
+    // お気に入りから削除（API連携）
+    async function removeFavorite(code) {
+        if (!confirm('この企業をお気に入りから削除しますか？')) return;
+
+        try {
+            const response = await fetch(`/api/watchlist/remove/${code}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('削除に失敗しました');
+            favorites = favorites.filter(item => item.company_code !== code);
+            renderFavorites();
+        } catch (err) {
+            console.error('削除エラー:', err);
+            alert('削除に失敗しました。再度お試しください。');
+        }
     }
 
     // 企業名クリック → トップページの分析パネルへ遷移
@@ -345,7 +362,7 @@
         renderFavorites();
     }
 
-    // 初期表示
-    renderFavorites();
+    // 初期表示（APIからデータ取得）
+    loadFavorites();
 </script>
 {% endblock %}

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規登録 - Company Note</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --lp-bg: #fafaf8;
+            --lp-text: #1a1a1a;
+            --lp-accent: #1b4332;
+            --lp-accent-light: #2d6a4f;
+            --lp-muted: #6b7280;
+            --lp-border: #e5e5e0;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+            background: var(--lp-bg);
+            color: var(--lp-text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .reg-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--lp-border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: var(--lp-text);
+            background: white;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            outline: none;
+        }
+
+        .reg-input:focus {
+            border-color: var(--lp-accent);
+            box-shadow: 0 0 0 3px rgba(27, 67, 50, 0.08);
+        }
+
+        .reg-input::placeholder {
+            color: #b0b0a8;
+        }
+
+        .reg-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--lp-accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+        }
+
+        .reg-btn:hover {
+            background: var(--lp-accent-light);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(27, 67, 50, 0.2);
+        }
+
+        .reg-btn:active {
+            transform: translateY(0);
+        }
+
+        .reg-btn:disabled {
+            background: #a3a3a3;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .reg-link {
+            color: var(--lp-accent);
+            text-decoration: none;
+            transition: opacity 0.3s;
+        }
+
+        .reg-link:hover {
+            opacity: 0.7;
+        }
+
+        .flash-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .accent-line {
+            width: 40px;
+            height: 2px;
+            background: var(--lp-accent);
+        }
+
+        .referrer-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .password-hint {
+            font-size: 0.75rem;
+            color: var(--lp-muted);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ヘッダー -->
+    <header class="py-6 px-6">
+        <div class="max-w-md mx-auto">
+            <a href="/" class="text-sm font-medium" style="color: var(--lp-text); text-decoration: none; transition: opacity 0.3s;"
+               onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">
+                <span style="margin-right: 4px;">&larr;</span> トップに戻る
+            </a>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 flex items-center justify-center px-6 pb-16">
+        <div class="w-full max-w-md">
+            <!-- タイトル -->
+            <div class="text-center mb-10">
+                <div class="accent-line mx-auto mb-6"></div>
+                <h1 class="text-2xl font-light tracking-tight mb-2">新規登録</h1>
+                <p class="text-sm" style="color: var(--lp-muted);">アカウントを作成して企業分析を始めましょう</p>
+            </div>
+
+            <!-- フラッシュメッセージ -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-error mb-6">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- 登録フォーム -->
+            <form action="/register" method="post" class="space-y-5" id="registerForm">
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">名前</label>
+                    <input type="text" name="name" class="reg-input" placeholder="表示名を入力"
+                           value="{{ saved_name if saved_name else '' }}" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">メールアドレス</label>
+                    <input type="email" name="email" class="reg-input" placeholder="mail@example.com"
+                           value="{{ saved_email if saved_email else '' }}" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">パスワード</label>
+                    <div class="relative">
+                        <input type="password" id="password" name="password" class="reg-input" placeholder="6文字以上" required minlength="6">
+                        <button type="button" onclick="togglePassword('password')" class="absolute right-3 top-1/2 -translate-y-1/2"
+                                style="color: var(--lp-muted); background: none; border: none; cursor: pointer; padding: 4px;">
+                            <svg class="eye-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M10 4C4 4 1 10 1 10s3 6 9 6 9-6 9-6-3-6-9-6z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="password-hint">6文字以上で入力してください</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">パスワード（確認）</label>
+                    <input type="password" id="password_confirm" name="password_confirm" class="reg-input" placeholder="もう一度入力" required minlength="6">
+                    <p id="passwordMismatch" class="text-xs mt-1" style="color: #dc2626; display: none;">パスワードが一致しません</p>
+                </div>
+
+                <!-- 紹介コード -->
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">
+                        紹介コード <span class="font-normal" style="color: var(--lp-muted);">（任意）</span>
+                    </label>
+                    <input type="text" id="referralCode" name="referral_code" class="reg-input" placeholder="紹介コードをお持ちの方は入力"
+                           value="{{ ref_code if ref_code else '' }}" maxlength="10"
+                           style="text-transform: uppercase;"
+                           oninput="checkReferralCode(this.value)">
+                    <div id="referrerInfo" class="mt-2" style="display: {% if referrer_name %}block{% else %}none{% endif %};">
+                        <span class="referrer-badge">
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            紹介者: <strong id="referrerName">{{ referrer_name if referrer_name else '' }}</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <button type="submit" class="reg-btn" id="submitBtn">登録する</button>
+            </form>
+
+            <!-- 区切り線 -->
+            <div class="flex items-center gap-4 my-8">
+                <div class="flex-1 h-px" style="background: var(--lp-border);"></div>
+                <span class="text-xs" style="color: var(--lp-muted);">または</span>
+                <div class="flex-1 h-px" style="background: var(--lp-border);"></div>
+            </div>
+
+            <!-- ログインリンク -->
+            <div class="text-center">
+                <p class="text-sm" style="color: var(--lp-muted);">
+                    既にアカウントをお持ちの方は
+                    <a href="/login" class="reg-link font-medium">ログイン</a>
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="py-6 px-6 text-center">
+        <p class="text-xs" style="color: var(--lp-muted);">
+            本サービスは投資助言・投資勧誘を目的としたものではありません。
+        </p>
+    </footer>
+
+    <script>
+        // パスワード表示切り替え
+        function togglePassword(fieldId) {
+            const input = document.getElementById(fieldId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // パスワード一致チェック
+        const pw = document.getElementById('password');
+        const pwc = document.getElementById('password_confirm');
+        const mismatch = document.getElementById('passwordMismatch');
+
+        function checkPasswordMatch() {
+            if (pwc.value && pw.value !== pwc.value) {
+                mismatch.style.display = 'block';
+            } else {
+                mismatch.style.display = 'none';
+            }
+        }
+        pw.addEventListener('input', checkPasswordMatch);
+        pwc.addEventListener('input', checkPasswordMatch);
+
+        // 紹介コードチェック（デバウンス付き）
+        let referralTimer = null;
+        function checkReferralCode(code) {
+            clearTimeout(referralTimer);
+            const info = document.getElementById('referrerInfo');
+            const nameEl = document.getElementById('referrerName');
+
+            code = code.trim().toUpperCase();
+            if (code.length < 4) {
+                info.style.display = 'none';
+                return;
+            }
+
+            referralTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch('/api/referrals/check/' + encodeURIComponent(code));
+                    const data = await res.json();
+                    if (data.valid) {
+                        nameEl.textContent = data.referrer_name;
+                        info.style.display = 'block';
+                    } else {
+                        info.style.display = 'none';
+                    }
+                } catch (e) {
+                    info.style.display = 'none';
+                }
+            }, 400);
+        }
+
+        // フォーム送信時の二重送信防止
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const btn = document.getElementById('submitBtn');
+            if (btn.disabled) {
+                e.preventDefault();
+                return;
+            }
+            // パスワード不一致チェック
+            if (pw.value !== pwc.value) {
+                e.preventDefault();
+                mismatch.style.display = 'block';
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = '登録中...';
+        });
+    </script>
+</body>
+</html>

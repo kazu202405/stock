@@ -1,479 +1,259 @@
 {% extends "layout.html" %}
 
-{% block title %}投資家コミュニティ - 企業分析{% endblock %}
+{% block title %}みんなの企業研究ノート - Company Note{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50">
-    <!-- ヘッダーセクション -->
-    <div class="bg-white border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-6 py-8">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+<style>
+    .community {
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+    }
+    .community-hero {
+        background: #fafaf8;
+        border-bottom: 1px solid #e8e8e4;
+    }
+    .cm-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    .cm-card:hover {
+        border-color: #d4d4d4;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .note-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        border-left: 3px solid #1b4332;
+        padding: 16px 18px;
+        transition: all 0.2s ease;
+    }
+    .note-card:hover {
+        border-color: #d4d4d4;
+        border-left-color: #1b4332;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .section-head {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .section-head i { color: #2d6a4f; font-size: 12px; }
+    .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        background: #f0fdf4;
+        color: #15803d;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .tag:hover { background: #dcfce7; }
+    .tag.active { background: #1b4332; color: #fff; }
+    .sort-btn {
+        font-size: 11px; padding: 4px 10px; border-radius: 5px;
+        border: 1px solid #ebebeb; background: #fff; color: #525252;
+        cursor: pointer; transition: all 0.15s;
+    }
+    .sort-btn:hover, .sort-btn.active { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
+    .star { color: #eab308; font-size: 11px; }
+    .star-empty { color: #d4d4d4; font-size: 11px; }
+    .user-icon {
+        width: 32px; height: 32px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .user-icon.anonymous { background: #f3f4f6; color: #9ca3af; }
+    .user-icon.named { background: #f0fdf4; color: #1b4332; }
+    .empty-state {
+        text-align: center; padding: 40px 20px;
+    }
+    .empty-state i { font-size: 36px; color: #d4d4d4; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; color: #a3a3a3; margin-bottom: 10px; }
+    .sidebar-tag {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 10px; border-radius: 6px; cursor: pointer;
+        transition: all 0.15s; font-size: 12px;
+    }
+    .sidebar-tag:hover { background: #f0fdf4; }
+    .sidebar-tag.active { background: #1b4332; color: #fff; }
+    .sidebar-tag .tag-count {
+        font-size: 10px; padding: 1px 6px; border-radius: 10px;
+        background: #f3f4f6; color: #737373;
+    }
+    .sidebar-tag.active .tag-count { background: rgba(255,255,255,0.2); color: #fff; }
+    .form-input-cm {
+        width: 100%; padding: 8px 12px 8px 34px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; transition: border-color 0.2s;
+    }
+    .form-input-cm:focus { border-color: #2d6a4f; }
+    .load-more-btn {
+        background: #fff; color: #2d6a4f; border: 1px solid #ebebeb;
+        border-radius: 8px; padding: 8px 24px; font-size: 13px;
+        font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .load-more-btn:hover { border-color: #2d6a4f; background: #f0fdf4; }
+</style>
+
+<div class="community min-h-screen" style="background: #f7f7f5;" x-data="communityApp()">
+
+    <!-- ヘッダー -->
+    <div class="community-hero">
+        <div class="max-w-7xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900 tracking-tight mb-2">Investment Community</h1>
-                    <p class="text-gray-600 text-lg">データドリブンな投資判断を共有</p>
+                    <p class="text-xs font-semibold tracking-widest uppercase mb-1" style="color: #16a34a;">Community</p>
+                    <h1 class="text-xl font-bold" style="color: #1a1a1a;">みんなの企業研究ノート</h1>
+                    <p class="text-xs mt-1" style="color: #737373;">他のユーザーの企業研究を読んで、新しい視点を学ぼう</p>
                 </div>
-                <div class="mt-6 lg:mt-0 flex items-center space-x-6">
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-900">1,234</div>
-                        <div class="text-sm text-gray-500 font-medium">Members</div>
+                <div class="flex items-center gap-3">
+                    <div class="text-center px-3 py-1.5 rounded-lg" style="background:#fff; border:1px solid #ebebeb;">
+                        <div class="text-base font-bold" style="color:#1b4332;" x-text="notes.length"></div>
+                        <div class="text-xs" style="color:#737373;">公開ノート</div>
                     </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-900">567</div>
-                        <div class="text-sm text-gray-500 font-medium">Today's Posts</div>
-                    </div>
-                    <button class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-md font-medium transition-colors">
-                        <i class="fas fa-edit mr-2"></i>New Post
-                    </button>
+                    <a href="/mypage" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium" style="background:#1b4332; color:#fff; text-decoration:none;">
+                        <i class="fas fa-pen" style="font-size:10px;"></i>自分のノートを書く
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto px-6 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <!-- 左サイドバー -->
-            <div class="lg:col-span-1">
-                <!-- カテゴリフィルター -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <div class="p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Post Types</h3>
-                        <div class="space-y-3">
-                            <label class="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" class="form-checkbox text-slate-600 rounded" checked>
-                                <div class="ml-3 flex items-center space-x-2">
-                                    <i class="fas fa-chart-line text-slate-600 w-4"></i>
-                                    <span class="text-sm text-gray-700 font-medium">Analysis</span>
-                                </div>
-                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">234</span>
-                            </label>
-                            <label class="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" class="form-checkbox text-slate-600 rounded" checked>
-                                <div class="ml-3 flex items-center space-x-2">
-                                    <i class="fas fa-lightbulb text-slate-600 w-4"></i>
-                                    <span class="text-sm text-gray-700 font-medium">Ideas</span>
-                                </div>
-                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">156</span>
-                            </label>
-                            <label class="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" class="form-checkbox text-slate-600 rounded" checked>
-                                <div class="ml-3 flex items-center space-x-2">
-                                    <i class="fas fa-question-circle text-slate-600 w-4"></i>
-                                    <span class="text-sm text-gray-700 font-medium">Questions</span>
-                                </div>
-                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">89</span>
-                            </label>
-                            <label class="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" class="form-checkbox text-slate-600 rounded" checked>
-                                <div class="ml-3 flex items-center space-x-2">
-                                    <i class="fas fa-newspaper text-slate-600 w-4"></i>
-                                    <span class="text-sm text-gray-700 font-medium">News</span>
-                                </div>
-                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">67</span>
-                            </label>
-                            <label class="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" class="form-checkbox text-slate-600 rounded" checked>
-                                <div class="ml-3 flex items-center space-x-2">
-                                    <i class="fas fa-exclamation-triangle text-slate-600 w-4"></i>
-                                    <span class="text-sm text-gray-700 font-medium">Alerts</span>
-                                </div>
-                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">21</span>
-                            </label>
-                        </div>
+    <div class="max-w-7xl mx-auto px-6 py-5">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- ===== 左サイドバー ===== -->
+            <div class="lg:col-span-3 space-y-5">
+                <!-- 検索 -->
+                <div class="cm-card p-4">
+                    <div style="position:relative;">
+                        <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
+                        <input type="text" placeholder="ノートを検索..." x-model="searchQuery" class="form-input-cm">
                     </div>
                 </div>
 
-                <!-- 人気投資家 -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <div class="p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Contributors</h3>
-                        <div class="space-y-4">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                                    <span class="text-slate-700 font-semibold text-sm">TK</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-medium text-sm text-gray-900">T.Tanaka</div>
-                                    <div class="text-xs text-gray-500">Accuracy 78% • 234 followers</div>
-                                </div>
-                                <button class="text-slate-600 hover:text-slate-800 text-sm font-medium">Follow</button>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                                    <span class="text-slate-700 font-semibold text-sm">YM</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-medium text-sm text-gray-900">Y.Yamada</div>
-                                    <div class="text-xs text-gray-500">Accuracy 72% • 189 followers</div>
-                                </div>
-                                <button class="text-gray-400 text-sm font-medium">Following</button>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                                    <span class="text-slate-700 font-semibold text-sm">ST</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-medium text-sm text-gray-900">S.Sato</div>
-                                    <div class="text-xs text-gray-500">Accuracy 68% • 145 followers</div>
-                                </div>
-                                <button class="text-slate-600 hover:text-slate-800 text-sm font-medium">Follow</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- トレンドタグ -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Trending Topics</h3>
-                        <div class="flex flex-wrap gap-2">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">AI Stocks</span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">High Dividend</span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">Growth</span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">Earnings</span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">Risk Analysis</span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 cursor-pointer transition-colors">Technical</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- メインタイムライン -->
-            <div class="lg:col-span-3">
-                <!-- ソート・フィルター -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <div class="p-4">
-                        <div class="flex flex-wrap items-center justify-between gap-4">
-                            <div class="flex items-center space-x-4">
-                                <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option>最新順</option>
-                                    <option>人気順</option>
-                                    <option>的中率順</option>
-                                </select>
-                                <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option>全期間</option>
-                                    <option>今日</option>
-                                    <option>今週</option>
-                                    <option>今月</option>
-                                </select>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <input type="text" placeholder="銘柄名・コードで検索" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48">
-                                <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 投稿リスト -->
-                <div class="space-y-6">
-                    <!-- 分析投稿 -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                        <div class="p-6">
-                            <div class="flex items-start space-x-4">
-                                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-                                    <span class="text-slate-700 font-semibold">TK</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="font-medium text-gray-900">T.Tanaka</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200"><i class="fas fa-chart-line mr-1 text-xs"></i>Analysis</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">78% Accuracy</span>
-                                        <span class="text-sm text-gray-500">2h</span>
-                                    </div>
-                                    
-                                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Keyence (6861.T): Q2 Earnings Investment Thesis</h3>
-                                    
-                                    <!-- 根拠セクション -->
-                                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-600 text-xs uppercase tracking-wide">P/E Ratio</div>
-                                                <div class="text-gray-900 font-bold text-lg">22.1</div>
-                                            </div>
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-600 text-xs uppercase tracking-wide">ROE</div>
-                                                <div class="text-gray-900 font-bold text-lg">15.8%</div>
-                                            </div>
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-600 text-xs uppercase tracking-wide">Op. Margin</div>
-                                                <div class="text-gray-900 font-bold text-lg">54.2%</div>
-                                            </div>
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-600 text-xs uppercase tracking-wide">Target</div>
-                                                <div class="text-green-600 font-bold text-lg">+15%</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <p class="text-gray-700 mb-4 leading-relaxed">
-                                        Q2 results show revenue +12% and operating profit +18% YoY. Factory Automation segment recovery in China markets driving growth. 
-                                        P/E at 22.1x appears elevated but justified by growth trajectory. Setting price target at +15% from current levels based on DCF model.
-                                    </p>
-
-                                    <div class="flex flex-wrap gap-2 mb-4">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">6861.T</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Earnings</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Industrial</span>
-                                    </div>
-
-                                    <!-- アクション -->
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-6">
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-gray-700 transition-colors">
-                                                <i class="far fa-thumbs-up text-sm"></i>
-                                                <span class="text-sm">42</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-gray-700 transition-colors">
-                                                <i class="far fa-comment text-sm"></i>
-                                                <span class="text-sm">8</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-gray-700 transition-colors">
-                                                <i class="far fa-bookmark text-sm"></i>
-                                            </button>
-                                        </div>
-                                        <div class="flex items-center space-x-3">
-                                            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Medium-term</span>
-                                            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Moderate Risk</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 投資アイデア投稿 -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                        <div class="p-6">
-                            <div class="flex items-start space-x-4">
-                                <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                                    <span class="text-white font-semibold">山田</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="font-medium text-gray-900">山田アナリスト</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">💡 投資アイデア</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">的中率72%</span>
-                                        <span class="text-sm text-gray-500">4時間前</span>
-                                    </div>
-                                    
-                                    <h3 class="text-lg font-semibold text-gray-900 mb-3">AIブーム第2波：注目すべき3銘柄</h3>
-                                    
-                                    <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 mb-4">
-                                        <div class="grid grid-cols-3 gap-4">
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-900">エヌビディア風</div>
-                                                <div class="text-sm text-gray-600">6857.T</div>
-                                                <div class="text-green-600 font-bold text-sm">+25%期待</div>
-                                            </div>
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-900">データセンター株</div>
-                                                <div class="text-sm text-gray-600">4389.T</div>
-                                                <div class="text-green-600 font-bold text-sm">+18%期待</div>
-                                            </div>
-                                            <div class="text-center">
-                                                <div class="font-semibold text-gray-900">半導体製造装置</div>
-                                                <div class="text-sm text-gray-600">8035.T</div>
-                                                <div class="text-green-600 font-bold text-sm">+30%期待</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <p class="text-gray-700 mb-4">
-                                        ChatGPT普及から約1年、次の投資テーマはAIインフラ関連。特に日本のデータセンター需要増加とエッジコンピューティングに注目。
-                                        3銘柄とも来期業績上方修正の可能性が高い。
-                                    </p>
-
-                                    <div class="flex flex-wrap gap-2 mb-4">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">#AI関連株</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">#成長株</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">#テーマ投資</span>
-                                    </div>
-
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-4">
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-blue-600">
-                                                <i class="far fa-thumbs-up"></i>
-                                                <span class="text-sm">参考になった 76</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-indigo-600">
-                                                <i class="far fa-comment"></i>
-                                                <span class="text-sm">コメント 15</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-green-600">
-                                                <i class="far fa-bookmark"></i>
-                                                <span class="text-sm">保存</span>
-                                            </button>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <span class="text-sm text-gray-500">投資スタンス: 長期</span>
-                                            <div class="flex text-yellow-400">
-                                                <i class="fas fa-star text-xs"></i>
-                                                <i class="fas fa-star text-xs"></i>
-                                                <i class="fas fa-star text-xs"></i>
-                                                <i class="fas fa-star text-xs"></i>
-                                                <i class="far fa-star text-xs"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- リスク警告投稿 -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-red-500 hover:shadow-md transition-shadow">
-                        <div class="p-6">
-                            <div class="flex items-start space-x-4">
-                                <div class="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-600 rounded-full flex items-center justify-center">
-                                    <span class="text-white font-semibold">佐藤</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="font-medium text-gray-900">佐藤リスクアナリスト</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">⚠️ リスク警告</span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">的中率89%</span>
-                                        <span class="text-sm text-gray-500">6時間前</span>
-                                    </div>
-                                    
-                                    <h3 class="text-lg font-semibold text-red-700 mb-3">⚠️ 不動産株 - 金利上昇リスクに要注意</h3>
-                                    
-                                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                                        <div class="flex items-center space-x-2 mb-2">
-                                            <i class="fas fa-exclamation-triangle text-red-600"></i>
-                                            <span class="font-semibold text-red-800">高リスク要因</span>
-                                        </div>
-                                        <ul class="text-sm text-red-700 space-y-1">
-                                            <li>• 長期金利0.8%突破、REITに売り圧力</li>
-                                            <li>• 建築費高騰で新規開発コスト増</li>
-                                            <li>• オフィス需要減で賃料下落継続</li>
-                                        </ul>
-                                    </div>
-
-                                    <p class="text-gray-700 mb-4">
-                                        日銀の金融政策変更観測が強まる中、不動産関連株は調整局面入りの可能性。
-                                        特にオフィス系REITは分配金減額リスクも。ポジション見直しを推奨。
-                                    </p>
-
-                                    <div class="flex flex-wrap gap-2 mb-4">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">#リスク</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">#不動産</span>
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">#金利</span>
-                                    </div>
-
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-4">
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-blue-600">
-                                                <i class="far fa-thumbs-up"></i>
-                                                <span class="text-sm">参考になった 28</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-indigo-600">
-                                                <i class="far fa-comment"></i>
-                                                <span class="text-sm">コメント 12</span>
-                                            </button>
-                                            <button class="flex items-center space-x-1 text-gray-500 hover:text-green-600">
-                                                <i class="far fa-bookmark"></i>
-                                                <span class="text-sm">保存</span>
-                                            </button>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <span class="text-sm text-gray-500">警告レベル: 高</span>
-                                            <div class="flex text-red-400">
-                                                <i class="fas fa-exclamation-triangle text-xs"></i>
-                                                <i class="fas fa-exclamation-triangle text-xs"></i>
-                                                <i class="fas fa-exclamation-triangle text-xs"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- もっと読み込む -->
-                <div class="text-center py-8">
-                    <button class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
-                        さらに読み込む
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 新規投稿モーダル（簡易版） -->
-    <div id="postModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-lg max-w-2xl w-full max-h-90vh overflow-y-auto">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-xl font-semibold text-gray-900">新規投稿</h2>
-                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                            <i class="fas fa-times text-xl"></i>
+                <!-- 並び替え -->
+                <div class="cm-card p-4">
+                    <h3 class="section-head"><i class="fas fa-sort"></i>並び替え</h3>
+                    <div class="flex flex-col gap-1.5">
+                        <button class="sort-btn" :class="{ 'active': sortBy === 'date' }" @click="sortBy = 'date'" style="text-align:left;">
+                            <i class="fas fa-clock mr-1" style="font-size:10px;"></i>新しい順
+                        </button>
+                        <button class="sort-btn" :class="{ 'active': sortBy === 'star' }" @click="sortBy = 'star'" style="text-align:left;">
+                            <i class="fas fa-star mr-1" style="font-size:10px;"></i>理解度順
                         </button>
                     </div>
-                    
-                    <form class="space-y-6">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">投稿タイプ</label>
-                            <select class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="analysis">📊 分析投稿</option>
-                                <option value="idea">💡 投資アイデア</option>
-                                <option value="question">❓ 質問・相談</option>
-                                <option value="news">📰 ニュース考察</option>
-                                <option value="warning">⚠️ リスク警告</option>
-                            </select>
+                </div>
+
+                <!-- 人気タグ -->
+                <div class="cm-card p-4">
+                    <h3 class="section-head"><i class="fas fa-tags"></i>人気タグ</h3>
+                    <div x-show="loading" class="text-center py-2">
+                        <i class="fas fa-spinner fa-spin" style="color:#a3a3a3; font-size:12px;"></i>
+                    </div>
+                    <div class="space-y-0.5" x-show="!loading">
+                        <div class="sidebar-tag" :class="{ 'active': activeTag === '' }" @click="activeTag = ''">
+                            <span>すべて</span>
+                            <span class="tag-count" x-text="notes.length"></span>
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">タイトル</label>
-                            <input type="text" placeholder="投稿のタイトルを入力" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">対象銘柄</label>
-                            <input type="text" placeholder="銘柄コード (例: 6861.T, 7203.T)" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">投資スタンス</label>
-                                <select class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option>短期（1ヶ月未満）</option>
-                                    <option>中期（3-12ヶ月）</option>
-                                    <option>長期（1年以上）</option>
-                                </select>
+                        <template x-for="tag in popularTags" :key="tag.name">
+                            <div class="sidebar-tag" :class="{ 'active': activeTag === tag.name }" @click="activeTag = activeTag === tag.name ? '' : tag.name">
+                                <span x-text="tag.name"></span>
+                                <span class="tag-count" x-text="tag.count"></span>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">リスクレベル</label>
-                                <select class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option>低リスク</option>
-                                    <option>中リスク</option>
-                                    <option>高リスク</option>
-                                </select>
+                        </template>
+                        <p x-show="popularTags.length === 0 && !loading" class="text-xs py-2" style="color:#a3a3a3;">タグはまだありません</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== メイン: ノート一覧 ===== -->
+            <div class="lg:col-span-9">
+
+                <!-- ローディング -->
+                <div x-show="loading" class="empty-state">
+                    <div><i class="fas fa-spinner fa-spin" style="font-size:28px; color:#2d6a4f;"></i></div>
+                    <p>ノートを読み込み中...</p>
+                </div>
+
+                <!-- ノート一覧 -->
+                <div class="space-y-3" x-show="!loading">
+                    <template x-for="note in filteredNotes" :key="note.id">
+                        <div class="note-card">
+                            <div class="flex items-start gap-3">
+                                <!-- ユーザーアイコン -->
+                                <div class="user-icon" :class="note.is_anonymous ? 'anonymous' : 'named'" x-text="note.is_anonymous ? '匿' : (note.user_id || '').slice(-2).toUpperCase()"></div>
+
+                                <!-- コンテンツ -->
+                                <div style="flex:1; min-width:0;">
+                                    <!-- ヘッダー行 -->
+                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span class="text-xs font-medium" style="color:#525252;" x-text="note.is_anonymous ? '匿名ユーザー' : note.user_id"></span>
+                                        <span x-show="note.company_name" class="text-xs px-1.5 py-0.5 rounded" style="background:#eff6ff; color:#2563eb;">
+                                            <i class="fas fa-building mr-0.5" style="font-size:9px;"></i>
+                                            <span x-text="note.company_name"></span>
+                                            <span x-show="note.company_code" class="ml-0.5" style="color:#93c5fd;" x-text="note.company_code"></span>
+                                        </span>
+                                        <span class="text-xs" style="color:#a3a3a3;" x-text="formatDate(note.created_at)"></span>
+                                    </div>
+
+                                    <!-- タイトル -->
+                                    <h3 class="text-sm font-bold mb-1" style="color:#1a1a1a;" x-text="note.title"></h3>
+
+                                    <!-- 本文プレビュー -->
+                                    <p class="text-xs leading-relaxed mb-2" style="color:#525252; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;" x-text="note.content"></p>
+
+                                    <!-- フッター: タグ + 理解度 -->
+                                    <div class="flex items-center justify-between flex-wrap gap-2">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <template x-for="t in (note.tags || [])" :key="t">
+                                                <span class="tag" @click="activeTag = t" x-text="t"></span>
+                                            </template>
+                                        </div>
+                                        <div x-show="note.stars > 0" class="flex items-center gap-0.5">
+                                            <span class="text-xs" style="color:#a3a3a3;">理解度</span>
+                                            <template x-for="i in 5" :key="i">
+                                                <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">内容</label>
-                            <textarea rows="6" placeholder="根拠や分析内容を詳しく記載してください..." class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </template>
+
+                    <!-- 空状態 -->
+                    <div x-show="filteredNotes.length === 0 && !loading" class="empty-state">
+                        <div><i class="fas fa-book-open"></i></div>
+                        <p x-show="searchQuery || activeTag">条件に一致するノートが見つかりません</p>
+                        <p x-show="!searchQuery && !activeTag">まだ公開ノートがありません</p>
+                        <p x-show="!searchQuery && !activeTag" class="text-xs" style="color:#a3a3a3;">マイページからノートを書いて「コミュニティに公開」してみましょう</p>
+                        <div class="mt-3" x-show="searchQuery || activeTag">
+                            <button class="sort-btn" @click="searchQuery = ''; activeTag = ''">フィルタをリセット</button>
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">タグ</label>
-                            <input type="text" placeholder="#AI関連株 #成長株 #決算分析" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <div class="mt-3" x-show="!searchQuery && !activeTag">
+                            <a href="/mypage" class="sort-btn" style="text-decoration:none; display:inline-block;">
+                                <i class="fas fa-pen mr-1" style="font-size:10px;"></i>ノートを書く
+                            </a>
                         </div>
-                        
-                        <div class="flex justify-end space-x-4">
-                            <button type="button" onclick="closeModal()" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                                キャンセル
-                            </button>
-                            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                                投稿する
-                            </button>
-                        </div>
-                    </form>
+                    </div>
+
+                    <!-- もっと読み込むボタン -->
+                    <div x-show="hasMore && filteredNotes.length > 0" class="text-center py-4">
+                        <button class="load-more-btn" @click="loadMore()" :disabled="loadingMore">
+                            <span x-show="!loadingMore">もっと読み込む</span>
+                            <span x-show="loadingMore"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -481,74 +261,109 @@
 </div>
 
 <script>
-// モーダル表示/非表示
-function showModal() {
-    document.getElementById('postModal').classList.remove('hidden');
-}
+function communityApp() {
+    return {
+        notes: [],
+        tags: [],
+        searchQuery: '',
+        sortBy: 'date',
+        activeTag: '',
+        loading: true,
+        loadingMore: false,
+        hasMore: false,
+        offset: 0,
+        limit: 50,
 
-function closeModal() {
-    document.getElementById('postModal').classList.add('hidden');
-}
+        async init() {
+            await Promise.all([this.loadNotes(), this.loadTags()]);
+        },
 
-// 新規投稿ボタンのイベントリスナー
-document.addEventListener('DOMContentLoaded', function() {
-    const newPostButton = document.querySelector('button[class*="bg-white/10"]');
-    if (newPostButton) {
-        newPostButton.addEventListener('click', showModal);
-    }
-});
+        async loadNotes() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/notes?limit=' + this.limit + '&offset=0');
+                const data = await res.json();
+                if (data.notes) {
+                    this.notes = data.notes;
+                    this.offset = data.notes.length;
+                    this.hasMore = data.notes.length >= this.limit;
+                }
+            } catch (e) {
+                console.error('公開ノート取得エラー:', e);
+            }
+            this.loading = false;
+        },
 
-// いいね機能
-function toggleLike(button) {
-    const icon = button.querySelector('i');
-    const count = button.querySelector('span');
-    const currentCount = parseInt(count.textContent.match(/\d+/)[0]);
-    
-    if (icon.classList.contains('far')) {
-        icon.classList.remove('far');
-        icon.classList.add('fas');
-        button.classList.add('text-blue-600');
-        count.textContent = count.textContent.replace(/\d+/, currentCount + 1);
-    } else {
-        icon.classList.remove('fas');
-        icon.classList.add('far');
-        button.classList.remove('text-blue-600');
-        count.textContent = count.textContent.replace(/\d+/, currentCount - 1);
-    }
-}
+        async loadMore() {
+            this.loadingMore = true;
+            try {
+                const res = await fetch('/api/notes?limit=' + this.limit + '&offset=' + this.offset);
+                const data = await res.json();
+                if (data.notes && data.notes.length > 0) {
+                    this.notes = [...this.notes, ...data.notes];
+                    this.offset += data.notes.length;
+                    this.hasMore = data.notes.length >= this.limit;
+                } else {
+                    this.hasMore = false;
+                }
+            } catch (e) {
+                console.error('追加読み込みエラー:', e);
+            }
+            this.loadingMore = false;
+        },
 
-// 保存機能
-function toggleBookmark(button) {
-    const icon = button.querySelector('i');
-    
-    if (icon.classList.contains('far')) {
-        icon.classList.remove('far');
-        icon.classList.add('fas');
-        button.classList.add('text-green-600');
-    } else {
-        icon.classList.remove('fas');
-        icon.classList.add('far');
-        button.classList.remove('text-green-600');
-    }
-}
+        async loadTags() {
+            try {
+                const res = await fetch('/api/notes/tags');
+                const data = await res.json();
+                if (data.tags) {
+                    this.tags = data.tags;
+                }
+            } catch (e) {
+                console.error('タグ取得エラー:', e);
+            }
+        },
 
-// フィルター機能
-function applyFilters() {
-    // フィルター適用のロジックを実装
-    console.log('フィルター適用中...');
-}
+        get popularTags() {
+            return this.tags.slice(0, 15);
+        },
 
-// フォロー機能
-function toggleFollow(button, username) {
-    if (button.textContent === 'フォロー') {
-        button.textContent = 'フォロー中';
-        button.classList.add('text-gray-400');
-        button.classList.remove('text-blue-600', 'hover:text-blue-700');
-    } else {
-        button.textContent = 'フォロー';
-        button.classList.remove('text-gray-400');
-        button.classList.add('text-blue-600', 'hover:text-blue-700');
-    }
+        get filteredNotes() {
+            let result = [...this.notes];
+            if (this.searchQuery) {
+                const q = this.searchQuery.toLowerCase();
+                result = result.filter(n =>
+                    (n.title || '').toLowerCase().includes(q) ||
+                    (n.company_code || '').includes(q) ||
+                    (n.company_name || '').toLowerCase().includes(q) ||
+                    (n.content || '').toLowerCase().includes(q) ||
+                    (n.tags || []).some(t => t.toLowerCase().includes(q))
+                );
+            }
+            if (this.activeTag) {
+                result = result.filter(n => (n.tags || []).includes(this.activeTag));
+            }
+            if (this.sortBy === 'star') {
+                result.sort((a, b) => (b.stars || 0) - (a.stars || 0));
+            } else {
+                result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            }
+            return result;
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diff = now - d;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            if (hours < 1) return '数分前';
+            if (hours < 24) return hours + '時間前';
+            const days = Math.floor(hours / 24);
+            if (days < 7) return days + '日前';
+            return (d.getMonth() + 1) + '/' + d.getDate();
+        },
+    };
 }
 </script>
 {% endblock %}

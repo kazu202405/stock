@@ -2,7 +2,9 @@ import os
 import json
 import base64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from flask import jsonify, request
+import uuid
+from functools import wraps
+from flask import jsonify, request, session
 from config import *
 # from models.login import *  # ログイン機能無効化
 from models.common import *
@@ -20,9 +22,281 @@ from supabase_client import (
     update_screened_data, upsert_screened_data_with_match_rate,
     calculate_match_rate, get_screened_data,
     get_technical_stocks,
-    get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks
+    get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
+    get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
+    create_note, get_user_notes, get_public_notes,
+    get_notes_by_company, update_note, delete_note,
+    create_user as create_app_user, authenticate_user, get_user_by_id,
+    get_user_by_referral_code, get_direct_referrals, get_referral_tree,
+    get_referral_chain, get_all_users, update_user_role, migrate_guest_notes
 )
 from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
+
+
+# =============================================
+# 認証ヘルパー関数
+# =============================================
+
+def get_current_user():
+    """sessionからログインユーザーを取得。未ログインならNone"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    return get_user_by_id(user_id)
+
+
+def login_required_api(f):
+    """API用ログイン必須デコレータ"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_id'):
+            return jsonify({"error": "ログインが必要です"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def role_required(*roles):
+    """指定ロール必須デコレータ（例: @role_required('agent', 'admin')）"""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            try:
+                user = get_current_user()
+            except Exception as e:
+                print(f"[role_required] get_current_user エラー: {e}")
+                return jsonify({"error": f"ユーザー情報取得エラー: {e}"}), 500
+            if not user:
+                return jsonify({"error": "ログインが必要です"}), 401
+            if user.get('role') not in roles:
+                return jsonify({"error": f"権限がありません（現在: {user.get('role')}, 必要: {roles}）"}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+# =============================================
+# 認証API
+# =============================================
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+    """ユーザー登録"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        name = (data.get('name') or '').strip()
+        email = (data.get('email') or '').strip()
+        password = data.get('password') or ''
+        referral_code = (data.get('referral_code') or '').strip()
+
+        # バリデーション
+        if not name:
+            return jsonify({"error": "名前を入力してください"}), 400
+        if not email:
+            return jsonify({"error": "メールアドレスを入力してください"}), 400
+        if len(password) < 6:
+            return jsonify({"error": "パスワードは6文字以上で入力してください"}), 400
+
+        user = create_app_user(
+            name=name,
+            email=email,
+            password=password,
+            referred_by_code=referral_code if referral_code else None
+        )
+
+        # ゲストノートの引き継ぎ
+        guest_id = session.get('guest_user_id')
+        migrated = 0
+        if guest_id:
+            migrated = migrate_guest_notes(guest_id, user['id'])
+            session.pop('guest_user_id', None)
+
+        # セッションにログイン状態を保存
+        session['user_id'] = user['id']
+        session['user_name'] = user['name']
+        session['user_role'] = user['role']
+
+        return jsonify({
+            "success": True,
+            "user": {
+                "id": user['id'],
+                "name": user['name'],
+                "email": user['email'],
+                "role": user['role'],
+                "referral_code": user['referral_code'],
+            },
+            "migrated_notes": migrated
+        }), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    """ログイン"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        email = (data.get('email') or '').strip()
+        password = data.get('password') or ''
+
+        if not email or not password:
+            return jsonify({"error": "メールアドレスとパスワードを入力してください"}), 400
+
+        user = authenticate_user(email, password)
+        if not user:
+            return jsonify({"error": "メールアドレスまたはパスワードが正しくありません"}), 401
+
+        # ゲストノートの引き継ぎ
+        guest_id = session.get('guest_user_id')
+        migrated = 0
+        if guest_id:
+            migrated = migrate_guest_notes(guest_id, user['id'])
+            session.pop('guest_user_id', None)
+
+        # セッションにログイン状態を保存
+        session['user_id'] = user['id']
+        session['user_name'] = user['name']
+        session['user_role'] = user['role']
+        session.permanent = True
+
+        return jsonify({
+            "success": True,
+            "user": {
+                "id": user['id'],
+                "name": user['name'],
+                "email": user['email'],
+                "role": user['role'],
+                "referral_code": user['referral_code'],
+            },
+            "migrated_notes": migrated
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    """ログアウト"""
+    session.pop('user_id', None)
+    session.pop('user_name', None)
+    session.pop('user_role', None)
+    return jsonify({"success": True}), 200
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    """現在のユーザー情報取得"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"logged_in": False}), 200
+    return jsonify({
+        "logged_in": True,
+        "user": {
+            "id": user['id'],
+            "name": user['name'],
+            "email": user['email'],
+            "role": user['role'],
+            "referral_code": user['referral_code'],
+        }
+    }), 200
+
+
+# =============================================
+# 紹介API
+# =============================================
+
+@app.route('/api/referrals/my', methods=['GET'])
+@login_required_api
+def api_my_referrals():
+    """自分の直接紹介一覧"""
+    try:
+        user_id = session['user_id']
+        referrals = get_direct_referrals(user_id)
+        return jsonify({"referrals": referrals}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/referrals/tree', methods=['GET'])
+@login_required_api
+def api_referral_tree():
+    """紹介ツリー取得"""
+    try:
+        user_id = session['user_id']
+        tree = get_referral_tree(user_id)
+        return jsonify({"tree": tree}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/referrals/code', methods=['GET'])
+@login_required_api
+def api_referral_code():
+    """自分の紹介コード＋紹介リンク取得"""
+    try:
+        user = get_current_user()
+        code = user['referral_code']
+        link = f"{request.host_url}register?ref={code}"
+        return jsonify({
+            "referral_code": code,
+            "referral_link": link,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/referrals/check/<code>', methods=['GET'])
+def api_check_referral_code(code):
+    """紹介コードの有効性確認（紹介者名を返す）"""
+    try:
+        user = get_user_by_referral_code(code)
+        if user:
+            return jsonify({"valid": True, "referrer_name": user['name']}), 200
+        return jsonify({"valid": False}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# 管理者API
+# =============================================
+
+@app.route('/api/admin/users', methods=['GET'])
+@role_required('admin')
+def api_admin_users():
+    """ユーザー一覧"""
+    try:
+        role_filter = request.args.get('role')
+        users = get_all_users(role=role_filter)
+        return jsonify({"users": users}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/users/<user_id>/role', methods=['PUT'])
+@role_required('admin')
+def api_admin_update_role(user_id):
+    """ロール変更"""
+    try:
+        data = request.get_json()
+        new_role = data.get('role')
+        if not new_role:
+            return jsonify({"error": "ロールを指定してください"}), 400
+        user = update_user_role(user_id, new_role)
+        if not user:
+            return jsonify({"error": "ユーザーが見つかりません"}), 404
+        return jsonify({"success": True, "user": user}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ヘルパー関数
@@ -733,6 +1007,29 @@ def _analyze_stock_and_save(analyzer, company_code):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
+    # 財務履歴をJSON形式で保存（合致度計算に必要）
+    financial_history = {
+        'revenue': stock_data.get('revenue', []),
+        'op_income': stock_data.get('op_income', []),
+        'ordinary_income': stock_data.get('ordinary_income', []),
+        'net_income': stock_data.get('net_income', []),
+        'eps': stock_data.get('eps', []),
+        'dps': stock_data.get('dps', []),
+        'payout_ratio': stock_data.get('payout_ratio', [])
+    }
+
+    cf_history = {
+        'operating_cf': stock_data.get('operating_cf', []),
+        'investing_cf': stock_data.get('investing_cf', []),
+        'financing_cf': stock_data.get('financing_cf', []),
+        'cash': stock_data.get('cash', []),
+        'current_liabilities': stock_data.get('current_liabilities_list', []),
+        'current_assets': stock_data.get('current_assets_list', []),
+        'equity_ratio': stock_data.get('equity_ratio_list', []),
+        'roe': stock_data.get('roe', []),
+        'roa': stock_data.get('roa', [])
+    }
+
     screened_data_full = {
         'company_code': code,
         'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
@@ -753,6 +1050,8 @@ def _analyze_stock_and_save(analyzer, company_code):
         'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
         'forecast_net_income': stock_data.get('forecast_net_income'),
         'forecast_year': stock_data.get('forecast_year'),
+        'financial_history': json.dumps(financial_history, ensure_ascii=False),
+        'cf_history': json.dumps(cf_history, ensure_ascii=False),
         'data_source': 'yfinance',
         'data_status': 'fresh'
     }
@@ -948,6 +1247,36 @@ def api_wl_analyze_status():
     return jsonify(wl_analyze_status), 200
 
 
+@app.route('/api/watchlist/recalculate', methods=['POST'])
+def api_recalculate_match_rates():
+    """ウォッチリスト全銘柄の合致度を既存データから再計算"""
+    try:
+        watchlist = get_watchlist_with_details()
+        if not watchlist:
+            return jsonify({"error": "ウォッチリストが空です"}), 400
+
+        updated = 0
+        for item in watchlist:
+            code = item.get('company_code')
+            if not code:
+                continue
+            existing = get_screened_data(code)
+            if not existing:
+                continue
+            new_rate = calculate_match_rate(existing)
+            old_rate = existing.get('match_rate')
+            if new_rate != old_rate:
+                update_screened_data(code, {'match_rate': new_rate})
+                updated += 1
+
+        return jsonify({
+            "success": True,
+            "message": f"{len(watchlist)}件中 {updated}件の合致度を更新しました"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # DC銘柄API
 @app.route('/api/dc-stocks', methods=['GET'])
 def api_get_dc_stocks():
@@ -989,6 +1318,43 @@ def api_scrape_dc_stocks():
             "count": len(stocks),
             "dc_stocks": stocks
         }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dividend-stocks', methods=['GET'])
+def api_get_dividend_stocks():
+    """高配当フラグが立っている銘柄を一覧取得"""
+    try:
+        stocks = get_dividend_stocks()
+        return jsonify({"dividend_stocks": stocks}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dividend-stocks/add', methods=['POST'])
+def api_add_dividend_stock():
+    """銘柄に高配当フラグを設定"""
+    try:
+        data = request.get_json()
+        if not data or 'company_code' not in data:
+            return jsonify({"error": "銘柄コードが指定されていません"}), 400
+
+        company_code = normalize_code(data['company_code'])
+        set_dividend_flag(company_code, True)
+        return jsonify({"message": f"{company_code}を高配当企業に登録しました"}), 200
+    except Exception as e:
+        print(f"[高配当登録エラー] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dividend-stocks/remove/<company_code>', methods=['DELETE'])
+def api_remove_dividend_stock(company_code):
+    """高配当フラグを解除"""
+    try:
+        company_code = normalize_code(company_code)
+        remove_dividend_flag(company_code)
+        return jsonify({"message": f"{company_code}の高配当フラグを解除しました"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1080,6 +1446,115 @@ def api_get_screened_stock(company_code):
                     data['dc_date'] = data.get('dc_date') or s.get('dc_date')
             return jsonify(data), 200
         return jsonify({"error": "not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# 仮ユーザーID管理
+# =============================================
+
+def get_or_create_guest_user_id():
+    """ログイン済みならそのユーザーID、未ログインならゲストIDを返す"""
+    if session.get('user_id'):
+        return session['user_id']
+    if 'guest_user_id' not in session:
+        session['guest_user_id'] = f"guest_{uuid.uuid4().hex[:8]}"
+    return session['guest_user_id']
+
+
+# =============================================
+# ノートAPI
+# =============================================
+
+@app.route('/api/notes/my', methods=['GET'])
+def api_get_my_notes():
+    """自分のノート一覧を取得"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        notes = get_user_notes(user_id)
+        return jsonify({"notes": notes, "user_id": user_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes', methods=['GET'])
+def api_get_notes():
+    """ノート一覧を取得（クエリパラメータで絞り込み）"""
+    try:
+        company_code = request.args.get('company_code')
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+
+        if company_code:
+            notes = get_notes_by_company(company_code)
+        else:
+            notes = get_public_notes(limit=limit, offset=offset)
+
+        return jsonify({"notes": notes}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes', methods=['POST'])
+def api_create_note():
+    """ノートを作成"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+        if not data.get('title') or not data.get('content'):
+            return jsonify({"error": "タイトルと本文は必須です"}), 400
+
+        note = create_note(user_id, data)
+        return jsonify({"note": note}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes/<note_id>', methods=['PUT'])
+def api_update_note(note_id):
+    """ノートを更新"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "データが指定されていません"}), 400
+
+        note = update_note(note_id, user_id, data)
+        if not note:
+            return jsonify({"error": "ノートが見つかりません（または権限がありません）"}), 404
+        return jsonify({"note": note}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes/<note_id>', methods=['DELETE'])
+def api_delete_note(note_id):
+    """ノートを削除"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        success = delete_note(note_id, user_id)
+        if not success:
+            return jsonify({"error": "ノートが見つかりません（または権限がありません）"}), 404
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/notes/tags', methods=['GET'])
+def api_get_note_tags():
+    """公開ノートから使われているタグ一覧を取得"""
+    try:
+        notes = get_public_notes(limit=200, offset=0)
+        tag_count = {}
+        for note in notes:
+            for tag in (note.get('tags') or []):
+                tag_count[tag] = tag_count.get(tag, 0) + 1
+        # 使用回数の多い順にソート
+        sorted_tags = sorted(tag_count.items(), key=lambda x: x[1], reverse=True)
+        return jsonify({"tags": [{"name": t[0], "count": t[1]} for t in sorted_tags]}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

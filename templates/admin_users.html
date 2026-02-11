@@ -1,0 +1,319 @@
+{% extends "layout.html" %}
+{% block title %}ユーザー管理 - Company Note{% endblock %}
+
+{% block content %}
+<div x-data="adminUsers()" x-init="init()" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ヘッダー -->
+    <div class="mb-8">
+        <h1 class="text-xl font-semibold" style="color: #1a1a1a;">ユーザー管理</h1>
+        <p class="text-sm mt-1" style="color: #737373;">ユーザー一覧、ロール管理、紹介ツリーの確認</p>
+    </div>
+
+    <!-- エラー表示 -->
+    <div x-show="loadError" class="mb-6 p-4 rounded-lg" style="background: #fef2f2; border: 1px solid #fecaca;">
+        <p class="text-sm" style="color: #991b1b;" x-text="loadError"></p>
+    </div>
+
+    <!-- 統計カード -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-xl p-4" style="border: 1px solid #ebebeb;">
+            <p class="text-xs font-medium" style="color: #737373;">全ユーザー</p>
+            <p class="text-2xl font-semibold mt-1" style="color: #1a1a1a;" x-text="users.length">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4" style="border: 1px solid #ebebeb;">
+            <p class="text-xs font-medium" style="color: #737373;">一般ユーザー</p>
+            <p class="text-2xl font-semibold mt-1" style="color: #1a1a1a;" x-text="users.filter(u => u.role === 'user').length">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4" style="border: 1px solid #ebebeb;">
+            <p class="text-xs font-medium" style="color: #737373;">代理店</p>
+            <p class="text-2xl font-semibold mt-1" style="color: #2d6a4f;" x-text="users.filter(u => u.role === 'agent').length">-</p>
+        </div>
+        <div class="bg-white rounded-xl p-4" style="border: 1px solid #ebebeb;">
+            <p class="text-xs font-medium" style="color: #737373;">管理者</p>
+            <p class="text-2xl font-semibold mt-1" style="color: #1b4332;" x-text="users.filter(u => u.role === 'admin').length">-</p>
+        </div>
+    </div>
+
+    <!-- タブ -->
+    <div class="flex space-x-1 mb-6 bg-white rounded-lg p-1" style="border: 1px solid #ebebeb; display: inline-flex;">
+        <button @click="activeTab = 'list'"
+                :class="activeTab === 'list' ? 'text-white' : ''"
+                :style="activeTab === 'list' ? 'background: #1b4332' : 'color: #737373'"
+                class="px-4 py-2 text-sm font-medium rounded-md transition-all">
+            ユーザー一覧
+        </button>
+        <button @click="activeTab = 'tree'"
+                :class="activeTab === 'tree' ? 'text-white' : ''"
+                :style="activeTab === 'tree' ? 'background: #1b4332' : 'color: #737373'"
+                class="px-4 py-2 text-sm font-medium rounded-md transition-all">
+            紹介ツリー
+        </button>
+    </div>
+
+    <!-- ユーザー一覧タブ -->
+    <div x-show="activeTab === 'list'">
+        <!-- フィルタ -->
+        <div class="flex flex-wrap gap-3 mb-4">
+            <select x-model="roleFilter" class="text-sm rounded-lg px-3 py-2" style="border: 1px solid #ebebeb; color: #525252; outline: none;">
+                <option value="">全ロール</option>
+                <option value="user">一般ユーザー</option>
+                <option value="agent">代理店</option>
+                <option value="admin">管理者</option>
+            </select>
+            <input type="text" x-model="searchQuery" placeholder="名前・メールで検索"
+                   class="text-sm rounded-lg px-3 py-2 flex-1 min-w-48" style="border: 1px solid #ebebeb; color: #525252; outline: none;">
+        </div>
+
+        <!-- テーブル -->
+        <div class="bg-white rounded-xl overflow-hidden" style="border: 1px solid #ebebeb;">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr style="background: #fafaf8; border-bottom: 1px solid #ebebeb;">
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">名前</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">メール</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">ロール</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">紹介コード</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">紹介者</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">登録日</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="user in filteredUsers" :key="user.id">
+                            <tr style="border-bottom: 1px solid #f3f3f1;" class="hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-3">
+                                    <span class="text-sm font-medium" style="color: #1a1a1a;" x-text="user.name"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-sm" style="color: #525252;" x-text="user.email"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                          :style="roleBadgeStyle(user.role)"
+                                          x-text="roleLabel(user.role)"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <code class="text-xs px-1.5 py-0.5 rounded" style="background: #f3f3f1; color: #525252;" x-text="user.referral_code"></code>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-sm" style="color: #525252;" x-text="getReferrerName(user.referred_by)">-</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs" style="color: #a3a3a3;" x-text="formatDate(user.created_at)"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center space-x-2">
+                                        <select :value="user.role"
+                                                @change="changeRole(user.id, $event.target.value, $event.target)"
+                                                class="text-xs rounded px-2 py-1" style="border: 1px solid #ebebeb; color: #525252; outline: none;">
+                                            <option value="user">一般</option>
+                                            <option value="agent">代理店</option>
+                                            <option value="admin">管理者</option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="filteredUsers.length === 0" class="text-center py-12">
+                <p class="text-sm" style="color: #a3a3a3;">該当するユーザーがいません</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 紹介ツリータブ -->
+    <div x-show="activeTab === 'tree'">
+        <div class="bg-white rounded-xl p-6" style="border: 1px solid #ebebeb;">
+            <div class="mb-4">
+                <p class="text-sm font-medium mb-2" style="color: #525252;">紹介者がいないユーザー（ルートノード）から表示</p>
+            </div>
+            <div class="space-y-2">
+                <template x-for="user in rootUsers" :key="user.id">
+                    <div>
+                        <div class="flex items-center space-x-2 py-2 px-3 rounded-lg hover:bg-gray-50">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                  :style="roleBadgeStyle(user.role)"
+                                  x-text="roleLabel(user.role)"></span>
+                            <span class="text-sm font-medium" style="color: #1a1a1a;" x-text="user.name"></span>
+                            <code class="text-xs px-1.5 py-0.5 rounded" style="background: #f3f3f1; color: #a3a3a3;" x-text="user.referral_code"></code>
+                            <span class="text-xs" style="color: #a3a3a3;" x-text="'(' + getChildCount(user.id) + '名紹介)'"></span>
+                        </div>
+                        <!-- 子ノード（再帰的に表示） -->
+                        <div class="ml-6" style="border-left: 2px solid #ebebeb;">
+                            <template x-for="child in getChildren(user.id)" :key="child.id">
+                                <div>
+                                    <div class="flex items-center space-x-2 py-2 px-3 ml-2 rounded-lg hover:bg-gray-50">
+                                        <span class="text-xs" style="color: #a3a3a3;">└</span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                              :style="roleBadgeStyle(child.role)"
+                                              x-text="roleLabel(child.role)"></span>
+                                        <span class="text-sm font-medium" style="color: #1a1a1a;" x-text="child.name"></span>
+                                        <code class="text-xs px-1.5 py-0.5 rounded" style="background: #f3f3f1; color: #a3a3a3;" x-text="child.referral_code"></code>
+                                        <span class="text-xs" style="color: #a3a3a3;" x-text="'(' + getChildCount(child.id) + '名紹介)'"></span>
+                                    </div>
+                                    <!-- 孫ノード -->
+                                    <div class="ml-6" style="border-left: 2px solid #f3f3f1;">
+                                        <template x-for="grandchild in getChildren(child.id)" :key="grandchild.id">
+                                            <div>
+                                                <div class="flex items-center space-x-2 py-2 px-3 ml-2 rounded-lg hover:bg-gray-50">
+                                                    <span class="text-xs" style="color: #a3a3a3;">└</span>
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                                          :style="roleBadgeStyle(grandchild.role)"
+                                                          x-text="roleLabel(grandchild.role)"></span>
+                                                    <span class="text-sm font-medium" style="color: #1a1a1a;" x-text="grandchild.name"></span>
+                                                    <code class="text-xs px-1.5 py-0.5 rounded" style="background: #f3f3f1; color: #a3a3a3;" x-text="grandchild.referral_code"></code>
+                                                    <span class="text-xs" style="color: #a3a3a3;" x-text="'(' + getChildCount(grandchild.id) + '名紹介)'"></span>
+                                                </div>
+                                                <!-- 曾孫ノード -->
+                                                <div class="ml-6" style="border-left: 2px solid #f3f3f1;">
+                                                    <template x-for="gc in getChildren(grandchild.id)" :key="gc.id">
+                                                        <div class="flex items-center space-x-2 py-2 px-3 ml-2 rounded-lg hover:bg-gray-50">
+                                                            <span class="text-xs" style="color: #a3a3a3;">└</span>
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                                                  :style="roleBadgeStyle(gc.role)"
+                                                                  x-text="roleLabel(gc.role)"></span>
+                                                            <span class="text-sm font-medium" style="color: #1a1a1a;" x-text="gc.name"></span>
+                                                            <code class="text-xs px-1.5 py-0.5 rounded" style="background: #f3f3f1; color: #a3a3a3;" x-text="gc.referral_code"></code>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div x-show="users.length === 0" class="text-center py-12">
+                <p class="text-sm" style="color: #a3a3a3;">ユーザーがいません</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ロール変更成功通知 -->
+    <div x-show="notification" x-transition
+         class="fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm text-white shadow-lg"
+         style="background: #1b4332; z-index: 9999;">
+        <span x-text="notification"></span>
+    </div>
+</div>
+
+<script>
+function adminUsers() {
+    return {
+        users: [],
+        activeTab: 'list',
+        roleFilter: '',
+        searchQuery: '',
+        notification: '',
+
+        async init() {
+            await this.loadUsers();
+        },
+
+        loadError: '',
+
+        async loadUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                const data = await res.json();
+                if (!res.ok) {
+                    this.loadError = 'API エラー (' + res.status + '): ' + (data.error || '不明なエラー');
+                    console.error(this.loadError);
+                    return;
+                }
+                this.users = data.users || [];
+                this.loadError = '';
+            } catch (e) {
+                this.loadError = '通信エラー: ' + e.message;
+                console.error('ユーザー取得エラー:', e);
+            }
+        },
+
+        get filteredUsers() {
+            return this.users.filter(u => {
+                if (this.roleFilter && u.role !== this.roleFilter) return false;
+                if (this.searchQuery) {
+                    const q = this.searchQuery.toLowerCase();
+                    if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
+                }
+                return true;
+            });
+        },
+
+        get rootUsers() {
+            return this.users.filter(u => !u.referred_by);
+        },
+
+        getChildren(userId) {
+            return this.users.filter(u => u.referred_by === userId);
+        },
+
+        getChildCount(userId) {
+            // 直接紹介数
+            return this.users.filter(u => u.referred_by === userId).length;
+        },
+
+        getReferrerName(referredBy) {
+            if (!referredBy) return '-';
+            const referrer = this.users.find(u => u.id === referredBy);
+            return referrer ? referrer.name : '-';
+        },
+
+        roleLabel(role) {
+            const labels = { user: '一般', agent: '代理店', admin: '管理者' };
+            return labels[role] || role;
+        },
+
+        roleBadgeStyle(role) {
+            const styles = {
+                user: 'background: #f3f3f1; color: #525252;',
+                agent: 'background: #f0fdf4; color: #166534;',
+                admin: 'background: #fef3c7; color: #92400e;',
+            };
+            return styles[role] || styles.user;
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        },
+
+        async changeRole(userId, newRole, selectEl) {
+            try {
+                const res = await fetch(`/api/admin/users/${userId}/role`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                // ローカルデータを更新
+                const user = this.users.find(u => u.id === userId);
+                if (user) user.role = newRole;
+
+                this.showNotification(`${user.name} のロールを「${this.roleLabel(newRole)}」に変更しました`);
+            } catch (e) {
+                this.showNotification('ロール変更に失敗しました: ' + e.message);
+                // セレクトを元に戻す
+                const user = this.users.find(u => u.id === userId);
+                if (user && selectEl) selectEl.value = user.role;
+            }
+        },
+
+        showNotification(msg) {
+            this.notification = msg;
+            setTimeout(() => { this.notification = ''; }, 3000);
+        }
+    };
+}
+</script>
+{% endblock %}

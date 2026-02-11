@@ -1,7 +1,10 @@
 # Supabase接続クライアント
 import os
+import string
+import random
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # .envファイルを読み込み
 load_dotenv()
@@ -69,8 +72,13 @@ def get_screened_data(company_code: str) -> dict:
 
 
 def upsert_screened_data(data: dict) -> dict:
-    """screened_latestにデータを登録/更新"""
+    """screened_latestにデータを登録/更新（is_dividendフラグを保持）"""
     client = get_supabase_client()
+    # 既存のis_dividendフラグを保持
+    if 'is_dividend' not in data and data.get('company_code'):
+        existing = get_screened_data(data['company_code'])
+        if existing and existing.get('is_dividend'):
+            data['is_dividend'] = True
     result = client.table('screened_latest').upsert(data).execute()
     return result.data
 
@@ -233,12 +241,37 @@ def calculate_match_rate(data: dict) -> int:
 
     # 8. 営業CF前期 > 0億円（10点）
     operating_cf = data.get('operating_cf')
+    investing_cf = None
+    # トップレベル値がない場合はcf_historyからフォールバック
+    if operating_cf is None:
+        cf_history_cf = data.get('cf_history')
+        if cf_history_cf:
+            if isinstance(cf_history_cf, str):
+                try:
+                    cf_history_cf = json.loads(cf_history_cf)
+                except:
+                    cf_history_cf = {}
+            op_cf_list = cf_history_cf.get('operating_cf', [])
+            if op_cf_list and len(op_cf_list) > 0:
+                sorted_cf = sorted(op_cf_list, key=lambda x: x.get('date', ''), reverse=True)
+                val = sorted_cf[0].get('value')
+                if val is not None:
+                    operating_cf = val / 1e8
+            inv_cf_list = cf_history_cf.get('investing_cf', [])
+            if inv_cf_list and len(inv_cf_list) > 0:
+                sorted_inv = sorted(inv_cf_list, key=lambda x: x.get('date', ''), reverse=True)
+                val = sorted_inv[0].get('value')
+                if val is not None:
+                    investing_cf = val / 1e8
     if operating_cf is not None:
         if operating_cf > 0:
             score += 10
 
     # 9. フリーCF前期 > 0億円（10点）
     free_cf = data.get('free_cf')
+    # トップレベル値がない場合はoperating_cf + investing_cfから算出
+    if free_cf is None and operating_cf is not None and investing_cf is not None:
+        free_cf = operating_cf + investing_cf
     if free_cf is not None:
         if free_cf > 0:
             score += 10
@@ -279,9 +312,18 @@ def calculate_match_rate(data: dict) -> int:
 
 
 def upsert_screened_data_with_match_rate(data: dict) -> dict:
-    """screened_latestにデータを登録/更新（合致度を自動計算）"""
-    # 合致度を計算して追加
-    data['match_rate'] = calculate_match_rate(data)
+    """screened_latestにデータを登録/更新（合致度を自動計算、is_dividendフラグ保持）"""
+    # 既存データとマージして合致度を計算（新データにないフィールドも考慮）
+    company_code = data.get('company_code')
+    if company_code:
+        existing = get_screened_data(company_code) or {}
+        merged = {**existing, **data}
+        data['match_rate'] = calculate_match_rate(merged)
+        # 既存のis_dividendフラグを保持
+        if 'is_dividend' not in data and existing.get('is_dividend'):
+            data['is_dividend'] = True
+    else:
+        data['match_rate'] = calculate_match_rate(data)
 
     client = get_supabase_client()
     result = client.table('screened_latest').upsert(data).execute()
@@ -372,3 +414,288 @@ def upsert_signal_stocks(stocks: list) -> list:
         result = client.table('signal_stocks').upsert(stocks).execute()
         return result.data
     return []
+
+
+# =============================================
+# 高配当企業操作
+# =============================================
+
+def get_dividend_stocks() -> list:
+    """高配当フラグが立っている銘柄を取得"""
+    client = get_supabase_client()
+    result = client.table('screened_latest').select('*').eq(
+        'is_dividend', True
+    ).order('company_code').execute()
+    return result.data
+
+
+def set_dividend_flag(company_code: str, flag: bool = True) -> dict:
+    """screened_latestの高配当フラグを設定"""
+    client = get_supabase_client()
+    # 既存レコードがあればupdate、なければinsert
+    existing = client.table('screened_latest').select('company_code').eq(
+        'company_code', company_code
+    ).execute()
+    if existing.data:
+        result = client.table('screened_latest').update({
+            'is_dividend': flag
+        }).eq('company_code', company_code).execute()
+    else:
+        result = client.table('screened_latest').insert({
+            'company_code': company_code,
+            'company_name': company_code,
+            'is_dividend': flag
+        }).execute()
+    return result.data
+
+
+def remove_dividend_flag(company_code: str) -> dict:
+    """高配当フラグを解除"""
+    return set_dividend_flag(company_code, False)
+
+
+# =============================================
+# ノート（notes）テーブル操作
+# =============================================
+
+def create_note(user_id: str, data: dict) -> dict:
+    """ノートを新規作成"""
+    client = get_supabase_client()
+    note_data = {
+        'user_id': user_id,
+        'title': data['title'],
+        'content': data['content'],
+        'company_code': data.get('company_code'),
+        'company_name': data.get('company_name'),
+        'stars': data.get('stars', 0),
+        'tags': data.get('tags', []),
+        'is_public': data.get('is_public', False),
+        'is_anonymous': data.get('is_anonymous', False),
+    }
+    result = client.table('notes').insert(note_data).execute()
+    return result.data[0] if result.data else {}
+
+
+def get_user_notes(user_id: str) -> list:
+    """ユーザーのノート一覧を取得（新しい順）"""
+    client = get_supabase_client()
+    result = client.table('notes').select('*').eq(
+        'user_id', user_id
+    ).order('created_at', desc=True).execute()
+    return result.data
+
+
+def get_public_notes(limit: int = 50, offset: int = 0) -> list:
+    """公開ノート一覧を取得（コミュニティ用、新しい順）"""
+    client = get_supabase_client()
+    result = client.table('notes').select('*').eq(
+        'is_public', True
+    ).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
+    return result.data
+
+
+def get_notes_by_company(company_code: str) -> list:
+    """企業別の公開ノート一覧を取得"""
+    client = get_supabase_client()
+    result = client.table('notes').select('*').eq(
+        'company_code', company_code
+    ).eq('is_public', True).order('created_at', desc=True).execute()
+    return result.data
+
+
+def update_note(note_id: str, user_id: str, data: dict) -> dict:
+    """ノートを更新（所有者チェック付き）"""
+    client = get_supabase_client()
+    update_data = {}
+    for key in ['title', 'content', 'company_code', 'company_name',
+                'stars', 'tags', 'is_public', 'is_anonymous']:
+        if key in data:
+            update_data[key] = data[key]
+    result = client.table('notes').update(update_data).eq(
+        'id', note_id
+    ).eq('user_id', user_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def delete_note(note_id: str, user_id: str) -> bool:
+    """ノートを削除（所有者チェック付き）"""
+    client = get_supabase_client()
+    result = client.table('notes').delete().eq(
+        'id', note_id
+    ).eq('user_id', user_id).execute()
+    return len(result.data) > 0
+
+
+# =============================================
+# 認証・ユーザー管理（app_usersテーブル）
+# =============================================
+
+def _generate_referral_code(length: int = 6) -> str:
+    """紹介コードを生成（6文字英数字大文字）"""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=length))
+
+
+def create_user(name: str, email: str, password: str, referred_by_code: str = None) -> dict:
+    """ユーザーを新規登録"""
+    client = get_supabase_client()
+
+    # メール重複チェック
+    existing = client.table('app_users').select('id').eq('email', email).execute()
+    if existing.data:
+        raise ValueError("このメールアドレスは既に登録されています")
+
+    # パスワードハッシュ化
+    password_hash = generate_password_hash(password)
+
+    # 紹介コード自動生成（ユニークになるまでリトライ）
+    for _ in range(10):
+        referral_code = _generate_referral_code()
+        dup = client.table('app_users').select('id').eq('referral_code', referral_code).execute()
+        if not dup.data:
+            break
+    else:
+        raise ValueError("紹介コードの生成に失敗しました。再度お試しください")
+
+    # 紹介者の解決
+    referred_by = None
+    if referred_by_code:
+        referrer = client.table('app_users').select('id').eq(
+            'referral_code', referred_by_code.upper().strip()
+        ).execute()
+        if referrer.data:
+            referred_by = referrer.data[0]['id']
+
+    user_data = {
+        'name': name,
+        'email': email,
+        'password_hash': password_hash,
+        'referral_code': referral_code,
+    }
+    # referred_byがある場合のみ含める（Noneを送るとスキーマキャッシュエラーになる場合がある）
+    if referred_by:
+        user_data['referred_by'] = referred_by
+
+    result = client.table('app_users').insert(user_data).execute()
+    if not result.data:
+        raise ValueError("ユーザー登録に失敗しました")
+    return result.data[0]
+
+
+def authenticate_user(email: str, password: str) -> dict:
+    """メール＋パスワードで認証。成功時ユーザーデータ、失敗時None"""
+    client = get_supabase_client()
+    result = client.table('app_users').select('*').eq('email', email).execute()
+    if not result.data:
+        return None
+    user = result.data[0]
+    if not check_password_hash(user['password_hash'], password):
+        return None
+    return user
+
+
+def get_user_by_id(user_id: str) -> dict:
+    """IDでユーザー取得"""
+    client = get_supabase_client()
+    result = client.table('app_users').select('*').eq('id', user_id).execute()
+    return result.data[0] if result.data else None
+
+
+def get_user_by_email(email: str) -> dict:
+    """メールアドレスでユーザー取得"""
+    client = get_supabase_client()
+    result = client.table('app_users').select('*').eq('email', email).execute()
+    return result.data[0] if result.data else None
+
+
+def get_user_by_referral_code(code: str) -> dict:
+    """紹介コードでユーザー取得"""
+    client = get_supabase_client()
+    result = client.table('app_users').select('*').eq(
+        'referral_code', code.upper().strip()
+    ).execute()
+    return result.data[0] if result.data else None
+
+
+# =============================================
+# 紹介ツリー
+# =============================================
+
+def get_direct_referrals(user_id: str) -> list:
+    """直接紹介したユーザー一覧"""
+    client = get_supabase_client()
+    result = client.table('app_users').select('*').eq(
+        'referred_by', user_id
+    ).order('created_at', desc=True).execute()
+    return result.data
+
+
+def get_referral_tree(user_id: str, max_depth: int = 5) -> list:
+    """再帰的に紹介ツリーを取得（アプリ層で深さ制限付き探索）"""
+    client = get_supabase_client()
+
+    def _build_tree(uid, depth):
+        if depth >= max_depth:
+            return []
+        children = client.table('app_users').select('*').eq(
+            'referred_by', uid
+        ).order('created_at', desc=True).execute()
+        tree = []
+        for child in children.data:
+            node = {**child, 'depth': depth + 1, 'children': _build_tree(child['id'], depth + 1)}
+            tree.append(node)
+        return tree
+
+    return _build_tree(user_id, 0)
+
+
+def get_referral_chain(user_id: str) -> list:
+    """上位紹介者チェーン（自分→紹介者→その紹介者→...）"""
+    client = get_supabase_client()
+    chain = []
+    current_id = user_id
+    seen = set()
+    while current_id and current_id not in seen:
+        seen.add(current_id)
+        user = client.table('app_users').select('*').eq(
+            'id', current_id
+        ).execute()
+        if not user.data:
+            break
+        chain.append(user.data[0])
+        current_id = user.data[0].get('referred_by')
+    return chain
+
+
+# =============================================
+# ユーザー管理（管理者用）
+# =============================================
+
+def get_all_users(role: str = None) -> list:
+    """ユーザー一覧取得（ロールでフィルタ可能）"""
+    client = get_supabase_client()
+    query = client.table('app_users').select('*')
+    if role:
+        query = query.eq('role', role)
+    result = query.execute()
+    return result.data
+
+
+def update_user_role(user_id: str, new_role: str) -> dict:
+    """ユーザーのロールを変更"""
+    if new_role not in ('user', 'agent', 'admin'):
+        raise ValueError(f"無効なロール: {new_role}")
+    client = get_supabase_client()
+    result = client.table('app_users').update(
+        {'role': new_role}
+    ).eq('id', user_id).execute()
+    return result.data[0] if result.data else None
+
+
+def migrate_guest_notes(guest_user_id: str, real_user_id: str) -> int:
+    """ゲストIDのノートを本ユーザーIDに引き継ぎ"""
+    client = get_supabase_client()
+    result = client.table('notes').update(
+        {'user_id': real_user_id}
+    ).eq('user_id', guest_user_id).execute()
+    return len(result.data)

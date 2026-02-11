@@ -26,7 +26,6 @@
             flex-direction: column;
         }
 
-        /* 入力フィールド */
         .login-input {
             width: 100%;
             padding: 12px 16px;
@@ -49,7 +48,6 @@
             color: #b0b0a8;
         }
 
-        /* ログインボタン */
         .login-btn {
             width: 100%;
             padding: 12px;
@@ -74,7 +72,6 @@
             transform: translateY(0);
         }
 
-        /* チェックボックス */
         .custom-checkbox {
             accent-color: var(--lp-accent);
             width: 16px;
@@ -82,7 +79,6 @@
             cursor: pointer;
         }
 
-        /* リンク */
         .login-link {
             color: var(--lp-accent);
             text-decoration: none;
@@ -93,7 +89,6 @@
             opacity: 0.7;
         }
 
-        /* フラッシュメッセージ */
         .flash-error {
             background: #fef2f2;
             border: 1px solid #fecaca;
@@ -103,7 +98,6 @@
             font-size: 0.85rem;
         }
 
-        /* 装飾ライン */
         .accent-line {
             width: 40px;
             height: 2px;
@@ -146,8 +140,8 @@
             <form action="/login" method="post" class="space-y-5">
                 <div>
                     <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">メールアドレス</label>
-                    <input type="text" name="account_name" class="login-input" placeholder="mail@example.com"
-                           value="{{ saved_username if saved_username else '' }}" required>
+                    <input type="email" name="email" class="login-input" placeholder="mail@example.com"
+                           value="{{ saved_email if saved_email else '' }}" required>
                 </div>
 
                 <div>
@@ -185,7 +179,7 @@
             <div class="text-center">
                 <p class="text-sm" style="color: var(--lp-muted);">
                     アカウントをお持ちでない方は
-                    <a href="/dashboard" class="login-link font-medium">こちら</a>
+                    <a href="/register" class="login-link font-medium">新規登録</a>
                 </p>
             </div>
         </div>
@@ -199,7 +193,6 @@
     </footer>
 
     <script>
-        // パスワード表示切り替え
         function togglePassword() {
             const input = document.getElementById('password');
             const icon = document.getElementById('eye-icon');

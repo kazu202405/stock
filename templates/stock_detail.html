@@ -479,6 +479,13 @@
                     <span class="score-item-status" id="score-pbr">--</span>
                 </div>
             </div>
+            <div style="text-align: right; margin-top: 10px;">
+                <a href="/learning" target="_blank"
+                   style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #16a34a; text-decoration: none; padding: 3px 8px; background: #f0fdf4; border-radius: 10px; transition: all 0.2s;"
+                   onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                    <i class="fas fa-book-open" style="font-size: 9px;"></i>用語を学ぶ<i class="fas fa-external-link-alt" style="font-size: 8px;"></i>
+                </a>
+            </div>
         </div>
 
         <!-- 右側: チャート -->
@@ -902,10 +909,24 @@
             });
         }
 
-        // CF・指標テーブル（予想年を除外して実績のみ5年分表示）
-        const cfYears = sortedYears.filter(y => !(yearDataMap.get(y) || {})._forecast).slice(-5);
+        // CF・指標テーブル（予想年を除外し、CFデータがある年のみ5年分表示）
+        const cfDataTypes = ['operating_cf', 'investing_cf', 'financing_cf', 'cash', 'current_liabilities_list', 'equity_ratio_list', 'roe', 'roa'];
+        const allNonForecastYears = Array.from(yearDataMap.keys())
+            .filter(y => !(yearDataMap.get(y) || {})._forecast)
+            .sort((a, b) => a - b);
+        const cfYears = allNonForecastYears
+            .filter(y => {
+                const yd = yearDataMap.get(y) || {};
+                return cfDataTypes.some(t => yd[t] !== undefined && yd[t] !== null);
+            })
+            .slice(-5);
         const tbody2 = document.getElementById('cf-metrics-tbody');
         if (tbody2) {
+            // データのない行を非表示にする
+            for (let i = 1; i <= 5; i++) {
+                const row = tbody2.querySelector(`tr[data-year="${i}"]`);
+                if (row) row.style.display = i <= cfYears.length ? '' : 'none';
+            }
             cfYears.forEach((year, index) => {
                 const row = tbody2.querySelector(`tr[data-year="${index + 1}"]`);
                 if (!row) return;
@@ -1217,14 +1238,33 @@
         if (opForecastPass) calcScore += 10;
         updateScoreItem('score-op-forecast', opForecastPass, opForecastGrowth !== null ? `${opForecastGrowth.toFixed(1)}%` : null);
 
-        const operatingCf = data.operating_cf;
-        const opCfPass = operatingCf !== null && operatingCf > 0;
+        let operatingCf = data.operating_cf;
+        let investingCf = null;
+        // トップレベル値がない場合はcf_historyからフォールバック
+        if (operatingCf === null || operatingCf === undefined) {
+            const cfHist = parseJsonField(data.cf_history);
+            if (cfHist) {
+                if (cfHist.operating_cf && cfHist.operating_cf.length > 0) {
+                    const val = [...cfHist.operating_cf].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0].value;
+                    if (val !== null && val !== undefined) operatingCf = val / 1e8;
+                }
+                if (cfHist.investing_cf && cfHist.investing_cf.length > 0) {
+                    const val = [...cfHist.investing_cf].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0].value;
+                    if (val !== null && val !== undefined) investingCf = val / 1e8;
+                }
+            }
+        }
+        const opCfPass = operatingCf !== null && operatingCf !== undefined && operatingCf > 0;
         if (opCfPass) calcScore += 10;
-        updateScoreItem('score-op-cf', opCfPass, operatingCf ? `${operatingCf.toFixed(1)}億` : null);
-        const freeCf = data.free_cf;
-        const freeCfPass = freeCf !== null && freeCf > 0;
+        updateScoreItem('score-op-cf', opCfPass, operatingCf != null ? `${operatingCf.toFixed(1)}億` : null);
+        let freeCf = data.free_cf;
+        // トップレベル値がない場合はoperating_cf + investing_cfから算出
+        if ((freeCf === null || freeCf === undefined) && operatingCf != null && investingCf != null) {
+            freeCf = operatingCf + investingCf;
+        }
+        const freeCfPass = freeCf !== null && freeCf !== undefined && freeCf > 0;
         if (freeCfPass) calcScore += 10;
-        updateScoreItem('score-free-cf', freeCfPass, freeCf ? `${freeCf.toFixed(1)}億` : null);
+        updateScoreItem('score-free-cf', freeCfPass, freeCf != null ? `${freeCf.toFixed(1)}億` : null);
 
         let roa = data.roa;
         if (roa === null || roa === undefined) {
