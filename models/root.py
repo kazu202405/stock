@@ -214,7 +214,7 @@ def stock_detail(code):
 
 @app.route('/search')
 def search():
-    """銘柄検索・抽出ページ"""
+    """企業情報ページ（銘柄検索・企業比較）"""
     guard = _require_login()
     if guard: return guard
     return render_template('search.html', is_admin=True)
@@ -226,14 +226,6 @@ def admin():
     guard = _require_admin()
     if guard: return guard
     return render_template('stock.html', is_admin=True)
-
-
-@app.route('/compare')
-def compare_page():
-    """企業比較ページ"""
-    guard = _require_login()
-    if guard: return guard
-    return render_template('compare.html')
 
 
 @app.route('/admin/users')
