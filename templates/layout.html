@@ -79,17 +79,42 @@
                     </a>
                     {% endif %}
                     <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        マイページ
+                        マイノート
                     </a>
                 </div>
 
-                <!-- ユーザー名・ログイン/ログアウト -->
+                <!-- ユーザー名・アカウントメニュー -->
                 <div class="flex items-center space-x-3">
                     {% if is_logged_in %}
                     <span class="text-sm font-medium" style="color: #525252;">{{ user_name }}</span>
-                    <a href="#" onclick="document.getElementById('logoutModal').style.display='flex'; return false;" class="flex items-center px-2 py-1.5 rounded-md text-sm font-medium" style="color: #a3a3a3;" title="ログアウト">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </a>
+                    <div x-data="{ accountMenuOpen: false }" class="relative" style="z-index: 60;">
+                        <button @click="accountMenuOpen = !accountMenuOpen" class="flex items-center px-2 py-1.5 rounded-md text-sm font-medium" style="color: #525252; background: none; border: none; cursor: pointer;" title="マイアカウント">
+                            <i class="fas fa-user-circle" style="font-size: 20px;"></i>
+                        </button>
+                        <div x-show="accountMenuOpen" @click.away="accountMenuOpen = false" x-cloak
+                             class="absolute right-0 mt-1 py-1 bg-white rounded-lg"
+                             style="width: 180px; border: 1px solid #ebebeb; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                            <a href="#" onclick="openDisplayNameModal(); return false;" @click="accountMenuOpen = false"
+                               class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium"
+                               style="color: #525252; text-decoration: none; transition: background 0.15s;"
+                               onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-user-edit" style="font-size: 11px; color: #737373; width: 14px;"></i>投稿名
+                            </a>
+                            <a href="#" onclick="openAccountSettingsModal(); return false;" @click="accountMenuOpen = false"
+                               class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium"
+                               style="color: #525252; text-decoration: none; transition: background 0.15s;"
+                               onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-cog" style="font-size: 11px; color: #737373; width: 14px;"></i>アカウント設定
+                            </a>
+                            <div style="border-top: 1px solid #ebebeb; margin: 4px 0;"></div>
+                            <a href="#" onclick="document.getElementById('logoutModal').style.display='flex'; return false;" @click="accountMenuOpen = false"
+                               class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium"
+                               style="color: #525252; text-decoration: none; transition: background 0.15s;"
+                               onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-sign-out-alt" style="font-size: 11px; color: #737373; width: 14px;"></i>ログアウト
+                            </a>
+                        </div>
+                    </div>
                     {% else %}
                     <a href="/login" class="px-3 py-1.5 rounded-md text-sm font-medium" style="color: #525252; border: 1px solid #ebebeb;">
                         ログイン
@@ -181,6 +206,111 @@
     </div>
     {% endif %}
 
+    {% if is_logged_in %}
+    <!-- 投稿名モーダル -->
+    <div id="displayNameModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:24px 28px; max-width:400px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="font-size:15px; font-weight:700; color:#1a1a1a; margin:0;">
+                    <i class="fas fa-user-edit" style="color:#2d6a4f; margin-right:6px; font-size:13px;"></i>投稿名
+                </h3>
+                <button onclick="document.getElementById('displayNameModal').style.display='none'" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p style="font-size:12px; color:#737373; margin-bottom:12px;">コミュニティで表示されるデフォルトの名前です</p>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="text" id="displayNameInput" placeholder="投稿名を入力（30文字以内）" maxlength="30"
+                       style="flex:1; padding:8px 12px; border:1px solid #ebebeb; border-radius:8px; font-size:13px; color:#1a1a1a; outline:none; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                <button onclick="saveDisplayNameGlobal()" id="displayNameSaveBtn"
+                        style="background:#1b4332; color:#fff; border:none; border-radius:6px; padding:8px 16px; font-size:12px; font-weight:500; cursor:pointer; white-space:nowrap;">
+                    保存
+                </button>
+            </div>
+            <p id="displayNameMsg" style="font-size:12px; margin-top:8px; display:none;"></p>
+        </div>
+    </div>
+
+    <!-- アカウント設定モーダル -->
+    <div id="accountSettingsModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:24px 28px; max-width:480px; width:92%; max-height:85vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="font-size:15px; font-weight:700; color:#1a1a1a; margin:0;">
+                    <i class="fas fa-cog" style="color:#2d6a4f; margin-right:6px; font-size:13px;"></i>アカウント設定
+                </h3>
+                <button onclick="document.getElementById('accountSettingsModal').style.display='none'" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- メールアドレス表示 -->
+            <div style="margin-bottom:16px;">
+                <p style="font-size:12px; color:#737373; margin-bottom:4px;">メールアドレス</p>
+                <p id="accountEmailDisplay" style="font-size:13px; font-weight:500; color:#1a1a1a;">読み込み中...</p>
+            </div>
+            <!-- メールアドレス変更 -->
+            <div style="margin-bottom:12px;">
+                <button onclick="toggleAccountSection('email')" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; border:none; background:none; cursor:pointer; transition:background 0.15s;" onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
+                    <span style="display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-envelope" style="color:#525252; font-size:11px;"></i>
+                        <span style="font-size:12px; font-weight:500; color:#1a1a1a;">メールアドレス変更</span>
+                    </span>
+                    <i class="fas fa-chevron-down" id="emailChevron" style="color:#d4d4d4; font-size:10px; transition:transform 0.2s;"></i>
+                </button>
+                <div id="emailChangeForm" style="display:none; padding:0 8px; margin-top:4px;">
+                    <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:8px; padding:12px;">
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; font-size:12px; font-weight:600; color:#525252; margin-bottom:4px;">新しいメールアドレス</label>
+                            <input type="email" id="newEmailInput" placeholder="example@mail.com" style="width:100%; padding:6px 10px; border:1px solid #ebebeb; border-radius:8px; font-size:12px; color:#1a1a1a; outline:none; box-sizing:border-box; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                        </div>
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; font-size:12px; font-weight:600; color:#525252; margin-bottom:4px;">現在のパスワード（確認用）</label>
+                            <input type="password" id="emailPasswordInput" placeholder="現在のパスワード" style="width:100%; padding:6px 10px; border:1px solid #ebebeb; border-radius:8px; font-size:12px; outline:none; box-sizing:border-box; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                        </div>
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button onclick="changeEmailGlobal()" style="background:#1b4332; color:#fff; border:none; border-radius:6px; padding:5px 14px; font-size:12px; font-weight:500; cursor:pointer;">変更する</button>
+                        </div>
+                        <p id="emailChangeMsg" style="font-size:12px; margin-top:6px; display:none;"></p>
+                    </div>
+                </div>
+            </div>
+            <!-- パスワード変更 -->
+            <div style="margin-bottom:12px;">
+                <button onclick="toggleAccountSection('password')" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; border:none; background:none; cursor:pointer; transition:background 0.15s;" onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
+                    <span style="display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-lock" style="color:#525252; font-size:11px;"></i>
+                        <span style="font-size:12px; font-weight:500; color:#1a1a1a;">パスワード変更</span>
+                    </span>
+                    <i class="fas fa-chevron-down" id="passwordChevron" style="color:#d4d4d4; font-size:10px; transition:transform 0.2s;"></i>
+                </button>
+                <div id="passwordChangeForm" style="display:none; padding:0 8px; margin-top:4px;">
+                    <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:8px; padding:12px;">
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; font-size:12px; font-weight:600; color:#525252; margin-bottom:4px;">現在のパスワード</label>
+                            <input type="password" id="currentPasswordInput" placeholder="現在のパスワード" style="width:100%; padding:6px 10px; border:1px solid #ebebeb; border-radius:8px; font-size:12px; outline:none; box-sizing:border-box; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                        </div>
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; font-size:12px; font-weight:600; color:#525252; margin-bottom:4px;">新しいパスワード（6文字以上）</label>
+                            <input type="password" id="newPasswordInput" placeholder="新しいパスワード" style="width:100%; padding:6px 10px; border:1px solid #ebebeb; border-radius:8px; font-size:12px; outline:none; box-sizing:border-box; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                        </div>
+                        <div style="margin-bottom:8px;">
+                            <label style="display:block; font-size:12px; font-weight:600; color:#525252; margin-bottom:4px;">新しいパスワード（確認）</label>
+                            <input type="password" id="confirmPasswordInput" placeholder="もう一度入力" style="width:100%; padding:6px 10px; border:1px solid #ebebeb; border-radius:8px; font-size:12px; outline:none; box-sizing:border-box; font-family:'Inter','Noto Sans JP',-apple-system,sans-serif;">
+                        </div>
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button onclick="changePasswordGlobal()" style="background:#1b4332; color:#fff; border:none; border-radius:6px; padding:5px 14px; font-size:12px; font-weight:500; cursor:pointer;">変更する</button>
+                        </div>
+                        <p id="passwordChangeMsg" style="font-size:12px; margin-top:6px; display:none;"></p>
+                    </div>
+                </div>
+            </div>
+            <!-- ユーザーID -->
+            <div style="border-top:1px solid #ebebeb; margin-top:8px; padding-top:10px;">
+                <p style="font-size:12px; color:#a3a3a3;">ユーザーID: <span id="accountUserId" style="font-family:monospace;"></span></p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Alpine.js for interactive components -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
@@ -248,5 +378,145 @@
                 link.classList.add('active');
             }
         });
+        // 投稿名・アカウント設定モーダルの背景クリックで閉じる
+        ['displayNameModal', 'accountSettingsModal'].forEach(function(id) {
+            var modal = document.getElementById(id);
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) modal.style.display = 'none';
+                });
+            }
+        });
     });
+
+    // 投稿名モーダル
+    function openDisplayNameModal() {
+        var modal = document.getElementById('displayNameModal');
+        modal.style.display = 'flex';
+        fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(d) {
+            if (d.logged_in && d.user) {
+                document.getElementById('displayNameInput').value = d.user.display_name || '';
+            }
+        }).catch(function() {});
+    }
+
+    function saveDisplayNameGlobal() {
+        var input = document.getElementById('displayNameInput');
+        var btn = document.getElementById('displayNameSaveBtn');
+        var msg = document.getElementById('displayNameMsg');
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+        msg.style.display = 'none';
+        fetch('/api/auth/display-name', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_name: input.value.trim() })
+        }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(result) {
+            msg.style.display = 'block';
+            if (result.ok) {
+                msg.style.color = '#16a34a';
+                msg.textContent = '保存しました';
+                setTimeout(function() { msg.style.display = 'none'; }, 3000);
+            } else {
+                msg.style.color = '#dc2626';
+                msg.textContent = result.data.error || '保存に失敗しました';
+            }
+        }).catch(function() {
+            msg.style.display = 'block';
+            msg.style.color = '#dc2626';
+            msg.textContent = '通信エラーが発生しました';
+        }).finally(function() {
+            btn.disabled = false;
+            btn.textContent = '保存';
+        });
+    }
+
+    // アカウント設定モーダル
+    function openAccountSettingsModal() {
+        var modal = document.getElementById('accountSettingsModal');
+        modal.style.display = 'flex';
+        fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(d) {
+            if (d.logged_in && d.user) {
+                document.getElementById('accountEmailDisplay').textContent = d.user.email || '未設定';
+                document.getElementById('accountUserId').textContent = d.user.id || '';
+            }
+        }).catch(function() {
+            document.getElementById('accountEmailDisplay').textContent = '取得エラー';
+        });
+    }
+
+    function toggleAccountSection(section) {
+        var form = document.getElementById(section + 'ChangeForm');
+        var chevron = document.getElementById(section + 'Chevron');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            chevron.style.transform = 'rotate(180deg)';
+        } else {
+            form.style.display = 'none';
+            chevron.style.transform = '';
+        }
+    }
+
+    function changeEmailGlobal() {
+        var newEmail = document.getElementById('newEmailInput').value.trim();
+        var password = document.getElementById('emailPasswordInput').value;
+        var msg = document.getElementById('emailChangeMsg');
+        if (!newEmail) { msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '新しいメールアドレスを入力してください'; return; }
+        if (!password) { msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '現在のパスワードを入力してください'; return; }
+        msg.style.display = 'none';
+        fetch('/api/auth/email', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_email: newEmail, current_password: password })
+        }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(result) {
+            msg.style.display = 'block';
+            if (result.ok && result.data.success) {
+                msg.style.color = '#16a34a';
+                msg.textContent = 'メールアドレスを変更しました';
+                document.getElementById('accountEmailDisplay').textContent = result.data.email || newEmail;
+                document.getElementById('newEmailInput').value = '';
+                document.getElementById('emailPasswordInput').value = '';
+                setTimeout(function() { msg.style.display = 'none'; toggleAccountSection('email'); }, 2000);
+            } else {
+                msg.style.color = '#dc2626';
+                msg.textContent = result.data.error || '変更に失敗しました';
+            }
+        }).catch(function() {
+            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '通信エラーが発生しました';
+        });
+    }
+
+    function changePasswordGlobal() {
+        var current = document.getElementById('currentPasswordInput').value;
+        var newPass = document.getElementById('newPasswordInput').value;
+        var confirm = document.getElementById('confirmPasswordInput').value;
+        var msg = document.getElementById('passwordChangeMsg');
+        if (!current) { msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '現在のパスワードを入力してください'; return; }
+        if (!newPass || newPass.length < 6) { msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '新しいパスワードは6文字以上で入力してください'; return; }
+        if (newPass !== confirm) { msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '新しいパスワードが一致しません'; return; }
+        msg.style.display = 'none';
+        fetch('/api/auth/password', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: current, new_password: newPass, new_password_confirm: confirm })
+        }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(result) {
+            msg.style.display = 'block';
+            if (result.ok && result.data.success) {
+                msg.style.color = '#16a34a';
+                msg.textContent = 'パスワードを変更しました';
+                document.getElementById('currentPasswordInput').value = '';
+                document.getElementById('newPasswordInput').value = '';
+                document.getElementById('confirmPasswordInput').value = '';
+                setTimeout(function() { msg.style.display = 'none'; toggleAccountSection('password'); }, 2000);
+            } else {
+                msg.style.color = '#dc2626';
+                msg.textContent = result.data.error || '変更に失敗しました';
+            }
+        }).catch(function() {
+            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '通信エラーが発生しました';
+        });
+    }
 </script>

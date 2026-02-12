@@ -1791,6 +1791,65 @@ def api_retry_summary_jp(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+def _fetch_live_price(company_code):
+    """yfinanceから現在の株価を取得（内部ヘルパー）。成功時はfloat、失敗時はNoneを返す"""
+    try:
+        import yfinance as yf
+        symbol = company_code if company_code.endswith('.T') else company_code + '.T'
+        ticker = yf.Ticker(symbol)
+        price = None
+        try:
+            fast_info = ticker.fast_info
+            if hasattr(fast_info, 'last_price') and fast_info.last_price:
+                price = float(fast_info.last_price)
+        except Exception:
+            pass
+        if price is None:
+            try:
+                info = ticker.info
+                raw = info.get('regularMarketPrice') or info.get('currentPrice')
+                if raw is not None:
+                    price = float(raw)
+            except Exception:
+                pass
+        return price
+    except Exception as e:
+        print(f"[LivePrice] {company_code} 取得エラー: {e}")
+        return None
+
+
+def _fetch_live_price_with_fallback(company_code):
+    """ライブ株価を取得し、成功時はscreened_latestも更新。失敗時はscreened_latestにフォールバック"""
+    code = normalize_code(company_code)
+    # まずライブ取得を試みる
+    live_price = _fetch_live_price(code)
+    if live_price is not None:
+        # 成功: screened_latestにも書き戻す
+        try:
+            update_screened_data(code, {'stock_price': live_price})
+        except Exception as e:
+            print(f"[LivePrice] {code} screened_latest更新エラー: {e}")
+        return live_price, True  # (価格, ライブかどうか)
+    # フォールバック: screened_latestのキャッシュ価格
+    stock = get_screened_data(code)
+    if stock and stock.get('stock_price'):
+        return float(stock['stock_price']), False
+    return None, False
+
+
+@app.route('/api/stock/current-price/<company_code>', methods=['GET'])
+def api_get_current_price(company_code):
+    """yfinanceから現在の株価のみを軽量取得"""
+    try:
+        code = normalize_code(company_code)
+        price, is_live = _fetch_live_price_with_fallback(code)
+        if price is not None:
+            return jsonify({"company_code": code, "price": price, "is_live": is_live}), 200
+        return jsonify({"error": "株価を取得できませんでした"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])
 def api_get_screened_stock(company_code):
     """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）"""
@@ -2157,11 +2216,47 @@ def scheduled_fetch_gc_dc():
     except Exception as e:
         print(f"[Scheduler] DCエラー: {e}")
 
+def scheduled_update_stock_prices():
+    """定期実行: screened_latest全銘柄の株価をyfinanceから更新"""
+    from datetime import datetime
+    import time
+    print(f"[Scheduler] 株価バッチ更新開始: {datetime.now()}")
+    try:
+        client = get_supabase_client()
+        # screened_latestの全銘柄コードを取得
+        result = client.table('screened_latest').select('company_code').execute()
+        codes = [r['company_code'] for r in result.data] if result.data else []
+        print(f"[Scheduler] 対象銘柄数: {len(codes)}件")
+        success_count = 0
+        fail_count = 0
+        for code in codes:
+            try:
+                price = _fetch_live_price(code)
+                if price is not None:
+                    client.table('screened_latest').update(
+                        {'stock_price': price}
+                    ).eq('company_code', code).execute()
+                    success_count += 1
+                else:
+                    fail_count += 1
+            except Exception as e:
+                print(f"[Scheduler] {code} 更新エラー: {e}")
+                fail_count += 1
+            time.sleep(0.35)  # レート制限回避
+        print(f"[Scheduler] 株価バッチ更新完了: 成功{success_count}件, 失敗{fail_count}件")
+    except Exception as e:
+        print(f"[Scheduler] 株価バッチ更新エラー: {e}")
+
+
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
+# 株価バッチ更新（9:25 / 11:45 / 15:20 JST）
+scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25, id='price_update_morning')
+scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45, id='price_update_midday')
+scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id='price_update_closing')
 scheduler.start()
-print("[Scheduler] GC/DC自動取得スケジューラ起動（9:15/17:15 JST）")
+print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20 JST）")
 
 # アプリ終了時にスケジューラも停止
 atexit.register(lambda: scheduler.shutdown(wait=False))
@@ -2195,6 +2290,20 @@ def api_scheduler_trigger():
         return jsonify({
             "success": True,
             "message": "GC/DC自動取得をバックグラウンドで開始しました"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/scheduler/trigger-price-update', methods=['POST'])
+def api_scheduler_trigger_price_update():
+    """株価バッチ更新を今すぐ手動実行（テスト用）"""
+    try:
+        thread = threading.Thread(target=scheduled_update_stock_prices, daemon=True)
+        thread.start()
+        return jsonify({
+            "success": True,
+            "message": "株価バッチ更新をバックグラウンドで開始しました"
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2362,12 +2471,12 @@ def api_demo_buy():
         if not code or shares <= 0:
             return jsonify({"error": "銘柄コードと株数を正しく指定してください"}), 400
 
-        # 現在価格をscreened_latestから取得
+        # 現在価格を取得（ライブ優先、失敗時はキャッシュにフォールバック）
+        price, is_live = _fetch_live_price_with_fallback(code)
         stock = get_screened_data(code)
-        if not stock or not stock.get('stock_price'):
+        if price is None:
             return jsonify({"error": f"{code} の価格データがありません。先に分析してください。"}), 404
 
-        price = float(stock['stock_price'])
         total = price * shares
 
         # 残高チェック
@@ -2461,12 +2570,12 @@ def api_demo_sell():
         if holding['shares'] < shares:
             return jsonify({"error": f"保有数（{holding['shares']}株）を超える売却はできません"}), 400
 
-        # 現在価格を取得
+        # 現在価格を取得（ライブ優先、失敗時はキャッシュにフォールバック）
+        price, is_live = _fetch_live_price_with_fallback(code)
         stock = get_screened_data(code)
-        if not stock or not stock.get('stock_price'):
+        if price is None:
             return jsonify({"error": f"{code} の価格データがありません"}), 404
 
-        price = float(stock['stock_price'])
         total = price * shares
 
         # 残高を加算

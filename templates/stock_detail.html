@@ -351,6 +351,143 @@
         color: var(--text-primary);
     }
 
+    /* デモ売買ボタン（ヘッダー用） */
+    .demo-trade-btn {
+        padding: 7px 14px;
+        background: #1b4332;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .demo-trade-btn:hover { background: #2d6a4f; }
+    .demo-trade-btn-sell {
+        background: #fff;
+        color: #525252;
+        border: 1px solid #ebebeb;
+    }
+    .demo-trade-btn-sell:hover {
+        border-color: #2d6a4f;
+        color: #1b4332;
+        background: #f0fdf4;
+    }
+
+    /* デモ売買モーダル */
+    .demo-modal-overlay {
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(0,0,0,0.4);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .demo-modal-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px 28px;
+        max-width: 480px;
+        width: 92%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .demo-modal-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 16px;
+    }
+    .demo-form-group { margin-bottom: 14px; }
+    .demo-form-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 5px;
+    }
+    .demo-form-helper {
+        font-size: 11px;
+        color: #a3a3a3;
+        margin-top: 3px;
+        line-height: 1.5;
+    }
+    .demo-form-info {
+        font-size: 12px;
+        color: #525252;
+        padding: 10px 12px;
+        background: #fafaf8;
+        border-radius: 8px;
+        margin-bottom: 14px;
+    }
+    .demo-form-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 3px 0;
+    }
+    .demo-form-info-label {
+        color: #737373;
+        font-size: 11px;
+    }
+    .demo-form-info-value {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .demo-modal-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 18px;
+    }
+    .demo-btn-cancel {
+        padding: 7px 16px;
+        background: #f3f4f6;
+        color: #525252;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .demo-btn-cancel:hover { background: #e5e7eb; }
+    .demo-btn-confirm {
+        padding: 7px 16px;
+        background: #1b4332;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .demo-btn-confirm:hover { background: #2d6a4f; }
+    .demo-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .demo-form-input {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; transition: border-color 0.2s;
+        box-sizing: border-box;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+    }
+    .demo-form-input:focus { border-color: #2d6a4f; }
+    .demo-loading-spinner-sm {
+        width: 14px; height: 14px;
+        border: 2px solid #ebebeb;
+        border-top-color: #1b4332;
+        border-radius: 50%;
+        animation: demoSpin 0.8s linear infinite;
+        display: inline-block;
+    }
+    @keyframes demoSpin {
+        to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 1200px) {
         .content-grid {
             grid-template-columns: 1fr;
@@ -370,6 +507,12 @@
         <div style="display: flex; gap: 10px; align-items: center;">
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
+            <button class="demo-trade-btn" id="demoBuyBtn" onclick="openDetailBuyModal()">
+                <i class="fas fa-plus" style="font-size: 10px;"></i>購入
+            </button>
+            <button class="demo-trade-btn demo-trade-btn-sell" id="demoSellBtn" onclick="openDetailSellModal()">
+                <i class="fas fa-minus" style="font-size: 10px;"></i>売却
+            </button>
         </div>
     </div>
 
@@ -1715,5 +1858,368 @@
             if (name && modal) modal.textContent = name.textContent;
         }, 1000);
     });
+</script>
+
+<!-- ===== デモ購入モーダル ===== -->
+<div id="demoBuyModal" class="demo-modal-overlay" style="display:none;" onclick="if(event.target===this)closeDetailBuyModal()">
+    <div class="demo-modal-card" onclick="event.stopPropagation()">
+        <div class="demo-modal-title">銘柄を購入する</div>
+
+        <!-- 銘柄情報（自動入力済み） -->
+        <div class="demo-form-info" style="margin-bottom:16px;">
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">銘柄</span>
+                <span class="demo-form-info-value">
+                    <span id="buyModalCode"></span>
+                    <span id="buyModalName" style="font-weight:400; color:#525252; margin-left:4px;"></span>
+                </span>
+            </div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">参考価格</span>
+                <span class="demo-form-info-value">
+                    <span id="buyModalPriceLoading" style="display:none;"><span class="demo-loading-spinner-sm"></span></span>
+                    <span id="buyModalPrice">&#x2014;</span>
+                </span>
+            </div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">現金残高</span>
+                <span class="demo-form-info-value" id="buyModalCash">&#x2014;</span>
+            </div>
+        </div>
+
+        <!-- 株数 -->
+        <div class="demo-form-group">
+            <label class="demo-form-label">株数</label>
+            <input type="number" class="demo-form-input" id="buyModalShares" placeholder="購入する株数を入力" min="1" step="1">
+        </div>
+
+        <!-- 購入理由メモ -->
+        <div class="demo-form-group">
+            <label class="demo-form-label">購入理由メモ</label>
+            <textarea class="demo-form-input" id="buyModalReason" placeholder="なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう" rows="3" style="resize:vertical; min-height:60px;"></textarea>
+            <div class="demo-form-helper">なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう</div>
+        </div>
+
+        <!-- 合計金額 -->
+        <div class="demo-form-info" id="buyModalTotalInfo" style="display:none;">
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">購入金額（税抜概算）</span>
+                <span class="demo-form-info-value" id="buyModalTotal"></span>
+            </div>
+        </div>
+
+        <div class="demo-modal-actions">
+            <button class="demo-btn-cancel" onclick="closeDetailBuyModal()">キャンセル</button>
+            <button class="demo-btn-confirm" id="buyModalSubmit" onclick="executeDetailBuy()" disabled>購入する</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== デモ売却モーダル ===== -->
+<div id="demoSellModal" class="demo-modal-overlay" style="display:none;" onclick="if(event.target===this)closeDetailSellModal()">
+    <div class="demo-modal-card" onclick="event.stopPropagation()">
+        <div class="demo-modal-title">銘柄を売却する</div>
+
+        <!-- 銘柄情報 -->
+        <div class="demo-form-info" style="margin-bottom:16px;">
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">銘柄</span>
+                <span class="demo-form-info-value">
+                    <span id="sellModalCode"></span>
+                    <span id="sellModalName" style="font-weight:400; color:#525252; margin-left:4px;"></span>
+                </span>
+            </div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">保有数</span>
+                <span class="demo-form-info-value" id="sellModalCurrentShares">&#x2014;</span>
+            </div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">参考価格</span>
+                <span class="demo-form-info-value">
+                    <span id="sellModalPriceLoading" style="display:none;"><span class="demo-loading-spinner-sm"></span></span>
+                    <span id="sellModalPrice">&#x2014;</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- 売却株数 -->
+        <div class="demo-form-group">
+            <label class="demo-form-label">売却株数</label>
+            <input type="number" class="demo-form-input" id="sellModalShares" placeholder="売却する株数を入力" min="1" step="1">
+        </div>
+
+        <!-- 売却理由メモ -->
+        <div class="demo-form-group">
+            <label class="demo-form-label">売却理由メモ</label>
+            <textarea class="demo-form-input" id="sellModalReason" placeholder="売却の判断理由を記録しましょう" rows="3" style="resize:vertical; min-height:60px;"></textarea>
+            <div class="demo-form-helper">売却の判断理由を記録しましょう</div>
+        </div>
+
+        <!-- 売却金額 -->
+        <div class="demo-form-info" id="sellModalTotalInfo" style="display:none;">
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">売却金額（税抜概算）</span>
+                <span class="demo-form-info-value" id="sellModalTotal"></span>
+            </div>
+        </div>
+
+        <div class="demo-modal-actions">
+            <button class="demo-btn-cancel" onclick="closeDetailSellModal()">キャンセル</button>
+            <button class="demo-btn-confirm" id="sellModalSubmit" onclick="executeDetailSell()" disabled>売却する</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== デモ売買ロジック ===== -->
+<script>
+(function() {
+    /* 状態管理 */
+    var demoState = {
+        refPrice: null,
+        cashBalance: 0,
+        holding: null,  /* この銘柄の保有情報 */
+        buySubmitting: false,
+        sellSubmitting: false
+    };
+
+    function formatYen(val) {
+        if (val == null || typeof val !== 'number' || isNaN(val)) return '\u2014';
+        return '\u00a5' + val.toLocaleString('ja-JP');
+    }
+
+    /* 企業名を取得（ページ上の表示から） */
+    function getCompanyName() {
+        var el = document.getElementById('companyName');
+        return el ? el.textContent.trim() : '';
+    }
+
+    /* デモアカウント情報を取得 */
+    async function fetchDemoAccount() {
+        try {
+            var res = await fetch('/api/demo/account');
+            if (res.ok) {
+                var data = await res.json();
+                demoState.cashBalance = data.cash_balance || 0;
+                /* この銘柄の保有を探す */
+                var holdings = data.holdings || [];
+                demoState.holding = null;
+                for (var i = 0; i < holdings.length; i++) {
+                    var hCode = holdings[i].company_code.replace('.T', '');
+                    var pageCode = STOCK_CODE.replace('.T', '');
+                    if (hCode === pageCode) {
+                        demoState.holding = holdings[i];
+                        break;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('デモアカウント取得エラー:', e);
+        }
+    }
+
+    /* ライブ株価を取得（フォールバック付き） */
+    async function fetchRefPrice() {
+        demoState.refPrice = null;
+        try {
+            var res = await fetch('/api/stock/current-price/' + encodeURIComponent(STOCK_CODE));
+            if (res.ok) {
+                var data = await res.json();
+                if (data && data.price != null) {
+                    demoState.refPrice = data.price;
+                    return;
+                }
+            }
+        } catch (e) { /* ライブ取得失敗 */ }
+        try {
+            var res2 = await fetch('/api/stock/screened/' + encodeURIComponent(STOCK_CODE));
+            if (res2.ok) {
+                var data2 = await res2.json();
+                if (data2 && data2.stock_price != null) {
+                    demoState.refPrice = parseFloat(data2.stock_price);
+                }
+            }
+        } catch (e) { /* フォールバックも失敗 */ }
+    }
+
+    /* 購入モーダル：合計金額・ボタン状態を更新 */
+    function updateBuyModalState() {
+        var shares = parseInt(document.getElementById('buyModalShares').value) || 0;
+        var totalInfo = document.getElementById('buyModalTotalInfo');
+        var totalEl = document.getElementById('buyModalTotal');
+        var submitBtn = document.getElementById('buyModalSubmit');
+
+        if (demoState.refPrice != null && shares > 0) {
+            var total = demoState.refPrice * shares;
+            totalInfo.style.display = '';
+            totalEl.textContent = formatYen(total);
+            submitBtn.disabled = (total > demoState.cashBalance || demoState.buySubmitting);
+        } else {
+            totalInfo.style.display = 'none';
+            submitBtn.disabled = true;
+        }
+    }
+
+    /* 売却モーダル：合計金額・ボタン状態を更新 */
+    function updateSellModalState() {
+        var shares = parseInt(document.getElementById('sellModalShares').value) || 0;
+        var totalInfo = document.getElementById('sellModalTotalInfo');
+        var totalEl = document.getElementById('sellModalTotal');
+        var submitBtn = document.getElementById('sellModalSubmit');
+        var maxShares = demoState.holding ? demoState.holding.shares : 0;
+
+        if (demoState.refPrice != null && shares > 0) {
+            var total = demoState.refPrice * shares;
+            totalInfo.style.display = '';
+            totalEl.textContent = formatYen(total);
+            submitBtn.disabled = (shares > maxShares || demoState.sellSubmitting);
+        } else {
+            totalInfo.style.display = 'none';
+            submitBtn.disabled = true;
+        }
+    }
+
+    /* ===== 購入モーダル ===== */
+    window.openDetailBuyModal = async function() {
+        var modal = document.getElementById('demoBuyModal');
+        modal.style.display = 'flex';
+
+        /* フォーム初期化 */
+        document.getElementById('buyModalCode').textContent = STOCK_CODE;
+        document.getElementById('buyModalName').textContent = getCompanyName();
+        document.getElementById('buyModalShares').value = '';
+        document.getElementById('buyModalReason').value = '';
+        document.getElementById('buyModalTotalInfo').style.display = 'none';
+        document.getElementById('buyModalSubmit').disabled = true;
+        document.getElementById('buyModalPrice').textContent = '\u2014';
+        document.getElementById('buyModalCash').textContent = '\u2014';
+        document.getElementById('buyModalPriceLoading').style.display = '';
+
+        /* データ取得（並列） */
+        await Promise.all([fetchDemoAccount(), fetchRefPrice()]);
+
+        document.getElementById('buyModalPriceLoading').style.display = 'none';
+        document.getElementById('buyModalPrice').textContent = demoState.refPrice != null ? formatYen(demoState.refPrice) : '\u2014';
+        document.getElementById('buyModalCash').textContent = formatYen(demoState.cashBalance);
+    };
+
+    window.closeDetailBuyModal = function() {
+        document.getElementById('demoBuyModal').style.display = 'none';
+    };
+
+    window.executeDetailBuy = async function() {
+        if (demoState.buySubmitting) return;
+        var shares = parseInt(document.getElementById('buyModalShares').value) || 0;
+        var reason = document.getElementById('buyModalReason').value;
+        if (!demoState.refPrice || shares <= 0) return;
+
+        demoState.buySubmitting = true;
+        document.getElementById('buyModalSubmit').disabled = true;
+        document.getElementById('buyModalSubmit').innerHTML = '<span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...';
+
+        try {
+            var res = await fetch('/api/demo/buy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    company_code: STOCK_CODE,
+                    shares: shares,
+                    reason: reason
+                })
+            });
+            var data = await res.json();
+            if (res.ok && data.success) {
+                showSuccessModal(data.message || '購入が完了しました。');
+                closeDetailBuyModal();
+            } else {
+                showErrorModal(data.message || '購入に失敗しました。');
+            }
+        } catch (e) {
+            showErrorModal('通信エラーが発生しました。');
+        }
+
+        demoState.buySubmitting = false;
+        document.getElementById('buyModalSubmit').innerHTML = '購入する';
+        document.getElementById('buyModalSubmit').disabled = false;
+    };
+
+    /* ===== 売却モーダル ===== */
+    window.openDetailSellModal = async function() {
+        var modal = document.getElementById('demoSellModal');
+        modal.style.display = 'flex';
+
+        /* フォーム初期化 */
+        document.getElementById('sellModalCode').textContent = STOCK_CODE;
+        document.getElementById('sellModalName').textContent = getCompanyName();
+        document.getElementById('sellModalShares').value = '';
+        document.getElementById('sellModalReason').value = '';
+        document.getElementById('sellModalTotalInfo').style.display = 'none';
+        document.getElementById('sellModalSubmit').disabled = true;
+        document.getElementById('sellModalPrice').textContent = '\u2014';
+        document.getElementById('sellModalCurrentShares').textContent = '\u2014';
+        document.getElementById('sellModalPriceLoading').style.display = '';
+
+        /* データ取得（並列） */
+        await Promise.all([fetchDemoAccount(), fetchRefPrice()]);
+
+        document.getElementById('sellModalPriceLoading').style.display = 'none';
+        document.getElementById('sellModalPrice').textContent = demoState.refPrice != null ? formatYen(demoState.refPrice) : '\u2014';
+
+        if (demoState.holding) {
+            document.getElementById('sellModalCurrentShares').textContent = demoState.holding.shares.toLocaleString('ja-JP') + ' 株';
+            document.getElementById('sellModalShares').max = demoState.holding.shares;
+        } else {
+            document.getElementById('sellModalCurrentShares').textContent = '保有なし';
+            document.getElementById('sellModalSubmit').disabled = true;
+        }
+    };
+
+    window.closeDetailSellModal = function() {
+        document.getElementById('demoSellModal').style.display = 'none';
+    };
+
+    window.executeDetailSell = async function() {
+        if (demoState.sellSubmitting) return;
+        var shares = parseInt(document.getElementById('sellModalShares').value) || 0;
+        var reason = document.getElementById('sellModalReason').value;
+        if (!demoState.holding || shares <= 0 || shares > demoState.holding.shares) return;
+
+        demoState.sellSubmitting = true;
+        document.getElementById('sellModalSubmit').disabled = true;
+        document.getElementById('sellModalSubmit').innerHTML = '<span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...';
+
+        try {
+            var res = await fetch('/api/demo/sell', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    company_code: STOCK_CODE,
+                    shares: shares,
+                    reason: reason
+                })
+            });
+            var data = await res.json();
+            if (res.ok && data.success) {
+                showSuccessModal(data.message || '売却が完了しました。');
+                closeDetailSellModal();
+            } else {
+                showErrorModal(data.message || '売却に失敗しました。');
+            }
+        } catch (e) {
+            showErrorModal('通信エラーが発生しました。');
+        }
+
+        demoState.sellSubmitting = false;
+        document.getElementById('sellModalSubmit').innerHTML = '売却する';
+        document.getElementById('sellModalSubmit').disabled = false;
+    };
+
+    /* 株数入力時のリアルタイム更新 */
+    document.addEventListener('DOMContentLoaded', function() {
+        var buyShares = document.getElementById('buyModalShares');
+        var sellShares = document.getElementById('sellModalShares');
+        if (buyShares) buyShares.addEventListener('input', updateBuyModalState);
+        if (sellShares) sellShares.addEventListener('input', updateSellModalState);
+    });
+})();
 </script>
 {% endblock %}

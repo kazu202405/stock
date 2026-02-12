@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}マイページ - Company Note{% endblock %}
+{% block title %}マイノート - Company Note{% endblock %}
 
 {% block content %}
 <style>
@@ -77,13 +77,6 @@
     .btn-sm-outline:hover { border-color: #2d6a4f; background: #f0fdf4; }
     .star { color: #eab308; font-size: 11px; }
     .star-empty { color: #d4d4d4; font-size: 11px; }
-    .setting-row {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 8px 10px; border-radius: 8px;
-        text-decoration: none;
-        transition: background 0.15s;
-    }
-    .setting-row:hover { background: #fafaf8; }
     .sort-btn {
         font-size: 11px; padding: 3px 8px; border-radius: 5px;
         border: 1px solid #ebebeb; background: #fff; color: #525252;
@@ -153,39 +146,6 @@
     }
     .note-action-btn:hover { background: #f0fdf4; color: #1b4332; }
     .note-action-btn.delete:hover { background: #fef2f2; color: #dc2626; }
-
-    /* メインタブ */
-    .main-tab-bar {
-        display: flex;
-        gap: 0;
-        border-bottom: 1px solid #ebebeb;
-        margin-bottom: 16px;
-    }
-    .main-tab-btn {
-        padding: 8px 16px;
-        font-size: 13px;
-        font-weight: 500;
-        color: #a3a3a3;
-        background: none;
-        border: none;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
-    .main-tab-btn:hover {
-        color: #525252;
-    }
-    .main-tab-btn.active {
-        color: #1b4332;
-        font-weight: 600;
-        border-bottom-color: #1b4332;
-    }
-    .main-tab-btn i {
-        font-size: 11px;
-    }
 
     /* デモ売買スタイル */
     .demo-summary-grid {
@@ -558,7 +518,7 @@
                 <div class="flex items-center gap-4">
                     <div class="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: #1b4332;" x-text="userId.slice(-2).toUpperCase()"></div>
                     <div>
-                        <p class="text-xs font-semibold tracking-widest uppercase" style="color: #16a34a;">My Page</p>
+                        <p class="text-xs font-semibold tracking-widest uppercase" style="color: #16a34a;">My Note</p>
                         <h1 class="text-lg font-bold leading-tight" style="color: #1a1a1a;">マイノート</h1>
                     </div>
                 </div>
@@ -572,6 +532,10 @@
                         <div class="text-lg font-bold" style="color:#1b4332;" x-text="uniqueCompanies"></div>
                         <div class="text-xs" style="color:#737373;">研究企業</div>
                     </div>
+                    <div class="text-center">
+                        <div class="text-lg font-bold" style="color:#1b4332;" x-text="publicCount"></div>
+                        <div class="text-xs" style="color:#737373;">公開ノート</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -581,153 +545,8 @@
     <div class="max-w-7xl mx-auto px-6 py-5">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-            <!-- ===== 左カラム: 統計 + 設定 ===== -->
-            <div class="lg:col-span-4 xl:col-span-3 space-y-5">
-                <!-- 学習の記録 -->
-                <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-seedling"></i>学習の記録</h2>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="uniqueCompanies + '社'"></div>
-                            <div class="text-xs" style="color:#737373;">研究した企業</div>
-                        </div>
-                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="notes.length + '件'"></div>
-                            <div class="text-xs" style="color:#737373;">書いたノート</div>
-                        </div>
-                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="publicCount + '件'"></div>
-                            <div class="text-xs" style="color:#737373;">公開ノート</div>
-                        </div>
-                        <div class="text-center p-2 rounded-lg" style="background:#f8faf8;">
-                            <div class="text-sm font-bold" style="color:#1b4332;" x-text="avgStars"></div>
-                            <div class="text-xs" style="color:#737373;">平均理解度</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- タグ一覧 -->
-                <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-tags"></i>マイタグ</h2>
-                    <div class="flex flex-wrap gap-1.5" x-show="allTags.length > 0">
-                        <template x-for="tag in allTags" :key="tag">
-                            <span class="tag" :class="{ 'active': activeTag === tag }" @click="activeTag = activeTag === tag ? '' : tag" x-text="tag"></span>
-                        </template>
-                    </div>
-                    <p x-show="allTags.length === 0" class="text-xs" style="color:#a3a3a3;">タグはまだありません</p>
-                </div>
-
-                <!-- 投稿名設定 -->
-                <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-user-edit"></i>投稿名</h2>
-                    <p class="text-xs mb-2" style="color:#737373;">コミュニティで表示されるデフォルトの名前です</p>
-                    <div class="flex items-center gap-2">
-                        <input type="text" class="form-input" x-model="displayName" placeholder="投稿名を入力（30文字以内）" maxlength="30" style="flex:1; font-size:12px; padding:6px 10px;">
-                        <button class="btn-sm-green" @click="saveDisplayName()" :disabled="savingDisplayName" style="white-space:nowrap; padding:6px 12px;">
-                            <span x-show="!savingDisplayName">保存</span>
-                            <span x-show="savingDisplayName"><i class="fas fa-spinner fa-spin"></i></span>
-                        </button>
-                    </div>
-                    <p x-show="displayNameMsg" class="text-xs mt-1.5" :style="{ color: displayNameOk ? '#16a34a' : '#dc2626' }" x-text="displayNameMsg"></p>
-                </div>
-
-                <!-- アカウント設定 -->
-                <div class="mp-card p-4">
-                    <h2 class="section-head"><i class="fas fa-cog"></i>アカウント設定</h2>
-
-                    <!-- メールアドレス表示 -->
-                    <div class="mb-3">
-                        <p class="text-xs mb-1" style="color:#737373;">メールアドレス</p>
-                        <p class="text-xs font-medium" style="color:#1a1a1a;" x-text="userEmail || '未設定'"></p>
-                    </div>
-
-                    <div class="space-y-1">
-                        <!-- メールアドレス変更 -->
-                        <div class="setting-row" @click="showEmailForm = !showEmailForm" style="cursor:pointer;">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fas fa-envelope" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">メールアドレス変更</span>
-                            </div>
-                            <i class="fas fa-chevron-down text-xs" style="color:#d4d4d4; transition:transform 0.2s;"
-                                :style="showEmailForm ? 'transform:rotate(180deg)' : ''"></i>
-                        </div>
-                        <!-- メール変更フォーム -->
-                        <div x-show="showEmailForm" x-collapse class="px-2 pb-2">
-                            <div class="space-y-2 mt-2 p-3 rounded-lg" style="background:#fafaf8; border:1px solid #ebebeb;">
-                                <div>
-                                    <label class="form-label">新しいメールアドレス</label>
-                                    <input type="email" class="form-input" x-model="emailForm.newEmail" placeholder="example@mail.com" style="font-size:12px; padding:6px 10px;">
-                                </div>
-                                <div>
-                                    <label class="form-label">現在のパスワード（確認用）</label>
-                                    <input type="password" class="form-input" x-model="emailForm.password" placeholder="現在のパスワード" style="font-size:12px; padding:6px 10px;">
-                                </div>
-                                <div class="flex justify-end">
-                                    <button class="btn-sm-green" @click="changeEmail()" :disabled="emailForm.saving" style="padding:5px 14px;">
-                                        <span x-show="!emailForm.saving">変更する</span>
-                                        <span x-show="emailForm.saving"><i class="fas fa-spinner fa-spin"></i></span>
-                                    </button>
-                                </div>
-                                <p x-show="emailForm.msg" class="text-xs" :style="{ color: emailForm.ok ? '#16a34a' : '#dc2626' }" x-text="emailForm.msg"></p>
-                            </div>
-                        </div>
-
-                        <!-- パスワード変更 -->
-                        <div class="setting-row" @click="showPasswordForm = !showPasswordForm" style="cursor:pointer;">
-                            <div class="flex items-center gap-2.5">
-                                <i class="fas fa-lock" style="color:#525252; font-size:11px;"></i>
-                                <span class="text-xs font-medium" style="color:#1a1a1a;">パスワード変更</span>
-                            </div>
-                            <i class="fas fa-chevron-down text-xs" style="color:#d4d4d4; transition:transform 0.2s;"
-                                :style="showPasswordForm ? 'transform:rotate(180deg)' : ''"></i>
-                        </div>
-                        <!-- パスワード変更フォーム -->
-                        <div x-show="showPasswordForm" x-collapse class="px-2 pb-2">
-                            <div class="space-y-2 mt-2 p-3 rounded-lg" style="background:#fafaf8; border:1px solid #ebebeb;">
-                                <div>
-                                    <label class="form-label">現在のパスワード</label>
-                                    <input type="password" class="form-input" x-model="passwordForm.current" placeholder="現在のパスワード" style="font-size:12px; padding:6px 10px;">
-                                </div>
-                                <div>
-                                    <label class="form-label">新しいパスワード（6文字以上）</label>
-                                    <input type="password" class="form-input" x-model="passwordForm.newPass" placeholder="新しいパスワード" style="font-size:12px; padding:6px 10px;">
-                                </div>
-                                <div>
-                                    <label class="form-label">新しいパスワード（確認）</label>
-                                    <input type="password" class="form-input" x-model="passwordForm.confirm" placeholder="もう一度入力" style="font-size:12px; padding:6px 10px;">
-                                </div>
-                                <div class="flex justify-end">
-                                    <button class="btn-sm-green" @click="changePassword()" :disabled="passwordForm.saving" style="padding:5px 14px;">
-                                        <span x-show="!passwordForm.saving">変更する</span>
-                                        <span x-show="passwordForm.saving"><i class="fas fa-spinner fa-spin"></i></span>
-                                    </button>
-                                </div>
-                                <p x-show="passwordForm.msg" class="text-xs" :style="{ color: passwordForm.ok ? '#16a34a' : '#dc2626' }" x-text="passwordForm.msg"></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="border-top: 1px solid #ebebeb; margin-top: 12px; padding-top: 10px;">
-                        <p class="text-xs" style="color:#a3a3a3;">ユーザーID: <span x-text="userId" style="font-family:monospace;"></span></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ===== 右カラム: タブ切替（マイノート / デモ売買） ===== -->
-            <div class="lg:col-span-8 xl:col-span-9">
-                <div class="mp-card p-4">
-                    <!-- タブバー -->
-                    <div class="main-tab-bar">
-                        <button class="main-tab-btn" :class="{ 'active': mainTab === 'notes' }" @click="mainTab = 'notes'">
-                            <i class="fas fa-book"></i>マイノート
-                        </button>
-                        <button class="main-tab-btn" :class="{ 'active': mainTab === 'demo' }" @click="switchToDemo()">
-                            <i class="fas fa-flask"></i>デモ売買
-                        </button>
-                    </div>
-
-                    <!-- ========== マイノートタブ ========== -->
-                    <div x-show="mainTab === 'notes'">
+            <!-- ===== マイノートカード ===== -->
+            <div class="lg:col-span-5 mp-card p-4">
                         <div class="flex items-center justify-between mb-3">
                             <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
                             <button class="btn-sm-green" @click="openCreateModal()"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
@@ -804,11 +623,14 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
+            </div>
 
-                    <!-- ========== デモ売買タブ ========== -->
-                    <div x-show="mainTab === 'demo'">
-                        <!-- 説明文 -->
+            <!-- ===== デモ売買カード ===== -->
+            <div class="lg:col-span-7 mp-card p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="section-head mb-0"><i class="fas fa-flask"></i>デモ売買</h2>
+                </div>
+                <!-- 説明文 -->
                         <div style="margin-bottom: 14px;">
                             <p class="text-xs" style="color:#737373;">仮想資金で売買を体験し、投資判断力を磨きましょう</p>
                             <p class="text-xs" style="color:#a3a3a3; margin-top:2px;">※ デモ用の参考価格です（最終分析時の株価を使用）</p>
@@ -876,7 +698,17 @@
 
                             <!-- 保有銘柄テーブル -->
                             <div class="demo-holdings-section">
-                                <div class="demo-card-title">保有銘柄</div>
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                                    <div class="demo-card-title" style="margin-bottom:0;">保有銘柄</div>
+                                    <button class="demo-btn-outline" @click="fetchAllLivePrices()" :disabled="livePriceLoading" style="padding:5px 12px; font-size:11px;">
+                                        <template x-if="!livePriceLoading">
+                                            <span><i class="fas fa-sync-alt" style="font-size:9px; margin-right:3px;"></i>現在株価を取得</span>
+                                        </template>
+                                        <template x-if="livePriceLoading">
+                                            <span><i class="fas fa-spinner fa-spin" style="font-size:9px; margin-right:3px;"></i>取得中...</span>
+                                        </template>
+                                    </button>
+                                </div>
 
                                 <template x-if="demoAccountLoaded && demoAccount.holdings && demoAccount.holdings.length > 0">
                                     <div class="demo-table-wrapper">
@@ -989,9 +821,6 @@
                                 </template>
                             </div>
                         </div>
-                    </div>
-
-                </div>
             </div>
         </div>
     </div>
@@ -1258,9 +1087,6 @@
 <script>
 function mypageApp() {
     return {
-        /* --- タブ状態 --- */
-        mainTab: 'notes',
-
         /* --- マイノート状態 --- */
         noteSearch: '',
         noteSort: 'date',
@@ -1273,17 +1099,8 @@ function mypageApp() {
         editingNote: null,
         deletingNote: null,
         saving: false,
-        // 投稿名設定
+        // 投稿名（ノートフォーム用）
         displayName: '',
-        savingDisplayName: false,
-        displayNameMsg: '',
-        displayNameOk: false,
-        // アカウント設定
-        userEmail: '',
-        showEmailForm: false,
-        showPasswordForm: false,
-        emailForm: { newEmail: '', password: '', saving: false, msg: '', ok: false },
-        passwordForm: { current: '', newPass: '', confirm: '', saving: false, msg: '', ok: false },
         form: {
             title: '',
             content: '',
@@ -1303,6 +1120,7 @@ function mypageApp() {
         demoTrades: [],
         demoHistoryLoaded: false,
         showDemoHistory: false,
+        livePriceLoading: false,
         demoBuyModalOpen: false,
         demoBuyForm: {
             query: '',
@@ -1329,16 +1147,17 @@ function mypageApp() {
         },
 
         async init() {
-            // ユーザー情報を取得
+            // ユーザー情報を取得（投稿名デフォルト用）
             try {
                 const meRes = await fetch('/api/auth/me');
                 const meData = await meRes.json();
                 if (meData.logged_in && meData.user) {
                     this.displayName = meData.user.display_name || '';
-                    this.userEmail = meData.user.email || '';
                 }
             } catch (e) {}
             await this.loadNotes();
+            // デモ売買も自動読込
+            this.loadDemo();
         },
 
         async loadNotes() {
@@ -1505,105 +1324,9 @@ function mypageApp() {
             }
         },
 
-        async saveDisplayName() {
-            this.savingDisplayName = true;
-            this.displayNameMsg = '';
-            try {
-                const res = await fetch('/api/auth/display-name', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ display_name: this.displayName.trim() }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    this.displayNameOk = true;
-                    this.displayNameMsg = '保存しました';
-                    setTimeout(() => { this.displayNameMsg = ''; }, 3000);
-                } else {
-                    this.displayNameOk = false;
-                    this.displayNameMsg = data.error || '保存に失敗しました';
-                }
-            } catch (e) {
-                this.displayNameOk = false;
-                this.displayNameMsg = '通信エラーが発生しました';
-            }
-            this.savingDisplayName = false;
-        },
-
-        async changeEmail() {
-            var f = this.emailForm;
-            f.msg = '';
-            if (!f.newEmail.trim()) { f.ok = false; f.msg = '新しいメールアドレスを入力してください'; return; }
-            if (!f.password) { f.ok = false; f.msg = '現在のパスワードを入力してください'; return; }
-            f.saving = true;
-            try {
-                var res = await fetch('/api/auth/email', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ new_email: f.newEmail.trim(), current_password: f.password }),
-                });
-                var data = await res.json();
-                if (res.ok && data.success) {
-                    f.ok = true;
-                    f.msg = 'メールアドレスを変更しました';
-                    this.userEmail = data.email || f.newEmail.trim();
-                    f.newEmail = '';
-                    f.password = '';
-                    setTimeout(() => { f.msg = ''; this.showEmailForm = false; }, 2000);
-                } else {
-                    f.ok = false;
-                    f.msg = data.error || '変更に失敗しました';
-                }
-            } catch (e) {
-                f.ok = false;
-                f.msg = '通信エラーが発生しました';
-            }
-            f.saving = false;
-        },
-
-        async changePassword() {
-            var f = this.passwordForm;
-            f.msg = '';
-            if (!f.current) { f.ok = false; f.msg = '現在のパスワードを入力してください'; return; }
-            if (!f.newPass || f.newPass.length < 6) { f.ok = false; f.msg = '新しいパスワードは6文字以上で入力してください'; return; }
-            if (f.newPass !== f.confirm) { f.ok = false; f.msg = '新しいパスワードが一致しません'; return; }
-            f.saving = true;
-            try {
-                var res = await fetch('/api/auth/password', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ current_password: f.current, new_password: f.newPass, new_password_confirm: f.confirm }),
-                });
-                var data = await res.json();
-                if (res.ok && data.success) {
-                    f.ok = true;
-                    f.msg = 'パスワードを変更しました';
-                    f.current = '';
-                    f.newPass = '';
-                    f.confirm = '';
-                    setTimeout(() => { f.msg = ''; this.showPasswordForm = false; }, 2000);
-                } else {
-                    f.ok = false;
-                    f.msg = data.error || '変更に失敗しました';
-                }
-            } catch (e) {
-                f.ok = false;
-                f.msg = '通信エラーが発生しました';
-            }
-            f.saving = false;
-        },
-
         /* ========================================
          * デモ売買機能
          * ======================================== */
-
-        /* デモタブに切り替え（遅延読み込み） */
-        switchToDemo() {
-            this.mainTab = 'demo';
-            if (!this.demoLoaded) {
-                this.loadDemo();
-            }
-        },
 
         /* デモデータ初期読み込み */
         async loadDemo() {
@@ -1666,17 +1389,77 @@ function mypageApp() {
             this.demoBuyForm.priceLoading = true;
             this.demoBuyForm.refPrice = null;
             try {
-                var res = await fetch('/api/stock/screened/' + encodeURIComponent(code));
+                /* まずライブ株価を取得 */
+                var res = await fetch('/api/stock/current-price/' + encodeURIComponent(code));
                 if (res.ok) {
                     var data = await res.json();
-                    if (data && data.stock_price != null) {
-                        this.demoBuyForm.refPrice = data.stock_price;
+                    if (data && data.price != null) {
+                        this.demoBuyForm.refPrice = data.price;
+                        this.demoBuyForm.priceLoading = false;
+                        return;
                     }
                 }
-            } catch (e) {
-                /* 価格取得失敗は静かに処理 */
-            }
+            } catch (e) { /* ライブ取得失敗 → フォールバック */ }
+            try {
+                /* フォールバック: screened_latestのキャッシュ価格 */
+                var res2 = await fetch('/api/stock/screened/' + encodeURIComponent(code));
+                if (res2.ok) {
+                    var data2 = await res2.json();
+                    if (data2 && data2.stock_price != null) {
+                        this.demoBuyForm.refPrice = data2.stock_price;
+                    }
+                }
+            } catch (e) { /* キャッシュも取得失敗は静かに処理 */ }
             this.demoBuyForm.priceLoading = false;
+        },
+
+        /* 保有銘柄の現在株価を一括取得 */
+        async fetchAllLivePrices() {
+            if (!this.demoAccount.holdings || this.demoAccount.holdings.length === 0) return;
+            this.livePriceLoading = true;
+            var holdings = this.demoAccount.holdings;
+            var prices = {};
+            var failedCount = 0;
+            // まず全銘柄の株価を取得（UIは更新しない）
+            for (var i = 0; i < holdings.length; i++) {
+                try {
+                    var res = await fetch('/api/stock/current-price/' + encodeURIComponent(holdings[i].company_code));
+                    if (res.ok) {
+                        var data = await res.json();
+                        if (data.price != null) {
+                            prices[holdings[i].company_code] = data.price;
+                        }
+                    } else {
+                        failedCount++;
+                    }
+                } catch (e) {
+                    failedCount++;
+                }
+            }
+            // 取得完了後に一括でUIに反映
+            var updatedHoldings = holdings.map(function(h) {
+                var newPrice = prices[h.company_code];
+                if (newPrice != null) {
+                    return Object.assign({}, h, {
+                        current_price: newPrice,
+                        market_value: newPrice * h.shares
+                    });
+                }
+                return Object.assign({}, h);
+            });
+            var totalValue = 0;
+            updatedHoldings.forEach(function(h) {
+                totalValue += (h.current_price || 0) * h.shares;
+            });
+            this.demoAccount = Object.assign({}, this.demoAccount, {
+                holdings: updatedHoldings,
+                total_value: totalValue,
+                total_assets: this.demoAccount.cash_balance + totalValue
+            });
+            this.livePriceLoading = false;
+            if (failedCount > 0) {
+                showErrorModal(failedCount + '件の銘柄の株価取得に失敗しました');
+            }
         },
 
         /* 売買履歴表示切替 */

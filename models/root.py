@@ -67,7 +67,7 @@ def screener():
 
 @app.route('/mypage')
 def mypage():
-    """マイページ"""
+    """マイノート"""
     guard = _require_login()
     if guard: return guard
     return render_template('mypage.html')
