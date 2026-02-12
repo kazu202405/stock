@@ -503,6 +503,9 @@
             <button onclick="openNotesModal()" style="padding: 6px 14px; background: white; color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
                 <i class="fas fa-comments" style="margin-right: 4px;"></i>みんなのノート
             </button>
+            <button id="favoriteBtn" onclick="toggleFavorite()" style="padding: 6px 14px; background: white; color: #a3a3a3; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" title="お気に入り">
+                <span id="favoriteBtnText">★ お気に入りに登録</span>
+            </button>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
@@ -792,6 +795,63 @@
     // ページ用定数
     const STOCK_CODE = '{{ stock_code }}';
     const IS_ADMIN = false;  // 詳細ページは閲覧専用
+
+    // お気に入り状態
+    let isFavorite = false;
+
+    async function checkFavoriteStatus() {
+        try {
+            const response = await fetch(`/api/favorite-stocks/check/${STOCK_CODE}`);
+            if (response.ok) {
+                const data = await response.json();
+                isFavorite = data.is_favorite;
+                updateFavoriteButton();
+            }
+        } catch (error) {
+            console.error('お気に入り状態チェックエラー:', error);
+        }
+    }
+
+    function updateFavoriteButton() {
+        const btn = document.getElementById('favoriteBtn');
+        const text = document.getElementById('favoriteBtnText');
+        if (!btn) return;
+        if (isFavorite) {
+            btn.style.background = '#fef9c3';
+            btn.style.color = '#d97706';
+            btn.style.borderColor = '#fbbf24';
+            text.textContent = '★ お気に入り登録済';
+        } else {
+            btn.style.background = 'white';
+            btn.style.color = '#a3a3a3';
+            btn.style.borderColor = 'var(--border-color)';
+            text.textContent = '★ お気に入りに登録';
+        }
+    }
+
+    async function toggleFavorite() {
+        try {
+            if (isFavorite) {
+                const response = await fetch(`/api/favorite-stocks/remove/${STOCK_CODE}`, { method: 'DELETE' });
+                if (response.ok) {
+                    isFavorite = false;
+                    updateFavoriteButton();
+                }
+            } else {
+                const response = await fetch('/api/favorite-stocks/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_code: STOCK_CODE })
+                });
+                if (response.ok) {
+                    isFavorite = true;
+                    updateFavoriteButton();
+                }
+            }
+        } catch (error) {
+            console.error('お気に入り切替エラー:', error);
+        }
+    }
 
     // グローバル変数
     let priceChart = null;
@@ -1736,6 +1796,9 @@
 
     // ページ初期化
     document.addEventListener('DOMContentLoaded', async function() {
+        // お気に入り状態をチェック
+        checkFavoriteStatus();
+
         // まずキャッシュデータを表示
         try {
             const response = await fetch(`/api/stock/screened/${STOCK_CODE}`);

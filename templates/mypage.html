@@ -557,7 +557,7 @@
                             <!-- 検索 -->
                             <div style="position:relative; flex:1; min-width:120px;">
                                 <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:12px;"></i>
-                                <input type="text" placeholder="ノートを検索..." x-model="noteSearch" class="form-input" style="padding-left:32px;">
+                                <input type="text" placeholder="ノートを検索..." x-model="noteSearch" class="form-input" style="padding-left:32px;" autocomplete="off" name="note-search-noautofill">
                             </div>
                             <!-- ソートボタン -->
                             <div class="flex items-center gap-1">
@@ -1162,15 +1162,24 @@ function mypageApp() {
 
         async loadNotes() {
             this.loading = true;
-            try {
-                const res = await fetch('/api/notes/my');
-                const data = await res.json();
-                if (data.notes) {
-                    this.notes = data.notes;
-                    this.userId = data.user_id || '';
+            var maxRetries = 2;
+            for (var attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    var res = await fetch('/api/notes/my');
+                    if (res.ok) {
+                        var data = await res.json();
+                        if (data.notes) {
+                            this.notes = data.notes;
+                            this.userId = data.user_id || '';
+                        }
+                        this.loading = false;
+                        return;
+                    }
+                    if (res.status < 500 || attempt >= maxRetries) break;
+                } catch (e) {
+                    if (attempt >= maxRetries) break;
                 }
-            } catch (e) {
-                console.error('ノート取得エラー:', e);
+                await new Promise(function(r) { setTimeout(r, (attempt + 1) * 1000); });
             }
             this.loading = false;
         },
@@ -1346,23 +1355,38 @@ function mypageApp() {
             this.demoLoaded = true;
         },
 
-        /* デモアカウント情報取得 */
+        /* デモアカウント情報取得（リトライ付き） */
         async fetchDemoAccount() {
-            try {
-                var res = await fetch('/api/demo/account');
-                if (res.ok) {
-                    var data = await res.json();
-                    this.demoAccount = {
-                        cash_balance: data.cash_balance || 0,
-                        total_value: data.total_value || 0,
-                        total_assets: data.total_assets || 0,
-                        holdings: data.holdings || []
-                    };
-                } else {
-                    showErrorModal('アカウント情報の取得に失敗しました。');
+            var maxRetries = 2;
+            for (var attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    var res = await fetch('/api/demo/account');
+                    if (res.ok) {
+                        var data = await res.json();
+                        this.demoAccount = {
+                            cash_balance: data.cash_balance || 0,
+                            total_value: data.total_value || 0,
+                            total_assets: data.total_assets || 0,
+                            holdings: data.holdings || []
+                        };
+                        this.demoAccountLoaded = true;
+                        return;
+                    }
+                    /* サーバーエラー(5xx)ならリトライ、クライアントエラー(4xx)は即終了 */
+                    if (res.status < 500 || attempt >= maxRetries) {
+                        showErrorModal('データの読み込みに少し時間がかかっています。\nデータには影響ありませんので、少し待ってからページを再読み込みしてみてください。');
+                        this.demoAccountLoaded = true;
+                        return;
+                    }
+                } catch (e) {
+                    if (attempt >= maxRetries) {
+                        showErrorModal('データの読み込みに少し時間がかかっています。\nデータには影響ありませんので、少し待ってからページを再読み込みしてみてください。');
+                        this.demoAccountLoaded = true;
+                        return;
+                    }
                 }
-            } catch (e) {
-                showErrorModal('通信エラーが発生しました。しばらくしてからお試しください。');
+                /* リトライ前に少し待つ（1秒→2秒） */
+                await new Promise(function(r) { setTimeout(r, (attempt + 1) * 1000); });
             }
             this.demoAccountLoaded = true;
         },

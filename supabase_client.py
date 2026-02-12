@@ -455,6 +455,75 @@ def remove_dividend_flag(company_code: str) -> dict:
 
 
 # =============================================
+# お気に入り銘柄操作
+# =============================================
+
+def add_favorite_stock(user_id: str, company_code: str) -> dict:
+    """お気に入り銘柄を追加（upsert）"""
+    client = get_supabase_client()
+    result = client.table('favorite_stocks').upsert({
+        'user_id': user_id,
+        'company_code': company_code
+    }).execute()
+    return result.data
+
+
+def remove_favorite_stock(user_id: str, company_code: str) -> dict:
+    """お気に入り銘柄を削除"""
+    client = get_supabase_client()
+    result = client.table('favorite_stocks').delete().eq(
+        'user_id', user_id
+    ).eq('company_code', company_code).execute()
+    return result.data
+
+
+def get_favorite_stocks(user_id: str) -> list:
+    """お気に入り銘柄を詳細データ付きで取得"""
+    client = get_supabase_client()
+
+    # お気に入り一覧を取得
+    favorites = client.table('favorite_stocks').select(
+        'company_code, created_at'
+    ).eq('user_id', user_id).order('created_at', desc=True).execute()
+
+    if not favorites.data:
+        return []
+
+    # 銘柄コードのリストを作成
+    codes = [item['company_code'] for item in favorites.data]
+
+    # screened_latestから詳細データを取得
+    details = client.table('screened_latest').select('*').in_(
+        'company_code', codes
+    ).execute()
+
+    # 詳細データをマップ化
+    details_map = {item['company_code']: item for item in details.data}
+
+    # お気に入りと詳細データを結合
+    result = []
+    for item in favorites.data:
+        code = item['company_code']
+        detail = details_map.get(code, {})
+        result.append({
+            'company_code': code,
+            'favorited_at': item['created_at'],
+            **detail
+        })
+
+    return result
+
+
+def is_favorite_stock(user_id: str, company_code: str) -> bool:
+    """銘柄がお気に入りに登録されているか確認"""
+    client = get_supabase_client()
+    result = client.table('favorite_stocks').select('id').eq(
+        'user_id', user_id
+    ).eq('company_code', company_code).execute()
+    return len(result.data) > 0
+
+
+# =============================================
 # ノート（notes）テーブル操作
 # =============================================
 

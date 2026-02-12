@@ -24,6 +24,7 @@ from supabase_client import (
     get_technical_stocks,
     get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
     get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
+    add_favorite_stock, remove_favorite_stock, get_favorite_stocks, is_favorite_stock,
     create_note, get_user_notes, get_public_notes,
     get_notes_by_company, update_note, delete_note,
     create_user as create_app_user, authenticate_user, get_user_by_id,
@@ -1604,6 +1605,61 @@ def api_div_analyze_stop():
 def api_div_analyze_status():
     """高配当分析の進捗状況を取得"""
     return jsonify(div_analyze_status), 200
+
+
+# =============================================
+# お気に入り銘柄API
+# =============================================
+
+@app.route('/api/favorite-stocks', methods=['GET'])
+def api_get_favorite_stocks():
+    """お気に入り銘柄一覧を取得"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        stocks = get_favorite_stocks(user_id)
+        return jsonify({"favorite_stocks": stocks}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/favorite-stocks/add', methods=['POST'])
+def api_add_favorite_stock():
+    """お気に入り銘柄を追加"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json()
+        if not data or 'company_code' not in data:
+            return jsonify({"error": "銘柄コードが指定されていません"}), 400
+
+        company_code = normalize_code(data['company_code'])
+        add_favorite_stock(user_id, company_code)
+        return jsonify({"message": f"{company_code}をお気に入りに追加しました"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/favorite-stocks/remove/<company_code>', methods=['DELETE'])
+def api_remove_favorite_stock(company_code):
+    """お気に入り銘柄を削除"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        company_code = normalize_code(company_code)
+        remove_favorite_stock(user_id, company_code)
+        return jsonify({"message": f"{company_code}をお気に入りから削除しました"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/favorite-stocks/check/<company_code>', methods=['GET'])
+def api_check_favorite_stock(company_code):
+    """お気に入り登録状態を確認"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        company_code = normalize_code(company_code)
+        is_fav = is_favorite_stock(user_id, company_code)
+        return jsonify({"is_favorite": is_fav}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 tech_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}

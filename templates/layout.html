@@ -372,9 +372,13 @@
     // ナビゲーションのアクティブ状態を設定
     document.addEventListener('DOMContentLoaded', function() {
         const path = window.location.pathname;
+        /* 完全一致を優先し、startsWith判定は子パスのないリンクのみ適用 */
+        const exactPaths = ['/dashboard', '/dashboard/admin', '/admin/users', '/mypage', '/search', '/learning', '/community'];
         document.querySelectorAll('.nav-link').forEach(function(link) {
             const href = link.getAttribute('href');
-            if (path === href || (href !== '/' && path.startsWith(href))) {
+            if (path === href) {
+                link.classList.add('active');
+            } else if (href !== '/' && !exactPaths.includes(href) && path.startsWith(href)) {
                 link.classList.add('active');
             }
         });

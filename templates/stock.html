@@ -503,6 +503,9 @@
     <div class="watchlist-section" id="watchlistSection">
         <!-- タブナビゲーション -->
         <div class="watchlist-tabs">
+            <button class="watchlist-tab" onclick="switchTab('favorite')" id="tab-favorite">
+                お気に入り
+            </button>
             <button class="watchlist-tab active" onclick="switchTab('watchlist')" id="tab-watchlist">
                 条件合致企業
             </button>
@@ -576,6 +579,54 @@
                 </div>
             </div>
             <div id="watchlistContent">
+                <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
+            </div>
+        </div>
+
+        <!-- タブ: お気に入り -->
+        <div class="tab-content" id="tabContent-favorite">
+            <div class="watchlist-header">
+                <span class="watchlist-title"></span>
+            </div>
+            <div class="match-rate-description">
+                お気に入りに追加した銘柄を一覧表示しています。銘柄詳細ページの★ボタンから追加できます。
+            </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="favFilterBar">
+                    <div class="filter-item">
+                        <label>合致度</label>
+                        <input type="number" id="favFilterMatchMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="favFilterMatchMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>時価総額(億)</label>
+                        <input type="number" id="favFilterCapMin" placeholder="以上" step="100">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="favFilterCapMax" placeholder="以下" step="100">
+                    </div>
+                    <div class="filter-item">
+                        <label>PER</label>
+                        <input type="number" id="favFilterPerMin" placeholder="以上" step="1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="favFilterPerMax" placeholder="以下" step="1">
+                    </div>
+                    <div class="filter-item">
+                        <label>PBR</label>
+                        <input type="number" id="favFilterPbrMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="favFilterPbrMax" placeholder="以下" step="0.1">
+                    </div>
+                    <div class="filter-item">
+                        <label>配当</label>
+                        <input type="number" id="favFilterDivMin" placeholder="以上" step="0.1">
+                        <span class="filter-sep">〜</span>
+                        <input type="number" id="favFilterDivMax" placeholder="以下" step="0.1">
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetFavFilters()">リセット</button>
+                </div>
+            </div>
+            <div id="favoriteContent">
                 <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
             </div>
         </div>
@@ -806,6 +857,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadWatchlist();
         const savedTab = sessionStorage.getItem('activeTab');
+        if (savedTab === 'favorite') loadFavoriteStocks();
         if (savedTab === 'dividend') loadDividendStocks();
         if (savedTab === 'gc') loadGcStocks();
         if (savedTab === 'dc') loadDcStocks();
@@ -1357,10 +1409,183 @@
 
         sessionStorage.setItem('activeTab', tabName);
 
+        if (tabName === 'favorite' && !favoriteLoaded) loadFavoriteStocks();
         if (tabName === 'dividend' && !dividendLoaded) loadDividendStocks();
         if (tabName === 'gc' && gcStocksCache.length === 0) loadGcStocks();
         if (tabName === 'dc' && dcStocksCache.length === 0) loadDcStocks();
         if (tabName === 'technical' && technicalStocksCache.length === 0) loadTechnicalStocks();
+    }
+
+    // ========================================
+    // お気に入り銘柄
+    // ========================================
+
+    let favoriteLoaded = false;
+    let favoriteCache = [];
+    let favSort = { key: 'match_rate', dir: 'desc' };
+
+    async function loadFavoriteStocks() {
+        favoriteLoaded = true;
+        const content = document.getElementById('favoriteContent');
+        content.innerHTML = '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>';
+
+        try {
+            const response = await fetch('/api/favorite-stocks');
+            const data = await response.json();
+            if (response.ok) {
+                favoriteCache = data.favorite_stocks || [];
+                applyFavFilters();
+            } else {
+                content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            }
+        } catch (error) {
+            content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+        }
+    }
+
+    // フィルタ入力イベント
+    document.getElementById('favFilterBar')?.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', () => applyFavFilters());
+    });
+
+    function applyFavFilters() {
+        let list = [...favoriteCache];
+
+        const matchMin = parseFloat(document.getElementById('favFilterMatchMin')?.value);
+        const matchMax = parseFloat(document.getElementById('favFilterMatchMax')?.value);
+        const capMin = parseFloat(document.getElementById('favFilterCapMin')?.value);
+        const capMax = parseFloat(document.getElementById('favFilterCapMax')?.value);
+        const perMin = parseFloat(document.getElementById('favFilterPerMin')?.value);
+        const perMax = parseFloat(document.getElementById('favFilterPerMax')?.value);
+        const pbrMin = parseFloat(document.getElementById('favFilterPbrMin')?.value);
+        const pbrMax = parseFloat(document.getElementById('favFilterPbrMax')?.value);
+        const divMin = parseFloat(document.getElementById('favFilterDivMin')?.value);
+        const divMax = parseFloat(document.getElementById('favFilterDivMax')?.value);
+
+        if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
+        if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
+        if (!isNaN(capMin)) list = list.filter(i => i.market_cap != null && i.market_cap >= capMin);
+        if (!isNaN(capMax)) list = list.filter(i => i.market_cap != null && i.market_cap <= capMax);
+        if (!isNaN(perMin)) list = list.filter(i => i.per_forward != null && i.per_forward >= perMin);
+        if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
+        if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
+        if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+
+        // ソート
+        if (favSort.key) {
+            list.sort((a, b) => {
+                const aVal = a[favSort.key] || 0;
+                const bVal = b[favSort.key] || 0;
+                return favSort.dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        renderFavoriteStocks(list);
+    }
+
+    function resetFavFilters() {
+        document.getElementById('favFilterBar')?.querySelectorAll('input').forEach(input => input.value = '');
+        applyFavFilters();
+    }
+
+    function sortFavColumn(key) {
+        if (favSort.key === key) {
+            favSort.dir = favSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            favSort.key = key;
+            favSort.dir = key === 'match_rate' ? 'desc' : 'asc';
+        }
+        applyFavFilters();
+    }
+
+    function favSortIcon(key) {
+        if (favSort.key !== key) return '<i class="fas fa-sort" style="color:#999;font-size:10px;margin-left:3px;"></i>';
+        return favSort.dir === 'asc'
+            ? '<i class="fas fa-sort-up" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>'
+            : '<i class="fas fa-sort-down" style="color:#2d6a4f;font-size:10px;margin-left:3px;"></i>';
+    }
+
+    function renderFavoriteStocks(list) {
+        const content = document.getElementById('favoriteContent');
+
+        if (list.length === 0 && favoriteCache.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">お気に入り銘柄がありません。銘柄詳細ページの★ボタンから追加してください。</div>';
+            return;
+        }
+        if (list.length === 0) {
+            content.innerHTML = '<div class="watchlist-empty">条件に一致する企業がありません</div>';
+            return;
+        }
+
+        let html = `
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>コード</th>
+                        <th>会社名</th>
+                        <th class="sortable" onclick="sortFavColumn('match_rate')">合致度${favSortIcon('match_rate')}</th>
+                        <th>セクター</th>
+                        <th class="sortable" onclick="sortFavColumn('market_cap')">時価総額${favSortIcon('market_cap')}</th>
+                        <th class="sortable" onclick="sortFavColumn('stock_price')">株価${favSortIcon('stock_price')}</th>
+                        <th class="sortable" onclick="sortFavColumn('per_forward')">PER${favSortIcon('per_forward')}</th>
+                        <th class="sortable" onclick="sortFavColumn('pbr')">PBR${favSortIcon('pbr')}</th>
+                        <th class="sortable" onclick="sortFavColumn('dividend_yield')">配当利回り${favSortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortFavColumn('payout_ratio')">配当性向${favSortIcon('payout_ratio')}</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        list.forEach(item => {
+            const code = item.company_code || '---';
+            const name = item.company_name || '---';
+            const sector = item.sector || '---';
+            const marketCap = item.market_cap ? formatMarketCapOku(item.market_cap) : '---';
+            const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
+            const per = item.per_forward ? `${Number(item.per_forward).toFixed(1)}倍` : '---';
+            const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
+            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
+            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
+            const matchRateClass = getMatchRateClass(item.match_rate);
+
+            html += `
+                <tr>
+                    <td>${code}</td>
+                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
+                    <td class="${matchRateClass}">${matchRate}</td>
+                    <td>${sector}</td>
+                    <td>${marketCap}</td>
+                    <td>${price}</td>
+                    <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
+                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td>${divYield}</td>
+                    <td>${payoutRatio}</td>
+                    <td><button class="delete-btn" onclick="removeFavoriteStock('${code}')">解除</button></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    }
+
+    async function removeFavoriteStock(code) {
+        if (!confirm('この企業をお気に入りから解除しますか？')) return;
+        try {
+            const response = await fetch(`/api/favorite-stocks/remove/${code}`, { method: 'DELETE' });
+            if (response.ok) {
+                favoriteCache = favoriteCache.filter(item => item.company_code !== code);
+                applyFavFilters();
+            } else {
+                alert('解除に失敗しました');
+            }
+        } catch (error) {
+            alert('解除に失敗しました');
+        }
     }
 
     // ========================================
