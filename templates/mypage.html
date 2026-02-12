@@ -493,6 +493,50 @@
         resize: vertical;
         min-height: 60px;
     }
+    /* 売買分析スタイル */
+    .demo-analysis-section {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-left: 3px solid #2d6a4f;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .demo-analysis-section .demo-card-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .demo-analysis-section .demo-card-title i {
+        color: #2d6a4f;
+        font-size: 12px;
+    }
+    .analysis-chart-container {
+        position: relative;
+        width: 100%;
+        height: 220px;
+        margin-top: 8px;
+    }
+    .analysis-reason-item {
+        padding: 10px 14px;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        background: #fafaf8;
+    }
+    .analysis-reason-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+        font-size: 11px;
+        color: #737373;
+    }
+    .analysis-reason-text {
+        font-size: 12px;
+        color: #525252;
+        line-height: 1.6;
+    }
     @media (max-width: 768px) {
         .demo-summary-grid {
             grid-template-columns: 1fr;
@@ -505,6 +549,7 @@
         .demo-table tbody td { padding: 6px 6px; }
         .demo-table .col-reason { max-width: 100px; }
         .demo-modal-card { padding: 18px 18px; width: 95%; }
+        .analysis-chart-container { height: 180px; }
     }
 </style>
 
@@ -690,6 +735,10 @@
                                     <i class="fas fa-list" style="font-size:10px;"></i>
                                     売買履歴
                                 </button>
+                                <button class="demo-btn-outline" :class="{ 'active': showDemoAnalysis }" @click="toggleDemoAnalysis()">
+                                    <i class="fas fa-chart-bar" style="font-size:10px;"></i>
+                                    売買分析
+                                </button>
                                 <button class="demo-btn-reset" @click="confirmDemoReset()">
                                     <i class="fas fa-undo" style="font-size:9px; margin-right:2px;"></i>
                                     リセット
@@ -817,6 +866,132 @@
                                     <div class="demo-empty-state">
                                         <div class="demo-loading-spinner-sm" style="width:24px; height:24px; border-width:3px; margin:0 auto 10px;"></div>
                                         <p>読み込み中...</p>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- 売買分析パネル -->
+                            <div class="demo-analysis-section" x-show="showDemoAnalysis" x-cloak>
+                                <div class="demo-card-title"><i class="fas fa-chart-bar"></i>売買分析</div>
+
+                                <!-- データなし -->
+                                <template x-if="demoHistoryLoaded && demoTrades.length === 0">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-empty-state-icon"><i class="fas fa-chart-pie"></i></div>
+                                        <p>売買履歴がありません。取引を行うと分析が表示されます。</p>
+                                    </div>
+                                </template>
+
+                                <!-- データあり -->
+                                <template x-if="demoHistoryLoaded && demoTrades.length > 0">
+                                    <div>
+                                        <!-- A. 取引サマリーカード -->
+                                        <div class="demo-summary-grid" style="margin-top:12px;">
+                                            <div class="demo-summary-card">
+                                                <div class="demo-summary-label">総取引回数</div>
+                                                <div class="demo-summary-value" x-text="getAnalysisData().totalCount + ' 回'"></div>
+                                                <div style="font-size:11px; color:#737373; margin-top:2px;">
+                                                    購入 <span style="color:#2d6a4f; font-weight:600;" x-text="getAnalysisData().buyCount"></span>回 / 売却 <span style="color:#6b7280; font-weight:600;" x-text="getAnalysisData().sellCount"></span>回
+                                                </div>
+                                            </div>
+                                            <div class="demo-summary-card">
+                                                <div class="demo-summary-label">取引銘柄数</div>
+                                                <div class="demo-summary-value" x-text="getAnalysisData().uniqueStockCount + ' 銘柄'"></div>
+                                            </div>
+                                            <div class="demo-summary-card">
+                                                <div class="demo-summary-label">取引活動期間</div>
+                                                <div class="demo-summary-value" style="font-size:13px;" x-text="getAnalysisData().activityPeriod"></div>
+                                            </div>
+                                        </div>
+                                        <!-- 損益サマリー -->
+                                        <div class="demo-summary-grid" style="grid-template-columns: repeat(2, 1fr);">
+                                            <div class="demo-summary-card">
+                                                <div class="demo-summary-label">実現損益（売却済み）</div>
+                                                <div class="demo-summary-value" :style="{ color: getAnalysisData().totalRealizedPL >= 0 ? '#1b4332' : '#9a3412' }" x-text="formatPL(getAnalysisData().totalRealizedPL)"></div>
+                                                <div style="font-size:10px; color:#a3a3a3; margin-top:2px;">売却完了した取引の損益合計</div>
+                                            </div>
+                                            <div class="demo-summary-card">
+                                                <div class="demo-summary-label">含み損益（保有中）</div>
+                                                <template x-if="getAnalysisData().hasUnrealized">
+                                                    <div>
+                                                        <div class="demo-summary-value" :style="{ color: getAnalysisData().totalUnrealizedPL >= 0 ? '#1b4332' : '#9a3412' }" x-text="formatPL(getAnalysisData().totalUnrealizedPL)"></div>
+                                                        <div style="font-size:10px; color:#a3a3a3; margin-top:2px;">現在の参考価格との差額</div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="!getAnalysisData().hasUnrealized">
+                                                    <div>
+                                                        <div class="demo-summary-value" style="color:#a3a3a3; font-size:12px; font-weight:400;">株価未取得</div>
+                                                        <div style="font-size:10px; color:#a3a3a3; margin-top:2px;">「現在株価を取得」で更新してください</div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <!-- B. 銘柄別取引まとめテーブル -->
+                                        <div style="margin-bottom:16px;">
+                                            <div style="font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:8px; padding-left:2px;">銘柄別取引まとめ</div>
+                                            <div class="demo-table-wrapper">
+                                                <table class="demo-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>銘柄コード</th>
+                                                            <th>会社名</th>
+                                                            <th style="text-align:right;">購入回数</th>
+                                                            <th style="text-align:right;">売却回数</th>
+                                                            <th style="text-align:right;">平均取得単価</th>
+                                                            <th style="text-align:right;">実現損益</th>
+                                                            <th>最新メモ</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <template x-for="stock in getAnalysisData().byStock" :key="stock.code">
+                                                            <tr>
+                                                                <td class="col-code" x-text="stock.code"></td>
+                                                                <td class="col-name"><a :href="'/stock/' + stock.code" x-text="stock.name || '\u2014'"></a></td>
+                                                                <td class="col-num" x-text="stock.buyCount"></td>
+                                                                <td class="col-num" x-text="stock.sellCount"></td>
+                                                                <td class="col-num" x-text="stock.avgBuyPrice > 0 ? formatYen(Math.round(stock.avgBuyPrice)) : '\u2014'"></td>
+                                                                <td class="col-num" :style="{ color: stock.realizedPL > 0 ? '#1b4332' : stock.realizedPL < 0 ? '#9a3412' : '#737373' }" x-text="stock.sellCount > 0 ? formatPL(stock.realizedPL) : '\u2014'"></td>
+                                                                <td class="col-reason" x-text="stock.latestReason || '\u2014'"></td>
+                                                            </tr>
+                                                        </template>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <!-- C. 月別取引回数チャート -->
+                                        <div style="margin-bottom:16px;">
+                                            <div style="font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:8px; padding-left:2px;">月別取引回数</div>
+                                            <div class="analysis-chart-container">
+                                                <canvas x-ref="analysisChart"></canvas>
+                                            </div>
+                                        </div>
+
+                                        <!-- D. 購入理由ふりかえりリスト -->
+                                        <template x-if="getAnalysisData().reasonList.length > 0">
+                                            <div>
+                                                <div style="font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:8px; padding-left:2px;">判断理由ふりかえり</div>
+                                                <template x-for="(r, idx) in getAnalysisData().reasonList" :key="idx">
+                                                    <div class="analysis-reason-item">
+                                                        <div class="analysis-reason-meta">
+                                                            <span x-text="formatDemoDate(r.traded_at)"></span>
+                                                            <span style="font-weight:600; color:#1b4332;" x-text="r.company_code"></span>
+                                                            <span :class="r.trade_type === 'buy' ? 'demo-trade-type-buy' : 'demo-trade-type-sell'" x-text="r.trade_type === 'buy' ? '購入' : '売却'"></span>
+                                                        </div>
+                                                        <div class="analysis-reason-text" x-text="r.reason"></div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- ローディング -->
+                                <template x-if="!demoHistoryLoaded">
+                                    <div class="demo-empty-state">
+                                        <div class="demo-loading-spinner-sm" style="width:24px; height:24px; border-width:3px; margin:0 auto 10px;"></div>
+                                        <p>分析データを読み込み中...</p>
                                     </div>
                                 </template>
                             </div>
@@ -1120,6 +1295,8 @@ function mypageApp() {
         demoTrades: [],
         demoHistoryLoaded: false,
         showDemoHistory: false,
+        showDemoAnalysis: false,
+        demoAnalysisChart: null,
         livePriceLoading: false,
         demoBuyModalOpen: false,
         demoBuyForm: {
@@ -1494,6 +1671,230 @@ function mypageApp() {
             }
         },
 
+        /* 売買分析表示切替 */
+        toggleDemoAnalysis() {
+            this.showDemoAnalysis = !this.showDemoAnalysis;
+            if (this.showDemoAnalysis && !this.demoHistoryLoaded) {
+                this.fetchDemoHistory().then(() => {
+                    this.$nextTick(() => { this.renderAnalysisChart(); });
+                });
+            } else if (this.showDemoAnalysis && this.demoHistoryLoaded) {
+                this.$nextTick(() => { this.renderAnalysisChart(); });
+            }
+        },
+
+        /* 売買分析データ集計 */
+        getAnalysisData() {
+            var trades = this.demoTrades || [];
+            if (trades.length === 0) {
+                return {
+                    totalCount: 0, buyCount: 0, sellCount: 0,
+                    uniqueStockCount: 0, activityPeriod: '\u2014',
+                    byStock: [], monthlyData: {}, reasonList: []
+                };
+            }
+
+            var buyCount = 0;
+            var sellCount = 0;
+            var stockMap = {};
+            var monthMap = {};
+            var reasonList = [];
+            var dates = [];
+
+            for (var i = 0; i < trades.length; i++) {
+                var t = trades[i];
+                var isBuy = t.trade_type === 'buy';
+                if (isBuy) { buyCount++; } else { sellCount++; }
+
+                // 日付収集
+                if (t.traded_at) {
+                    dates.push(new Date(t.traded_at));
+                }
+
+                // 銘柄別集計
+                var code = t.company_code || 'unknown';
+                if (!stockMap[code]) {
+                    stockMap[code] = {
+                        code: code,
+                        name: t.company_name || '',
+                        buyCount: 0, sellCount: 0,
+                        totalBuyShares: 0, totalSellShares: 0,
+                        totalBuyAmount: 0, totalSellAmount: 0,
+                        avgBuyPrice: 0, realizedPL: 0,
+                        latestReason: '', latestReasonDate: null
+                    };
+                }
+                var sm = stockMap[code];
+                if (isBuy) {
+                    sm.buyCount++;
+                    sm.totalBuyShares += (t.shares || 0);
+                    sm.totalBuyAmount += (t.total_amount || (t.price || 0) * (t.shares || 0));
+                } else {
+                    sm.sellCount++;
+                    sm.totalSellShares += (t.shares || 0);
+                    sm.totalSellAmount += (t.total_amount || (t.price || 0) * (t.shares || 0));
+                }
+                // 最新の理由メモを保持
+                if (t.reason && t.reason.trim()) {
+                    var td = t.traded_at ? new Date(t.traded_at) : new Date(0);
+                    if (!sm.latestReasonDate || td > sm.latestReasonDate) {
+                        sm.latestReason = t.reason;
+                        sm.latestReasonDate = td;
+                    }
+                }
+
+                // 月別集計
+                if (t.traded_at) {
+                    try {
+                        var d = new Date(t.traded_at);
+                        var monthKey = d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0');
+                        if (!monthMap[monthKey]) {
+                            monthMap[monthKey] = { buy: 0, sell: 0 };
+                        }
+                        if (isBuy) { monthMap[monthKey].buy++; } else { monthMap[monthKey].sell++; }
+                    } catch (e) {}
+                }
+
+                // 理由メモあり取引を収集
+                if (t.reason && t.reason.trim()) {
+                    reasonList.push(t);
+                }
+            }
+
+            // 活動期間
+            var activityPeriod = '\u2014';
+            if (dates.length > 0) {
+                dates.sort(function(a, b) { return a - b; });
+                var fmt = function(d) {
+                    return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+                };
+                if (dates.length === 1) {
+                    activityPeriod = fmt(dates[0]);
+                } else {
+                    activityPeriod = fmt(dates[0]) + ' 〜 ' + fmt(dates[dates.length - 1]);
+                }
+            }
+
+            // 銘柄別の損益計算
+            var totalRealizedPL = 0;
+            var stockKeys = Object.keys(stockMap);
+            for (var j = 0; j < stockKeys.length; j++) {
+                var s = stockMap[stockKeys[j]];
+                // 平均取得単価
+                if (s.totalBuyShares > 0) {
+                    s.avgBuyPrice = s.totalBuyAmount / s.totalBuyShares;
+                }
+                // 実現損益 = 売却総額 - (平均取得単価 × 売却株数)
+                if (s.sellCount > 0 && s.avgBuyPrice > 0) {
+                    s.realizedPL = s.totalSellAmount - (s.avgBuyPrice * s.totalSellShares);
+                }
+                totalRealizedPL += s.realizedPL;
+            }
+
+            // 含み損益（保有中銘柄）
+            var totalUnrealizedPL = 0;
+            var hasUnrealized = false;
+            var holdings = (this.demoAccount && this.demoAccount.holdings) || [];
+            for (var k = 0; k < holdings.length; k++) {
+                var h = holdings[k];
+                if (h.current_price != null && h.avg_cost != null && h.shares > 0) {
+                    totalUnrealizedPL += (h.current_price - h.avg_cost) * h.shares;
+                    hasUnrealized = true;
+                }
+            }
+
+            // 銘柄別配列
+            var byStock = Object.values(stockMap);
+            byStock.sort(function(a, b) { return (b.buyCount + b.sellCount) - (a.buyCount + a.sellCount); });
+
+            // 理由リストは新しい順
+            reasonList.sort(function(a, b) {
+                return new Date(b.traded_at || 0) - new Date(a.traded_at || 0);
+            });
+
+            return {
+                totalCount: trades.length,
+                buyCount: buyCount,
+                sellCount: sellCount,
+                uniqueStockCount: Object.keys(stockMap).length,
+                activityPeriod: activityPeriod,
+                byStock: byStock,
+                monthlyData: monthMap,
+                reasonList: reasonList,
+                totalRealizedPL: totalRealizedPL,
+                totalUnrealizedPL: totalUnrealizedPL,
+                hasUnrealized: hasUnrealized
+            };
+        },
+
+        /* 月別チャート描画 */
+        renderAnalysisChart() {
+            var canvas = this.$refs.analysisChart;
+            if (!canvas) return;
+            var data = this.getAnalysisData();
+            var monthMap = data.monthlyData;
+            var labels = Object.keys(monthMap).sort();
+            if (labels.length === 0) return;
+
+            var buyData = labels.map(function(k) { return monthMap[k].buy; });
+            var sellData = labels.map(function(k) { return monthMap[k].sell; });
+
+            // 既存チャートを破棄
+            if (this.demoAnalysisChart) {
+                this.demoAnalysisChart.destroy();
+                this.demoAnalysisChart = null;
+            }
+
+            this.demoAnalysisChart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '購入',
+                            data: buyData,
+                            backgroundColor: 'rgba(45, 106, 79, 0.7)',
+                            borderColor: '#2d6a4f',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '売却',
+                            data: sellData,
+                            backgroundColor: 'rgba(107, 114, 128, 0.5)',
+                            borderColor: '#6b7280',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 11 } }
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                font: { size: 11 }
+                            },
+                            grid: { color: '#ebebeb' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { font: { size: 11 }, boxWidth: 12 }
+                        }
+                    }
+                }
+            });
+        },
+
         /* デモリセット */
         async confirmDemoReset() {
             var confirmed = await showConfirmModal('デモ口座をリセットしますか？\n保有銘柄と売買履歴がすべて削除され、初期資金に戻ります。');
@@ -1511,6 +1912,11 @@ function mypageApp() {
                     this.demoHistoryLoaded = false;
                     this.demoTrades = [];
                     this.showDemoHistory = false;
+                    this.showDemoAnalysis = false;
+                    if (this.demoAnalysisChart) {
+                        this.demoAnalysisChart.destroy();
+                        this.demoAnalysisChart = null;
+                    }
                     await this.fetchDemoAccount();
                 } else {
                     showErrorModal(data.message || 'リセットに失敗しました。');
@@ -1715,6 +2121,15 @@ function mypageApp() {
         formatNumber(val) {
             if (val == null || isNaN(val)) return '\u2014';
             return Number(val).toLocaleString('ja-JP');
+        },
+
+        formatPL(val) {
+            if (val == null || typeof val !== 'number' || isNaN(val)) return '\u2014';
+            var rounded = Math.round(val);
+            var formatted = Math.abs(rounded).toLocaleString('ja-JP');
+            if (rounded > 0) return '+\u00a5' + formatted;
+            if (rounded < 0) return '\u2212\u00a5' + formatted;
+            return '\u00a50';
         },
 
         formatDemoDate(dateStr) {
