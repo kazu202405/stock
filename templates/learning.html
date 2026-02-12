@@ -120,6 +120,7 @@
     /* メトリクスグリッド */
     .metric-cell {
         padding: 8px 0;
+        text-align: center;
     }
     .metric-label {
         font-size: 11px;
@@ -316,7 +317,7 @@
                         :class="{ 'active': activeTab === 'sector' }"
                         @click="activeTab = 'sector'; if (!sectorLoaded) { sectorLoaded = true; }">
                     <i class="fas fa-chart-pie" style="font-size: 13px;"></i>
-                    セクター分析
+                    セクターの特徴
                 </button>
             </div>
         </div>
@@ -462,7 +463,18 @@
                                         <h3 class="text-sm font-bold" style="color: #1a1a1a;" x-text="s.sector"></h3>
                                         <span class="count-badge" x-text="s.count + '社'"></span>
                                     </div>
-                                    <div class="grid grid-cols-2 gap-x-6 gap-y-1">
+                                    <!-- セクター説明 -->
+                                    <template x-if="getSectorInfo(s.sector)">
+                                        <div class="mb-3">
+                                            <p class="text-xs leading-relaxed" style="color: #737373;" x-text="getSectorInfo(s.sector).description"></p>
+                                            <div class="mt-2 flex items-start gap-1.5">
+                                                <i class="fas fa-chart-line flex-shrink-0 mt-0.5" style="font-size: 9px; color: #a3a3a3;"></i>
+                                                <p class="text-xs leading-relaxed" style="color: #a3a3a3;" x-text="getSectorInfo(s.sector).movement"></p>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <!-- 指標（横並び4つ） -->
+                                    <div class="grid grid-cols-4 gap-x-3 pt-3" style="border-top: 1px solid #f3f4f6;">
                                         <div class="metric-cell">
                                             <div class="metric-label">平均PER</div>
                                             <div class="metric-value" x-text="formatNum(s.avg_per, 1)"></div>
@@ -472,30 +484,20 @@
                                             <div class="metric-value" x-text="formatNum(s.avg_pbr, 2)"></div>
                                         </div>
                                         <div class="metric-cell">
-                                            <div class="metric-label">平均配当利回り</div>
+                                            <div class="metric-label">配当利回り</div>
                                             <div class="metric-value">
                                                 <span x-text="formatNum(s.avg_dividend_yield, 2)"></span>
                                                 <span x-show="s.avg_dividend_yield != null" class="text-xs font-normal" style="color: #a3a3a3;">%</span>
                                             </div>
                                         </div>
                                         <div class="metric-cell">
-                                            <div class="metric-label">平均ROE</div>
+                                            <div class="metric-label">営業利益率</div>
                                             <div class="metric-value">
-                                                <span x-text="formatNum(s.avg_roe, 1)"></span>
-                                                <span x-show="s.avg_roe != null" class="text-xs font-normal" style="color: #a3a3a3;">%</span>
+                                                <span x-text="formatNum(s.avg_operating_margin, 1)"></span>
+                                                <span x-show="s.avg_operating_margin != null" class="text-xs font-normal" style="color: #a3a3a3;">%</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- セクター説明 -->
-                                    <template x-if="getSectorInfo(s.sector)">
-                                        <div class="mt-3 pt-3" style="border-top: 1px solid #f3f4f6;">
-                                            <p class="text-xs leading-relaxed" style="color: #737373;" x-text="getSectorInfo(s.sector).description"></p>
-                                            <div class="mt-2 flex items-start gap-1.5">
-                                                <i class="fas fa-chart-line flex-shrink-0 mt-0.5" style="font-size: 9px; color: #a3a3a3;"></i>
-                                                <p class="text-xs leading-relaxed" style="color: #a3a3a3;" x-text="getSectorInfo(s.sector).movement"></p>
-                                            </div>
-                                        </div>
-                                    </template>
                                 </div>
                             </template>
                         </div>
