@@ -2444,6 +2444,62 @@ def api_sector_summary():
 
 
 # =============================================
+# マーケット所感API
+# =============================================
+
+@app.route('/api/market-comment/latest', methods=['GET'])
+def api_market_comment_latest():
+    """最新のマーケット所感を取得（adminユーザーのmarket_commentカラムから）"""
+    try:
+        client = get_supabase_client()
+        result = client.table('app_users').select(
+            'market_comment, updated_at'
+        ).eq('role', 'admin').not_.is_('market_comment', 'null').order(
+            'updated_at', desc=True
+        ).limit(1).execute()
+        if result.data and result.data[0].get('market_comment'):
+            row = result.data[0]
+            return jsonify({
+                "content": row['market_comment'],
+                "updated_at": row['updated_at'],
+            }), 200
+        return jsonify({}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/market-comment', methods=['POST'])
+def api_market_comment_save():
+    """マーケット所感を保存（ログイン中のadminユーザーに書き込み）"""
+    try:
+        data = request.get_json()
+        content = data.get('content', '').strip() if data else ''
+        if not content:
+            return jsonify({"error": "内容を入力してください"}), 400
+
+        # セッションからユーザーIDを取得
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({"error": "ログインが必要です"}), 401
+
+        client = get_supabase_client()
+
+        # adminロールか確認
+        user = client.table('app_users').select('role').eq('id', user_id).execute()
+        if not user.data or user.data[0].get('role') != 'admin':
+            return jsonify({"error": "管理者権限が必要です"}), 403
+
+        # market_commentカラムを更新（updated_atはトリガーで自動更新）
+        client.table('app_users').update({
+            'market_comment': content,
+        }).eq('id', user_id).execute()
+
+        return jsonify({"success": True, "message": "マーケット所感を保存しました"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
 # デモ売買API
 # =============================================
 
@@ -2458,14 +2514,22 @@ def _get_demo_user_id():
     return user_id
 
 
-def _get_or_create_demo_account(user_id):
+def _get_or_create_demo_account(user_id, initial_amount=1000000):
     """デモ口座を取得（なければ作成）"""
     client = get_supabase_client()
     result = client.table('demo_account').select('*').eq('user_id', user_id).execute()
     if result.data:
-        return result.data[0]
-    # 新規作成（初期100万円）
-    new_account = {'user_id': user_id, 'cash_balance': 1000000}
+        account = result.data[0]
+        # total_depositedが未設定の既存アカウントにはデフォルト値を補完
+        if account.get('total_deposited') is None:
+            account['total_deposited'] = float(account.get('cash_balance', 1000000))
+        return account
+    # 新規作成
+    new_account = {
+        'user_id': user_id,
+        'cash_balance': initial_amount,
+        'total_deposited': initial_amount,
+    }
     client.table('demo_account').insert(new_account).execute()
     return new_account
 
@@ -2500,10 +2564,16 @@ def api_demo_account():
                 'pnl': pnl,
             })
 
+        total_deposited = float(account.get('total_deposited') or account['cash_balance'])
+        total_assets = float(account['cash_balance']) + total_value
+        profit = total_assets - total_deposited
+
         return jsonify({
             "cash_balance": float(account['cash_balance']),
             "total_value": total_value,
-            "total_assets": float(account['cash_balance']) + total_value,
+            "total_assets": total_assets,
+            "total_deposited": total_deposited,
+            "profit": profit,
             "holdings": holdings,
         }), 200
     except Exception as e:
@@ -2686,11 +2756,64 @@ def api_demo_history():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/demo/reset', methods=['POST'])
-def api_demo_reset():
-    """デモ口座をリセット（残高100万円、ポートフォリオ・履歴クリア）"""
+@app.route('/api/demo/deposit', methods=['POST'])
+def api_demo_deposit():
+    """デモ口座に資金を追加"""
     try:
         user_id = _get_demo_user_id()
+        data = request.get_json()
+        amount = int(data.get('amount', 0)) if data else 0
+
+        if amount <= 0:
+            return jsonify({"error": "追加金額を正しく指定してください"}), 400
+        if amount > 100000000:
+            return jsonify({"error": "一度に追加できるのは1億円までです"}), 400
+
+        account = _get_or_create_demo_account(user_id)
+        client = get_supabase_client()
+
+        new_cash = float(account['cash_balance']) + amount
+        new_deposited = float(account.get('total_deposited') or account['cash_balance']) + amount
+
+        client.table('demo_account').update({
+            'cash_balance': new_cash,
+            'total_deposited': new_deposited,
+        }).eq('user_id', user_id).execute()
+
+        # 履歴に入金を記録
+        client.table('demo_trades').insert({
+            'user_id': user_id,
+            'company_code': '',
+            'company_name': '',
+            'trade_type': 'deposit',
+            'shares': 0,
+            'price': 0,
+            'total_amount': amount,
+            'reason': f'資金追加: ¥{amount:,.0f}',
+        }).execute()
+
+        return jsonify({
+            "success": True,
+            "message": f"¥{amount:,.0f} を追加しました（現金残高: ¥{new_cash:,.0f}）",
+            "new_balance": new_cash,
+            "total_deposited": new_deposited,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/demo/reset', methods=['POST'])
+def api_demo_reset():
+    """デモ口座をリセット（ポートフォリオ・履歴クリア）"""
+    try:
+        user_id = _get_demo_user_id()
+        data = request.get_json() or {}
+        initial_amount = int(data.get('initial_amount', 1000000))
+
+        # 入力値チェック
+        if initial_amount < 10000 or initial_amount > 100000000:
+            initial_amount = 1000000
+
         client = get_supabase_client()
 
         # ポートフォリオ削除
@@ -2700,10 +2823,14 @@ def api_demo_reset():
         # 残高リセット
         client.table('demo_account').upsert({
             'user_id': user_id,
-            'cash_balance': 1000000,
+            'cash_balance': initial_amount,
+            'total_deposited': initial_amount,
         }).execute()
 
-        return jsonify({"success": True, "message": "デモ口座をリセットしました（残高: ¥1,000,000）"}), 200
+        return jsonify({
+            "success": True,
+            "message": f"デモ口座をリセットしました（初期資金: ¥{initial_amount:,.0f}）"
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

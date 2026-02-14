@@ -480,6 +480,107 @@
         color: #6b7280;
     }
 
+    /* マーケット所感 */
+    .market-comment-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        border-left: 3px solid #1b4332;
+    }
+    .market-comment-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .market-comment-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1b4332;
+    }
+    .market-comment-date {
+        font-size: 11px;
+        color: #a3a3a3;
+    }
+    .market-comment-body {
+        font-size: 14px;
+        color: #525252;
+        line-height: 1.8;
+        white-space: pre-wrap;
+    }
+    /* 管理者：所感編集 */
+    .market-comment-edit {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+    }
+    .market-comment-edit textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 12px;
+        border: 1px solid #e5e5e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        line-height: 1.7;
+        resize: vertical;
+        color: #1a1a1a;
+    }
+    .market-comment-edit textarea:focus {
+        outline: none;
+        border-color: #2d6a4f;
+    }
+    .market-comment-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .market-comment-actions button {
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+    }
+    .btn-comment-save {
+        background: #1b4332;
+        color: #fff;
+    }
+    .btn-comment-save:hover {
+        background: #2d6a4f;
+    }
+    .btn-comment-save:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    /* 四季報アラート */
+    .shikiho-alert {
+        display: none;
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-left: 3px solid #f59e0b;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: #92400e;
+        line-height: 1.6;
+    }
+    .shikiho-alert-title {
+        font-weight: 600;
+        font-size: 13px;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     /* レスポンシブ */
     @media (max-width: 768px) {
         .report-header {
@@ -497,6 +598,35 @@
         <a href="/search" class="search-link-btn">
             <i class="fas fa-search"></i> 銘柄検索
         </a>
+    </div>
+
+    <!-- マーケット所感 -->
+    {% if is_admin %}
+    <div class="shikiho-alert" id="shikihoAlert">
+        <div class="shikiho-alert-title">
+            <i class="fas fa-book"></i>
+            <span id="shikihoAlertTitle"></span>
+        </div>
+        <span id="shikihoAlertBody"></span>
+    </div>
+    <div class="market-comment-edit" id="marketCommentEdit">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span class="market-comment-label"><i class="fas fa-pen" style="margin-right:6px; font-size:11px;"></i>マーケット所感を編集</span>
+            <span class="market-comment-date" id="commentEditDate"></span>
+        </div>
+        <textarea id="commentEditText" placeholder="最近のマーケット動向や注目ポイントなどを書いてみましょう..."></textarea>
+        <div class="market-comment-actions">
+            <button class="btn-comment-save" id="commentSaveBtn" onclick="saveMarketComment()">保存する</button>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="market-comment-card" id="marketCommentCard" style="display:none;">
+        <div class="market-comment-header">
+            <span class="market-comment-label"><i class="fas fa-chart-line" style="margin-right:6px; font-size:11px;"></i>マーケット所感</span>
+            <span class="market-comment-date" id="commentDisplayDate"></span>
+        </div>
+        <div class="market-comment-body" id="commentDisplayBody"></div>
     </div>
 
     <!-- ウォッチリスト一覧 -->
@@ -853,8 +983,125 @@
     // ウォッチリスト関連機能
     // ========================================
 
+    // ========================================
+    // 四季報発売日アラート（管理者のみ）
+    // ========================================
+    function checkShikihoAlert() {
+        if (!IS_ADMIN) return;
+        var el = document.getElementById('shikihoAlert');
+        if (!el) return;
+
+        // 四季報の発売日（毎年おおよそ固定、年ごとに微調整可能）
+        // [月, 日] の形式。号名も付与
+        var schedule = [
+            { month: 3, day: 17, name: '春号' },
+            { month: 6, day: 16, name: '夏号' },
+            { month: 9, day: 16, name: '秋号' },
+            { month: 12, day: 15, name: '新春号' },
+        ];
+
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+        var alertDaysBefore = 2;
+        var alertDaysAfter = 1;  // 発売当日も表示
+
+        for (var i = 0; i < schedule.length; i++) {
+            var s = schedule[i];
+            var releaseDate = new Date(today.getFullYear(), s.month - 1, s.day);
+            releaseDate.setHours(0, 0, 0, 0);
+            var diff = (releaseDate - today) / (1000 * 60 * 60 * 24);
+
+            if (diff >= -alertDaysAfter && diff <= alertDaysBefore) {
+                var titleEl = document.getElementById('shikihoAlertTitle');
+                var bodyEl = document.getElementById('shikihoAlertBody');
+                var dateStr = s.month + '/' + s.day;
+
+                if (diff > 0) {
+                    titleEl.textContent = '四季報' + s.name + '発売まであと' + Math.ceil(diff) + '日（' + dateStr + '）';
+                    bodyEl.textContent = '条件合致企業の銘柄データを更新してください。新しい四季報データの反映をお忘れなく。';
+                } else if (diff === 0) {
+                    titleEl.textContent = '本日 四季報' + s.name + '発売日です（' + dateStr + '）';
+                    bodyEl.textContent = '条件合致企業の銘柄データを更新してください。';
+                } else {
+                    titleEl.textContent = '四季報' + s.name + 'が発売されました（' + dateStr + '）';
+                    bodyEl.textContent = '条件合致企業の銘柄データの更新はお済みですか？';
+                }
+                el.style.display = '';
+                break;
+            }
+        }
+    }
+
+    // ========================================
+    // マーケット所感
+    // ========================================
+    async function loadMarketComment() {
+        try {
+            const res = await fetch('/api/market-comment/latest');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.content) {
+                // 閲覧用カードに表示
+                const card = document.getElementById('marketCommentCard');
+                const body = document.getElementById('commentDisplayBody');
+                const date = document.getElementById('commentDisplayDate');
+                if (body) body.textContent = data.content;
+                if (date) {
+                    const d = new Date(data.updated_at || data.created_at);
+                    date.textContent = d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+                }
+                if (card) card.style.display = '';
+
+                // 管理者：編集エリアにも反映
+                const editText = document.getElementById('commentEditText');
+                const editDate = document.getElementById('commentEditDate');
+                if (editText) editText.value = data.content;
+                if (editDate && data.updated_at) {
+                    const d2 = new Date(data.updated_at);
+                    editDate.textContent = '最終更新: ' + d2.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+                }
+            }
+        } catch (e) {
+            console.error('マーケット所感取得エラー:', e);
+        }
+    }
+
+    async function saveMarketComment() {
+        const textarea = document.getElementById('commentEditText');
+        const btn = document.getElementById('commentSaveBtn');
+        const content = textarea ? textarea.value.trim() : '';
+        if (!content) return;
+
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+        try {
+            const res = await fetch('/api/market-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                // 表示を更新
+                await loadMarketComment();
+                btn.textContent = '保存しました';
+                setTimeout(() => { btn.textContent = '保存する'; btn.disabled = false; }, 1500);
+            } else {
+                alert(data.error || '保存に失敗しました');
+                btn.textContent = '保存する';
+                btn.disabled = false;
+            }
+        } catch (e) {
+            alert('通信エラーが発生しました');
+            btn.textContent = '保存する';
+            btn.disabled = false;
+        }
+    }
+
     // ページ読み込み時にデータ取得＆遅延ロード
     document.addEventListener('DOMContentLoaded', function() {
+        checkShikihoAlert();
+        loadMarketComment();
         loadWatchlist();
         const savedTab = sessionStorage.getItem('activeTab');
         if (savedTab === 'favorite') loadFavoriteStocks();

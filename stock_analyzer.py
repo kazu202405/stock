@@ -173,24 +173,22 @@ class StockAnalyzer:
             if hasattr(fast_info, 'currency'):
                 result["currency"] = fast_info.currency
                 
-            # PER, PBR, 配当利回り
+            # PER, PBR
             if hasattr(fast_info, 'pe_ratio'):
                 result["per"] = fast_info.pe_ratio
             if hasattr(fast_info, 'price_to_book'):
                 result["pbr"] = fast_info.price_to_book
-            if hasattr(fast_info, 'dividend_yield'):
-                result["dividend_yield"] = fast_info.dividend_yield
-                
+
         except:
             pass
-            
+
         # infoで補完
         try:
             info = ticker.info
-            
+
             # 名前
             result["name"] = info.get('longName') or info.get('shortName')
-            
+
             # fast_infoで取得できなかった値を補完
             if result["last_price"] is None:
                 result["last_price"] = info.get('regularMarketPrice') or info.get('currentPrice')
@@ -202,27 +200,42 @@ class StockAnalyzer:
                 result["per"] = info.get('trailingPE') or info.get('forwardPE')
             if result["pbr"] is None:
                 result["pbr"] = info.get('priceToBook')
-            if result["dividend_yield"] is None:
-                result["dividend_yield"] = info.get('dividendYield')
-                
+
+            # 配当利回り（自前計算を最優先）
+            # 1. trailingAnnualDividendRate / 株価 × 100 で統一的に%計算
+            annual_div_rate = info.get('trailingAnnualDividendRate')
+            if annual_div_rate and result["last_price"] and result["last_price"] > 0:
+                result["dividend_yield"] = (annual_div_rate / result["last_price"]) * 100
+            else:
+                # 2. dividendYieldをフォーマット正規化して使用
+                # yfinanceはdividendYieldを小数(0.025)で返す場合と%値(2.5)で返す場合がある
+                raw_yield = info.get('dividendYield')
+                if raw_yield is not None:
+                    if raw_yield > 0.5:
+                        # 0.5超 → 既に%値としてそのまま使用（50%超の配当利回りは現実的にない）
+                        result["dividend_yield"] = raw_yield
+                    else:
+                        # 小数 → %に変換
+                        result["dividend_yield"] = raw_yield * 100
+
             # 追加情報
             result["current_liabilities"] = info.get('totalCurrentLiabilities')
             result["cash_and_equivalents"] = info.get('totalCash')
-            
+
         except:
             pass
-            
+
         # 配当利回りのフォールバック（TTM計算）
         if result["dividend_yield"] is None and result["last_price"]:
             try:
                 dividends = ticker.dividends
                 if not dividends.empty:
                     # 直近365日の配当合計
-                    one_year_ago = datetime.now() - pd.Timedelta(days=365)
+                    one_year_ago = pd.Timestamp.now(tz='Asia/Tokyo') - pd.Timedelta(days=365)
                     recent_div = dividends[dividends.index >= one_year_ago]
                     if not recent_div.empty:
                         ttm_dividend = recent_div.sum()
-                        result["dividend_yield"] = ttm_dividend / result["last_price"]
+                        result["dividend_yield"] = (ttm_dividend / result["last_price"]) * 100
             except:
                 pass
                 

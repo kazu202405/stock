@@ -1950,6 +1950,19 @@
             </div>
         </div>
 
+        <!-- 既存保有情報 -->
+        <div id="buyModalHoldingInfo" class="demo-form-info" style="display:none; margin-bottom:16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px;">
+            <div style="font-size:12px; font-weight:600; color:#1b4332; margin-bottom:6px;">この銘柄を保有中</div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">保有株数</span>
+                <span class="demo-form-info-value" id="buyModalHoldingShares">&#x2014;</span>
+            </div>
+            <div class="demo-form-info-row">
+                <span class="demo-form-info-label">平均取得単価</span>
+                <span class="demo-form-info-value" id="buyModalHoldingAvgCost">&#x2014;</span>
+            </div>
+        </div>
+
         <!-- 株数 -->
         <div class="demo-form-group">
             <label class="demo-form-label">株数</label>
@@ -2163,6 +2176,16 @@
         document.getElementById('buyModalPriceLoading').style.display = 'none';
         document.getElementById('buyModalPrice').textContent = demoState.refPrice != null ? formatYen(demoState.refPrice) : '\u2014';
         document.getElementById('buyModalCash').textContent = formatYen(demoState.cashBalance);
+
+        /* 既存保有情報を表示 */
+        var holdingInfo = document.getElementById('buyModalHoldingInfo');
+        if (demoState.holding && demoState.holding.shares > 0) {
+            document.getElementById('buyModalHoldingShares').textContent = demoState.holding.shares.toLocaleString('ja-JP') + ' 株';
+            document.getElementById('buyModalHoldingAvgCost').textContent = demoState.holding.avg_cost != null ? formatYen(demoState.holding.avg_cost) : '\u2014';
+            holdingInfo.style.display = '';
+        } else {
+            holdingInfo.style.display = 'none';
+        }
     };
 
     window.closeDetailBuyModal = function() {

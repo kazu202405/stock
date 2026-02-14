@@ -355,6 +355,10 @@
         color: #6b7280;
         font-weight: 600;
     }
+    .demo-trade-type-deposit {
+        color: #0369a1;
+        font-weight: 600;
+    }
     /* デモ売買モーダル */
     .demo-modal-card {
         background: #fff;
@@ -723,6 +727,31 @@
                                         </template>
                                     </div>
                                 </div>
+                                <div class="demo-summary-card">
+                                    <div class="demo-summary-label">原資（入金合計）</div>
+                                    <div class="demo-summary-value">
+                                        <template x-if="demoAccountLoaded">
+                                            <span x-text="formatYen(demoAccount.total_deposited)"></span>
+                                        </template>
+                                        <template x-if="!demoAccountLoaded">
+                                            <span class="loading-placeholder">---</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="demo-summary-card">
+                                    <div class="demo-summary-label">収益</div>
+                                    <div class="demo-summary-value">
+                                        <template x-if="demoAccountLoaded">
+                                            <span
+                                                x-text="(demoAccount.profit >= 0 ? '+' : '') + formatYen(demoAccount.profit)"
+                                                :style="demoAccount.profit > 0 ? 'color:#2d6a4f' : demoAccount.profit < 0 ? 'color:#b91c1c' : ''"
+                                            ></span>
+                                        </template>
+                                        <template x-if="!demoAccountLoaded">
+                                            <span class="loading-placeholder">---</span>
+                                        </template>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- アクションボタン行 -->
@@ -730,6 +759,10 @@
                                 <button class="demo-btn-buy" @click="openDemoBuyModal()">
                                     <i class="fas fa-plus" style="font-size:10px;"></i>
                                     購入する
+                                </button>
+                                <button class="demo-btn-outline" @click="openDemoDepositModal()">
+                                    <i class="fas fa-wallet" style="font-size:10px;"></i>
+                                    資金追加
                                 </button>
                                 <button class="demo-btn-outline" :class="{ 'active': showDemoHistory }" @click="toggleDemoHistory()">
                                     <i class="fas fa-list" style="font-size:10px;"></i>
@@ -840,10 +873,11 @@
                                                             <span style="color:#525252; font-size:11px;" x-text="t.company_name || ''"></span>
                                                         </td>
                                                         <td>
-                                                            <span :class="t.trade_type === 'buy' ? 'demo-trade-type-buy' : 'demo-trade-type-sell'" x-text="t.trade_type === 'buy' ? '購入' : '売却'"></span>
+                                                            <span :class="t.trade_type === 'buy' ? 'demo-trade-type-buy' : t.trade_type === 'sell' ? 'demo-trade-type-sell' : 'demo-trade-type-deposit'"
+                                                                x-text="t.trade_type === 'buy' ? '購入' : t.trade_type === 'sell' ? '売却' : '入金'"></span>
                                                         </td>
-                                                        <td class="col-num" x-text="formatNumber(t.shares)"></td>
-                                                        <td class="col-num" x-text="formatYen(t.price)"></td>
+                                                        <td class="col-num" x-text="t.trade_type === 'deposit' ? '\u2014' : formatNumber(t.shares)"></td>
+                                                        <td class="col-num" x-text="t.trade_type === 'deposit' ? '\u2014' : formatYen(t.price)"></td>
                                                         <td class="col-num" x-text="formatYen(t.total_amount)"></td>
                                                         <td class="col-reason" x-text="t.reason || '\u2014'"></td>
                                                     </tr>
@@ -977,7 +1011,8 @@
                                                         <div class="analysis-reason-meta">
                                                             <span x-text="formatDemoDate(r.traded_at)"></span>
                                                             <span style="font-weight:600; color:#1b4332;" x-text="r.company_code"></span>
-                                                            <span :class="r.trade_type === 'buy' ? 'demo-trade-type-buy' : 'demo-trade-type-sell'" x-text="r.trade_type === 'buy' ? '購入' : '売却'"></span>
+                                                            <span :class="r.trade_type === 'buy' ? 'demo-trade-type-buy' : r.trade_type === 'sell' ? 'demo-trade-type-sell' : 'demo-trade-type-deposit'"
+                                                                x-text="r.trade_type === 'buy' ? '購入' : r.trade_type === 'sell' ? '売却' : '入金'"></span>
                                                         </div>
                                                         <div class="analysis-reason-text" x-text="r.reason"></div>
                                                     </div>
@@ -997,6 +1032,47 @@
                             </div>
                         </div>
             </div>
+
+            <!-- ===== 紹介コードカード ===== -->
+            <template x-if="referralCode">
+                <div class="lg:col-span-12 mp-card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="section-head mb-0"><i class="fas fa-share-alt"></i>紹介リンク</h2>
+                    </div>
+                    <p class="text-xs mb-3" style="color:#737373;">お客様にこのリンクを共有すると、紹介コードが自動入力された状態で登録ページが開きます</p>
+
+                    <!-- 紹介コード表示 -->
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:stretch;">
+                        <!-- コード -->
+                        <div style="flex:0 0 auto;">
+                            <div class="text-xs font-semibold mb-1" style="color:#525252;">紹介コード</div>
+                            <div style="background:#f7f7f5; border:1px solid #ebebeb; border-radius:8px; padding:10px 16px; font-size:18px; font-weight:700; letter-spacing:2px; color:#1b4332; text-align:center;"
+                                x-text="referralCode"></div>
+                        </div>
+                        <!-- リンク＋コピー -->
+                        <div style="flex:1; min-width:200px;">
+                            <div class="text-xs font-semibold mb-1" style="color:#525252;">紹介リンク</div>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" class="form-input" :value="referralLink" readonly
+                                    style="flex:1; font-size:13px; color:#525252; background:#f7f7f5; cursor:text;"
+                                    @click="$el.select()">
+                                <button class="btn-sm-green" @click="copyReferralLink()" style="white-space:nowrap; padding:8px 14px;">
+                                    <i class="fas fa-copy mr-1" style="font-size:10px;"></i>
+                                    <span x-text="referralCopied ? 'コピー済み' : 'コピー'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 紹介人数 -->
+                    <template x-if="referralCount !== null">
+                        <div class="mt-3" style="font-size:12px; color:#737373;">
+                            <i class="fas fa-users" style="margin-right:4px; font-size:10px;"></i>
+                            紹介済み: <span style="font-weight:600; color:#1b4332;" x-text="referralCount + '人'"></span>
+                        </div>
+                    </template>
+                </div>
+            </template>
         </div>
     </div>
 
@@ -1156,6 +1232,21 @@
                 </div>
             </template>
 
+            <!-- 既存保有情報 -->
+            <template x-if="demoBuyForm.existingHolding">
+                <div class="demo-form-info" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px;">
+                    <div style="font-size:12px; font-weight:600; color:#1b4332; margin-bottom:6px;">この銘柄を保有中</div>
+                    <div class="demo-form-info-row">
+                        <span class="demo-form-info-label">保有株数</span>
+                        <span class="demo-form-info-value" x-text="demoBuyForm.existingHolding.shares.toLocaleString('ja-JP') + ' 株'"></span>
+                    </div>
+                    <div class="demo-form-info-row">
+                        <span class="demo-form-info-label">平均取得単価</span>
+                        <span class="demo-form-info-value" x-text="demoBuyForm.existingHolding.avg_cost != null ? formatYen(demoBuyForm.existingHolding.avg_cost) : '\u2014'"></span>
+                    </div>
+                </div>
+            </template>
+
             <!-- 株数 -->
             <div class="demo-form-group">
                 <label class="demo-form-label">株数</label>
@@ -1257,6 +1348,91 @@
             </div>
         </div>
     </div>
+
+    <!-- ===== 資金追加モーダル ===== -->
+    <div class="modal-overlay" x-show="demoDepositModalOpen" x-cloak @click.self="demoDepositModalOpen = false">
+        <div class="demo-modal-card" @click.stop>
+            <div class="demo-modal-title">資金を追加する</div>
+
+            <div class="demo-form-info" style="margin-bottom:16px;">
+                <div class="demo-form-info-row">
+                    <span class="demo-form-info-label">現在の現金残高</span>
+                    <span class="demo-form-info-value" x-text="formatYen(demoAccount.cash_balance)"></span>
+                </div>
+                <div class="demo-form-info-row">
+                    <span class="demo-form-info-label">累計入金額（原資）</span>
+                    <span class="demo-form-info-value" x-text="formatYen(demoAccount.total_deposited)"></span>
+                </div>
+            </div>
+
+            <div class="demo-form-group">
+                <label class="demo-form-label">追加金額（円）</label>
+                <input type="number" class="form-input" placeholder="例: 500000" x-model.number="demoDepositForm.amount" min="10000" step="10000">
+            </div>
+
+            <!-- 金額ガイド -->
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;">
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoDepositForm.amount = 100000">+10万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoDepositForm.amount = 300000">+30万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoDepositForm.amount = 500000">+50万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoDepositForm.amount = 1000000">+100万</button>
+            </div>
+
+            <div class="demo-modal-actions">
+                <button class="demo-btn-cancel" @click="demoDepositModalOpen = false">キャンセル</button>
+                <button class="demo-btn-confirm" @click="executeDemoDeposit()" :disabled="!demoDepositForm.amount || demoDepositForm.amount <= 0 || demoDepositForm.submitting">
+                    <template x-if="demoDepositForm.submitting">
+                        <span><span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...</span>
+                    </template>
+                    <template x-if="!demoDepositForm.submitting">
+                        <span>追加する</span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== リセットモーダル（金額選択＋ツールチップ） ===== -->
+    <div class="modal-overlay" x-show="demoResetModalOpen" x-cloak @click.self="demoResetModalOpen = false">
+        <div class="demo-modal-card" @click.stop>
+            <div class="demo-modal-title">デモ口座をリセット</div>
+            <p style="font-size:13px; color:#525252; margin-bottom:16px;">保有銘柄と売買履歴がすべて削除され、新しい初期資金でやり直します。</p>
+
+            <div class="demo-form-group">
+                <label class="demo-form-label">初期資金（円）</label>
+                <input type="number" class="form-input" x-model.number="demoResetForm.amount" min="10000" step="10000">
+            </div>
+
+            <!-- 金額プリセット -->
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoResetForm.amount = 300000">30万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px; border-color:#2d6a4f; color:#2d6a4f;" @click="demoResetForm.amount = 1000000">100万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoResetForm.amount = 3000000">300万</button>
+                <button class="demo-btn-outline" style="padding:4px 10px; font-size:11px;" @click="demoResetForm.amount = 10000000">1000万</button>
+            </div>
+
+            <!-- ツールチップ（目安ガイド） -->
+            <div style="background:#f7f7f5; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12px; color:#525252; line-height:1.7;">
+                <div style="font-weight:600; color:#1a1a1a; margin-bottom:4px;">資金の目安</div>
+                <div><span style="color:#2d6a4f; font-weight:500;">初心者</span> — 30万円（少額で感覚をつかむ）</div>
+                <div><span style="color:#2d6a4f; font-weight:500;">中級者</span> — 100〜300万円（分散投資を練習）</div>
+                <div><span style="color:#2d6a4f; font-weight:500;">上級者</span> — 1,000万円〜（本格的なポートフォリオ構築）</div>
+            </div>
+
+            <div class="demo-modal-actions">
+                <button class="demo-btn-cancel" @click="demoResetModalOpen = false">キャンセル</button>
+                <button class="demo-btn-confirm demo-btn-reset-confirm" @click="executeDemoReset()" :disabled="!demoResetForm.amount || demoResetForm.amount < 10000 || demoResetForm.submitting"
+                    style="background:#b91c1c;">
+                    <template x-if="demoResetForm.submitting">
+                        <span><span class="demo-loading-spinner-sm" style="vertical-align:middle; margin-right:4px;"></span>処理中...</span>
+                    </template>
+                    <template x-if="!demoResetForm.submitting">
+                        <span>リセットする</span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1290,7 +1466,7 @@ function mypageApp() {
         /* --- デモ売買状態 --- */
         demoLoaded: false,
         allCompanies: [],
-        demoAccount: { cash_balance: 0, total_value: 0, total_assets: 0, holdings: [] },
+        demoAccount: { cash_balance: 0, total_value: 0, total_assets: 0, total_deposited: 0, profit: 0, holdings: [] },
         demoAccountLoaded: false,
         demoTrades: [],
         demoHistoryLoaded: false,
@@ -1322,6 +1498,16 @@ function mypageApp() {
             reason: '',
             submitting: false
         },
+        demoDepositModalOpen: false,
+        demoDepositForm: { amount: '', submitting: false },
+        demoResetModalOpen: false,
+        demoResetForm: { amount: 1000000, submitting: false },
+
+        /* --- 紹介コード --- */
+        referralCode: null,
+        referralLink: '',
+        referralCopied: false,
+        referralCount: null,
 
         async init() {
             // ユーザー情報を取得（投稿名デフォルト用）
@@ -1335,6 +1521,8 @@ function mypageApp() {
             await this.loadNotes();
             // デモ売買も自動読込
             this.loadDemo();
+            // 紹介コード取得
+            this.loadReferral();
         },
 
         async loadNotes() {
@@ -1515,6 +1703,45 @@ function mypageApp() {
          * ======================================== */
 
         /* デモデータ初期読み込み */
+        /* --- 紹介コード --- */
+        async loadReferral() {
+            try {
+                var res = await fetch('/api/referrals/code');
+                if (!res.ok) return;
+                var data = await res.json();
+                if (data.referral_code) {
+                    this.referralCode = data.referral_code;
+                    this.referralLink = data.referral_link;
+                }
+            } catch (e) {}
+            // 紹介人数も取得
+            try {
+                var res2 = await fetch('/api/referrals/my');
+                if (res2.ok) {
+                    var data2 = await res2.json();
+                    this.referralCount = (data2.referrals || []).length;
+                }
+            } catch (e) {}
+        },
+
+        copyReferralLink() {
+            if (!this.referralLink) return;
+            navigator.clipboard.writeText(this.referralLink).then(() => {
+                this.referralCopied = true;
+                setTimeout(() => { this.referralCopied = false; }, 2000);
+            }).catch(() => {
+                // フォールバック
+                var input = document.createElement('textarea');
+                input.value = this.referralLink;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                this.referralCopied = true;
+                setTimeout(() => { this.referralCopied = false; }, 2000);
+            });
+        },
+
         async loadDemo() {
             var companiesPromise = fetch('/static/companies.json')
                 .then(function(res) { return res.ok ? res.json() : []; })
@@ -1703,6 +1930,7 @@ function mypageApp() {
 
             for (var i = 0; i < trades.length; i++) {
                 var t = trades[i];
+                if (t.trade_type === 'deposit') continue;
                 var isBuy = t.trade_type === 'buy';
                 if (isBuy) { buyCount++; } else { sellCount++; }
 
@@ -1895,19 +2123,59 @@ function mypageApp() {
             });
         },
 
+        /* 資金追加モーダル */
+        openDemoDepositModal() {
+            this.demoDepositForm = { amount: '', submitting: false };
+            this.demoDepositModalOpen = true;
+        },
+
+        async executeDemoDeposit() {
+            if (!this.demoDepositForm.amount || this.demoDepositForm.amount <= 0 || this.demoDepositForm.submitting) return;
+            this.demoDepositForm.submitting = true;
+
+            try {
+                var res = await fetch('/api/demo/deposit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: this.demoDepositForm.amount })
+                });
+                var data = await res.json();
+                if (res.ok && data.success) {
+                    showSuccessModal(data.message || '資金を追加しました。');
+                    this.demoDepositModalOpen = false;
+                    this.demoAccountLoaded = false;
+                    this.demoHistoryLoaded = false;
+                    await this.fetchDemoAccount();
+                    if (this.showDemoHistory) this.fetchDemoHistory();
+                } else {
+                    showErrorModal(data.message || data.error || '資金追加に失敗しました。');
+                }
+            } catch (e) {
+                showErrorModal('通信エラーが発生しました。');
+            }
+            this.demoDepositForm.submitting = false;
+        },
+
         /* デモリセット */
         async confirmDemoReset() {
-            var confirmed = await showConfirmModal('デモ口座をリセットしますか？\n保有銘柄と売買履歴がすべて削除され、初期資金に戻ります。');
-            if (!confirmed) return;
+            this.demoResetForm = { amount: 1000000, submitting: false };
+            this.demoResetModalOpen = true;
+        },
+
+        async executeDemoReset() {
+            if (this.demoResetForm.submitting) return;
+            this.demoResetForm.submitting = true;
 
             try {
                 var res = await fetch('/api/demo/reset', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initial_amount: this.demoResetForm.amount || 1000000 })
                 });
                 var data = await res.json();
                 if (res.ok && data.success) {
                     showSuccessModal(data.message || 'デモ口座をリセットしました。');
+                    this.demoResetModalOpen = false;
                     this.demoAccountLoaded = false;
                     this.demoHistoryLoaded = false;
                     this.demoTrades = [];
@@ -1924,6 +2192,7 @@ function mypageApp() {
             } catch (e) {
                 showErrorModal('通信エラーが発生しました。');
             }
+            this.demoResetForm.submitting = false;
         },
 
         /* --- デモ購入モーダル --- */
@@ -1939,7 +2208,8 @@ function mypageApp() {
                 priceLoading: false,
                 shares: '',
                 reason: '',
-                submitting: false
+                submitting: false,
+                existingHolding: null
             };
             this.demoBuyModalOpen = true;
         },
@@ -1954,6 +2224,7 @@ function mypageApp() {
             this.demoBuyForm.selectedName = null;
             this.demoBuyForm.refPrice = null;
             this.demoBuyForm.highlightIndex = -1;
+            this.demoBuyForm.existingHolding = null;
             var q = this.demoBuyForm.query.trim().toLowerCase();
             if (q.length === 0) {
                 this.demoBuyForm.filtered = [];
@@ -2010,6 +2281,18 @@ function mypageApp() {
             this.demoBuyForm.showDropdown = false;
             this.demoBuyForm.highlightIndex = -1;
             this.fetchDemoRefPrice(item.c);
+
+            /* 既存保有を検索 */
+            var holdings = this.demoAccount.holdings || [];
+            var selectedCode = item.c.replace('.T', '');
+            this.demoBuyForm.existingHolding = null;
+            for (var i = 0; i < holdings.length; i++) {
+                var hCode = (holdings[i].company_code || '').replace('.T', '');
+                if (hCode === selectedCode) {
+                    this.demoBuyForm.existingHolding = holdings[i];
+                    break;
+                }
+            }
         },
 
         get canDemoBuy() {
