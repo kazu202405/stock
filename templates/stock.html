@@ -1099,12 +1099,12 @@
                 btn.textContent = '保存しました';
                 setTimeout(() => { btn.textContent = '保存する'; btn.disabled = false; }, 1500);
             } else {
-                alert(data.error || '保存に失敗しました');
+                alert('保存できませんでした。しばらくしてからもう一度お試しください。');
                 btn.textContent = '保存する';
                 btn.disabled = false;
             }
         } catch (e) {
-            alert('通信エラーが発生しました');
+            alert('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             btn.textContent = '保存する';
             btn.disabled = false;
         }
@@ -1148,13 +1148,13 @@
             } else {
                 if (!cached) {
                     document.getElementById('watchlistContent').innerHTML =
-                        '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                        '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
                 }
             }
         } catch (error) {
             if (!cached) {
                 document.getElementById('watchlistContent').innerHTML =
-                    '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                    '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         }
     }
@@ -1364,10 +1364,10 @@
             if (response.ok) {
                 loadWatchlist();
             } else {
-                showErrorModal('削除に失敗しました。再度お試しください。');
+                showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            showErrorModal('接続エラーです。再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
         }
     }
 
@@ -1411,14 +1411,14 @@
                 if (data.status && data.status.running) {
                     startWlAnalyzePolling();
                 } else {
-                    showErrorModal('データを取得できませんでした。\n再度お試しください。');
+                    showErrorModal('データを取得できませんでした。\nしばらくしてからもう一度お試しください。');
                     btn.disabled = false;
                     btn.textContent = getWlBtnLabel();
                     stopBtn.style.display = 'none';
                 }
             }
         } catch (error) {
-            showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。\nページを再読み込みしてお試しください。');
             btn.disabled = false;
             btn.textContent = getWlBtnLabel();
             stopBtn.style.display = 'none';
@@ -1448,10 +1448,10 @@
                 showSuccessModal(data.message);
                 loadWatchlist();
             } else {
-                showErrorModal(data.error || '再計算に失敗しました');
+                showErrorModal('再計算できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (e) {
-            showErrorModal('通信エラーが発生しました');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
         }
 
         btn.disabled = false;
@@ -1506,10 +1506,10 @@
                 loadWatchlist();
             } else {
                 const data = await response.json();
-                showErrorModal('削除に失敗しました。再度お試しください。');
+                showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            showErrorModal('接続エラーです。再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
         }
     }
 
@@ -1695,10 +1695,10 @@
                 favoriteCache = data.favorite_stocks || [];
                 applyFavFilters();
             } else {
-                content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         } catch (error) {
-            content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
         }
     }
 
@@ -1840,10 +1840,10 @@
                 favoriteCache = favoriteCache.filter(item => item.company_code !== code);
                 applyFavFilters();
             } else {
-                alert('解除に失敗しました');
+                alert('解除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            alert('解除に失敗しました');
+            alert('解除できませんでした。しばらくしてからもう一度お試しください。');
         }
     }
 
@@ -1867,10 +1867,10 @@
                 dividendCache = data.dividend_stocks || [];
                 applyDivFilters();
             } else {
-                content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         } catch (error) {
-            content.innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
         }
     }
 
@@ -2020,10 +2020,10 @@
                 dividendCache = dividendCache.filter(item => item.company_code !== code);
                 applyDivFilters();
             } else {
-                alert('解除に失敗しました');
+                alert('解除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            alert('解除に失敗しました');
+            alert('解除できませんでした。しばらくしてからもう一度お試しください。');
         }
     }
 
@@ -2063,13 +2063,14 @@
                     divAnalyzePolling = setInterval(pollDivAnalyzeStatus, 2000);
                 }
             } else {
-                showErrorModal(data.error || '分析の開始に失敗しました');
+                showErrorModal('分析を開始できませんでした。しばらくしてからもう一度お試しください。');
                 btn.disabled = false;
                 btn.textContent = `${dividendCache.length}件 詳細取得`;
                 stopBtn.style.display = 'none';
             }
         } catch (error) {
-            showErrorModal('通信エラー: ' + error.message);
+            console.error('通信エラー:', error);
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             btn.disabled = false;
             btn.textContent = `${dividendCache.length}件 詳細取得`;
             stopBtn.style.display = 'none';
@@ -2129,10 +2130,10 @@
             if (response.ok) {
                 renderGcStocks(data.gc_stocks || []);
             } else {
-                document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         } catch (error) {
-            document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
         }
     }
 
@@ -2150,10 +2151,12 @@
             if (response.ok) {
                 renderGcStocks(data.gc_stocks || []);
             } else {
-                document.getElementById('gcContent').innerHTML = `<div class="watchlist-empty">取得エラー: ${data.error}</div>`;
+                console.error('GC取得エラー:', data.error);
+                document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データを取得できませんでした。しばらくしてからもう一度お試しください。</div>';
             }
         } catch (error) {
-            document.getElementById('gcContent').innerHTML = `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+            console.error('GC通信エラー:', error);
+            document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">接続がうまくいきませんでした。ページを再読み込みしてお試しください。</div>';
         } finally {
             btn.disabled = false;
             btn.textContent = '取得';
@@ -2254,14 +2257,16 @@
                 if (data.status && data.status.running) {
                     startGcAnalyzePolling();
                 } else {
-                    document.getElementById('gcContent').innerHTML = `<div class="watchlist-empty">分析エラー: ${data.error}</div>`;
+                    console.error('GC分析エラー:', data.error);
+                    document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">分析を開始できませんでした。しばらくしてからもう一度お試しください。</div>';
                     btn.disabled = false;
                     btn.textContent = '詳細取得';
                     stopBtn.style.display = 'none';
                 }
             }
         } catch (error) {
-            document.getElementById('gcContent').innerHTML = `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+            console.error('GC通信エラー:', error);
+            document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">接続がうまくいきませんでした。ページを再読み込みしてお試しください。</div>';
             btn.disabled = false;
             btn.textContent = '詳細取得';
             stopBtn.style.display = 'none';
@@ -2351,10 +2356,10 @@
             if (response.ok) {
                 renderDcStocks(data.dc_stocks || []);
             } else {
-                document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         } catch (error) {
-            document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
         }
     }
 
@@ -2372,10 +2377,12 @@
             if (response.ok) {
                 renderDcStocks(data.dc_stocks || []);
             } else {
-                document.getElementById('dcContent').innerHTML = `<div class="watchlist-empty">取得エラー: ${data.error}</div>`;
+                console.error('DC取得エラー:', data.error);
+                document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データを取得できませんでした。しばらくしてからもう一度お試しください。</div>';
             }
         } catch (error) {
-            document.getElementById('dcContent').innerHTML = `<div class="watchlist-empty">通信エラー: ${error.message}</div>`;
+            console.error('DC通信エラー:', error);
+            document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">接続がうまくいきませんでした。ページを再読み込みしてお試しください。</div>';
         } finally {
             btn.disabled = false;
             btn.textContent = '取得';
@@ -2457,10 +2464,10 @@
                 technicalStocksCache = data.technical_stocks || [];
                 applyTechFilters();
             } else {
-                document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+                document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
             }
         } catch (error) {
-            document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの取得に失敗しました</div>';
+            document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
         }
     }
 
@@ -2652,13 +2659,14 @@
                     techAnalyzePolling = setInterval(pollTechAnalyzeStatus, 2000);
                 }
             } else {
-                showErrorModal(data.error || '分析の開始に失敗しました');
+                showErrorModal('分析を開始できませんでした。しばらくしてからもう一度お試しください。');
                 btn.disabled = false;
                 btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
                 stopBtn.style.display = 'none';
             }
         } catch (error) {
-            showErrorModal('通信エラー: ' + error.message);
+            console.error('通信エラー:', error);
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             btn.disabled = false;
             btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
             stopBtn.style.display = 'none';
@@ -2725,15 +2733,15 @@
             } else {
                 const data = await response.json();
                 if (data.timeout || response.status === 504) {
-                    showErrorModal('データ取得がタイムアウトしました。\n再度お試しください。');
+                    showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\nしばらくしてからもう一度お試しください。');
                 } else {
-                    showErrorModal('データを取得できませんでした。\n再度お試しください。');
+                    showErrorModal('データを取得できませんでした。\nしばらくしてからもう一度お試しください。');
                 }
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-download" style="font-size: 0.7rem;"></i>';
             }
         } catch (error) {
-            showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。\nページを再読み込みしてお試しください。');
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-download" style="font-size: 0.7rem;"></i>';
         }

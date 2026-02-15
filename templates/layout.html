@@ -623,12 +623,12 @@
                 setTimeout(function() { msg.style.display = 'none'; }, 3000);
             } else {
                 msg.style.color = '#dc2626';
-                msg.textContent = result.data.error || '保存に失敗しました';
+                msg.textContent = '保存できませんでした。しばらくしてからもう一度お試しください。';
             }
         }).catch(function() {
             msg.style.display = 'block';
             msg.style.color = '#dc2626';
-            msg.textContent = '通信エラーが発生しました';
+            msg.textContent = '接続がうまくいきませんでした。ページを再読み込みしてお試しください。';
         }).finally(function() {
             btn.disabled = false;
             btn.textContent = '保存';
@@ -645,7 +645,7 @@
                 document.getElementById('accountUserId').textContent = d.user.id || '';
             }
         }).catch(function() {
-            document.getElementById('accountEmailDisplay').textContent = '取得エラー';
+            document.getElementById('accountEmailDisplay').textContent = '読み込みできませんでした';
         });
     }
 
@@ -684,10 +684,10 @@
                 setTimeout(function() { msg.style.display = 'none'; toggleAccountSection('email'); }, 2000);
             } else {
                 msg.style.color = '#dc2626';
-                msg.textContent = result.data.error || '変更に失敗しました';
+                msg.textContent = '変更できませんでした。しばらくしてからもう一度お試しください。';
             }
         }).catch(function() {
-            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '通信エラーが発生しました';
+            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '接続がうまくいきませんでした。ページを再読み込みしてお試しください。';
         });
     }
 
@@ -716,10 +716,10 @@
                 setTimeout(function() { msg.style.display = 'none'; toggleAccountSection('password'); }, 2000);
             } else {
                 msg.style.color = '#dc2626';
-                msg.textContent = result.data.error || '変更に失敗しました';
+                msg.textContent = '変更できませんでした。しばらくしてからもう一度お試しください。';
             }
         }).catch(function() {
-            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '通信エラーが発生しました';
+            msg.style.display = 'block'; msg.style.color = '#dc2626'; msg.textContent = '接続がうまくいきませんでした。ページを再読み込みしてお試しください。';
         });
     }
 </script>

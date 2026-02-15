@@ -224,14 +224,14 @@ function adminUsers() {
                 const res = await fetch('/api/admin/users');
                 const data = await res.json();
                 if (!res.ok) {
-                    this.loadError = 'API エラー (' + res.status + '): ' + (data.error || '不明なエラー');
-                    console.error(this.loadError);
+                    this.loadError = 'データの読み込みに失敗しました。ページを再読み込みしてお試しください。';
+                    console.error('API エラー (' + res.status + '): ' + (data.error || '不明なエラー'));
                     return;
                 }
                 this.users = data.users || [];
                 this.loadError = '';
             } catch (e) {
-                this.loadError = '通信エラー: ' + e.message;
+                this.loadError = '接続がうまくいきませんでした。ページを再読み込みしてお試しください。';
                 console.error('ユーザー取得エラー:', e);
             }
         },
@@ -302,7 +302,8 @@ function adminUsers() {
 
                 this.showNotification(`${user.name} のロールを「${this.roleLabel(newRole)}」に変更しました`);
             } catch (e) {
-                this.showNotification('ロール変更に失敗しました: ' + e.message);
+                console.error('ロール変更エラー:', e);
+                this.showNotification('ロール変更ができませんでした。しばらくしてからもう一度お試しください。');
                 // セレクトを元に戻す
                 const user = this.users.find(u => u.id === userId);
                 if (user && selectEl) selectEl.value = user.role;

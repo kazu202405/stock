@@ -2098,14 +2098,14 @@
                 if (data.timeout || response.status === 504) {
                     showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');
                 } else {
-                    showErrorModal('データを取得できませんでした。\n銘柄コードをご確認のうえ、再度お試しください。');
+                    showErrorModal('データを取得できませんでした。\n銘柄コードをご確認のうえ、もう一度お試しください。');
                 }
             }
         } catch (error) {
             if (error.name === 'AbortError' || error.message.includes('timeout')) {
                 showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');
             } else {
-                showErrorModal('通信中にエラーが発生しました。\n再度お試しください。');
+                showErrorModal('接続がうまくいきませんでした。\nページを再読み込みしてお試しください。');
             }
         } finally {
             document.getElementById('loading').style.display = 'none';
@@ -3110,12 +3110,12 @@
                 registerBtn.classList.add('registered');
                 registerBtn.disabled = false;
             } else {
-                showErrorModal('登録に失敗しました。再度お試しください。');
+                showErrorModal('登録できませんでした。しばらくしてからもう一度お試しください。');
                 registerBtn.disabled = false;
                 registerBtn.textContent = '登録';
             }
         } catch (error) {
-            showErrorModal('接続エラーです。再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             registerBtn.disabled = false;
             registerBtn.textContent = '登録';
         }
@@ -3153,10 +3153,10 @@
                 showSuccessModal('データを保存しました');
                 hideSaveSection();
             } else {
-                showErrorModal('保存に失敗しました。再度お試しください。');
+                showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            showErrorModal('接続エラーです。再度お試しください。');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
         } finally {
             saveBtn.disabled = false;
             saveBtn.textContent = '変更を保存';
@@ -3406,7 +3406,7 @@ function compareApp() {
                 var data = await res.json();
 
                 if (!res.ok) {
-                    showErrorModal(data.error || 'データの取得に失敗しました。');
+                    showErrorModal('データの読み込みに失敗しました。ページを再読み込みしてお試しください。');
                     this.loading = false;
                     return;
                 }
@@ -3421,7 +3421,7 @@ function compareApp() {
                 });
 
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。しばらくしてからお試しください。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
                 this.loading = false;
             }
         },

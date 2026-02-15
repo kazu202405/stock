@@ -590,8 +590,8 @@ function communityApp() {
                 const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.noteForm.title.trim(), content: this.noteForm.content.trim(), company_code: this.noteForm.company_code.trim() || null, company_name: this.noteForm.company_name.trim() || null, stars: this.noteForm.stars, tags, is_public: this.noteForm.is_public, is_anonymous: this.noteForm.is_anonymous, poster_name: this.noteForm.poster_name.trim() || null }) });
                 const data = await res.json();
                 if (res.ok) { this.showNoteModal = false; showSuccessModal('ノートを投稿しました'); await Promise.all([this.loadNotes(), this.loadNoteTags()]); }
-                else { showErrorModal(data.error || '保存に失敗しました'); }
-            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+                else { showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。'); }
+            } catch (e) { showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。'); }
             this.saving = false;
         },
 
@@ -629,8 +629,8 @@ function communityApp() {
                 const res = await fetch('/api/community/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.questionForm.title.trim(), content: this.questionForm.content.trim(), company_code: this.questionForm.company_code.trim() || null, company_name: this.questionForm.company_name.trim() || null, tags, is_anonymous: this.questionForm.is_anonymous, poster_name: this.questionForm.poster_name.trim() || null }) });
                 const data = await res.json();
                 if (res.ok) { this.showQuestionModal = false; showSuccessModal('質問を投稿しました'); await Promise.all([this.loadQuestions(), this.loadQuestionTags()]); }
-                else { showErrorModal(data.error || '投稿に失敗しました'); }
-            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+                else { showErrorModal('投稿できませんでした。しばらくしてからもう一度お試しください。'); }
+            } catch (e) { showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。'); }
             this.saving = false;
         },
         async toggleQuestionLike(q) {
@@ -664,7 +664,7 @@ function communityApp() {
                     this.detailAnswers = data.answers || [];
                     this.detailLikes = data.user_likes || {};
                 }
-            } catch (e) { showErrorModal('質問の取得に失敗しました'); }
+            } catch (e) { showErrorModal('データの読み込みに失敗しました。ページを再読み込みしてお試しください。'); }
             this.detailLoading = false;
         },
         async toggleDetailQuestionLike() {
@@ -693,8 +693,8 @@ function communityApp() {
                     // 一覧も更新
                     const listQ = this.questions.find(q => q.id === this.detailQuestion.id);
                     if (listQ) listQ.is_resolved = true;
-                } else { const data = await res.json(); showErrorModal(data.error || '設定に失敗しました'); }
-            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+                } else { const data = await res.json(); showErrorModal('設定できませんでした。しばらくしてからもう一度お試しください。'); }
+            } catch (e) { showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。'); }
         },
         async submitAnswer() {
             if (!this.answerForm.content.trim()) { showErrorModal('回答内容を入力してください'); return; }
@@ -710,8 +710,8 @@ function communityApp() {
                     // 一覧のanswer_countも更新
                     const listQ = this.questions.find(q => q.id === this.detailQuestion.id);
                     if (listQ) listQ.answer_count = this.detailQuestion.answer_count;
-                } else { showErrorModal(data.error || '回答の投稿に失敗しました'); }
-            } catch (e) { showErrorModal('通信エラーが発生しました'); }
+                } else { showErrorModal('回答を投稿できませんでした。しばらくしてからもう一度お試しください。'); }
+            } catch (e) { showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。'); }
             this.savingAnswer = false;
         },
 

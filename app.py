@@ -2371,7 +2371,7 @@ def api_scheduler_trigger_price_update():
 
 @app.route('/api/compare', methods=['GET'])
 def api_compare():
-    """2〜3社の財務指標を比較用に返却"""
+    """2〜3社の財務指標を比較用に返却（欠損データは自動補完）"""
     try:
         codes_param = request.args.get('codes', '')
         if not codes_param:
@@ -2383,11 +2383,85 @@ def api_compare():
 
         results = []
         for code in codes:
-            data = get_screened_data(normalize_code(code))
-            if data:
-                results.append(data)
-            else:
-                return jsonify({"error": f"{code} のデータがありません。先に分析してください。"}), 404
+            normalized = normalize_code(code)
+            data = get_screened_data(normalized)
+            if not data:
+                return jsonify({"error": f"{code} のデータがありません。先にダッシュボードで分析してください。"}), 404
+
+            # 主要指標が欠損している場合、yfinanceからリアルタイム補完
+            key_fields = ['market_cap', 'stock_price', 'per_forward', 'pbr',
+                          'dividend_yield', 'roe', 'roa', 'operating_margin',
+                          'equity_ratio', 'eps', 'dps', 'payout_ratio']
+            missing = [f for f in key_fields if not data.get(f)]
+
+            if missing:
+                try:
+                    analyzer = StockAnalyzer()
+                    stock_data = analyzer.analyze(normalized)
+                    if stock_data and stock_data.get('name'):
+                        update_fields = {}
+                        # market_cap: yfinanceは円単位、DBは億円単位
+                        if 'market_cap' in missing and stock_data.get('market_cap'):
+                            mc = stock_data['market_cap'] / 1e8
+                            data['market_cap'] = mc
+                            update_fields['market_cap'] = mc
+                        if 'stock_price' in missing and stock_data.get('last_price'):
+                            data['stock_price'] = stock_data['last_price']
+                            update_fields['stock_price'] = stock_data['last_price']
+                        if 'per_forward' in missing and stock_data.get('per'):
+                            data['per_forward'] = stock_data['per']
+                            update_fields['per_forward'] = stock_data['per']
+                        if 'pbr' in missing and stock_data.get('pbr'):
+                            data['pbr'] = stock_data['pbr']
+                            update_fields['pbr'] = stock_data['pbr']
+                        if 'dividend_yield' in missing and stock_data.get('dividend_yield'):
+                            data['dividend_yield'] = stock_data['dividend_yield']
+                            update_fields['dividend_yield'] = stock_data['dividend_yield']
+                        if 'roe' in missing:
+                            roe_val = get_latest_value(stock_data.get('roe'))
+                            if roe_val:
+                                data['roe'] = roe_val
+                                update_fields['roe'] = roe_val
+                        if 'roa' in missing:
+                            roa_val = get_latest_value(stock_data.get('roa'))
+                            if roa_val:
+                                data['roa'] = roa_val
+                                update_fields['roa'] = roa_val
+                        if 'operating_margin' in missing and stock_data.get('operating_margin') is not None:
+                            data['operating_margin'] = stock_data['operating_margin']
+                            update_fields['operating_margin'] = stock_data['operating_margin']
+                        if 'equity_ratio' in missing:
+                            eq_val = get_latest_value(stock_data.get('equity_ratio_list'))
+                            if eq_val:
+                                data['equity_ratio'] = eq_val
+                                update_fields['equity_ratio'] = eq_val
+                        if 'eps' in missing:
+                            eps_val = get_latest_value(stock_data.get('eps'))
+                            if eps_val:
+                                data['eps'] = eps_val
+                                update_fields['eps'] = eps_val
+                        if 'dps' in missing:
+                            dps_val = get_latest_value(stock_data.get('dps'))
+                            if dps_val:
+                                data['dps'] = dps_val
+                                update_fields['dps'] = dps_val
+                        if 'payout_ratio' in missing:
+                            pr_val = get_latest_value(stock_data.get('payout_ratio'))
+                            if pr_val:
+                                data['payout_ratio'] = pr_val
+                                update_fields['payout_ratio'] = pr_val
+
+                        # 補完したデータをDBにも保存（次回以降は高速化）
+                        if update_fields:
+                            update_fields['company_code'] = normalized
+                            try:
+                                update_screened_data(normalized, update_fields)
+                            except Exception:
+                                pass  # DB更新失敗は無視（比較結果には影響しない）
+                except Exception:
+                    pass  # 補完失敗は無視（既存データで返す）
+
+            results.append(data)
 
         return jsonify({"companies": results}), 200
     except Exception as e:

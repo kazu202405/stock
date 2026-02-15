@@ -1699,10 +1699,10 @@ function mypageApp() {
                     this.showModal = false;
                     await this.loadNotes();
                 } else {
-                    showErrorModal(data.error || '保存に失敗しました');
+                    showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.saving = false;
         },
@@ -1722,10 +1722,10 @@ function mypageApp() {
                     await this.loadNotes();
                 } else {
                     const data = await res.json();
-                    showErrorModal(data.error || '削除に失敗しました');
+                    showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
         },
 
@@ -1835,10 +1835,10 @@ function mypageApp() {
                     var data = await res.json();
                     this.demoTrades = data.trades || [];
                 } else {
-                    showErrorModal('売買履歴の取得に失敗しました。');
+                    showErrorModal('売買履歴の読み込みに失敗しました。ページを再読み込みしてお試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.demoHistoryLoaded = true;
         },
@@ -1917,7 +1917,7 @@ function mypageApp() {
             });
             this.livePriceLoading = false;
             if (failedCount > 0) {
-                showErrorModal(failedCount + '件の銘柄の株価取得に失敗しました');
+                showErrorModal(failedCount + '件の銘柄の株価が取得できませんでした。しばらくしてからもう一度お試しください。');
             }
         },
 
@@ -2304,10 +2304,10 @@ function mypageApp() {
                     await this.fetchDemoAccount();
                     if (this.showDemoHistory) this.fetchDemoHistory();
                 } else {
-                    showErrorModal(data.message || data.error || '資金追加に失敗しました。');
+                    showErrorModal('資金追加ができませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.demoDepositForm.submitting = false;
         },
@@ -2343,10 +2343,10 @@ function mypageApp() {
                     }
                     await this.fetchDemoAccount();
                 } else {
-                    showErrorModal(data.message || 'リセットに失敗しました。');
+                    showErrorModal('リセットができませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.demoResetForm.submitting = false;
         },
@@ -2485,10 +2485,10 @@ function mypageApp() {
                         this.fetchDemoHistory();
                     }
                 } else {
-                    showErrorModal(data.message || '購入に失敗しました。');
+                    showErrorModal('購入ができませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.demoBuyForm.submitting = false;
         },
@@ -2543,10 +2543,10 @@ function mypageApp() {
                         this.fetchDemoHistory();
                     }
                 } else {
-                    showErrorModal(data.message || '売却に失敗しました。');
+                    showErrorModal('売却ができませんでした。しばらくしてからもう一度お試しください。');
                 }
             } catch (e) {
-                showErrorModal('通信エラーが発生しました。');
+                showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             }
             this.demoSellForm.submitting = false;
         },
