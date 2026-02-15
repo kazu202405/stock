@@ -229,8 +229,20 @@
         cursor: not-allowed;
     }
 
+    /* テーブル親要素の横スクロール対応 */
+    #watchlistContent,
+    #favoriteContent,
+    #dividendContent,
+    #gcContent,
+    #dcContent,
+    #technicalContent {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .watchlist-table {
         width: 100%;
+        min-width: 700px;
         border-collapse: collapse;
         font-size: 0.9rem;
     }

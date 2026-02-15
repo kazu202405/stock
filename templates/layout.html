@@ -24,6 +24,97 @@
         font-weight: 600;
         border-bottom-color: #1b4332;
     }
+    /* ボトムタブナビ（モバイル） */
+    .bottom-tab-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: #fff;
+        border-top: 1px solid #ebebeb;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        height: 56px;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .bottom-tab-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        padding: 4px 0;
+        color: #a3a3a3;
+        text-decoration: none;
+        font-size: 10px;
+        font-weight: 500;
+        transition: color 0.15s;
+        -webkit-tap-highlight-color: transparent;
+        border: none;
+        background: none;
+        cursor: pointer;
+    }
+    .bottom-tab-item.active {
+        color: #1b4332;
+    }
+    .bottom-tab-item i {
+        font-size: 18px;
+        margin-bottom: 2px;
+    }
+    /* スライドメニュー */
+    .slide-menu-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        background: rgba(0,0,0,0.4);
+        transition: opacity 0.3s;
+    }
+    .slide-menu-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 80;
+        width: 280px;
+        max-width: 85vw;
+        background: #fff;
+        box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .slide-menu-panel.open {
+        transform: translateX(0);
+    }
+    .slide-menu-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 20px;
+        color: #525252;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.15s;
+    }
+    .slide-menu-link:hover, .slide-menu-link:active {
+        background: #fafaf8;
+    }
+    .slide-menu-link i {
+        width: 18px;
+        text-align: center;
+        font-size: 13px;
+        color: #737373;
+    }
+    /* モバイル時のボトムパディング */
+    @media (max-width: 767px) {
+        body {
+            padding-bottom: 56px;
+        }
+    }
 </style>
 
 
@@ -83,8 +174,8 @@
                     </a>
                 </div>
 
-                <!-- ユーザー名・アカウントメニュー -->
-                <div class="flex items-center space-x-3">
+                <!-- ユーザー名・アカウントメニュー（デスクトップのみ） -->
+                <div class="hidden md:flex items-center space-x-3">
                     {% if is_logged_in %}
                     <span class="text-sm font-medium" style="color: #525252;">{{ user_name }}</span>
                     <div x-data="{ accountMenuOpen: false }" class="relative" style="z-index: 60;">
@@ -125,12 +216,6 @@
                     {% endif %}
                 </div>
 
-                <!-- モバイルメニューボタン -->
-                <div class="md:hidden">
-                    <button class="p-2" style="color: #525252;">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                </div>
             </div>
         </div>
     </nav>
@@ -141,6 +226,91 @@
         <!-- ダッシュボードコンテンツ -->
         {% endblock %}
     </main>
+
+    <!-- ボトムタブナビ（モバイル専用） -->
+    <div class="bottom-tab-nav md:hidden" x-data>
+        <a href="/dashboard" class="bottom-tab-item" data-tab-path="/dashboard">
+            <i class="fas fa-home"></i>
+            <span>ホーム</span>
+        </a>
+        <a href="/search" class="bottom-tab-item" data-tab-path="/search">
+            <i class="fas fa-search"></i>
+            <span>検索</span>
+        </a>
+        <a href="/community" class="bottom-tab-item" data-tab-path="/community">
+            <i class="fas fa-users"></i>
+            <span>コミュニティ</span>
+        </a>
+        <a href="/learning" class="bottom-tab-item" data-tab-path="/learning">
+            <i class="fas fa-graduation-cap"></i>
+            <span>学習</span>
+        </a>
+        <button class="bottom-tab-item" onclick="toggleSlideMenu(true)" type="button">
+            <i class="fas fa-bars"></i>
+            <span>メニュー</span>
+        </button>
+    </div>
+
+    <!-- スライドメニュー（モバイル専用） -->
+    <div id="slideMenuOverlay" class="slide-menu-overlay md:hidden" style="display:none; opacity:0;" onclick="toggleSlideMenu(false)"></div>
+    <div id="slideMenuPanel" class="slide-menu-panel md:hidden">
+        <!-- ヘッダー -->
+        <div style="padding: 20px; border-bottom: 1px solid #ebebeb;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                {% if is_logged_in %}
+                <div>
+                    <p style="font-size:15px; font-weight:600; color:#1a1a1a;">{{ user_name }}</p>
+                    <p style="font-size:12px; color:#a3a3a3;">ログイン中</p>
+                </div>
+                {% else %}
+                <div>
+                    <p style="font-size:15px; font-weight:600; color:#1a1a1a;">Company Note</p>
+                    <p style="font-size:12px; color:#a3a3a3;">ゲスト</p>
+                </div>
+                {% endif %}
+                <button onclick="toggleSlideMenu(false)" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:18px; padding:4px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <!-- メニューリンク -->
+        <div style="padding: 8px 0;">
+            <a href="/mypage" class="slide-menu-link">
+                <i class="fas fa-file-alt"></i>マイノート
+            </a>
+            {% if is_logged_in and user_role == 'admin' %}
+            <div style="border-top: 1px solid #ebebeb; margin: 8px 0;"></div>
+            <p style="padding: 4px 20px; font-size: 11px; color: #a3a3a3; font-weight: 600;">管理者</p>
+            <a href="/dashboard/admin" class="slide-menu-link">
+                <i class="fas fa-cogs"></i>銘柄管理
+            </a>
+            <a href="/admin/users" class="slide-menu-link">
+                <i class="fas fa-user-shield"></i>ユーザー管理
+            </a>
+            {% endif %}
+        </div>
+        <!-- アカウント操作 -->
+        <div style="border-top: 1px solid #ebebeb; padding: 8px 0;">
+            {% if is_logged_in %}
+            <a href="#" onclick="toggleSlideMenu(false); setTimeout(function(){ openDisplayNameModal(); }, 200); return false;" class="slide-menu-link">
+                <i class="fas fa-user-edit"></i>投稿名の変更
+            </a>
+            <a href="#" onclick="toggleSlideMenu(false); setTimeout(function(){ openAccountSettingsModal(); }, 200); return false;" class="slide-menu-link">
+                <i class="fas fa-cog"></i>アカウント設定
+            </a>
+            <a href="#" onclick="toggleSlideMenu(false); setTimeout(function(){ document.getElementById('logoutModal').style.display='flex'; }, 200); return false;" class="slide-menu-link" style="color: #dc2626;">
+                <i class="fas fa-sign-out-alt" style="color: #dc2626;"></i>ログアウト
+            </a>
+            {% else %}
+            <a href="/login" class="slide-menu-link">
+                <i class="fas fa-sign-in-alt"></i>ログイン
+            </a>
+            <a href="/register" class="slide-menu-link">
+                <i class="fas fa-user-plus"></i>新規登録
+            </a>
+            {% endif %}
+        </div>
+    </div>
 
     <!-- エラーモーダル -->
     <div id="errorModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
@@ -369,6 +539,28 @@
         });
     }
 
+    // スライドメニュー制御
+    function toggleSlideMenu(open) {
+        var overlay = document.getElementById('slideMenuOverlay');
+        var panel = document.getElementById('slideMenuPanel');
+        if (open) {
+            overlay.style.display = 'block';
+            // 次フレームでopacityアニメーション
+            requestAnimationFrame(function() {
+                overlay.style.opacity = '1';
+                panel.classList.add('open');
+            });
+            document.body.style.overflow = 'hidden';
+        } else {
+            overlay.style.opacity = '0';
+            panel.classList.remove('open');
+            document.body.style.overflow = '';
+            setTimeout(function() {
+                overlay.style.display = 'none';
+            }, 300);
+        }
+    }
+
     // ナビゲーションのアクティブ状態を設定
     document.addEventListener('DOMContentLoaded', function() {
         const path = window.location.pathname;
@@ -380,6 +572,13 @@
                 link.classList.add('active');
             } else if (href !== '/' && !exactPaths.includes(href) && path.startsWith(href)) {
                 link.classList.add('active');
+            }
+        });
+        // ボトムタブのアクティブ状態
+        document.querySelectorAll('.bottom-tab-item[data-tab-path]').forEach(function(tab) {
+            const tabPath = tab.getAttribute('data-tab-path');
+            if (path === tabPath || (tabPath !== '/' && path.startsWith(tabPath))) {
+                tab.classList.add('active');
             }
         });
         // 投稿名・アカウント設定モーダルの背景クリックで閉じる

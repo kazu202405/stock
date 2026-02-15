@@ -1071,7 +1071,7 @@
     }
 
     .radar-chart-wrapper {
-        max-width: 520px;
+        max-width: 600px;
         margin: 0 auto;
         position: relative;
     }
@@ -1801,7 +1801,7 @@
 
                 <!-- レーダーチャート -->
                 <div class="result-card">
-                    <div class="result-card-title">レーダーチャート</div>
+                    <div class="result-card-title">レーダーチャート <span style="font-size:0.75rem; font-weight:400; color:#a3a3a3;">（各指標を0〜100に正規化して比較）</span></div>
                     <div class="radar-chart-wrapper">
                         <canvas id="radarChart"></canvas>
                     </div>
@@ -3426,7 +3426,7 @@ function compareApp() {
             }
         },
 
-        /* --- レーダーチャート描画 --- */
+        /* --- レーダーチャート描画（13指標・正規化） --- */
         renderRadarChart() {
             var canvas = document.getElementById('radarChart');
             if (!canvas) return;
@@ -3436,31 +3436,78 @@ function compareApp() {
                 this.radarChart = null;
             }
 
-            var labels = ['合致度', '自己資本比率', '営業利益率', 'ROE', 'PER逆数', '配当利回り'];
+            // 13指標の定義: key, ラベル, 正規化の方向
+            // higher=値が大きいほど良い, lower=値が小さいほど良い, neutral=大小の優劣なし
+            var metrics = [
+                { key: 'match_rate',       label: '合致度',     dir: 'higher' },
+                { key: 'market_cap',       label: '時価総額',   dir: 'neutral' },
+                { key: 'stock_price',      label: '株価',       dir: 'neutral' },
+                { key: 'per_forward',      label: 'PER',        dir: 'lower' },
+                { key: 'pbr',              label: 'PBR',        dir: 'lower' },
+                { key: 'dividend_yield',   label: '配当利回り', dir: 'higher' },
+                { key: 'payout_ratio',     label: '配当性向',   dir: 'neutral' },
+                { key: 'roe',              label: 'ROE',        dir: 'higher' },
+                { key: 'roa',              label: 'ROA',        dir: 'higher' },
+                { key: 'operating_margin', label: '営業利益率', dir: 'higher' },
+                { key: 'equity_ratio',     label: '自己資本比率', dir: 'higher' },
+                { key: 'eps',              label: 'EPS',        dir: 'higher' },
+                { key: 'dps',              label: '1株配当',    dir: 'higher' }
+            ];
+
+            var labels = metrics.map(function(m) { return m.label; });
+
+            // 各指標の最大値・最小値を算出（正規化用）
+            var maxPerMetric = [];
+            var minPerMetric = [];
+            for (var m = 0; m < metrics.length; m++) {
+                var vals = [];
+                for (var c = 0; c < this.companies.length; c++) {
+                    var v = this.safeNum(this.companies[c][metrics[m].key]);
+                    if (v > 0) vals.push(v);
+                }
+                maxPerMetric.push(vals.length > 0 ? Math.max.apply(null, vals) : 1);
+                minPerMetric.push(vals.length > 0 ? Math.min.apply(null, vals) : 0);
+            }
+
+            // 正規化: 0〜100スケールに変換
+            var self = this;
+            function normalize(metricIdx, rawVal) {
+                var maxV = maxPerMetric[metricIdx];
+                var minV = minPerMetric[metricIdx];
+                var dir = metrics[metricIdx].dir;
+                if (rawVal <= 0 || maxV <= 0) return 0;
+                if (dir === 'lower') {
+                    // PER/PBR: 小さいほど良い → 最小値=100
+                    if (minV <= 0) return 0;
+                    return Math.min((minV / rawVal) * 100, 100);
+                }
+                // higher / neutral: 最大値=100
+                return Math.min((rawVal / maxV) * 100, 100);
+            }
 
             var datasets = [];
             var colors = [
-                { border: 'rgba(27,67,50,0.7)',  fill: 'rgba(27,67,50,0.15)' },
-                { border: 'rgba(59,130,246,0.7)', fill: 'rgba(59,130,246,0.15)' },
-                { border: 'rgba(234,88,12,0.7)',  fill: 'rgba(234,88,12,0.15)' }
+                { border: 'rgba(27,67,50,0.8)',  fill: 'rgba(27,67,50,0.12)' },
+                { border: 'rgba(59,130,246,0.8)', fill: 'rgba(59,130,246,0.12)' },
+                { border: 'rgba(234,88,12,0.8)',  fill: 'rgba(234,88,12,0.12)' }
             ];
+
+            // ツールチップ用に元の値を保持
+            var rawDataSets = [];
 
             for (var i = 0; i < this.companies.length; i++) {
                 var co = this.companies[i];
-                var perInverse = (co.per_forward && co.per_forward > 0)
-                    ? Math.min(100 / co.per_forward, 20)
-                    : 0;
-
+                var normData = [];
+                var rawData = [];
+                for (var m = 0; m < metrics.length; m++) {
+                    var raw = this.safeNum(co[metrics[m].key]);
+                    rawData.push(raw);
+                    normData.push(Math.round(normalize(m, raw) * 10) / 10);
+                }
+                rawDataSets.push(rawData);
                 datasets.push({
                     label: (co.company_name || co.company_code),
-                    data: [
-                        this.safeNum(co.match_rate),
-                        this.safeNum(co.equity_ratio),
-                        this.safeNum(co.operating_margin),
-                        this.safeNum(co.roe),
-                        perInverse,
-                        this.safeNum(co.dividend_yield)
-                    ],
+                    data: normData,
                     borderColor: colors[i].border,
                     backgroundColor: colors[i].fill,
                     borderWidth: 2,
@@ -3471,15 +3518,8 @@ function compareApp() {
                 });
             }
 
-            var allValues = [];
-            for (var d = 0; d < datasets.length; d++) {
-                for (var v = 0; v < datasets[d].data.length; v++) {
-                    allValues.push(datasets[d].data[v]);
-                }
-            }
-            var maxVal = Math.max.apply(null, allValues);
-            var suggestedMax = Math.ceil(maxVal / 10) * 10;
-            if (suggestedMax < 10) suggestedMax = 10;
+            // ツールチップで元の値と単位を表示するための参照
+            var metricUnits = ['%', '億円', '円', '倍', '倍', '%', '%', '%', '%', '%', '%', '円', '円'];
 
             this.radarChart = new Chart(canvas, {
                 type: 'radar',
@@ -3496,7 +3536,7 @@ function compareApp() {
                             labels: {
                                 font: {
                                     family: "'Inter', 'Noto Sans JP', sans-serif",
-                                    size: 12
+                                    size: 11
                                 },
                                 padding: 16,
                                 usePointStyle: true,
@@ -3506,8 +3546,19 @@ function compareApp() {
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    var val = context.parsed.r;
-                                    return context.dataset.label + ': ' + (val != null ? val.toFixed(2) : '\u2014');
+                                    var di = context.datasetIndex;
+                                    var mi = context.dataIndex;
+                                    var raw = rawDataSets[di][mi];
+                                    var unit = metricUnits[mi] || '';
+                                    var label = context.dataset.label;
+                                    // 時価総額は億円に変換して表示
+                                    if (mi === 1 && raw > 0) {
+                                        raw = Math.round(raw / 100000000);
+                                    }
+                                    var formatted = (raw != null && raw > 0)
+                                        ? raw.toLocaleString(undefined, {maximumFractionDigits: 2})
+                                        : '\u2014';
+                                    return label + ': ' + formatted + unit + ' (スコア: ' + context.parsed.r + ')';
                                 }
                             }
                         }
@@ -3515,20 +3566,21 @@ function compareApp() {
                     scales: {
                         r: {
                             beginAtZero: true,
-                            suggestedMax: suggestedMax,
+                            suggestedMax: 100,
                             ticks: {
-                                stepSize: suggestedMax > 50 ? 20 : 10,
+                                stepSize: 20,
                                 font: {
                                     family: "'Inter', 'Noto Sans JP', sans-serif",
-                                    size: 10
+                                    size: 9
                                 },
                                 color: '#a3a3a3',
-                                backdropColor: 'transparent'
+                                backdropColor: 'transparent',
+                                callback: function(val) { return val + '%'; }
                             },
                             pointLabels: {
                                 font: {
                                     family: "'Inter', 'Noto Sans JP', sans-serif",
-                                    size: 12,
+                                    size: 11,
                                     weight: '500'
                                 },
                                 color: '#525252'

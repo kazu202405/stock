@@ -2547,11 +2547,20 @@ def api_demo_account():
             'user_id', user_id
         ).order('created_at', desc=True).execute()
 
-        # 各銘柄の現在価格をscreened_latestから取得
+        # 各銘柄の現在価格をscreened_latestから一括取得
         holdings = []
         total_value = 0
+        codes = [p['company_code'] for p in portfolio.data if p.get('company_code')]
+        screened_map = {}
+        if codes:
+            screened_result = client.table('screened_latest').select(
+                'company_code,stock_price'
+            ).in_('company_code', codes).execute()
+            for s in screened_result.data:
+                screened_map[s['company_code']] = s
+
         for p in portfolio.data:
-            screened = get_screened_data(p['company_code'])
+            screened = screened_map.get(p['company_code'])
             current_price = screened.get('stock_price', 0) if screened else 0
             market_value = (current_price or 0) * p['shares']
             cost_value = p['avg_cost'] * p['shares']

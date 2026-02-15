@@ -497,6 +497,30 @@
         resize: vertical;
         min-height: 60px;
     }
+    /* デモタブ切り替え */
+    .demo-tab-btn {
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #a3a3a3;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        cursor: pointer;
+        transition: color 0.15s, border-color 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .demo-tab-btn:hover {
+        color: #525252;
+    }
+    .demo-tab-btn.active {
+        color: #1b4332;
+        border-bottom-color: #1b4332;
+        font-weight: 600;
+    }
     /* 売買分析スタイル */
     .demo-analysis-section {
         background: #fff;
@@ -706,7 +730,7 @@
                                     </div>
                                 </div>
                                 <div class="demo-summary-card">
-                                    <div class="demo-summary-label">評価額合計</div>
+                                    <div class="demo-summary-label">保有銘柄合計</div>
                                     <div class="demo-summary-value">
                                         <template x-if="demoAccountLoaded">
                                             <span x-text="formatYen(demoAccount.total_value)"></span>
@@ -764,24 +788,28 @@
                                     <i class="fas fa-wallet" style="font-size:10px;"></i>
                                     資金追加
                                 </button>
-                                <button class="demo-btn-outline" :class="{ 'active': showDemoHistory }" @click="toggleDemoHistory()">
-                                    <i class="fas fa-list" style="font-size:10px;"></i>
-                                    売買履歴
-                                </button>
-                                <button class="demo-btn-outline" :class="{ 'active': showDemoAnalysis }" @click="toggleDemoAnalysis()">
-                                    <i class="fas fa-chart-bar" style="font-size:10px;"></i>
-                                    売買分析
-                                </button>
                                 <button class="demo-btn-reset" @click="confirmDemoReset()">
                                     <i class="fas fa-undo" style="font-size:9px; margin-right:2px;"></i>
                                     リセット
                                 </button>
                             </div>
 
+                            <!-- タブ切り替え -->
+                            <div style="display:flex; gap:0; border-bottom:2px solid #ebebeb; margin-bottom:16px;">
+                                <button class="demo-tab-btn" :class="{ 'active': demoActiveTab === 'holdings' }" @click="switchDemoTab('holdings')">
+                                    <i class="fas fa-briefcase" style="font-size:10px;"></i> 保有銘柄
+                                </button>
+                                <button class="demo-tab-btn" :class="{ 'active': demoActiveTab === 'history' }" @click="switchDemoTab('history')">
+                                    <i class="fas fa-list" style="font-size:10px;"></i> 売買履歴
+                                </button>
+                                <button class="demo-tab-btn" :class="{ 'active': demoActiveTab === 'analysis' }" @click="switchDemoTab('analysis')">
+                                    <i class="fas fa-chart-bar" style="font-size:10px;"></i> 売買分析
+                                </button>
+                            </div>
+
                             <!-- 保有銘柄テーブル -->
-                            <div class="demo-holdings-section">
-                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                                    <div class="demo-card-title" style="margin-bottom:0;">保有銘柄</div>
+                            <div class="demo-holdings-section" x-show="demoActiveTab === 'holdings'">
+                                <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:14px;">
                                     <button class="demo-btn-outline" @click="fetchAllLivePrices()" :disabled="livePriceLoading" style="padding:5px 12px; font-size:11px;">
                                         <template x-if="!livePriceLoading">
                                             <span><i class="fas fa-sync-alt" style="font-size:9px; margin-right:3px;"></i>現在株価を取得</span>
@@ -847,8 +875,7 @@
                             </div>
 
                             <!-- 売買履歴パネル -->
-                            <div class="demo-history-section" x-show="showDemoHistory" x-cloak>
-                                <div class="demo-card-title">売買履歴</div>
+                            <div class="demo-history-section" x-show="demoActiveTab === 'history'" x-cloak>
 
                                 <template x-if="demoHistoryLoaded && demoTrades.length > 0">
                                     <div class="demo-table-wrapper">
@@ -905,8 +932,7 @@
                             </div>
 
                             <!-- 売買分析パネル -->
-                            <div class="demo-analysis-section" x-show="showDemoAnalysis" x-cloak>
-                                <div class="demo-card-title"><i class="fas fa-chart-bar"></i>売買分析</div>
+                            <div class="demo-analysis-section" x-show="demoActiveTab === 'analysis'" x-cloak>
 
                                 <!-- データなし -->
                                 <template x-if="demoHistoryLoaded && demoTrades.length === 0">
@@ -919,7 +945,8 @@
                                 <!-- データあり -->
                                 <template x-if="demoHistoryLoaded && demoTrades.length > 0">
                                     <div>
-                                        <!-- A. 取引サマリーカード -->
+                                        <!-- A. 取引サマリーカード（コメントアウト中） -->
+                                        <!--
                                         <div class="demo-summary-grid" style="margin-top:12px;">
                                             <div class="demo-summary-card">
                                                 <div class="demo-summary-label">総取引回数</div>
@@ -937,6 +964,7 @@
                                                 <div class="demo-summary-value" style="font-size:13px;" x-text="getAnalysisData().activityPeriod"></div>
                                             </div>
                                         </div>
+                                        -->
                                         <!-- 損益サマリー -->
                                         <div class="demo-summary-grid" style="grid-template-columns: repeat(2, 1fr);">
                                             <div class="demo-summary-card">
@@ -994,9 +1022,9 @@
                                             </div>
                                         </div>
 
-                                        <!-- C. 月別取引回数チャート -->
+                                        <!-- C. 資産推移・実現損益チャート -->
                                         <div style="margin-bottom:16px;">
-                                            <div style="font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:8px; padding-left:2px;">月別取引回数</div>
+                                            <div style="font-size:12px; font-weight:600; color:#1a1a1a; margin-bottom:8px; padding-left:2px;">総資産・実現損益の推移</div>
                                             <div class="analysis-chart-container">
                                                 <canvas x-ref="analysisChart"></canvas>
                                             </div>
@@ -1064,13 +1092,15 @@
                         </div>
                     </div>
 
-                    <!-- 紹介人数 -->
+                    <!-- 紹介人数（非表示）-->
+                    <!--
                     <template x-if="referralCount !== null">
                         <div class="mt-3" style="font-size:12px; color:#737373;">
                             <i class="fas fa-users" style="margin-right:4px; font-size:10px;"></i>
                             紹介済み: <span style="font-weight:600; color:#1b4332;" x-text="referralCount + '人'"></span>
                         </div>
                     </template>
+                    -->
                 </div>
             </template>
         </div>
@@ -1470,6 +1500,7 @@ function mypageApp() {
         demoAccountLoaded: false,
         demoTrades: [],
         demoHistoryLoaded: false,
+        demoActiveTab: 'holdings',
         showDemoHistory: false,
         showDemoAnalysis: false,
         demoAnalysisChart: null,
@@ -1890,24 +1921,39 @@ function mypageApp() {
             }
         },
 
-        /* 売買履歴表示切替 */
-        toggleDemoHistory() {
-            this.showDemoHistory = !this.showDemoHistory;
-            if (this.showDemoHistory && !this.demoHistoryLoaded) {
-                this.fetchDemoHistory();
+        /* タブ切り替え */
+        switchDemoTab(tab) {
+            this.demoActiveTab = tab;
+            if (tab === 'history') {
+                this.showDemoHistory = true;
+                this.showDemoAnalysis = false;
+                if (!this.demoHistoryLoaded) {
+                    this.fetchDemoHistory();
+                }
+            } else if (tab === 'analysis') {
+                this.showDemoAnalysis = true;
+                this.showDemoHistory = false;
+                if (!this.demoHistoryLoaded) {
+                    this.fetchDemoHistory().then(() => {
+                        this.$nextTick(() => { this.renderAnalysisChart(); });
+                    });
+                } else {
+                    this.$nextTick(() => { this.renderAnalysisChart(); });
+                }
+            } else {
+                this.showDemoHistory = false;
+                this.showDemoAnalysis = false;
             }
         },
 
-        /* 売買分析表示切替 */
+        /* 売買履歴表示切替（後方互換） */
+        toggleDemoHistory() {
+            this.switchDemoTab(this.demoActiveTab === 'history' ? 'holdings' : 'history');
+        },
+
+        /* 売買分析表示切替（後方互換） */
         toggleDemoAnalysis() {
-            this.showDemoAnalysis = !this.showDemoAnalysis;
-            if (this.showDemoAnalysis && !this.demoHistoryLoaded) {
-                this.fetchDemoHistory().then(() => {
-                    this.$nextTick(() => { this.renderAnalysisChart(); });
-                });
-            } else if (this.showDemoAnalysis && this.demoHistoryLoaded) {
-                this.$nextTick(() => { this.renderAnalysisChart(); });
-            }
+            this.switchDemoTab(this.demoActiveTab === 'analysis' ? 'holdings' : 'analysis');
         },
 
         /* 売買分析データ集計 */
@@ -2040,6 +2086,55 @@ function mypageApp() {
                 return new Date(b.traded_at || 0) - new Date(a.traded_at || 0);
             });
 
+            // 月別の総資産・実現損益の推移を計算
+            var sortedMonths = Object.keys(monthMap).sort();
+            var monthlyAssets = {};
+            var monthlyRealizedPL = {};
+            var runningRealizedPL = 0;
+            // 取引を日付順にソート
+            var sortedTrades = trades.slice().sort(function(a, b) {
+                return new Date(a.traded_at || 0) - new Date(b.traded_at || 0);
+            });
+            // 各取引の時点での累計を月別に集計
+            var runningCash = (this.demoAccount && this.demoAccount.total_deposited) || 0;
+            var holdingMap = {}; // code -> { shares, totalCost }
+            for (var ti = 0; ti < sortedTrades.length; ti++) {
+                var tr = sortedTrades[ti];
+                if (!tr.traded_at) continue;
+                var trDate = new Date(tr.traded_at);
+                var mKey = trDate.getFullYear() + '/' + String(trDate.getMonth() + 1).padStart(2, '0');
+                var trCode = tr.company_code || 'unknown';
+                var trAmount = tr.total_amount || ((tr.price || 0) * (tr.shares || 0));
+
+                if (tr.trade_type === 'deposit') {
+                    // 入金はrunningCashに含まれている（total_deposited）
+                } else if (tr.trade_type === 'buy') {
+                    if (!holdingMap[trCode]) holdingMap[trCode] = { shares: 0, totalCost: 0 };
+                    holdingMap[trCode].shares += (tr.shares || 0);
+                    holdingMap[trCode].totalCost += trAmount;
+                } else if (tr.trade_type === 'sell') {
+                    if (holdingMap[trCode] && holdingMap[trCode].shares > 0) {
+                        var avgCost = holdingMap[trCode].totalCost / holdingMap[trCode].shares;
+                        runningRealizedPL += trAmount - (avgCost * (tr.shares || 0));
+                        holdingMap[trCode].shares -= (tr.shares || 0);
+                        holdingMap[trCode].totalCost = avgCost * holdingMap[trCode].shares;
+                    }
+                }
+                // 月末時点として上書き（同月の最後の取引が残る）
+                monthlyRealizedPL[mKey] = Math.round(runningRealizedPL);
+            }
+            // 総資産は現在の値のみ確定できるため、実現損益の推移を基に近似
+            // 入金総額 + 実現損益の累計 = その時点での資産概算（保有株評価を除く）
+            var depositTotal = (this.demoAccount && this.demoAccount.total_deposited) || 0;
+            for (var mi = 0; mi < sortedMonths.length; mi++) {
+                var mk = sortedMonths[mi];
+                var rpl = monthlyRealizedPL[mk] || (mi > 0 ? monthlyAssets[sortedMonths[mi-1]] - depositTotal : 0);
+                monthlyAssets[mk] = depositTotal + rpl;
+                if (!monthlyRealizedPL[mk] && mi > 0) {
+                    monthlyRealizedPL[mk] = monthlyRealizedPL[sortedMonths[mi-1]] || 0;
+                }
+            }
+
             return {
                 totalCount: trades.length,
                 buyCount: buyCount,
@@ -2048,6 +2143,8 @@ function mypageApp() {
                 activityPeriod: activityPeriod,
                 byStock: byStock,
                 monthlyData: monthMap,
+                monthlyAssets: monthlyAssets,
+                monthlyRealizedPL: monthlyRealizedPL,
                 reasonList: reasonList,
                 totalRealizedPL: totalRealizedPL,
                 totalUnrealizedPL: totalUnrealizedPL,
@@ -2055,7 +2152,7 @@ function mypageApp() {
             };
         },
 
-        /* 月別チャート描画 */
+        /* 総資産・実現損益チャート描画 */
         renderAnalysisChart() {
             var canvas = this.$refs.analysisChart;
             if (!canvas) return;
@@ -2064,8 +2161,8 @@ function mypageApp() {
             var labels = Object.keys(monthMap).sort();
             if (labels.length === 0) return;
 
-            var buyData = labels.map(function(k) { return monthMap[k].buy; });
-            var sellData = labels.map(function(k) { return monthMap[k].sell; });
+            var assetsData = labels.map(function(k) { return data.monthlyAssets[k] || 0; });
+            var plData = labels.map(function(k) { return data.monthlyRealizedPL[k] || 0; });
 
             // 既存チャートを破棄
             if (this.demoAnalysisChart) {
@@ -2073,50 +2170,109 @@ function mypageApp() {
                 this.demoAnalysisChart = null;
             }
 
+            // 金額フォーマット用
+            var formatVal = function(val) {
+                if (Math.abs(val) >= 10000) {
+                    return (val / 10000).toFixed(1) + '万';
+                }
+                return val.toLocaleString();
+            };
+
             this.demoAnalysisChart = new Chart(canvas, {
-                type: 'bar',
+                type: 'line',
                 data: {
                     labels: labels,
                     datasets: [
                         {
-                            label: '購入',
-                            data: buyData,
-                            backgroundColor: 'rgba(45, 106, 79, 0.7)',
-                            borderColor: '#2d6a4f',
-                            borderWidth: 1
+                            label: '総資産',
+                            data: assetsData,
+                            borderColor: '#1b4332',
+                            backgroundColor: 'rgba(27, 67, 50, 0.08)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: '#1b4332',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 1,
+                            pointRadius: 4,
+                            yAxisID: 'yAssets'
                         },
                         {
-                            label: '売却',
-                            data: sellData,
-                            backgroundColor: 'rgba(107, 114, 128, 0.5)',
+                            label: '実現損益（累計）',
+                            data: plData,
                             borderColor: '#6b7280',
-                            borderWidth: 1
+                            backgroundColor: 'rgba(107, 114, 128, 0.08)',
+                            borderWidth: 2,
+                            borderDash: [4, 3],
+                            fill: false,
+                            tension: 0.3,
+                            pointBackgroundColor: '#6b7280',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 1,
+                            pointRadius: 4,
+                            yAxisID: 'yPL'
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     scales: {
                         x: {
-                            stacked: true,
                             grid: { display: false },
                             ticks: { font: { size: 11 } }
                         },
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1,
-                                font: { size: 11 }
+                        yAssets: {
+                            type: 'linear',
+                            position: 'left',
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: '総資産(円)',
+                                font: { size: 10 },
+                                color: '#1b4332'
                             },
-                            grid: { color: '#ebebeb' }
+                            ticks: {
+                                font: { size: 10 },
+                                color: '#1b4332',
+                                callback: function(val) { return formatVal(val); }
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        },
+                        yPL: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '実現損益(円)',
+                                font: { size: 10 },
+                                color: '#6b7280'
+                            },
+                            ticks: {
+                                font: { size: 10 },
+                                color: '#6b7280',
+                                callback: function(val) { return formatVal(val); }
+                            },
+                            grid: { drawOnChartArea: false }
                         }
                     },
                     plugins: {
                         legend: {
                             position: 'top',
-                            labels: { font: { size: 11 }, boxWidth: 12 }
+                            labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    var val = context.parsed.y;
+                                    var label = context.dataset.label || '';
+                                    return label + ': ' + (val != null ? val.toLocaleString() + '円' : '\u2014');
+                                }
+                            }
                         }
                     }
                 }
