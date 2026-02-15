@@ -1283,11 +1283,48 @@
                 <input type="number" class="form-input" placeholder="購入する株数を入力" x-model.number="demoBuyForm.shares" min="1" step="1">
             </div>
 
-            <!-- 購入理由メモ -->
+            <!-- 購入前チェックリスト -->
             <div class="demo-form-group">
-                <label class="demo-form-label">購入理由メモ</label>
-                <textarea class="form-input" placeholder="なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう" x-model="demoBuyForm.reason" rows="3" style="resize:vertical; min-height:60px;"></textarea>
-                <div class="demo-form-helper">なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう</div>
+                <label class="demo-form-label">購入前チェック</label>
+                <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:8px; padding:12px 14px;">
+                    <div style="font-size:11px; color:#737373; margin-bottom:10px;">以下を確認してからの購入を推奨します</div>
+                    <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                        <input type="checkbox" x-model="demoBuyForm.check1" style="margin-top:2px; accent-color:#1b4332;" :disabled="demoBuyForm.checkOverride">
+                        <span :style="demoBuyForm.checkOverride ? 'color:#a3a3a3' : ''">借金（自己資本比率）は大丈夫ですか？</span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                        <input type="checkbox" x-model="demoBuyForm.check2" style="margin-top:2px; accent-color:#1b4332;" :disabled="demoBuyForm.checkOverride">
+                        <span :style="demoBuyForm.checkOverride ? 'color:#a3a3a3' : ''">割高感（PER・PBR）は大丈夫ですか？</span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                        <input type="checkbox" x-model="demoBuyForm.check3" style="margin-top:2px; accent-color:#1b4332;" :disabled="demoBuyForm.checkOverride">
+                        <span :style="demoBuyForm.checkOverride ? 'color:#a3a3a3' : ''">業績（売上・利益）は伸びていますか？</span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                        <input type="checkbox" x-model="demoBuyForm.check4" style="margin-top:2px; accent-color:#1b4332;" :disabled="demoBuyForm.checkOverride">
+                        <span :style="demoBuyForm.checkOverride ? 'color:#a3a3a3' : ''">この会社が何で稼いでいるか理解していますか？</span>
+                    </label>
+                    <div style="border-top:1px solid #ebebeb; margin:10px 0 8px; padding-top:8px;">
+                        <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:12px; color:#525252;">
+                            <input type="checkbox" x-model="demoBuyForm.checkOverride" @change="if(demoBuyForm.checkOverride){ demoBuyForm.check1=false; demoBuyForm.check2=false; demoBuyForm.check3=false; demoBuyForm.check4=false; }" style="margin-top:2px; accent-color:#6b7280;">
+                            <span>上記に該当しないが、強い購入理由がある</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 購入理由メモ（必須） -->
+            <div class="demo-form-group">
+                <label class="demo-form-label">購入理由メモ <span style="color:#dc2626; font-size:11px;">※必須</span></label>
+                <textarea class="form-input" placeholder="なぜこの銘柄を購入するのか、理由を記録しましょう" x-model="demoBuyForm.reason" rows="3" style="resize:vertical; min-height:60px;" :style="!demoBuyForm.reason.trim() && (demoBuyForm.checksPassed || demoBuyForm.checkOverride) ? 'border-color:#f59e0b' : ''"></textarea>
+                <div class="demo-form-helper" style="color:#737373;">
+                    <template x-if="demoBuyForm.checkOverride">
+                        <span style="color:#9a3412;">チェック項目を省略するため、購入理由の記入が特に重要です</span>
+                    </template>
+                    <template x-if="!demoBuyForm.checkOverride">
+                        <span>購入の判断理由を自分の言葉で説明できますか？</span>
+                    </template>
+                </div>
             </div>
 
             <!-- 合計金額・残高 -->
@@ -1517,7 +1554,10 @@ function mypageApp() {
             priceLoading: false,
             shares: '',
             reason: '',
-            submitting: false
+            submitting: false,
+            check1: false, check2: false, check3: false, check4: false,
+            checkOverride: false,
+            get checksPassed() { return this.check1 && this.check2 && this.check3 && this.check4; }
         },
         demoSellModalOpen: false,
         demoSellForm: {
@@ -2365,7 +2405,10 @@ function mypageApp() {
                 shares: '',
                 reason: '',
                 submitting: false,
-                existingHolding: null
+                existingHolding: null,
+                check1: false, check2: false, check3: false, check4: false,
+                checkOverride: false,
+                get checksPassed() { return this.check1 && this.check2 && this.check3 && this.check4; }
             };
             this.demoBuyModalOpen = true;
         },
@@ -2457,6 +2500,11 @@ function mypageApp() {
             if (!this.demoBuyForm.shares || this.demoBuyForm.shares <= 0) return false;
             var total = this.demoBuyForm.refPrice * this.demoBuyForm.shares;
             if (total > this.demoAccount.cash_balance) return false;
+            // チェックリスト: 全チェック or 代替チェック
+            var checksOk = (this.demoBuyForm.check1 && this.demoBuyForm.check2 && this.demoBuyForm.check3 && this.demoBuyForm.check4) || this.demoBuyForm.checkOverride;
+            if (!checksOk) return false;
+            // 購入理由メモ必須
+            if (!this.demoBuyForm.reason || !this.demoBuyForm.reason.trim()) return false;
             return true;
         },
 

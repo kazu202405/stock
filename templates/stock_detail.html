@@ -379,6 +379,43 @@
     }
 
     /* デモ売買モーダル */
+    /* ノート作成モーダル用 */
+    .note-form-input {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; transition: border-color 0.2s;
+        box-sizing: border-box;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+    }
+    .note-form-input:focus { border-color: #2d6a4f; }
+    .note-form-textarea {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #ebebeb; border-radius: 8px;
+        font-size: 13px; color: #1a1a1a; background: #fff;
+        outline: none; resize: vertical; min-height: 120px;
+        transition: border-color 0.2s; box-sizing: border-box;
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+    }
+    .note-form-textarea:focus { border-color: #2d6a4f; }
+    .note-form-label {
+        display: block; font-size: 12px; font-weight: 600;
+        color: #525252; margin-bottom: 4px;
+    }
+    .note-star-input { cursor: pointer; font-size: 18px; transition: color 0.15s; user-select: none; }
+    .note-toggle {
+        position: relative; width: 36px; height: 20px;
+        background: #d4d4d4; border-radius: 10px;
+        cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+    }
+    .note-toggle.on { background: #1b4332; }
+    .note-toggle .note-toggle-dot {
+        position: absolute; top: 2px; left: 2px;
+        width: 16px; height: 16px; background: #fff;
+        border-radius: 50%; transition: left 0.2s;
+    }
+    .note-toggle.on .note-toggle-dot { left: 18px; }
+
     .demo-modal-overlay {
         position: fixed; inset: 0; z-index: 9999;
         background: rgba(0,0,0,0.4);
@@ -1905,9 +1942,103 @@
         </div>
         <!-- フッター -->
         <div style="padding:12px 24px; border-top:1px solid #ebebeb; text-align:center;">
-            <a href="/mypage" style="display:inline-block; padding:8px 24px; background:#1b4332; color:white; border-radius:6px; font-size:0.8rem; font-weight:500; text-decoration:none; transition:background 0.2s;" onmouseover="this.style.background='#2d6a4f'" onmouseout="this.style.background='#1b4332'">
+            <button onclick="closeNotesModal(); openWriteNoteModal();" style="display:inline-block; padding:8px 24px; background:#1b4332; color:white; border:none; border-radius:6px; font-size:0.8rem; font-weight:500; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#2d6a4f'" onmouseout="this.style.background='#1b4332'">
                 自分もノートを書く
-            </a>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== ノート作成モーダル ===== -->
+<div id="writeNoteModal" class="demo-modal-overlay" style="display:none;" onclick="if(event.target===this)closeWriteNoteModal()">
+    <div class="demo-modal-card" style="max-width:560px;" onclick="event.stopPropagation()">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+            <h3 style="font-size:15px; font-weight:700; color:#1a1a1a; margin:0;">新しいノートを作成</h3>
+            <button onclick="closeWriteNoteModal()" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <!-- 投稿名（公開時のみ） -->
+            <div id="noteFieldPosterName" style="display:none;">
+                <label class="note-form-label">投稿名</label>
+                <input type="text" class="note-form-input" id="noteFormPosterName" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
+                <p style="font-size:11px; color:#a3a3a3; margin-top:3px;">この投稿だけの表示名を設定できます</p>
+            </div>
+
+            <!-- タイトル -->
+            <div>
+                <label class="note-form-label">タイトル <span style="color:#dc2626;">*</span></label>
+                <input type="text" class="note-form-input" id="noteFormTitle" placeholder="例: この企業の営業利益率の秘密">
+            </div>
+
+            <!-- 企業紐づけ（自動入力） -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label class="note-form-label">銘柄コード</label>
+                    <input type="text" class="note-form-input" id="noteFormCode" style="background:#f7f7f5; color:#737373;" readonly>
+                </div>
+                <div>
+                    <label class="note-form-label">企業名</label>
+                    <input type="text" class="note-form-input" id="noteFormCompanyName" style="background:#f7f7f5; color:#737373;" readonly>
+                </div>
+            </div>
+
+            <!-- 本文 -->
+            <div>
+                <label class="note-form-label">本文 <span style="color:#dc2626;">*</span></label>
+                <textarea class="note-form-textarea" id="noteFormContent" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
+            </div>
+
+            <!-- 理解度 -->
+            <div>
+                <label class="note-form-label">理解度</label>
+                <div style="display:flex; align-items:center; gap:2px;" id="noteStarsContainer">
+                    <span class="note-star-input" data-star="1" onclick="setNoteStar(1)" style="color:#d4d4d4;">&#9733;</span>
+                    <span class="note-star-input" data-star="2" onclick="setNoteStar(2)" style="color:#d4d4d4;">&#9733;</span>
+                    <span class="note-star-input" data-star="3" onclick="setNoteStar(3)" style="color:#d4d4d4;">&#9733;</span>
+                    <span class="note-star-input" data-star="4" onclick="setNoteStar(4)" style="color:#d4d4d4;">&#9733;</span>
+                    <span class="note-star-input" data-star="5" onclick="setNoteStar(5)" style="color:#d4d4d4;">&#9733;</span>
+                    <button id="noteStarClear" onclick="setNoteStar(0)" style="display:none; font-size:11px; margin-left:8px; color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
+                </div>
+            </div>
+
+            <!-- タグ -->
+            <div>
+                <label class="note-form-label">タグ（カンマ区切り）</label>
+                <input type="text" class="note-form-input" id="noteFormTags" placeholder="例: 高収益, IoT, ファブレス">
+            </div>
+
+            <!-- 公開設定 -->
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; border-radius:8px; background:#f8faf8; border:1px solid #ebebeb;">
+                <div>
+                    <p style="font-size:12px; font-weight:600; color:#1a1a1a; margin:0;">コミュニティに公開</p>
+                    <p style="font-size:11px; color:#a3a3a3; margin:3px 0 0;">他のユーザーがあなたのノートを閲覧できます</p>
+                </div>
+                <div class="note-toggle" id="noteTogglePublic" onclick="toggleNotePublic()">
+                    <div class="note-toggle-dot"></div>
+                </div>
+            </div>
+
+            <!-- 匿名設定（公開時のみ） -->
+            <div id="noteFieldAnonymous" style="display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; border-radius:8px; background:#f8faf8; border:1px solid #ebebeb;">
+                    <div>
+                        <p style="font-size:12px; font-weight:600; color:#1a1a1a; margin:0;">匿名で投稿</p>
+                        <p style="font-size:11px; color:#a3a3a3; margin:3px 0 0;">投稿名を非表示にします</p>
+                    </div>
+                    <div class="note-toggle" id="noteToggleAnonymous" onclick="toggleNoteAnonymous()">
+                        <div class="note-toggle-dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ボタン -->
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px; border-top:1px solid #ebebeb; padding-top:16px;">
+            <button onclick="closeWriteNoteModal()" style="background:transparent; color:#2d6a4f; border:1px solid #d4d4d4; border-radius:6px; padding:6px 16px; font-size:12px; font-weight:500; cursor:pointer;">キャンセル</button>
+            <button id="noteSubmitBtn" onclick="submitNote()" style="background:#1b4332; color:#fff; border:none; border-radius:6px; padding:6px 20px; font-size:12px; font-weight:500; cursor:pointer;">作成する</button>
         </div>
     </div>
 </div>
@@ -1921,6 +2052,154 @@
             if (name && modal) modal.textContent = name.textContent;
         }, 1000);
     });
+</script>
+
+<script>
+(function() {
+    /* ノート作成モーダル状態 */
+    var noteState = {
+        stars: 0,
+        isPublic: false,
+        isAnonymous: false,
+        saving: false
+    };
+
+    window.openWriteNoteModal = function() {
+        var modal = document.getElementById('writeNoteModal');
+        modal.style.display = 'flex';
+
+        /* フォーム初期化 */
+        document.getElementById('noteFormTitle').value = '';
+        document.getElementById('noteFormContent').value = '';
+        document.getElementById('noteFormTags').value = '';
+        document.getElementById('noteFormPosterName').value = '';
+
+        /* 銘柄情報を自動入力 */
+        var code = (typeof STOCK_CODE !== 'undefined') ? STOCK_CODE.replace('.T', '') : '';
+        var companyName = '';
+        var nameEl = document.getElementById('companyName');
+        if (nameEl) companyName = nameEl.textContent.trim();
+        document.getElementById('noteFormCode').value = code;
+        document.getElementById('noteFormCompanyName').value = companyName;
+
+        /* 状態リセット */
+        noteState.stars = 0;
+        noteState.isPublic = false;
+        noteState.isAnonymous = false;
+        noteState.saving = false;
+        updateNoteStarsUI();
+        updateNoteTogglesUI();
+        document.getElementById('noteSubmitBtn').textContent = '作成する';
+        document.getElementById('noteSubmitBtn').disabled = false;
+    };
+
+    window.closeWriteNoteModal = function() {
+        document.getElementById('writeNoteModal').style.display = 'none';
+    };
+
+    window.setNoteStar = function(n) {
+        noteState.stars = n;
+        updateNoteStarsUI();
+    };
+
+    function updateNoteStarsUI() {
+        var stars = document.querySelectorAll('#noteStarsContainer .note-star-input');
+        for (var i = 0; i < stars.length; i++) {
+            var val = parseInt(stars[i].getAttribute('data-star'));
+            stars[i].style.color = val <= noteState.stars ? '#eab308' : '#d4d4d4';
+        }
+        document.getElementById('noteStarClear').style.display = noteState.stars > 0 ? '' : 'none';
+    }
+
+    window.toggleNotePublic = function() {
+        noteState.isPublic = !noteState.isPublic;
+        updateNoteTogglesUI();
+    };
+
+    window.toggleNoteAnonymous = function() {
+        noteState.isAnonymous = !noteState.isAnonymous;
+        updateNoteTogglesUI();
+    };
+
+    function updateNoteTogglesUI() {
+        var pubToggle = document.getElementById('noteTogglePublic');
+        var anonField = document.getElementById('noteFieldAnonymous');
+        var anonToggle = document.getElementById('noteToggleAnonymous');
+        var posterField = document.getElementById('noteFieldPosterName');
+
+        if (noteState.isPublic) {
+            pubToggle.classList.add('on');
+            anonField.style.display = '';
+            posterField.style.display = '';
+        } else {
+            pubToggle.classList.remove('on');
+            anonField.style.display = 'none';
+            posterField.style.display = 'none';
+            noteState.isAnonymous = false;
+        }
+
+        if (noteState.isAnonymous) {
+            anonToggle.classList.add('on');
+        } else {
+            anonToggle.classList.remove('on');
+        }
+    }
+
+    window.submitNote = async function() {
+        var title = (document.getElementById('noteFormTitle').value || '').trim();
+        var content = (document.getElementById('noteFormContent').value || '').trim();
+        if (!title || !content) {
+            showErrorModal('タイトルと本文は必須です');
+            return;
+        }
+
+        var tagsRaw = document.getElementById('noteFormTags').value || '';
+        var tags = tagsRaw.split(/[,、]/).map(function(t) { return t.trim(); }).filter(function(t) { return t.length > 0; });
+
+        var payload = {
+            title: title,
+            content: content,
+            company_code: (document.getElementById('noteFormCode').value || '').trim() || null,
+            company_name: (document.getElementById('noteFormCompanyName').value || '').trim() || null,
+            stars: noteState.stars,
+            tags: tags,
+            is_public: noteState.isPublic,
+            is_anonymous: noteState.isAnonymous,
+            poster_name: (document.getElementById('noteFormPosterName').value || '').trim() || null,
+        };
+
+        noteState.saving = true;
+        var btn = document.getElementById('noteSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:4px;"></i>保存中...';
+
+        try {
+            var res = await fetch('/api/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            var data = await res.json();
+            if (res.ok) {
+                closeWriteNoteModal();
+                showSuccessModal('ノートを作成しました');
+                /* みんなのノート一覧を次回開いた時にリロードするため再取得 */
+                if (typeof loadCommunityNotes === 'function') {
+                    loadCommunityNotes();
+                }
+            } else {
+                showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。');
+            }
+        } catch (e) {
+            console.error('ノート保存エラー:', e);
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
+        }
+
+        noteState.saving = false;
+        btn.disabled = false;
+        btn.textContent = '作成する';
+    };
+})();
 </script>
 
 <!-- ===== デモ購入モーダル ===== -->
@@ -1969,11 +2248,41 @@
             <input type="number" class="demo-form-input" id="buyModalShares" placeholder="購入する株数を入力" min="1" step="1">
         </div>
 
-        <!-- 購入理由メモ -->
+        <!-- 購入前チェックリスト -->
         <div class="demo-form-group">
-            <label class="demo-form-label">購入理由メモ</label>
-            <textarea class="demo-form-input" id="buyModalReason" placeholder="なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう" rows="3" style="resize:vertical; min-height:60px;"></textarea>
-            <div class="demo-form-helper">なぜこの企業に注目したのか、どんな点を評価したのか記録しましょう</div>
+            <label class="demo-form-label">購入前チェック</label>
+            <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:8px; padding:12px 14px;">
+                <div style="font-size:11px; color:#737373; margin-bottom:10px;">以下を確認してからの購入を推奨します</div>
+                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                    <input type="checkbox" id="buyCheck1" onchange="updateBuyModalState()" style="margin-top:2px; accent-color:#1b4332;">
+                    <span>借金（自己資本比率）は大丈夫ですか？</span>
+                </label>
+                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                    <input type="checkbox" id="buyCheck2" onchange="updateBuyModalState()" style="margin-top:2px; accent-color:#1b4332;">
+                    <span>割高感（PER・PBR）は大丈夫ですか？</span>
+                </label>
+                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                    <input type="checkbox" id="buyCheck3" onchange="updateBuyModalState()" style="margin-top:2px; accent-color:#1b4332;">
+                    <span>業績（売上・利益）は伸びていますか？</span>
+                </label>
+                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; cursor:pointer; font-size:12px; color:#1a1a1a;">
+                    <input type="checkbox" id="buyCheck4" onchange="updateBuyModalState()" style="margin-top:2px; accent-color:#1b4332;">
+                    <span>この会社が何で稼いでいるか理解していますか？</span>
+                </label>
+                <div style="border-top:1px solid #ebebeb; margin:10px 0 8px; padding-top:8px;">
+                    <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:12px; color:#525252;">
+                        <input type="checkbox" id="buyCheckOverride" onchange="handleBuyCheckOverride()" style="margin-top:2px; accent-color:#6b7280;">
+                        <span>上記に該当しないが、強い購入理由がある</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 購入理由メモ（必須） -->
+        <div class="demo-form-group">
+            <label class="demo-form-label">購入理由メモ <span style="color:#dc2626; font-size:11px;">※必須</span></label>
+            <textarea class="demo-form-input" id="buyModalReason" placeholder="なぜこの銘柄を購入するのか、理由を記録しましょう" rows="3" style="resize:vertical; min-height:60px;"></textarea>
+            <div class="demo-form-helper" id="buyModalReasonHelper">購入の判断理由を自分の言葉で説明できますか？</div>
         </div>
 
         <!-- 合計金額 -->
@@ -2117,23 +2426,67 @@
         } catch (e) { /* フォールバックも失敗 */ }
     }
 
+    /* チェックリスト：オーバーライド切り替え */
+    window.handleBuyCheckOverride = function() {
+        var override = document.getElementById('buyCheckOverride').checked;
+        var checks = ['buyCheck1', 'buyCheck2', 'buyCheck3', 'buyCheck4'];
+        for (var i = 0; i < checks.length; i++) {
+            var el = document.getElementById(checks[i]);
+            if (override) {
+                el.checked = false;
+                el.disabled = true;
+                el.parentElement.querySelector('span').style.color = '#a3a3a3';
+            } else {
+                el.disabled = false;
+                el.parentElement.querySelector('span').style.color = '';
+            }
+        }
+        /* ヘルパーテキスト更新 */
+        var helper = document.getElementById('buyModalReasonHelper');
+        if (override) {
+            helper.textContent = 'チェック項目を省略するため、購入理由の記入が特に重要です';
+            helper.style.color = '#9a3412';
+        } else {
+            helper.textContent = '購入の判断理由を自分の言葉で説明できますか？';
+            helper.style.color = '#737373';
+        }
+        updateBuyModalState();
+    };
+
     /* 購入モーダル：合計金額・ボタン状態を更新 */
-    function updateBuyModalState() {
+    window.updateBuyModalState = function() {
         var shares = parseInt(document.getElementById('buyModalShares').value) || 0;
         var totalInfo = document.getElementById('buyModalTotalInfo');
         var totalEl = document.getElementById('buyModalTotal');
         var submitBtn = document.getElementById('buyModalSubmit');
+        var reason = (document.getElementById('buyModalReason').value || '').trim();
+
+        /* チェックリスト判定 */
+        var c1 = document.getElementById('buyCheck1').checked;
+        var c2 = document.getElementById('buyCheck2').checked;
+        var c3 = document.getElementById('buyCheck3').checked;
+        var c4 = document.getElementById('buyCheck4').checked;
+        var override = document.getElementById('buyCheckOverride').checked;
+        var checksOk = (c1 && c2 && c3 && c4) || override;
+
+        /* 理由メモのボーダー色で必須を表現 */
+        var reasonEl = document.getElementById('buyModalReason');
+        if (!reason && checksOk) {
+            reasonEl.style.borderColor = '#f59e0b';
+        } else {
+            reasonEl.style.borderColor = '';
+        }
 
         if (demoState.refPrice != null && shares > 0) {
             var total = demoState.refPrice * shares;
             totalInfo.style.display = '';
             totalEl.textContent = formatYen(total);
-            submitBtn.disabled = (total > demoState.cashBalance || demoState.buySubmitting);
+            submitBtn.disabled = (total > demoState.cashBalance || !checksOk || !reason || demoState.buySubmitting);
         } else {
             totalInfo.style.display = 'none';
             submitBtn.disabled = true;
         }
-    }
+    };
 
     /* 売却モーダル：合計金額・ボタン状態を更新 */
     function updateSellModalState() {
@@ -2164,11 +2517,24 @@
         document.getElementById('buyModalName').textContent = getCompanyName();
         document.getElementById('buyModalShares').value = '';
         document.getElementById('buyModalReason').value = '';
+        document.getElementById('buyModalReason').style.borderColor = '';
         document.getElementById('buyModalTotalInfo').style.display = 'none';
         document.getElementById('buyModalSubmit').disabled = true;
         document.getElementById('buyModalPrice').textContent = '\u2014';
         document.getElementById('buyModalCash').textContent = '\u2014';
         document.getElementById('buyModalPriceLoading').style.display = '';
+
+        /* チェックリスト初期化 */
+        ['buyCheck1', 'buyCheck2', 'buyCheck3', 'buyCheck4', 'buyCheckOverride'].forEach(function(id) {
+            var el = document.getElementById(id);
+            el.checked = false;
+            el.disabled = false;
+            var span = el.parentElement.querySelector('span');
+            if (span) span.style.color = '';
+        });
+        var helper = document.getElementById('buyModalReasonHelper');
+        helper.textContent = '購入の判断理由を自分の言葉で説明できますか？';
+        helper.style.color = '#737373';
 
         /* データ取得（並列） */
         await Promise.all([fetchDemoAccount(), fetchRefPrice()]);
@@ -2195,8 +2561,16 @@
     window.executeDetailBuy = async function() {
         if (demoState.buySubmitting) return;
         var shares = parseInt(document.getElementById('buyModalShares').value) || 0;
-        var reason = document.getElementById('buyModalReason').value;
+        var reason = (document.getElementById('buyModalReason').value || '').trim();
         if (!demoState.refPrice || shares <= 0) return;
+
+        /* チェックリスト＋理由メモの最終確認 */
+        var c1 = document.getElementById('buyCheck1').checked;
+        var c2 = document.getElementById('buyCheck2').checked;
+        var c3 = document.getElementById('buyCheck3').checked;
+        var c4 = document.getElementById('buyCheck4').checked;
+        var override = document.getElementById('buyCheckOverride').checked;
+        if (!((c1 && c2 && c3 && c4) || override) || !reason) return;
 
         demoState.buySubmitting = true;
         document.getElementById('buyModalSubmit').disabled = true;
@@ -2303,7 +2677,9 @@
     document.addEventListener('DOMContentLoaded', function() {
         var buyShares = document.getElementById('buyModalShares');
         var sellShares = document.getElementById('sellModalShares');
+        var buyReason = document.getElementById('buyModalReason');
         if (buyShares) buyShares.addEventListener('input', updateBuyModalState);
+        if (buyReason) buyReason.addEventListener('input', updateBuyModalState);
         if (sellShares) sellShares.addEventListener('input', updateSellModalState);
     });
 })();
