@@ -137,9 +137,11 @@
                         <button class="sort-btn" :class="{ 'active': sortBy === 'date' }" @click="sortBy = 'date'" style="text-align:left;">
                             <i class="fas fa-clock mr-1" style="font-size:10px;"></i>新しい順
                         </button>
+                        <!-- 理解度順（非表示）
                         <button class="sort-btn" :class="{ 'active': sortBy === 'star' }" @click="sortBy = 'star'" style="text-align:left;">
                             <i class="fas fa-star mr-1" style="font-size:10px;"></i>理解度順
                         </button>
+                        -->
                     </div>
                 </div>
 
@@ -208,12 +210,14 @@
                                                     <span class="tag" @click="activeTag = t" x-text="t"></span>
                                                 </template>
                                             </div>
+                                            <!-- 理解度（非表示）
                                             <div x-show="note.stars > 0" class="flex items-center gap-0.5">
                                                 <span class="text-xs" style="color:#a3a3a3;">理解度</span>
                                                 <template x-for="i in 5" :key="i">
                                                     <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
                                                 </template>
                                             </div>
+                                            -->
                                         </div>
                                     </div>
                                 </div>
@@ -319,6 +323,7 @@
                     <label class="cm-form-label">本文 <span style="color:#dc2626;">*</span></label>
                     <textarea class="cm-form-textarea" x-model="noteForm.content" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
                 </div>
+                <!-- 理解度（非表示）
                 <div>
                     <label class="cm-form-label">理解度</label>
                     <div class="flex items-center gap-1">
@@ -326,6 +331,7 @@
                         <button x-show="noteForm.stars > 0" @click="noteForm.stars = 0" class="text-xs ml-2" style="color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
                     </div>
                 </div>
+                -->
                 <div><label class="cm-form-label">タグ（カンマ区切り）</label><input type="text" class="cm-form-input" x-model="noteForm.tagsInput" placeholder="例: 高収益, IoT, ファブレス"></div>
                 <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f0fdf4; border:1px solid #d4edda;">
                     <div><p class="text-xs font-bold" style="color:#1a1a1a;">コミュニティに公開</p><p class="text-xs" style="color:#737373;">他のユーザーがあなたのノートを閲覧できます</p></div>
@@ -524,7 +530,13 @@ function communityApp() {
                     this.userDisplayName = meData.user.display_name || meData.user.name || '';
                 }
             } catch (e) {}
-            await Promise.all([this.loadNotes(), this.loadNoteTags()]);
+            // URLハッシュで質問タブに直接遷移
+            if (window.location.hash === '#questions') {
+                await Promise.all([this.loadNotes(), this.loadNoteTags()]);
+                await this.switchTab('questions');
+            } else {
+                await Promise.all([this.loadNotes(), this.loadNoteTags()]);
+            }
         },
 
         async switchTab(t) {
@@ -574,7 +586,7 @@ function communityApp() {
             let result = [...this.notes];
             if (this.searchQuery) { const q = this.searchQuery.toLowerCase(); result = result.filter(n => (n.title||'').toLowerCase().includes(q) || (n.company_code||'').includes(q) || (n.company_name||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q) || (n.tags||[]).some(t => t.toLowerCase().includes(q))); }
             if (this.activeTag) { result = result.filter(n => (n.tags||[]).includes(this.activeTag)); }
-            if (this.sortBy === 'star') { result.sort((a, b) => (b.stars||0) - (a.stars||0)); }
+            if (this.sortBy === 'star') { /* result.sort((a, b) => (b.stars||0) - (a.stars||0)); */ }
             else { result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); }
             return result;
         },

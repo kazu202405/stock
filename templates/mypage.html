@@ -614,6 +614,16 @@
         </div>
     </div>
 
+    <!-- 未回答質問の通知バナー -->
+    <div id="unansweredBanner" class="max-w-7xl mx-auto px-6" style="display:none; padding-top:12px;">
+        <a href="/community#questions" style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#fefce8; border:1px solid #fde68a; border-radius:8px; text-decoration:none; transition:background 0.2s;"
+           onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">
+            <i class="fas fa-comment-dots" style="color:#ca8a04; font-size:13px;"></i>
+            <span style="font-size:12px; color:#854d0e;">回答がない質問が <strong id="unansweredCount">0</strong> 件あります</span>
+            <i class="fas fa-chevron-right" style="color:#ca8a04; font-size:10px; margin-left:auto;"></i>
+        </a>
+    </div>
+
     <!-- ダッシュボード本体 -->
     <div class="max-w-7xl mx-auto px-6 py-5">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -660,11 +670,13 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span x-show="note.is_public" class="text-xs px-1.5 py-0.5 rounded" style="background:#f0fdf4; color:#15803d; font-size:10px;">公開</span>
+                                            <!-- 理解度（非表示）
                                             <span>
                                                 <template x-for="i in 5" :key="i">
                                                     <span :class="i <= (note.stars || 0) ? 'star' : 'star-empty'">&#9733;</span>
                                                 </template>
                                             </span>
+                                            -->
                                             <!-- 操作ボタン -->
                                             <div class="note-actions">
                                                 <button class="note-action-btn delete" @click.stop="confirmDelete(note)" title="削除">
@@ -1148,7 +1160,7 @@
                     <textarea class="form-textarea" x-model="form.content" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
                 </div>
 
-                <!-- 理解度 -->
+                <!-- 理解度（非表示）
                 <div>
                     <label class="form-label">理解度</label>
                     <div class="flex items-center gap-1">
@@ -1158,6 +1170,7 @@
                         <button x-show="form.stars > 0" @click="form.stars = 0" class="text-xs ml-2" style="color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
                     </div>
                 </div>
+                -->
 
                 <!-- タグ -->
                 <div>
@@ -1313,16 +1326,16 @@
                 </div>
             </div>
 
-            <!-- 購入理由メモ（必須） -->
+            <!-- 購入理由メモ -->
             <div class="demo-form-group">
-                <label class="demo-form-label">購入理由メモ <span style="color:#dc2626; font-size:11px;">※必須</span></label>
-                <textarea class="form-input" placeholder="なぜこの銘柄を購入するのか、理由を記録しましょう" x-model="demoBuyForm.reason" rows="3" style="resize:vertical; min-height:60px;" :style="!demoBuyForm.reason.trim() && (demoBuyForm.checksPassed || demoBuyForm.checkOverride) ? 'border-color:#f59e0b' : ''"></textarea>
-                <div class="demo-form-helper" style="color:#737373;">
-                    <template x-if="demoBuyForm.checkOverride">
-                        <span style="color:#9a3412;">チェック項目を省略するため、購入理由の記入が特に重要です</span>
+                <label class="demo-form-label">購入理由メモ <span x-show="demoBuyForm.checkOverride && !demoBuyForm.checksPassed" style="color:#dc2626; font-size:11px;">※必須</span></label>
+                <textarea class="form-input" placeholder="なぜこの銘柄を購入するのか、理由を記録しましょう" x-model="demoBuyForm.reason" rows="3" style="resize:vertical; min-height:60px;" :style="demoBuyForm.checkOverride && !demoBuyForm.checksPassed && !demoBuyForm.reason.trim() ? 'border-color:#f59e0b' : ''"></textarea>
+                <div class="demo-form-helper" :style="demoBuyForm.checkOverride && !demoBuyForm.checksPassed ? 'color:#9a3412' : 'color:#737373'">
+                    <template x-if="demoBuyForm.checkOverride && !demoBuyForm.checksPassed">
+                        <span>チェック項目を省略するため、購入理由の記入が必要です</span>
                     </template>
-                    <template x-if="!demoBuyForm.checkOverride">
-                        <span>購入の判断理由を自分の言葉で説明できますか？</span>
+                    <template x-if="!(demoBuyForm.checkOverride && !demoBuyForm.checksPassed)">
+                        <span>購入の判断理由を自分の言葉で説明できますか？ ギャンブルになっていませんか？</span>
                     </template>
                 </div>
             </div>
@@ -1631,10 +1644,11 @@ function mypageApp() {
         },
 
         get avgStars() {
-            const rated = this.notes.filter(n => n.stars > 0);
-            if (rated.length === 0) return '-';
-            const avg = rated.reduce((s, n) => s + n.stars, 0) / rated.length;
-            return '\u2605' + avg.toFixed(1);
+            // const rated = this.notes.filter(n => n.stars > 0);
+            // if (rated.length === 0) return '-';
+            // const avg = rated.reduce((s, n) => s + n.stars, 0) / rated.length;
+            // return '\u2605' + avg.toFixed(1);
+            return '-';
         },
 
         get allTags() {
@@ -1659,7 +1673,7 @@ function mypageApp() {
                 result = result.filter(n => (n.tags || []).includes(this.activeTag));
             }
             if (this.noteSort === 'star') {
-                result.sort((a, b) => (b.stars || 0) - (a.stars || 0));
+                // result.sort((a, b) => (b.stars || 0) - (a.stars || 0));
             } else {
                 result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             }
@@ -2501,10 +2515,12 @@ function mypageApp() {
             var total = this.demoBuyForm.refPrice * this.demoBuyForm.shares;
             if (total > this.demoAccount.cash_balance) return false;
             // チェックリスト: 全チェック or 代替チェック
-            var checksOk = (this.demoBuyForm.check1 && this.demoBuyForm.check2 && this.demoBuyForm.check3 && this.demoBuyForm.check4) || this.demoBuyForm.checkOverride;
+            var allChecked = this.demoBuyForm.check1 && this.demoBuyForm.check2 && this.demoBuyForm.check3 && this.demoBuyForm.check4;
+            var checksOk = allChecked || this.demoBuyForm.checkOverride;
             if (!checksOk) return false;
-            // 購入理由メモ必須
-            if (!this.demoBuyForm.reason || !this.demoBuyForm.reason.trim()) return false;
+            // 購入理由メモ: オーバーライド時のみ必須、4つ全チェック時は任意
+            var reasonRequired = this.demoBuyForm.checkOverride && !allChecked;
+            if (reasonRequired && (!this.demoBuyForm.reason || !this.demoBuyForm.reason.trim())) return false;
             return true;
         },
 
@@ -2636,5 +2652,17 @@ function mypageApp() {
         },
     };
 }
+
+// 未回答質問の通知バナー
+(async function() {
+    try {
+        const res = await fetch('/api/community/questions/unanswered-count');
+        const data = await res.json();
+        if (data.count > 0) {
+            document.getElementById('unansweredCount').textContent = data.count;
+            document.getElementById('unansweredBanner').style.display = 'block';
+        }
+    } catch (e) {}
+})();
 </script>
 {% endblock %}

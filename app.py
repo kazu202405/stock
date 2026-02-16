@@ -2051,6 +2051,19 @@ def api_get_note_tags():
 # コミュニティQ&A API
 # =============================================
 
+@app.route('/api/community/questions/unanswered-count', methods=['GET'])
+def api_unanswered_count():
+    """未回答の質問数を取得"""
+    try:
+        client = get_supabase_client()
+        result = client.table('community_questions').select('id', count='exact').eq(
+            'answer_count', 0
+        ).eq('is_resolved', False).execute()
+        return jsonify({"count": result.count or 0}), 200
+    except Exception as e:
+        return jsonify({"count": 0}), 200
+
+
 @app.route('/api/community/questions', methods=['GET'])
 def api_get_questions():
     """質問一覧を取得"""

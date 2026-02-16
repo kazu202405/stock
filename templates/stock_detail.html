@@ -267,7 +267,7 @@
 
     .score-item-status { color: var(--text-secondary); font-weight: 500; }
     .score-item-status.pass { color: var(--success-color); }
-    .score-item-status.fail { color: var(--danger-color); }
+    .score-item-status.fail { color: #a3a3a3; }
 
     /* チャートカード */
     .chart-header {
@@ -617,6 +617,7 @@
                 <div class="score-value" id="score-value">--</div>
                 <div class="score-label">/ 100</div>
             </div>
+            <p style="font-size:10px; color:#a3a3a3; margin:8px 0 4px; line-height:1.5;">一般的な成長株の特徴にどの程度当てはまるかを示す参考値です。スコアが低い＝悪い企業ではありません。</p>
             <div class="score-details" id="score-details">
                 <div class="score-item">
                     <span class="score-item-label"><span class="score-dot" style="background:#64748b;"></span>時価総額 ≤700億</span>
@@ -667,7 +668,8 @@
                     <span class="score-item-status" id="score-pbr">--</span>
                 </div>
             </div>
-            <div style="text-align: right; margin-top: 10px;">
+            <p style="font-size:10px; color:#a3a3a3; margin-top:12px; line-height:1.5;">※ 合致度は財務指標の参考値であり、投資判断を推奨するものではありません。</p>
+            <div style="text-align: right; margin-top: 6px;">
                 <a href="/learning" target="_blank"
                    style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #16a34a; text-decoration: none; padding: 3px 8px; background: #f0fdf4; border-radius: 10px; transition: all 0.2s;"
                    onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
@@ -1411,7 +1413,7 @@
             element.textContent = '--';
             element.className = 'score-item-status';
         } else {
-            element.textContent = pass ? `✓ ${value}` : `✗ ${value}`;
+            element.textContent = pass ? `✓ ${value}` : `− ${value}`;
             element.className = 'score-item-status ' + (pass ? 'pass' : 'fail');
         }
     }
@@ -1892,7 +1894,8 @@
                 container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:#a3a3a3;"><i class="fas fa-sticky-note" style="font-size:24px; margin-bottom:8px; display:block;"></i>この銘柄のノートはまだありません</div>';
             } else {
                 container.innerHTML = notes.map(function(note) {
-                    const stars = note.stars ? '★'.repeat(note.stars) + '☆'.repeat(5 - note.stars) : '';
+                    // const stars = note.stars ? '★'.repeat(note.stars) + '☆'.repeat(5 - note.stars) : '';
+                    const stars = ''; // 理解度非表示
                     const date = note.created_at ? new Date(note.created_at).toLocaleDateString('ja-JP') : '';
                     const authorName = note.is_anonymous ? '匿名' : (note.user_name || note.user_id || '');
                     const tags = (note.tags || []).map(function(t) {
@@ -1991,7 +1994,7 @@
                 <textarea class="note-form-textarea" id="noteFormContent" placeholder="企業への所感やメモを自由に書いてください..."></textarea>
             </div>
 
-            <!-- 理解度 -->
+            <!-- 理解度（非表示）
             <div>
                 <label class="note-form-label">理解度</label>
                 <div style="display:flex; align-items:center; gap:2px;" id="noteStarsContainer">
@@ -2003,6 +2006,7 @@
                     <button id="noteStarClear" onclick="setNoteStar(0)" style="display:none; font-size:11px; margin-left:8px; color:#a3a3a3; background:none; border:none; cursor:pointer;">クリア</button>
                 </div>
             </div>
+            -->
 
             <!-- タグ -->
             <div>
@@ -2278,9 +2282,9 @@
             </div>
         </div>
 
-        <!-- 購入理由メモ（必須） -->
+        <!-- 購入理由メモ -->
         <div class="demo-form-group">
-            <label class="demo-form-label">購入理由メモ <span style="color:#dc2626; font-size:11px;">※必須</span></label>
+            <label class="demo-form-label">購入理由メモ <span id="buyReasonRequired" style="color:#dc2626; font-size:11px; display:none;">※必須</span></label>
             <textarea class="demo-form-input" id="buyModalReason" placeholder="なぜこの銘柄を購入するのか、理由を記録しましょう" rows="3" style="resize:vertical; min-height:60px;"></textarea>
             <div class="demo-form-helper" id="buyModalReasonHelper">購入の判断理由を自分の言葉で説明できますか？</div>
         </div>
@@ -2441,15 +2445,6 @@
                 el.parentElement.querySelector('span').style.color = '';
             }
         }
-        /* ヘルパーテキスト更新 */
-        var helper = document.getElementById('buyModalReasonHelper');
-        if (override) {
-            helper.textContent = 'チェック項目を省略するため、購入理由の記入が特に重要です';
-            helper.style.color = '#9a3412';
-        } else {
-            helper.textContent = '購入の判断理由を自分の言葉で説明できますか？';
-            helper.style.color = '#737373';
-        }
         updateBuyModalState();
     };
 
@@ -2467,21 +2462,34 @@
         var c3 = document.getElementById('buyCheck3').checked;
         var c4 = document.getElementById('buyCheck4').checked;
         var override = document.getElementById('buyCheckOverride').checked;
-        var checksOk = (c1 && c2 && c3 && c4) || override;
+        var allChecked = c1 && c2 && c3 && c4;
+        var checksOk = allChecked || override;
 
-        /* 理由メモのボーダー色で必須を表現 */
+        /* 理由メモの必須判定：オーバーライド時は必須、4つ全チェック時は任意 */
+        var reasonRequired = override && !allChecked;
+        var requiredLabel = document.getElementById('buyReasonRequired');
         var reasonEl = document.getElementById('buyModalReason');
-        if (!reason && checksOk) {
+        var helper = document.getElementById('buyModalReasonHelper');
+
+        requiredLabel.style.display = reasonRequired ? 'inline' : 'none';
+
+        if (reasonRequired && !reason) {
             reasonEl.style.borderColor = '#f59e0b';
+            helper.textContent = 'チェック項目を省略するため、購入理由の記入が必要です';
+            helper.style.color = '#9a3412';
         } else {
             reasonEl.style.borderColor = '';
+            helper.textContent = '購入の判断理由を自分の言葉で説明できますか？ ギャンブルになっていませんか？';
+            helper.style.color = '#737373';
         }
+
+        var reasonOk = !reasonRequired || reason;
 
         if (demoState.refPrice != null && shares > 0) {
             var total = demoState.refPrice * shares;
             totalInfo.style.display = '';
             totalEl.textContent = formatYen(total);
-            submitBtn.disabled = (total > demoState.cashBalance || !checksOk || !reason || demoState.buySubmitting);
+            submitBtn.disabled = (total > demoState.cashBalance || !checksOk || !reasonOk || demoState.buySubmitting);
         } else {
             totalInfo.style.display = 'none';
             submitBtn.disabled = true;
