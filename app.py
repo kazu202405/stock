@@ -40,6 +40,23 @@ from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
 
 # =============================================
+# ヘルスチェック（Supabase自動停止の防止用キープアライブ）
+# =============================================
+
+@app.route('/health/db', methods=['GET'])
+def health_db():
+    """軽量DBクエリでSupabaseに触り、無料枠の自動一時停止を防ぐ。
+    外部スケジューラ（cron-job.org等）から数日おきに叩く想定。"""
+    try:
+        client = get_supabase_client()
+        # 最小コストの読み取り（1行だけ）でDBアクティビティを発生させる
+        client.table('watched_tickers').select('company_code').limit(1).execute()
+        return jsonify({"status": "ok", "db": "reachable"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "db": "unreachable", "detail": str(e)}), 503
+
+
+# =============================================
 # 認証ヘルパー関数
 # =============================================
 
