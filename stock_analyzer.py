@@ -27,6 +27,40 @@ rcParams['font.sans-serif'] = ['Yu Gothic', 'Meiryo', 'Hiragino Sans', 'MS Gothi
 rcParams['axes.unicode_minus'] = False
 
 
+# ================================
+# JPX公式企業リスト（static/companies.json）による会社名解決
+# 新規上場コード（例: 156A / 367A）では yfinance / Yahoo!ファイナンス日本版が
+# 会社名ではなく代表者名（人名）を返すことがあるため、公式リストを最優先で採用する。
+# ================================
+_JPX_NAME_MAP: Optional[Dict[str, str]] = None
+
+
+def _load_jpx_name_map() -> Dict[str, str]:
+    """static/companies.json を {証券コード: 会社名} の辞書として一度だけ読み込む"""
+    global _JPX_NAME_MAP
+    if _JPX_NAME_MAP is None:
+        _JPX_NAME_MAP = {}
+        try:
+            path = os.path.join(os.path.dirname(__file__), "static", "companies.json")
+            with open(path, "r", encoding="utf-8") as f:
+                for item in json.load(f):
+                    code = str(item.get("c", "")).strip()
+                    name = (item.get("n") or "").strip()
+                    if code and name:
+                        _JPX_NAME_MAP[code] = name
+        except Exception as e:
+            print(f"companies.json 読み込みエラー: {e}")
+    return _JPX_NAME_MAP
+
+
+def _lookup_jpx_name(symbol: str) -> Optional[str]:
+    """'367A.T' → 'プリモグローバルホールディングス' を JPX公式リストから解決（無ければ None）"""
+    if not symbol:
+        return None
+    code = symbol[:-2] if symbol.endswith(".T") else symbol
+    return _load_jpx_name_map().get(code)
+
+
 class StockAnalyzer:
     """株式データ分析クラス"""
     
@@ -951,6 +985,12 @@ class StockAnalyzer:
             name_jp, industry_jp = fetch_jp_labels(symbol)
             result["name_jp"] = name_jp or None
             result["industry_jp"] = industry_jp or None
+
+            # JPX公式リストを最優先で会社名に採用
+            # （新規上場コードで yfinance / Yahoo日本版が代表者名を返す問題への対策）
+            jpx_name = _lookup_jpx_name(symbol)
+            if jpx_name:
+                result["name_jp"] = jpx_name
             
             # 英語→日本語フォールバック
             result["sector_jp"] = SECTOR_JA.get(result.get("sector") or "", None)

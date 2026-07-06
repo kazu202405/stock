@@ -40,6 +40,22 @@ from gc_scraper import scrape_gc_stocks, scrape_dc_stocks
 
 
 # =============================================
+# APIレスポンスのキャッシュ抑止
+# 一覧系API（/api/watchlist 等）はブラウザのHTTPキャッシュで古い結果が返り、
+# 「登録したのに手動更新しないと表に出ない」症状の原因になり得るため、
+# 動的APIには no-store を付与して常に最新を取得させる。
+# =============================================
+
+@app.after_request
+def add_no_cache_headers(response):
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
+# =============================================
 # ヘルスチェック（Supabase自動停止の防止用キープアライブ）
 # =============================================
 

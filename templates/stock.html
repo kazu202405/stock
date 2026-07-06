@@ -1391,7 +1391,7 @@
         return `${watchlistCache.length}件 詳細取得`;
     }
 
-    async function analyzeWlStocks(force = false) {
+    async function analyzeWlStocks(force = false, silent = false) {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
         btn.disabled = true;
@@ -1410,7 +1410,7 @@
                     btn.disabled = false;
                     btn.textContent = getWlBtnLabel();
                     stopBtn.style.display = 'none';
-                    if (!force) {
+                    if (!force && !silent) {
                         const ok = await showConfirmModal('本日解析済ですが再度解析しますか？');
                         if (ok) analyzeWlStocks(true);
                     }
@@ -1656,13 +1656,19 @@
         submitBtn.textContent = '登録';
 
         if (failedCodes.length === 0) {
-            statusDiv.innerHTML = `<span style="color: #10b981;">${successCount}件の銘柄を登録しました</span>`;
+            statusDiv.innerHTML = `<span style="color: #10b981;">${successCount}件の銘柄を登録しました。財務データを取得しています...</span>`;
         } else {
             statusDiv.innerHTML = `<span style="color: #f59e0b;">${successCount}件登録、${failedCodes.length}件失敗 (${failedCodes.join(', ')})</span>`;
         }
 
         loadWatchlist();
         setTimeout(() => { closeBulkRegisterModal(); }, 2000);
+
+        // 登録しただけでは財務データが空のため、未分析銘柄の詳細取得を自動起動する
+        // （バックグラウンドで分析し、完了までポーリングで表を随時更新）
+        if (successCount > 0) {
+            analyzeWlStocks(false, true);
+        }
     }
 
     // ========================================
