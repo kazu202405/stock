@@ -274,6 +274,9 @@
     font-family: 'Noto Sans JP', 'Inter', sans-serif;
     color: #1a1a1a;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
   }
   @media (min-width: 1100px) {
     /* 1060px幅に対するA4の高さ = 1060 ÷ (210/297) ≒ 1499px */
@@ -283,7 +286,7 @@
   /* --- タイトル --- */
   .rp-head {
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 16px; margin-bottom: 16px;
+    gap: 16px; margin-bottom: 0;
   }
   .rp-title {
     font-size: 34px; font-weight: 800; color: var(--rp-navy);
@@ -292,10 +295,24 @@
   .rp-subtitle { font-size: 17px; font-weight: 700; color: var(--rp-navy); margin-top: 6px; }
   .rp-head-note { font-size: 11px; color: #7a7a7a; white-space: nowrap; padding-bottom: 4px; }
 
-  /* --- レイアウト --- */
-  .rp-main { display: grid; grid-template-columns: 340px 1fr; gap: 13px; align-items: start; }
-  .rp-col-left, .rp-col-right { display: flex; flex-direction: column; gap: 13px; }
-  .rp-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 13px; margin-top: 13px; align-items: start; }
+  /* --- レイアウト ---
+     ページをA4の高さに固定しているため、カードが中身の高さのままだと
+     下に大きな余白が残る。余った縦スペースを各列の最後のカード
+     （オーナー経営／推移グラフ）に吸わせて全体を均す。 */
+  .rp-main {
+    display: grid; grid-template-columns: 340px 1fr; gap: 13px;
+    align-items: stretch; flex: 1 1 auto; min-height: 0;
+  }
+  .rp-col-left, .rp-col-right { display: flex; flex-direction: column; gap: 13px; min-height: 0; }
+  .rp-col-left > .rp-card:last-child { flex: 1 1 auto; }
+  .rp-col-right > .rp-card:last-child { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .rp-col-right > .rp-card:last-child .rp-chart-row { flex: 1 1 auto; min-height: 0; }
+
+  .rp-bottom {
+    display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 13px;
+    align-items: stretch; flex: 0 0 auto;
+  }
+  .rp-bottom > .rp-card { display: flex; flex-direction: column; }
 
   /* --- カード --- */
   .rp-card {
@@ -382,9 +399,10 @@
 
   /* --- チャート --- */
   .rp-chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .rp-chart-box { background: #fff; }
-  .rp-chart-title { text-align: center; font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
-  .rp-chart-area { position: relative; height: 210px; }
+  .rp-chart-box { background: #fff; display: flex; flex-direction: column; min-height: 0; }
+  .rp-chart-title { text-align: center; font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; flex: 0 0 auto; }
+  /* 親から与えられた高さいっぱいに描く（下限は確保する） */
+  .rp-chart-area { position: relative; flex: 1 1 auto; min-height: 210px; }
 
   .rp-payout {
     display: grid; grid-template-columns: 150px repeat(3, 1fr);
@@ -400,11 +418,16 @@
 
   /* --- 財務健全性 --- */
   .rp-cash-trend {
-    margin-top: 9px; background: #eef2fa; border-radius: 7px;
+    margin-top: auto; background: #eef2fa; border-radius: 7px;
     padding: 7px 10px; font-size: 11.5px; font-weight: 600; color: var(--rp-navy); text-align: center;
   }
 
   /* --- リスク --- */
+  /* カード高さが揃うぶん余りが出るので、項目を縦に均等配置して間延びを防ぐ */
+  .rp-risk-list, .rp-learn-list {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column; justify-content: space-evenly;
+  }
   .rp-risk-list { list-style: none; margin: 0; padding: 0; }
   .rp-risk-list li {
     display: flex; align-items: flex-start; gap: 9px;
@@ -428,7 +451,7 @@
   /* --- まとめ --- */
   .rp-summary {
     display: flex; align-items: stretch; gap: 0;
-    background: #fff; border-radius: 10px; margin-top: 13px; overflow: hidden;
+    background: #fff; border-radius: 10px; overflow: hidden;
     box-shadow: 0 1px 3px rgba(31,56,100,0.10);
   }
   .rp-summary-label {
@@ -453,7 +476,7 @@
     font-size: 15px; font-weight: 700; line-height: 1.75; color: var(--rp-navy);
   }
 
-  .rp-disclaimer { font-size: 10.5px; color: #666; margin: 12px 2px 0; line-height: 1.6; }
+  .rp-disclaimer { font-size: 10.5px; color: #666; margin: 0 2px; line-height: 1.6; }
 
   /* --- レスポンシブ --- */
   @media (max-width: 900px) {
