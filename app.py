@@ -1853,6 +1853,36 @@ def api_get_technical_stocks():
         return jsonify({"error": str(e)}), 500
 
 
+def _translate_summary_to_jp(english_text):
+    """英語の事業概要をLLMで日本語要約する（スクレイピング失敗時の最終フォールバック）。
+    成功時は日本語テキスト、失敗時は None を返す。"""
+    if not english_text or not GPT_API:
+        return None
+    try:
+        import openai
+        prompt = (
+            "以下は海外データベースに載っている企業の事業内容の説明文です。"
+            "これを日本語で、事実だけを簡潔に要約してください。\n"
+            "条件:\n"
+            "- 200文字以内の平易な日本語\n"
+            "- 何で稼いでいる会社かが分かるように書く\n"
+            "- 投資判断（買い時・推奨など）は一切書かない\n"
+            "- 要約文のみを出力し、前置きや見出しは付けない\n\n"
+            f"{english_text[:3000]}"
+        )
+        completion = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            request_timeout=30,
+        )
+        text = (completion['choices'][0]['message']['content'] or '').strip()
+        return text or None
+    except Exception as e:
+        print(f"事業概要のLLM翻訳エラー: {e}")
+        return None
+
+
 @app.route('/api/stock/summary-jp/<company_code>', methods=['POST'])
 def api_retry_summary_jp(company_code):
     """日本語事業概要を再取得"""
@@ -1866,18 +1896,56 @@ def api_retry_summary_jp(company_code):
             summary_jp += f"<br>【連結事業】{segments}"
         elif segments:
             summary_jp = f"【連結事業】{segments}"
+
+        # スクレイピングで取れない場合は、保存済みの英語概要をLLMで日本語化する。
+        # 外部サイトの構造変更で英語のまま残り続けるのを防ぐための最終フォールバック。
+        translated = False
+        if not summary_jp:
+            existing = get_screened_data(code) or {}
+            english = existing.get('business_summary')
+            summary_jp = _translate_summary_to_jp(english)
+            translated = bool(summary_jp)
+
         if summary_jp:
-            # screened_latestに保存
+            # screened_latestに保存（行が無い銘柄でも保存できるようupsertを使う）
             try:
-                update_screened_data(code, {'business_summary_jp': summary_jp})
-                print(f"日本語事業概要を保存しました: {code}")
+                upsert_screened_data({'company_code': code, 'business_summary_jp': summary_jp})
+                print(f"日本語事業概要を保存しました: {code}（LLM翻訳: {translated}）")
             except Exception as e:
                 print(f"日本語事業概要の保存エラー: {e}")
-            return jsonify({"business_summary_jp": summary_jp}), 200
+            return jsonify({"business_summary_jp": summary_jp, "translated": translated}), 200
         else:
             return jsonify({"error": "日本語の事業概要を取得できませんでした"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stock/price-history/<company_code>', methods=['GET'])
+def api_price_history(company_code):
+    """チャート用の株価履歴を返す。
+    range=1m|3m|6m|1y は日足、2y|3y|5y は週足、10y は月足。
+    期間に応じて足を間引くことで、長期でもローソクが潰れないようにしている。
+    """
+    try:
+        import price_history as ph
+        code = normalize_code(company_code)
+        range_key = (request.args.get('range') or '1y').lower()
+        granularity = ph.granularity_for_range(range_key)
+
+        if granularity == 'daily':
+            rows = ph.get_daily(code)
+        else:
+            rows = ph.get_long_term(code, granularity)
+
+        return jsonify({
+            'company_code': code,
+            'range': range_key,
+            'granularity': granularity,
+            'rows': rows or [],
+        }), 200
+    except Exception as e:
+        print(f"株価履歴の取得エラー {company_code}: {e}")
+        return jsonify({"error": "株価履歴を取得できませんでした"}), 500
 
 
 def _fetch_live_price(company_code):
@@ -2357,11 +2425,18 @@ scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_e
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25, id='price_update_morning')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45, id='price_update_midday')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id='price_update_closing')
-scheduler.start()
-print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20 JST）")
 
-# アプリ終了時にスケジューラも停止
-atexit.register(lambda: scheduler.shutdown(wait=False))
+# スケジューラは1プロセスでのみ起動させる。
+# ENABLE_SCHEDULER=false にすると起動しない（将来worker側へcronを分離する際に、
+# web側を false にして多重実行を防ぐため）。未設定時は従来通り起動する。
+ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'true').lower() not in ('false', '0', 'no')
+if ENABLE_SCHEDULER:
+    scheduler.start()
+    print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20 JST）")
+    # アプリ終了時にスケジューラも停止
+    atexit.register(lambda: scheduler.shutdown(wait=False))
+else:
+    print("[Scheduler] ENABLE_SCHEDULER=false のためスケジューラは起動しません")
 
 
 @app.route('/api/scheduler/status', methods=['GET'])

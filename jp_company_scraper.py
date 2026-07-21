@@ -218,6 +218,7 @@ def get_yahoo_japan_profile(stock_code: str) -> dict:
         'employees': None,
         'average_age': None,
         'average_salary': None,
+        'summary_missing': False,
         'error': None
     }
 
@@ -262,7 +263,41 @@ def get_yahoo_japan_profile(stock_code: str) -> dict:
                     elif '平均年収' in label:
                         result['average_salary'] = value
 
-        print(f'Yahoo Japan データ取得成功')
+        # 「特色」「連結事業」は table から section(h2 + p) 構造へ移動したため、
+        # 見出しテキストで探して本文を拾う。
+        # （クラス名はビルドごとのハッシュ付きで不安定なため、クラスには依存しない）
+        if not result['business_summary_jp'] or not result['business_segments']:
+            for heading in soup.find_all(['h2', 'h3']):
+                label = heading.get_text(strip=True)
+                if label not in ('特色', '連結事業'):
+                    continue
+
+                body = None
+                section = heading.find_parent('section')
+                if section:
+                    p = section.find('p')
+                    if p:
+                        body = p.get_text(strip=True)
+                if not body:
+                    sibling = heading.find_next_sibling()
+                    if sibling:
+                        body = sibling.get_text(strip=True)
+                if not body:
+                    continue
+
+                if label == '特色' and not result['business_summary_jp']:
+                    result['business_summary_jp'] = re.sub(r'^【特色】', '', body).strip()
+                elif label == '連結事業' and not result['business_segments']:
+                    result['business_segments'] = re.sub(r'^【連結事業】', '', body).strip()
+
+        # 抽出できなかった場合は黙って成功扱いにしない（ページ構造変更を検知するため）。
+        # ただし error には入れない: error は「取得自体の失敗」を意味し、
+        # ここに入れると呼び出し側で本社所在地・代表者名なども巻き添えで捨てられるため。
+        if not result['business_summary_jp']:
+            result['summary_missing'] = True
+            print('Yahoo Japan 警告: 特色（事業概要）を抽出できませんでした。ページ構造変更の可能性があります')
+        else:
+            print(f'Yahoo Japan データ取得成功: 特色 {len(result["business_summary_jp"])} 文字')
 
     except Exception as e:
         result['error'] = str(e)
@@ -291,6 +326,7 @@ def get_all_jp_company_data(stock_code: str) -> dict:
         'ceo_name_jp': None,
         'established': None,
         'industry_jp': None,
+        'market_jp': None,
         'employees_jp': None,
         'average_salary_jp': None,
         'officers_jp': [],
@@ -308,6 +344,7 @@ def get_all_jp_company_data(stock_code: str) -> dict:
             result['ceo_name_jp'] = yahoo_data.get('ceo_name')
             result['established'] = yahoo_data.get('established')
             result['industry_jp'] = yahoo_data.get('industry')
+            result['market_jp'] = yahoo_data.get('market')
             result['employees_jp'] = yahoo_data.get('employees')
             result['average_salary_jp'] = yahoo_data.get('average_salary')
 

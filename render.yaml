@@ -3,7 +3,10 @@ services:
     name: stock-analyzer
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    # workerは1本固定（app.py のAPSchedulerがプロセス内で起動するため、
+    # 複数workerにするとcronが多重実行される）。並行性はスレッドで確保する。
+    # --timeout は ANALYZE_TIMEOUT(60秒) を上回る値にする（既定30秒だと分析中に502になる）
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --worker-class gthread --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"

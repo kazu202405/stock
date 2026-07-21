@@ -294,6 +294,7 @@
         color: #1a1a1a;
         text-decoration: none;
         font-weight: 500;
+        white-space: nowrap;
     }
     .demo-table .col-name a:hover {
         color: #2d6a4f;
@@ -497,6 +498,40 @@
         resize: vertical;
         min-height: 60px;
     }
+    /* トップ切替タブ（ノート／デモ売買）— 内側タブと区別するためセグメント型 */
+    .section-tabs {
+        display: inline-flex;
+        background: #f0f0ec;
+        border-radius: 10px;
+        padding: 4px;
+        gap: 4px;
+        margin-bottom: 20px;
+    }
+    .section-tab-btn {
+        padding: 8px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #737373;
+        background: transparent;
+        border: none;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .section-tab-btn:hover { color: #1a1a1a; }
+    .section-tab-btn.active {
+        background: #fff;
+        color: #1b4332;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    @media (max-width: 768px) {
+        .section-tabs { display: flex; width: 100%; }
+        .section-tab-btn { flex: 1; justify-content: center; padding: 8px 12px; }
+    }
+
     /* デモタブ切り替え */
     .demo-tab-btn {
         padding: 8px 16px;
@@ -626,10 +661,21 @@
 
     <!-- ダッシュボード本体 -->
     <div class="max-w-7xl mx-auto px-6 py-5">
+
+        <!-- トップ切替タブ（マイノート／デモ売買） -->
+        <div class="section-tabs">
+            <button class="section-tab-btn" :class="{ 'active': activeSection === 'notes' }" @click="switchSection('notes')">
+                <i class="fas fa-book" style="font-size:12px;"></i> マイノート
+            </button>
+            <button class="section-tab-btn" :class="{ 'active': activeSection === 'demo' }" @click="switchSection('demo')">
+                <i class="fas fa-flask" style="font-size:12px;"></i> デモ売買
+            </button>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
             <!-- ===== マイノートカード ===== -->
-            <div class="lg:col-span-5 mp-card p-4">
+            <div class="lg:col-span-12 mp-card p-4" x-show="activeSection === 'notes'" x-cloak>
                         <div class="flex items-center justify-between mb-3">
                             <h2 class="section-head mb-0"><i class="fas fa-book"></i>マイノート</h2>
                             <button class="btn-sm-green" @click="openCreateModal()"><i class="fas fa-plus mr-1" style="font-size:10px;"></i>作成</button>
@@ -711,7 +757,7 @@
             </div>
 
             <!-- ===== デモ売買カード ===== -->
-            <div class="lg:col-span-7 mp-card p-4">
+            <div class="lg:col-span-12 mp-card p-4" x-show="activeSection === 'demo'" x-cloak>
                 <div class="flex items-center justify-between mb-3">
                     <h2 class="section-head mb-0"><i class="fas fa-flask"></i>デモ売買</h2>
                 </div>
@@ -843,6 +889,7 @@
                                                     <th style="text-align:right;">平均取得単価</th>
                                                     <th style="text-align:right;">参考価格</th>
                                                     <th style="text-align:right;">評価額</th>
+                                                    <th style="text-align:right;">含み損益</th>
                                                     <th>購入理由メモ</th>
                                                     <th style="text-align:center;">操作</th>
                                                 </tr>
@@ -858,6 +905,9 @@
                                                         <td class="col-num" x-text="formatYen(h.avg_cost)"></td>
                                                         <td class="col-num" x-text="h.current_price != null ? formatYen(h.current_price) : '\u2014'"></td>
                                                         <td class="col-num" x-text="h.market_value != null ? formatYen(h.market_value) : '\u2014'"></td>
+                                                        <td class="col-num"
+                                                            x-text="(h.current_price != null && h.avg_cost != null) ? formatPL((h.current_price - h.avg_cost) * h.shares) : '\u2014'"
+                                                            :style="(h.current_price != null && h.avg_cost != null) ? ((h.current_price - h.avg_cost) > 0 ? 'color:#1b4332;font-weight:600' : (h.current_price - h.avg_cost) < 0 ? 'color:#b91c1c;font-weight:600' : '') : 'color:#a3a3a3'"></td>
                                                         <td class="col-reason" x-text="h.buy_reason || '\u2014'"></td>
                                                         <td class="col-action">
                                                             <button class="demo-btn-sell-sm" @click="openDemoSellModal(h)">売却</button>
@@ -917,7 +967,9 @@
                                                         </td>
                                                         <td class="col-num" x-text="t.trade_type === 'deposit' ? '\u2014' : formatNumber(t.shares)"></td>
                                                         <td class="col-num" x-text="t.trade_type === 'deposit' ? '\u2014' : formatYen(t.price)"></td>
-                                                        <td class="col-num" x-text="formatYen(t.total_amount)"></td>
+                                                        <td class="col-num"
+                                                            x-text="formatDemoCashFlow(t)"
+                                                            :style="t.trade_type === 'buy' ? 'color:#b91c1c;font-weight:600' : 'color:#1b4332;font-weight:600'"></td>
                                                         <td class="col-reason" x-text="t.reason || '\u2014'"></td>
                                                     </tr>
                                                 </template>
@@ -981,14 +1033,14 @@
                                         <div class="demo-summary-grid" style="grid-template-columns: repeat(2, 1fr);">
                                             <div class="demo-summary-card">
                                                 <div class="demo-summary-label">実現損益（売却済み）</div>
-                                                <div class="demo-summary-value" :style="{ color: getAnalysisData().totalRealizedPL >= 0 ? '#1b4332' : '#9a3412' }" x-text="formatPL(getAnalysisData().totalRealizedPL)"></div>
+                                                <div class="demo-summary-value" :style="{ color: getAnalysisData().totalRealizedPL >= 0 ? '#1b4332' : '#b91c1c' }" x-text="formatPL(getAnalysisData().totalRealizedPL)"></div>
                                                 <div style="font-size:10px; color:#a3a3a3; margin-top:2px;">売却完了した取引の損益合計</div>
                                             </div>
                                             <div class="demo-summary-card">
                                                 <div class="demo-summary-label">含み損益（保有中）</div>
                                                 <template x-if="getAnalysisData().hasUnrealized">
                                                     <div>
-                                                        <div class="demo-summary-value" :style="{ color: getAnalysisData().totalUnrealizedPL >= 0 ? '#1b4332' : '#9a3412' }" x-text="formatPL(getAnalysisData().totalUnrealizedPL)"></div>
+                                                        <div class="demo-summary-value" :style="{ color: getAnalysisData().totalUnrealizedPL >= 0 ? '#1b4332' : '#b91c1c' }" x-text="formatPL(getAnalysisData().totalUnrealizedPL)"></div>
                                                         <div style="font-size:10px; color:#a3a3a3; margin-top:2px;">現在の参考価格との差額</div>
                                                     </div>
                                                 </template>
@@ -1025,7 +1077,7 @@
                                                                 <td class="col-num" x-text="stock.buyCount"></td>
                                                                 <td class="col-num" x-text="stock.sellCount"></td>
                                                                 <td class="col-num" x-text="stock.avgBuyPrice > 0 ? formatYen(Math.round(stock.avgBuyPrice)) : '\u2014'"></td>
-                                                                <td class="col-num" :style="{ color: stock.realizedPL > 0 ? '#1b4332' : stock.realizedPL < 0 ? '#9a3412' : '#737373' }" x-text="stock.sellCount > 0 ? formatPL(stock.realizedPL) : '\u2014'"></td>
+                                                                <td class="col-num" :style="{ color: stock.realizedPL > 0 ? '#1b4332' : stock.realizedPL < 0 ? '#b91c1c' : '#737373' }" x-text="stock.sellCount > 0 ? formatPL(stock.realizedPL) : '\u2014'"></td>
                                                                 <td class="col-reason" x-text="stock.latestReason || '\u2014'"></td>
                                                             </tr>
                                                         </template>
@@ -1518,6 +1570,9 @@
 <script>
 function mypageApp() {
     return {
+        /* --- トップ切替タブ（notes / demo） --- */
+        activeSection: 'notes',
+
         /* --- マイノート状態 --- */
         noteSearch: '',
         noteSort: 'date',
@@ -1594,6 +1649,14 @@ function mypageApp() {
         referralCount: null,
 
         async init() {
+            // 前回開いていたタブを復元（初回はマイノート）
+            try {
+                var savedSection = localStorage.getItem('mypage_active_section');
+                if (savedSection === 'notes' || savedSection === 'demo') {
+                    this.activeSection = savedSection;
+                }
+            } catch (e) { /* localStorage不可の環境では既定値のまま */ }
+
             // ユーザー情報を取得（投稿名デフォルト用）
             try {
                 const meRes = await fetch('/api/auth/me');
@@ -1972,6 +2035,18 @@ function mypageApp() {
             this.livePriceLoading = false;
             if (failedCount > 0) {
                 showErrorModal(failedCount + '件の銘柄の株価が取得できませんでした。しばらくしてからもう一度お試しください。');
+            }
+        },
+
+        /* トップ切替タブ（マイノート／デモ売買）— 選択をブラウザに記憶 */
+        switchSection(section) {
+            this.activeSection = section;
+            try {
+                localStorage.setItem('mypage_active_section', section);
+            } catch (e) { /* localStorage不可でも切り替えは動作させる */ }
+            // 非表示中は canvas がサイズ0のため、分析タブに戻ったらチャートを描き直す
+            if (section === 'demo' && this.demoActiveTab === 'analysis' && this.demoHistoryLoaded) {
+                this.$nextTick(() => { this.renderAnalysisChart(); });
             }
         },
 
@@ -2633,6 +2708,15 @@ function mypageApp() {
             if (rounded > 0) return '+\u00a5' + formatted;
             if (rounded < 0) return '\u2212\u00a5' + formatted;
             return '\u00a50';
+        },
+
+        /* \u58f2\u8cb7\u5c65\u6b74\u306e\u91d1\u984d\u3092\u30ad\u30e3\u30c3\u30b7\u30e5\u306e\u5411\u304d\u4ed8\u304d\u3067\u8868\u793a\uff08\u8cfc\u5165=\u51fa\u91d1\u2212\uff0f\u58f2\u5374\u30fb\u5165\u91d1=\u5165\u91d1\uff0b\uff09 */
+        formatDemoCashFlow(t) {
+            var amt = t && t.total_amount;
+            if (amt == null || isNaN(amt)) return '\u2014';
+            var formatted = Math.abs(Number(amt)).toLocaleString('ja-JP');
+            if (t.trade_type === 'buy') return '\u2212\u00a5' + formatted;
+            return '+\u00a5' + formatted;
         },
 
         formatDemoDate(dateStr) {

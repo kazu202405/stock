@@ -122,16 +122,23 @@
         border: 1px solid var(--border-color);
     }
 
+    /* グリッドの子は一番背の高い兄弟に合わせて伸びるため、
+       チャートカードも縦に伸びる。中のチャートを固定高にすると下に空白が残るので、
+       カードを縦フレックスにしてチャート側に余りを吸わせる。 */
     .chart-card {
         background: white;
         border-radius: 12px;
-        padding: 15px 20px 5px 20px;
+        padding: 15px 20px 15px 20px;
         border: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
     }
 
     .chart-card .chart-placeholder {
         margin-bottom: 0;
         padding-bottom: 0;
+        flex: 1;
+        min-height: 280px;
     }
 
     .company-name {
@@ -275,12 +282,69 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 10px;
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
     .chart-title {
         font-size: 0.95rem;
         font-weight: 600;
         color: var(--text-primary);
+    }
+
+    /* チャート期間切替（クライアント側で絞り込み） */
+    .chart-period-switch {
+        display: inline-flex;
+        gap: 2px;
+        background: #f7f7f5;
+        border-radius: 7px;
+        padding: 3px;
+    }
+
+    .chart-period-btn {
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #737373;
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+    }
+
+    .chart-period-btn:hover { color: #1a1a1a; }
+
+    .chart-period-btn.active {
+        background: #ffffff;
+        color: #1b4332;
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* チャート凡例（移動平均・ローソクの色の説明） */
+    .chart-legend {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 8px;
+        font-size: 11px;
+        color: #737373;
+    }
+
+    .chart-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .chart-legend-item i {
+        width: 10px;
+        height: 3px;
+        border-radius: 2px;
+        display: inline-block;
     }
 
     /* 財務テーブル */
@@ -682,9 +746,18 @@
         <div class="chart-card">
             <div class="chart-header">
                 <div class="chart-title">株価推移</div>
+                <!-- 期間ボタンは PERIOD_CONFIG から生成する -->
+                <div class="chart-period-switch" id="chartPeriodSwitch"></div>
             </div>
-            <div class="chart-placeholder" id="tradingview-chart-container" style="margin-top: 20px;">
-                <div style="display:flex;align-items:center;justify-content:center;height:300px;color:#64748b;">
+            <div class="chart-legend">
+                <span class="chart-legend-item"><i style="background:#7c3aed;"></i><span id="maLabel0">5日</span></span>
+                <span class="chart-legend-item"><i style="background:#2d6a4f;"></i><span id="maLabel1">25日</span></span>
+                <span class="chart-legend-item"><i style="background:#ea580c;"></i><span id="maLabel2">75日</span></span>
+                <span class="chart-legend-item" style="margin-left:auto;"><i style="background:#d64545;"></i>陽線</span>
+                <span class="chart-legend-item"><i style="background:#4a7fb5;"></i>陰線</span>
+            </div>
+            <div class="chart-placeholder" id="tradingview-chart-container" style="margin-top: 10px; position: relative;">
+                <div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;">
                     チャートデータを読み込み中...
                 </div>
             </div>
@@ -893,48 +966,257 @@
     }
 
     // グローバル変数
+    const CHART_MIN_HEIGHT = 280;   // これ以下には縮めない
+
+    // カードが縦に伸びた分だけチャートも伸ばす（下に空白を残さないため）
+    function measureChartHeight(container) {
+        const h = container ? Math.floor(container.clientHeight) : 0;
+        return Math.max(CHART_MIN_HEIGHT, h);
+    }
     let priceChart = null;
-    let candlestickSeries = null;
+    let priceSeries = null;
+    let priceResizeObserver = null;
+    let fullPriceHistory = [];
+    let chartPeriodDays = 0;   // 既定は1年。0 = 全期間
+    let currentPeriodKey = '1y';
+    // 粒度ごとに取得済みデータをキャッシュする（同じ粒度なら再取得しない）
+    const historyCache = { daily: null, weekly: null, monthly: null };
     window.currentCurrency = 'JPY';
 
-    // ローソク足チャート表示
-    function showCandlestickChart(priceHistory) {
+    // 表示期間の定義。
+    // 長期を日足で描くと本数が多すぎて潰れるため、期間に応じて足を間引く。
+    //   〜1年: 日足 / 2〜5年: 週足 / 10年: 月足
+    const PERIOD_CONFIG = [
+        { key: '1m',  label: '1ヶ月', days: 30,   granularity: 'daily' },
+        { key: '3m',  label: '3ヶ月', days: 90,   granularity: 'daily' },
+        { key: '6m',  label: '6ヶ月', days: 180,  granularity: 'daily' },
+        { key: '1y',  label: '1年',   days: 0,    granularity: 'daily' },
+        { key: '2y',  label: '2年',   days: 730,  granularity: 'weekly' },
+        { key: '3y',  label: '3年',   days: 1095, granularity: 'weekly' },
+        { key: '5y',  label: '5年',   days: 1825, granularity: 'weekly' },
+        { key: '10y', label: '10年',  days: 0,    granularity: 'monthly' },
+    ];
+
+    // 移動平均は「本数」で計算するため、粒度に応じて単位表記を変える
+    const MA_UNIT = { daily: '日', weekly: '週', monthly: 'ヶ月' };
+
+    // 移動平均線の設定（短期→長期）
+    // ローソクが赤/青のため、移動平均は赤系・青系を避ける。
+    // 短期ほど細く長期ほど太くして、長期トレンドが一目で分かるようにする。
+    // 5日・25日を重視するため、視認性の高い色と太さをこの2本に割り当てる。
+    // 75日は長期トレンドの参考なので、相対的に控えめでよい。
+    const MA_CONFIG = [
+        { period: 5,  color: '#7c3aed', width: 1.5, label: '5日' },
+        { period: 25, color: '#2d6a4f', width: 1.5, label: '25日' },
+        { period: 75, color: '#ea580c', width: 1.2, label: '75日' },
+    ];
+
+    // price_history の time は「取引所ローカル0時」のUNIX秒。
+    // 数値のまま渡すとUTC解釈され日付が1日ズレるため、日足用の 'YYYY-MM-DD' に正規化する。
+    function toBusinessDay(unixSec) {
+        return new Date((unixSec + 12 * 3600) * 1000).toISOString().slice(0, 10);
+    }
+
+    function chartCurrencySymbol() {
+        return (window.currentCurrency || 'JPY') === 'JPY' ? '¥' : '$';
+    }
+
+    // 単純移動平均（SMA）を計算する。
+    // 注意: 表示期間で絞り込む「前」の全データで計算すること。
+    // 絞ってから計算すると、1ヶ月表示のときに75日線が描けなくなる。
+    function computeSMA(rows, period) {
+        const out = [];
+        let sum = 0;
+        for (let i = 0; i < rows.length; i++) {
+            sum += rows[i].close;
+            if (i >= period) sum -= rows[i - period].close;
+            if (i >= period - 1) out.push({ time: rows[i].time, value: sum / period });
+        }
+        return out;
+    }
+
+    // 株価推移チャート（ローソク足 + 5/25/75日移動平均）
+    // priceHistory を渡すと差し替え、null なら保持済みデータで再描画する
+    function showPriceChart(priceHistory) {
         const container = document.getElementById('tradingview-chart-container');
         if (!container) return;
+
+        if (Array.isArray(priceHistory)) {
+            fullPriceHistory = priceHistory.filter(d =>
+                d && d.open != null && d.high != null && d.low != null && d.close != null
+            );
+        }
+
+        // 既存チャートを破棄（DOMを消す前にAPI側で解放する）
+        if (priceResizeObserver) { priceResizeObserver.disconnect(); priceResizeObserver = null; }
+        if (priceChart) { priceChart.remove(); priceChart = null; priceSeries = null; }
         container.innerHTML = '';
-        if (!priceHistory || priceHistory.length === 0) {
-            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#666;">株価データがありません</div>';
+
+        if (fullPriceHistory.length === 0) {
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">株価データがありません</div>`;
             return;
         }
-        if (priceChart) {
-            priceChart.remove();
-            priceChart = null;
+
+        // 移動平均は全期間で先に計算する
+        const smaFull = {
+            5: computeSMA(fullPriceHistory, 5),
+            25: computeSMA(fullPriceHistory, 25),
+            75: computeSMA(fullPriceHistory, 75),
+        };
+
+        // 表示期間の絞り込みはクライアント側で行う（追加のAPI呼び出しなし）
+        let cutoff = -Infinity;
+        if (chartPeriodDays > 0) {
+            const latest = fullPriceHistory[fullPriceHistory.length - 1].time;
+            const candidate = latest - chartPeriodDays * 86400;
+            if (fullPriceHistory.filter(d => d.time >= candidate).length >= 2) cutoff = candidate;
         }
+        const data = fullPriceHistory.filter(d => d.time >= cutoff);
+
         priceChart = LightweightCharts.createChart(container, {
             width: container.clientWidth,
-            height: 320,
-            layout: { background: { type: 'solid', color: '#ffffff' }, textColor: '#333333' },
-            grid: { vertLines: { color: '#e1e1e1' }, horzLines: { color: '#e1e1e1' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-            rightPriceScale: { borderColor: '#cccccc' },
-            timeScale: { borderColor: '#cccccc', timeVisible: true, secondsVisible: false },
-            localization: { locale: 'ja-JP', dateFormat: 'yyyy/MM/dd' },
+            height: measureChartHeight(container),
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#a3a3a3',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                fontSize: 11,
+            },
+            grid: {
+                vertLines: { visible: false },
+                horzLines: { color: 'rgba(0,0,0,0.06)' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Magnet,
+                vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+            },
+            rightPriceScale: {
+                borderVisible: false,
+                scaleMargins: { top: 0.15, bottom: 0.08 },
+            },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: false,
+                secondsVisible: false,
+                fixLeftEdge: true,
+                fixRightEdge: true,
+            },
+            localization: {
+                locale: 'ja-JP',
+                priceFormatter: (p) => chartCurrencySymbol() + Math.round(p).toLocaleString('ja-JP'),
+            },
         });
-        candlestickSeries = priceChart.addCandlestickSeries({
-            upColor: '#ef5350', downColor: '#26a69a',
-            borderUpColor: '#ef5350', borderDownColor: '#26a69a',
-            wickUpColor: '#ef5350', wickDownColor: '#26a69a',
+
+        // 移動平均を先に追加してローソク足の背面に置く（ローソクが線に隠れないように）
+        MA_CONFIG.forEach(ma => {
+            const series = priceChart.addLineSeries({
+                color: ma.color,
+                lineWidth: ma.width,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+            });
+            series.setData(
+                smaFull[ma.period]
+                    .filter(p => p.time >= cutoff)
+                    .map(p => ({ time: toBusinessDay(p.time), value: p.value }))
+            );
         });
-        const validData = priceHistory.filter(d => d.open !== null && d.high !== null && d.low !== null && d.close !== null);
-        candlestickSeries.setData(validData);
+
+        // ローソク足（陽線=赤 / 陰線=青。日本のチャートの慣習に合わせる）
+        priceSeries = priceChart.addCandlestickSeries({
+            upColor: '#d64545', borderUpColor: '#d64545', wickUpColor: '#d64545',
+            downColor: '#4a7fb5', borderDownColor: '#4a7fb5', wickDownColor: '#4a7fb5',
+            priceLineVisible: false,
+        });
+
+        priceSeries.setData(data.map(d => ({
+            time: toBusinessDay(d.time),
+            open: d.open, high: d.high, low: d.low, close: d.close,
+        })));
         priceChart.timeScale().fitContent();
-        const resizeObserver = new ResizeObserver(entries => {
-            if (priceChart) {
-                const { width } = entries[0].contentRect;
-                priceChart.applyOptions({ width: width });
-            }
+
+        // 幅だけでなく高さの変化にも追従させる
+        // （左右のカードの中身が後から埋まってカード高が変わるため）
+        priceResizeObserver = new ResizeObserver(entries => {
+            if (!priceChart || !entries[0]) return;
+            const rect = entries[0].contentRect;
+            priceChart.applyOptions({
+                width: Math.floor(rect.width),
+                height: Math.max(CHART_MIN_HEIGHT, Math.floor(rect.height)),
+            });
         });
-        resizeObserver.observe(container);
+        priceResizeObserver.observe(container);
+    }
+
+    // 期間ボタンを生成する
+    function buildPeriodButtons() {
+        const wrap = document.getElementById('chartPeriodSwitch');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        PERIOD_CONFIG.forEach(p => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chart-period-btn' + (p.key === currentPeriodKey ? ' active' : '');
+            btn.textContent = p.label;
+            btn.dataset.key = p.key;
+            btn.onclick = () => setChartPeriod(p.key);
+            wrap.appendChild(btn);
+        });
+    }
+
+    // 凡例の移動平均ラベルを粒度に合わせて更新する（5日 / 5週 / 5ヶ月）
+    function updateMaLegend(granularity) {
+        const unit = MA_UNIT[granularity] || '日';
+        MA_CONFIG.forEach((ma, i) => {
+            const el = document.getElementById('maLabel' + i);
+            if (el) el.textContent = ma.period + unit;
+        });
+    }
+
+    // 期間切替。日足は取得済みデータを絞るだけ、長期は必要に応じてAPIから取得する。
+    async function setChartPeriod(key) {
+        const conf = PERIOD_CONFIG.find(p => p.key === key);
+        if (!conf) return;
+
+        currentPeriodKey = key;
+        chartPeriodDays = conf.days;
+        document.querySelectorAll('.chart-period-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.key === key);
+        });
+
+        // 未取得の粒度ならAPIから取得（取得後はキャッシュするので次回は即表示）
+        if (!historyCache[conf.granularity]) {
+            const container = document.getElementById('tradingview-chart-container');
+            if (container) {
+                container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;"><span class="demo-loading-spinner-sm" style="margin-right:8px;"></span>${conf.label}のデータを取得中...</div>`;
+            }
+            const rows = await fetchPriceHistory(key);
+            if (!rows || rows.length === 0) {
+                if (container) {
+                    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">${conf.label}のデータを取得できませんでした</div>`;
+                }
+                return;
+            }
+            historyCache[conf.granularity] = rows;
+        }
+
+        updateMaLegend(conf.granularity);
+        showPriceChart(historyCache[conf.granularity]);
+    }
+
+    // 株価履歴をAPIから取得する（DB保存済みならDBから、無ければサーバー側が取得して保存）
+    async function fetchPriceHistory(rangeKey) {
+        try {
+            const res = await fetch(`/api/stock/price-history/${STOCK_CODE}?range=${encodeURIComponent(rangeKey)}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.rows || [];
+        } catch (e) {
+            console.error('株価履歴の取得エラー:', e);
+            return null;
+        }
     }
 
     // 数値フォーマット
@@ -1701,7 +1983,16 @@
         updateHoldersAndOfficers(data);
 
         if (data.price_history && data.price_history.length > 0) {
-            showCandlestickChart(data.price_history);
+            window.currentCurrency = data.currency || 'JPY';
+            // 最新の日足で差し替える。長期(週足/月足)のキャッシュは別粒度なのでそのまま残す
+            historyCache.daily = data.price_history;
+            currentPeriodKey = '1y';
+            chartPeriodDays = 0;
+            document.querySelectorAll('.chart-period-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.key === '1y');
+            });
+            updateMaLegend('daily');
+            showPriceChart(data.price_history);
         }
 
         const chartTitle = document.querySelector('.chart-title');
@@ -1810,25 +2101,18 @@
         }
     }
 
-    // ファイルキャッシュからチャートデータを取得
+    // チャートデータを読み込む（DB経由。未取得ならサーバー側が取得して保存する）
     async function loadChartFromCache() {
         try {
-            const symbol = /^\d{4}$/.test(STOCK_CODE) ? `${STOCK_CODE}_T` : STOCK_CODE;
-            const response = await fetch(`/api/stock/cache/${symbol}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.price_history && data.price_history.length > 0) {
-                    showCandlestickChart(data.price_history);
-                    const chartTitle = document.querySelector('.chart-title');
-                    if (chartTitle && data.last_price) {
-                        const currency = (data.currency || 'JPY') === 'JPY' ? '¥' : '$';
-                        chartTitle.textContent = `株価推移（現在値: ${currency}${formatNumber(data.last_price)}）`;
-                    }
-                    return true;
-                }
+            const rows = await fetchPriceHistory('1y');
+            if (rows && rows.length > 0) {
+                historyCache.daily = rows;
+                updateMaLegend('daily');
+                showPriceChart(rows);
+                return true;
             }
         } catch (error) {
-            console.error('チャートキャッシュ取得エラー:', error);
+            console.error('チャートデータ取得エラー:', error);
         }
         return false;
     }
@@ -1837,6 +2121,9 @@
     document.addEventListener('DOMContentLoaded', async function() {
         // お気に入り状態をチェック
         checkFavoriteStatus();
+
+        // チャートの期間ボタンを生成
+        buildPeriodButtons();
 
         // まずキャッシュデータを表示
         try {
@@ -1859,7 +2146,7 @@
         if (!chartLoaded) {
             const chartContainer = document.getElementById('tradingview-chart-container');
             if (chartContainer) {
-                chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#64748b;">「更新」ボタンを押すとチャートが表示されます</div>';
+                chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;">「更新」ボタンを押すとチャートが表示されます</div>';
             }
         }
 

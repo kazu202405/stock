@@ -1320,6 +1320,13 @@ class StockAnalyzer:
                             result['employees_jp'] = jp_data['employees_jp']
                         if jp_data.get('average_salary_jp'):
                             result['average_salary_jp'] = jp_data['average_salary_jp']
+                        # 代表者名・業種分類・市場名も取得できているので取りこぼさない
+                        if jp_data.get('ceo_name_jp'):
+                            result['ceo_name_jp'] = jp_data['ceo_name_jp']
+                        if jp_data.get('industry_jp'):
+                            result['industry_jp'] = jp_data['industry_jp']
+                        if jp_data.get('market_jp'):
+                            result['market_jp'] = jp_data['market_jp']
 
                         # 日本語の役員情報（j-lic.comから）- 日本語データを優先使用
                         if jp_data.get('officers_jp'):
