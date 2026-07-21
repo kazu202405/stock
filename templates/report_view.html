@@ -494,39 +494,52 @@
   }
 
   /* --- 印刷（A4縦1ページに収める） ---
-     デザインは1060px幅で組んでいるため、A4の印刷可能幅に合わせて縮小する。
-     A4縦 210×297mm、余白6mmとして印刷可能幅198mm ≒ 748px。
-     748 ÷ 1060 ≒ 0.70 で縮小し、外側の箱を縮小後の寸法に固定して
-     はみ出しによる2ページ目の発生を防ぐ。 */
-  @page { size: A4 portrait; margin: 6mm; }
+     デザインは1060px幅で組んでいるため、A4の印刷可能幅に縮小する必要がある。
+
+     ここで transform: scale() は使えない。transform は見た目だけを縮め、
+     レイアウト上の大きさは元のままなので、ブラウザは1060×1499px分の場所を
+     確保したまま改ページしてしまう（右に大きな余白／2枚目が白紙になる）。
+     zoom はレイアウトごと縮むため、改ページも正しく効く。
+
+     A4縦210×297mm、余白8mm → 印刷可能領域は194×281mm ≒ 733×1062px。
+     733 ÷ 1060 ≒ 0.69 */
+  @page { size: A4 portrait; margin: 8mm; }
 
   @media print {
-    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    html, body {
+      background: #fff !important;
+      margin: 0 !important; padding: 0 !important;
+      width: auto !important; height: auto !important;
+    }
     header, nav, .bottom-tab-nav, .slide-menu, .slide-menu-overlay,
     .rp-actions { display: none !important; }
 
     .rp-wrap {
       background: #fff !important;
       padding: 0 !important;
-      width: 742px;
-      height: 1050px;
-      overflow: hidden;
+      margin: 0 !important;
     }
     .rp-page {
+      zoom: 0.69;
       width: 1060px;
+      max-width: none;
       min-height: 1499px;
-      transform: scale(0.70);
-      transform-origin: top left;
+      height: 1499px;
+      overflow: hidden;          /* 万一あふれても2枚目を作らない */
+      margin: 0;
       box-shadow: none;
       border-radius: 0;
       background: var(--rp-bg) !important;
+    }
+    /* 背景色・文字色を印刷でも保持する */
+    .rp-page, .rp-card, .rp-banner, .rp-banner::after, .rp-summary,
+    .rp-summary-label, .rp-summary-label::after, .rp-numcircle,
+    .rp-dot, .rp-stat, .rp-mini-title, .rp-cash-trend, .rp-tag {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .rp-card, .rp-banner, .rp-summary-label, .rp-numcircle, .rp-dot {
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    /* カードの途中で切れないようにする */
+    .rp-card, .rp-summary { break-inside: avoid; page-break-inside: avoid; }
   }
 </style>
 
@@ -548,12 +561,33 @@
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>画像を作成中...';
 
     const run = () => {
-      html2canvas(document.getElementById('reportPage'), {
+      const el = document.getElementById('reportPage');
+
+      // html2canvas はウィンドウ幅を基準に描くため、レポート幅がウィンドウより
+      // 広いと右が切れる。撮影中だけ実寸に固定し、描画範囲も明示する。
+      const savedWidth = el.style.width;
+      const savedMaxWidth = el.style.maxWidth;
+      el.style.width = '1060px';
+      el.style.maxWidth = 'none';
+
+      const restore = () => {
+        el.style.width = savedWidth;
+        el.style.maxWidth = savedMaxWidth;
+      };
+
+      html2canvas(el, {
         scale: 2,                 // 2倍で描画して粗さを防ぐ
         backgroundColor: '#e9eef7',
         useCORS: true,
         logging: false,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth + 80,   // 実寸より広く取り、右端の切れを防ぐ
+        windowHeight: el.scrollHeight + 80,
+        scrollX: 0,
+        scrollY: 0,
       }).then(canvas => {
+        restore();
         const link = document.createElement('a');
         link.download = REPORT_FILENAME + '.png';
         link.href = canvas.toDataURL('image/png');
@@ -562,6 +596,7 @@
         console.error('画像の作成に失敗:', err);
         alert('画像を作成できませんでした。PDFでの保存をお試しください。');
       }).finally(() => {
+        restore();
         btn.disabled = false;
         btn.innerHTML = original;
       });
