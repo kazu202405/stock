@@ -1,118 +1,240 @@
 {% extends "layout.html" %}
 
-{% block title %}お気に入り企業一覧{% endblock %}
+{% block title %}銘柄スクリーニング - Company Note{% endblock %}
 
 {% block content %}
 <div class="min-h-screen" style="background: #fafaf8;">
-    <!-- ヘッダーセクション -->
+    <!-- ヘッダー -->
     <div class="text-white" style="background: linear-gradient(135deg, #1b4332, #2d6a4f, #1b4332);">
         <div class="max-w-none mx-auto px-6 py-8">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold tracking-tight mb-2">
-                        <i class="fas fa-star text-yellow-400 mr-2"></i>お気に入り企業一覧
-                    </h1>
-                    <p class="text-slate-300 text-lg">登録した企業の財務データを一覧で確認</p>
-                </div>
-                <div class="mt-6 lg:mt-0 text-right">
-                    <div class="text-center lg:text-right">
-                        <div class="text-2xl font-bold text-yellow-400" id="favoriteCount">0</div>
-                        <div class="text-sm text-slate-400">登録企業数</div>
-                    </div>
-                </div>
-            </div>
+            <h1 class="text-3xl font-bold tracking-tight mb-2">
+                <i class="fas fa-filter mr-2" style="color:#95d5b2;"></i>銘柄スクリーニング
+            </h1>
+            <p class="text-slate-300 text-lg">財務データから企業を絞り込んで比較する</p>
         </div>
     </div>
 
-    <!-- テーブルセクション -->
-    <div class="max-w-none mx-auto px-6 py-6">
-        <!-- 空状態メッセージ（データがない場合） -->
+    <!-- タブ -->
+    <div class="max-w-none mx-auto px-6 pt-5">
+        <div class="scr-tabs">
+            <button class="scr-tab-btn active" data-panel="screen" onclick="switchScreenerTab('screen', this)">
+                <i class="fas fa-list-ul mr-1" style="font-size:11px;"></i>全銘柄から探す
+            </button>
+            <button class="scr-tab-btn" data-panel="fav" onclick="switchScreenerTab('fav', this)">
+                <i class="fas fa-star mr-1" style="font-size:11px;"></i>お気に入り
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== 全銘柄スクリーニング ===== -->
+    <div id="panel-screen" class="max-w-none mx-auto px-6 py-4" x-data="screenerApp()" x-init="init()">
+
+        <!-- よく使う条件 -->
+        <div class="scr-card" style="margin-bottom:12px;">
+            <div class="scr-card-label">よく使う条件</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <template x-for="p in presets" :key="p.key">
+                    <button class="scr-preset-btn" :class="{ 'active': activePreset === p.key }"
+                            @click="applyPreset(p)" x-text="p.label"></button>
+                </template>
+                <button class="scr-preset-btn" @click="resetFilters()" style="margin-left:auto;">
+                    条件をクリア
+                </button>
+            </div>
+        </div>
+
+        <!-- 絞り込み -->
+        <div class="scr-card" style="margin-bottom:12px;">
+            <div class="scr-card-label">絞り込み</div>
+            <div class="scr-filter-grid">
+                <div class="scr-field" style="grid-column: span 2;">
+                    <label>キーワード（銘柄コード・企業名）</label>
+                    <input type="text" x-model.debounce.400ms="filters.q" @input="search(1)"
+                           placeholder="例: 7203 / トヨタ" autocomplete="off">
+                </div>
+                <div class="scr-field">
+                    <label>業種</label>
+                    <select x-model="filters.sector" @change="search(1)">
+                        <option value="">すべて</option>
+                        <template x-for="s in sectors" :key="s">
+                            <option :value="s" x-text="s"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="scr-field">
+                    <label>合致度 下限</label>
+                    <input type="number" x-model.number="filters.match_rate_min" @change="search(1)" placeholder="例: 70" min="0" max="100">
+                </div>
+                <div class="scr-field">
+                    <label>自己資本比率 下限(%)</label>
+                    <input type="number" x-model.number="filters.equity_ratio_min" @change="search(1)" placeholder="例: 50">
+                </div>
+                <div class="scr-field">
+                    <label>営業利益率 下限(%)</label>
+                    <input type="number" x-model.number="filters.operating_margin_min" @change="search(1)" placeholder="例: 10">
+                </div>
+                <div class="scr-field">
+                    <label>ROE 下限(%)</label>
+                    <input type="number" x-model.number="filters.roe_min" @change="search(1)" placeholder="例: 15">
+                </div>
+                <div class="scr-field">
+                    <label>PER 上限(倍)</label>
+                    <input type="number" x-model.number="filters.per_max" @change="search(1)" placeholder="例: 15">
+                </div>
+                <div class="scr-field">
+                    <label>PBR 上限(倍)</label>
+                    <input type="number" x-model.number="filters.pbr_max" @change="search(1)" placeholder="例: 1.5" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>配当利回り 下限(%)</label>
+                    <input type="number" x-model.number="filters.dividend_yield_min" @change="search(1)" placeholder="例: 3" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>時価総額 下限(億円)</label>
+                    <input type="number" x-model.number="filters.market_cap_min" @change="search(1)" placeholder="例: 100">
+                </div>
+            </div>
+        </div>
+
+        <!-- 件数・注記 -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+            <div style="font-size:13px; color:#525252;">
+                <template x-if="!loading">
+                    <span>該当 <strong style="color:#1b4332; font-size:15px;" x-text="total.toLocaleString()"></strong> 件</span>
+                </template>
+                <template x-if="loading">
+                    <span style="color:#a3a3a3;"><i class="fas fa-spinner fa-spin mr-1"></i>絞り込み中...</span>
+                </template>
+            </div>
+            <div style="font-size:11px; color:#a3a3a3;">
+                並べ替えは列見出しをクリック
+            </div>
+        </div>
+
+        <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.6;">
+            ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
+            ※ ROE順で並べ替える際は、自己資本比率5%未満の企業を除外しています（分母が小さいとROEが極端な値になり比較できないため）。
+        </p>
+
+        <!-- 結果テーブル -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="scr-th">銘柄</th>
+                            <template x-for="col in columns" :key="col.key">
+                                <th class="scr-th scr-th-sortable" :class="{ 'is-active': sort === col.key }"
+                                    @click="toggleSort(col.key)">
+                                    <span x-text="col.label"></span>
+                                    <i class="fas" :class="sort === col.key ? (order === 'desc' ? 'fa-sort-down' : 'fa-sort-up') : 'fa-sort'"></i>
+                                </th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="row in rows" :key="row.company_code">
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <a :href="'/stock/' + row.company_code" class="scr-name-link">
+                                        <span x-text="row.company_name || '---'"></span>
+                                    </a>
+                                    <div style="font-size:11px; color:#a3a3a3;" x-text="row.company_code"></div>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="scr-match" :class="matchClass(row.match_rate)"
+                                          x-text="row.match_rate != null ? row.match_rate : '---'"></span>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="scr-badge" x-text="row.sector || '---'"></span>
+                                </td>
+                                <td class="scr-td-num" x-text="fmtOku(row.market_cap)"></td>
+                                <td class="scr-td-num" x-text="fmtYen(row.stock_price)"></td>
+                                <td class="scr-td-num">
+                                    <span class="scr-pill" :class="pillClass(row.equity_ratio, 50, 30)"
+                                          x-text="fmtPct(row.equity_ratio)"></span>
+                                </td>
+                                <td class="scr-td-num">
+                                    <span class="scr-pill" :class="pillClass(row.operating_margin, 15, 5)"
+                                          x-text="fmtPct(row.operating_margin)"></span>
+                                </td>
+                                <td class="scr-td-num" x-text="fmtPct(row.roe)"></td>
+                                <td class="scr-td-num" x-text="fmtMultiple(row.per_forward)"></td>
+                                <td class="scr-td-num" x-text="fmtMultiple(row.pbr, 2)"></td>
+                                <td class="scr-td-num" x-text="fmtPct(row.dividend_yield, 2)"></td>
+                            </tr>
+                        </template>
+
+                        <tr x-show="!loading && rows.length === 0">
+                            <td colspan="11" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                                <i class="fas fa-search text-2xl mb-3 block"></i>
+                                条件に一致する企業がありませんでした。条件をゆるめてお試しください。
+                            </td>
+                        </tr>
+                        <tr x-show="loading && rows.length === 0">
+                            <td colspan="11" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                                <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
+                                読み込み中...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ページング -->
+        <div class="scr-pager" x-show="totalPages > 1">
+            <button class="scr-page-btn" :disabled="page <= 1" @click="search(page - 1)">前へ</button>
+            <span style="font-size:13px; color:#525252;">
+                <strong x-text="page"></strong> / <span x-text="totalPages"></span> ページ
+            </span>
+            <button class="scr-page-btn" :disabled="page >= totalPages" @click="search(page + 1)">次へ</button>
+        </div>
+    </div>
+
+    <!-- ===== お気に入り（従来の一覧） ===== -->
+    <div id="panel-fav" class="max-w-none mx-auto px-6 py-4" style="display:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="font-size:13px; color:#525252;">
+                登録企業数 <strong style="color:#1b4332; font-size:15px;" id="favoriteCount">0</strong> 件
+            </div>
+        </div>
+
         <div id="emptyState" class="hidden">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                 <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-star text-gray-400 text-2xl"></i>
                 </div>
                 <h3 class="text-lg font-semibold text-gray-700 mb-2">お気に入りが登録されていません</h3>
-                <p class="text-gray-500 mb-6">トップページで企業を分析し、お気に入りに登録しましょう</p>
-                <a href="/dashboard" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                    <i class="fas fa-search mr-2"></i>企業を探す
-                </a>
+                <p class="text-gray-500 mb-6">気になる企業を見つけて登録しましょう</p>
+                <button onclick="switchScreenerTab('screen', document.querySelector('.scr-tab-btn'))"
+                        class="inline-flex items-center px-4 py-2 text-white rounded-lg transition-colors text-sm font-medium" style="background:#1b4332;">
+                    <i class="fas fa-search mr-2"></i>全銘柄から探す
+                </button>
             </div>
         </div>
 
-        <!-- 注記 -->
         <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.5;">※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。</p>
 
-        <!-- テーブル -->
         <div id="tableContainer" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="company">
-                                <div class="flex items-center space-x-1">
-                                    <span>企業名</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="match_rate">
-                                <div class="flex items-center space-x-1">
-                                    <span>合致度</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                セクター
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="market_cap">
-                                <div class="flex items-center space-x-1">
-                                    <span>時価総額</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="stock_price">
-                                <div class="flex items-center space-x-1">
-                                    <span>株価</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="equity_ratio">
-                                <div class="flex items-center space-x-1">
-                                    <span>自己資本比率</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="operating_margin">
-                                <div class="flex items-center space-x-1">
-                                    <span>営業利益率</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="per">
-                                <div class="flex items-center space-x-1">
-                                    <span>PER</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="pbr">
-                                <div class="flex items-center space-x-1">
-                                    <span>PBR</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors sortable" data-sort="dividend_yield">
-                                <div class="flex items-center space-x-1">
-                                    <span>配当利回り</span>
-                                    <i class="fas fa-sort text-gray-400 text-xs"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                アクション
-                            </th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="company">企業名 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="match_rate">合致度 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th">セクター</th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="market_cap">時価総額 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="stock_price">株価 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="equity_ratio">自己資本比率 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="operating_margin">営業利益率 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="per">PER <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="pbr">PBR <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="dividend_yield">配当利回り <i class="fas fa-sort"></i></th>
+                            <th class="scr-th">アクション</th>
                         </tr>
                     </thead>
-                    <tbody id="favoritesTableBody" class="bg-white divide-y divide-gray-200">
-                    </tbody>
+                    <tbody id="favoritesTableBody" class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
         </div>
@@ -120,35 +242,325 @@
 </div>
 
 <style>
-    /* 合致度の色分け */
-    .match-high { color: #16a34a; font-weight: 600; }
-    .match-medium { color: #ca8a04; font-weight: 600; }
-    .match-low { color: #dc2626; font-weight: 600; }
+    .scr-tabs {
+        display: inline-flex;
+        background: #f0f0ec;
+        border-radius: 10px;
+        padding: 4px;
+        gap: 4px;
+    }
+    .scr-tab-btn {
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #737373;
+        background: transparent;
+        border: none;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .scr-tab-btn:hover { color: #1a1a1a; }
+    .scr-tab-btn.active {
+        background: #fff;
+        color: #1b4332;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .scr-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+    .scr-card-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #737373;
+        margin-bottom: 10px;
+        letter-spacing: 0.04em;
+    }
+
+    .scr-preset-btn {
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #525252;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .scr-preset-btn:hover { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
+    .scr-preset-btn.active { background: #1b4332; border-color: #1b4332; color: #fff; }
+
+    .scr-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 10px;
+    }
+    .scr-field label {
+        display: block;
+        font-size: 11px;
+        color: #737373;
+        margin-bottom: 3px;
+    }
+    .scr-field input, .scr-field select {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1px solid #ebebeb;
+        border-radius: 7px;
+        font-size: 13px;
+        color: #1a1a1a;
+        background: #fff;
+        outline: none;
+        transition: border-color 0.15s;
+        box-sizing: border-box;
+        font-family: inherit;
+    }
+    .scr-field input:focus, .scr-field select:focus { border-color: #2d6a4f; }
+
+    .scr-th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #737373;
+        white-space: nowrap;
+    }
+    .scr-th-sortable { cursor: pointer; transition: background 0.15s; }
+    .scr-th-sortable:hover { background: #f0f0ec; }
+    .scr-th-sortable i { margin-left: 4px; color: #d4d4d4; font-size: 10px; }
+    .scr-th.is-active { color: #1b4332; }
+    .scr-th.is-active i { color: #1b4332; }
+
+    .scr-td-num {
+        padding: 10px 14px;
+        white-space: nowrap;
+        font-size: 13px;
+        color: #1a1a1a;
+        font-variant-numeric: tabular-nums;
+    }
+    .scr-name-link {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1a1a1a;
+        text-decoration: none;
+    }
+    .scr-name-link:hover { color: #2d6a4f; text-decoration: underline; }
+
+    .scr-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        background: #f0f0ec;
+        color: #525252;
+        white-space: nowrap;
+    }
+    .scr-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .pill-good { background: #dcfce7; color: #15803d; }
+    .pill-mid  { background: #fef9c3; color: #a16207; }
+    .pill-low  { background: #fee2e2; color: #b91c1c; }
+    .pill-none { background: #f3f4f6; color: #9ca3af; }
+
+    .scr-match { font-size: 14px; font-weight: 700; }
+    .match-high { color: #15803d; }
+    .match-medium { color: #a16207; }
+    .match-low { color: #9ca3af; }
+
+    .scr-pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 16px;
+    }
+    .scr-page-btn {
+        padding: 6px 16px;
+        font-size: 13px;
+        color: #525252;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .scr-page-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
+    .scr-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 
 <script>
+    // ===== タブ切替 =====
+    function switchScreenerTab(panel, btn) {
+        document.getElementById('panel-screen').style.display = panel === 'screen' ? '' : 'none';
+        document.getElementById('panel-fav').style.display = panel === 'fav' ? '' : 'none';
+        document.querySelectorAll('.scr-tab-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        // お気に入りは初回表示時にだけ読み込む
+        if (panel === 'fav' && !favoritesLoaded) {
+            favoritesLoaded = true;
+            loadFavorites();
+        }
+    }
+
+    // ===== 全銘柄スクリーニング =====
+    function screenerApp() {
+        return {
+            rows: [],
+            sectors: [],
+            total: 0,
+            page: 1,
+            perPage: 50,
+            totalPages: 1,
+            sort: 'match_rate',
+            order: 'desc',
+            loading: true,
+            activePreset: '',
+            filters: {
+                q: '', sector: '', match_rate_min: '', equity_ratio_min: '',
+                operating_margin_min: '', roe_min: '', per_max: '', pbr_max: '',
+                dividend_yield_min: '', market_cap_min: '',
+            },
+
+            // 並べ替え可能な列（APIのホワイトリストと対応）
+            columns: [
+                { key: 'match_rate',       label: '合致度' },
+                { key: 'sector',           label: '業種', noSort: true },
+                { key: 'market_cap',       label: '時価総額' },
+                { key: 'stock_price',      label: '株価' },
+                { key: 'equity_ratio',     label: '自己資本比率' },
+                { key: 'operating_margin', label: '営業利益率' },
+                { key: 'roe',              label: 'ROE' },
+                { key: 'per_forward',      label: 'PER' },
+                { key: 'pbr',              label: 'PBR' },
+                { key: 'dividend_yield',   label: '配当利回り' },
+            ],
+
+            presets: [
+                { key: 'quality',  label: '財務が堅い',   filters: { equity_ratio_min: 50, operating_margin_min: 10 }, sort: 'match_rate', order: 'desc' },
+                { key: 'value',    label: '割安',        filters: { per_max: 15, pbr_max: 1.5 },                     sort: 'per_forward', order: 'asc' },
+                { key: 'dividend', label: '高配当',      filters: { dividend_yield_min: 3 },                          sort: 'dividend_yield', order: 'desc' },
+                { key: 'roe',      label: '稼ぐ力が高い', filters: { roe_min: 15, equity_ratio_min: 30 },              sort: 'roe', order: 'desc' },
+                { key: 'large',    label: '大企業',      filters: { market_cap_min: 1000 },                           sort: 'market_cap', order: 'desc' },
+            ],
+
+            async init() {
+                this.loadSectors();
+                await this.search(1);
+            },
+
+            async loadSectors() {
+                try {
+                    const res = await fetch('/api/stocks/sectors');
+                    if (res.ok) this.sectors = (await res.json()).sectors || [];
+                } catch (e) { /* 業種の絞り込みが使えないだけなので黙って続行 */ }
+            },
+
+            buildQuery(page) {
+                const p = new URLSearchParams();
+                p.set('page', page);
+                p.set('per_page', this.perPage);
+                p.set('sort', this.sort);
+                p.set('order', this.order);
+                Object.entries(this.filters).forEach(([k, v]) => {
+                    if (v !== '' && v !== null && v !== undefined) p.set(k, v);
+                });
+                return p.toString();
+            },
+
+            async search(page) {
+                this.loading = true;
+                this.page = Math.max(1, page || 1);
+                try {
+                    const res = await fetch('/api/stocks/screen?' + this.buildQuery(this.page));
+                    const data = await res.json();
+                    this.rows = data.rows || [];
+                    this.total = data.total || 0;
+                    this.totalPages = data.total_pages || 1;
+                } catch (e) {
+                    console.error('スクリーニング取得エラー:', e);
+                    this.rows = [];
+                    this.total = 0;
+                    this.totalPages = 1;
+                }
+                this.loading = false;
+            },
+
+            toggleSort(key) {
+                const col = this.columns.find(c => c.key === key);
+                if (!col || col.noSort) return;
+                if (this.sort === key) {
+                    this.order = this.order === 'desc' ? 'asc' : 'desc';
+                } else {
+                    this.sort = key;
+                    this.order = 'desc';
+                }
+                this.search(1);
+            },
+
+            applyPreset(preset) {
+                this.resetFilters(false);
+                Object.assign(this.filters, preset.filters);
+                this.sort = preset.sort;
+                this.order = preset.order;
+                this.activePreset = preset.key;
+                this.search(1);
+            },
+
+            resetFilters(doSearch = true) {
+                Object.keys(this.filters).forEach(k => { this.filters[k] = ''; });
+                this.activePreset = '';
+                if (doSearch) {
+                    this.sort = 'match_rate';
+                    this.order = 'desc';
+                    this.search(1);
+                }
+            },
+
+            // --- 表示フォーマット ---
+            fmtOku(v) {
+                if (v == null) return '---';
+                return v >= 10000 ? (v / 10000).toFixed(1) + '兆' : Math.round(v).toLocaleString() + '億';
+            },
+            fmtYen(v) { return v == null ? '---' : '¥' + Math.round(v).toLocaleString(); },
+            fmtPct(v, digits = 1) { return v == null ? '---' : Number(v).toFixed(digits) + '%'; },
+            fmtMultiple(v, digits = 1) { return v == null ? '---' : Number(v).toFixed(digits) + '倍'; },
+            matchClass(v) {
+                if (v == null) return 'match-low';
+                return v >= 70 ? 'match-high' : v >= 40 ? 'match-medium' : 'match-low';
+            },
+            pillClass(v, good, mid) {
+                if (v == null) return 'pill-none';
+                return v >= good ? 'pill-good' : v >= mid ? 'pill-mid' : 'pill-low';
+            },
+        };
+    }
+
+    // ===== お気に入り（従来ロジックを維持） =====
     let favorites = [];
+    let favoritesLoaded = false;
     let sortColumn = '';
     let sortDirection = 'asc';
-    let isLoading = true;
 
-    // APIからウォッチリストデータを取得
     async function loadFavorites() {
         const tbody = document.getElementById('favoritesTableBody');
         const emptyState = document.getElementById('emptyState');
         const tableContainer = document.getElementById('tableContainer');
 
-        // ローディング表示
         tableContainer.classList.remove('hidden');
         emptyState.classList.add('hidden');
         tbody.innerHTML = `
-            <tr>
-                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
-                    <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
-                    データを読み込み中...
-                </td>
-            </tr>
-        `;
+            <tr><td colspan="11" class="px-4 py-12 text-center text-gray-500">
+                <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>データを読み込み中...
+            </td></tr>`;
 
         try {
             const response = await fetch('/api/watchlist');
@@ -159,150 +571,81 @@
             console.error('ウォッチリスト取得エラー:', err);
             favorites = [];
             tbody.innerHTML = `
-                <tr>
-                    <td colspan="11" class="px-4 py-12 text-center text-red-500">
-                        <i class="fas fa-exclamation-circle text-2xl mb-3 block"></i>
-                        データの読み込みに失敗しました。ページを再読み込みしてお試しください。
-                    </td>
-                </tr>
-            `;
+                <tr><td colspan="11" class="px-4 py-12 text-center text-red-500">
+                    <i class="fas fa-exclamation-circle text-2xl mb-3 block"></i>
+                    データの読み込みに失敗しました。ページを再読み込みしてお試しください。
+                </td></tr>`;
             return;
         }
-
-        isLoading = false;
         renderFavorites();
     }
 
-    // 時価総額フォーマット（億円単位 → 兆/億表示）
     function formatMarketCapOku(oku) {
-        if (oku === null || oku === undefined) return '---';
-        if (oku >= 10000) {
-            return `${(oku / 10000).toFixed(1)}兆`;
-        }
-        return `${Math.round(oku)}億`;
+        if (oku == null) return '---';
+        return oku >= 10000 ? `${(oku / 10000).toFixed(1)}兆` : `${Math.round(oku)}億`;
     }
-
-    // 株価フォーマット
     function formatWatchlistPrice(num) {
-        if (num === null || num === undefined) return '---';
-        return `¥${Math.round(num).toLocaleString()}`;
+        return num == null ? '---' : `¥${Math.round(num).toLocaleString()}`;
     }
-
-    // 合致度の色分けクラスを取得
     function getMatchRateClass(value) {
-        if (value === null || value === undefined) return '';
+        if (value == null) return '';
         if (value >= 70) return 'match-high';
         if (value >= 40) return 'match-medium';
         return 'match-low';
     }
 
-    // セクターのバッジ色を取得
-    function getSectorBadge(sector) {
-        const colors = {
-            'テクノロジー': 'bg-blue-100 text-blue-800',
-            '消費財': 'bg-purple-100 text-purple-800',
-            '素材': 'bg-gray-100 text-gray-800',
-            '製造業': 'bg-indigo-100 text-indigo-800',
-            '金融': 'bg-green-100 text-green-800',
-            'ヘルスケア': 'bg-red-100 text-red-800'
-        };
-        return colors[sector] || 'bg-gray-100 text-gray-800';
-    }
-
-    // テーブル描画
     function renderFavorites() {
         const tbody = document.getElementById('favoritesTableBody');
         const emptyState = document.getElementById('emptyState');
         const tableContainer = document.getElementById('tableContainer');
-        const countEl = document.getElementById('favoriteCount');
-
-        countEl.textContent = favorites.length;
+        document.getElementById('favoriteCount').textContent = favorites.length;
 
         if (favorites.length === 0) {
             emptyState.classList.remove('hidden');
             tableContainer.classList.add('hidden');
             return;
         }
-
         emptyState.classList.add('hidden');
         tableContainer.classList.remove('hidden');
 
         let html = '';
         favorites.forEach(item => {
-            const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
-            const matchClass = getMatchRateClass(item.match_rate);
-            const sectorBadge = getSectorBadge(item.sector);
-
+            const matchRate = item.match_rate != null ? `${item.match_rate}` : '---';
             const equityRatio = item.equity_ratio;
-            const equityClass = equityRatio == null ? 'bg-gray-100 text-gray-800'
-                : equityRatio >= 50 ? 'bg-green-100 text-green-800'
-                : equityRatio >= 30 ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-red-100 text-red-800';
+            const equityClass = equityRatio == null ? 'pill-none'
+                : equityRatio >= 50 ? 'pill-good' : equityRatio >= 30 ? 'pill-mid' : 'pill-low';
             const opMargin = item.operating_margin;
-            const opClass = opMargin == null ? 'bg-gray-100 text-gray-800'
-                : opMargin >= 15 ? 'bg-green-100 text-green-800'
-                : opMargin >= 5 ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-red-100 text-red-800';
+            const opClass = opMargin == null ? 'pill-none'
+                : opMargin >= 15 ? 'pill-good' : opMargin >= 5 ? 'pill-mid' : 'pill-low';
 
             html += `
                 <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-4 whitespace-nowrap">
-                        <div>
-                            <div class="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600"
-                                 onclick="analyzeFromFavorite('${item.company_code}')">
-                                ${item.company_name || '---'}
-                            </div>
-                            <div class="text-xs text-gray-500">${item.company_code}</div>
-                        </div>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <a href="/stock/${item.company_code}" class="scr-name-link">${item.company_name || '---'}</a>
+                        <div style="font-size:11px; color:#a3a3a3;">${item.company_code}</div>
                     </td>
-                    <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="text-sm font-semibold ${matchClass}">${matchRate}</span>
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${sectorBadge}">${item.sector || '---'}</span>
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                        ${formatMarketCapOku(item.market_cap)}
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${formatWatchlistPrice(item.stock_price)}
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${equityClass}">
-                            ${equityRatio != null ? equityRatio + '%' : '---'}
-                        </span>
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${opClass}">
-                            ${opMargin != null ? opMargin + '%' : '---'}
-                        </span>
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.per_forward ? Number(item.per_forward).toFixed(1) + '倍' : '---'}
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.dividend_yield ? Number(item.dividend_yield).toFixed(2) + '%' : '---'}
-                    </td>
-                    <td class="px-4 py-4 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-match ${getMatchRateClass(item.match_rate)}">${matchRate}</span></td>
+                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-badge">${item.sector || '---'}</span></td>
+                    <td class="scr-td-num">${formatMarketCapOku(item.market_cap)}</td>
+                    <td class="scr-td-num">${formatWatchlistPrice(item.stock_price)}</td>
+                    <td class="scr-td-num"><span class="scr-pill ${equityClass}">${equityRatio != null ? equityRatio + '%' : '---'}</span></td>
+                    <td class="scr-td-num"><span class="scr-pill ${opClass}">${opMargin != null ? opMargin + '%' : '---'}</span></td>
+                    <td class="scr-td-num">${item.per_forward ? Number(item.per_forward).toFixed(1) + '倍' : '---'}</td>
+                    <td class="scr-td-num">${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}</td>
+                    <td class="scr-td-num">${item.dividend_yield ? Number(item.dividend_yield).toFixed(2) + '%' : '---'}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
                         <button onclick="removeFavorite('${item.company_code}')"
                                 class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
                             <i class="fas fa-trash-alt mr-1"></i>削除
                         </button>
                     </td>
-                </tr>
-            `;
+                </tr>`;
         });
-
         tbody.innerHTML = html;
     }
 
-    // お気に入りから削除（API連携）
     async function removeFavorite(code) {
         if (!confirm('この企業をお気に入りから削除しますか？')) return;
-
         try {
             const response = await fetch(`/api/watchlist/remove/${code}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('削除に失敗しました');
@@ -314,58 +657,34 @@
         }
     }
 
-    // 企業名クリック → トップページの分析パネルへ遷移
-    function analyzeFromFavorite(code) {
-        const stockCode = code.replace('.T', '');
-        window.location.href = `/dashboard?code=${stockCode}`;
-    }
-
-    // ソート機能
-    document.querySelectorAll('th.sortable').forEach(th => {
+    // お気に入りタブのソート
+    document.querySelectorAll('#panel-fav th.sortable').forEach(th => {
         th.addEventListener('click', () => {
             const column = th.dataset.sort;
-
             if (sortColumn === column) {
                 sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             } else {
                 sortColumn = column;
                 sortDirection = 'asc';
             }
-
-            // ヘッダーのアイコン更新
-            document.querySelectorAll('th.sortable i').forEach(icon => {
-                icon.className = 'fas fa-sort text-gray-400 text-xs';
+            document.querySelectorAll('#panel-fav th.sortable i').forEach(icon => {
+                icon.className = 'fas fa-sort';
             });
-            const currentIcon = th.querySelector('i');
-            currentIcon.className = sortDirection === 'asc'
-                ? 'fas fa-sort-up text-blue-500 text-xs'
-                : 'fas fa-sort-down text-blue-500 text-xs';
-
-            // ソート実行
+            th.querySelector('i').className = sortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
             sortFavorites(column, sortDirection);
         });
     });
 
     function sortFavorites(column, direction) {
         favorites.sort((a, b) => {
-            let aVal, bVal;
-
             if (column === 'company') {
-                aVal = a.company_name;
-                bVal = b.company_name;
-                return direction === 'asc' ? aVal.localeCompare(bVal, 'ja') : bVal.localeCompare(aVal, 'ja');
+                const av = a.company_name || '', bv = b.company_name || '';
+                return direction === 'asc' ? av.localeCompare(bv, 'ja') : bv.localeCompare(av, 'ja');
             }
-
-            // 数値カラム
-            aVal = a[column] || 0;
-            bVal = b[column] || 0;
-            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+            const av = a[column] || 0, bv = b[column] || 0;
+            return direction === 'asc' ? av - bv : bv - av;
         });
-
         renderFavorites();
     }
-
-    // 初期表示（APIからデータ取得）
-    loadFavorites();
 </script>
 {% endblock %}

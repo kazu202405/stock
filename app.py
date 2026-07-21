@@ -1920,6 +1920,156 @@ def api_retry_summary_jp(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+# =============================================
+# 全銘柄スクリーニング
+#
+# 従来 /screener はウォッチリスト（自分で登録した数十件）しか見られず、
+# screened_latest に溜まった全銘柄を横断して探す手段が無かった。
+# =============================================
+
+# 並べ替えに使ってよいカラム（任意の文字列を order に渡さないためのホワイトリスト）
+SCREEN_SORTABLE = {
+    'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
+    'roe', 'roa', 'equity_ratio', 'operating_margin', 'dividend_yield',
+    'company_code', 'analyzed_at',
+}
+
+# クエリパラメータ名 -> (カラム, 比較方向)
+SCREEN_FILTERS = {
+    'per_min': ('per_forward', 'gte'),
+    'per_max': ('per_forward', 'lte'),
+    'pbr_min': ('pbr', 'gte'),
+    'pbr_max': ('pbr', 'lte'),
+    'roe_min': ('roe', 'gte'),
+    'roa_min': ('roa', 'gte'),
+    'equity_ratio_min': ('equity_ratio', 'gte'),
+    'operating_margin_min': ('operating_margin', 'gte'),
+    'dividend_yield_min': ('dividend_yield', 'gte'),
+    'market_cap_min': ('market_cap', 'gte'),
+    'market_cap_max': ('market_cap', 'lte'),
+    'match_rate_min': ('match_rate', 'gte'),
+}
+
+SCREEN_COLUMNS = (
+    'company_code, company_name, sector, market_cap, stock_price, '
+    'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
+    'dividend_yield, match_rate, analyzed_at'
+)
+
+# ROEランキングで採用する自己資本比率の下限(%)。
+# これを下回るとROEの分母が小さすぎて数値が不安定になるため順位付けに使わない。
+ROE_MIN_EQUITY_RATIO = 5
+
+_sector_cache = {'values': None, 'fetched_at': 0}
+
+
+@app.route('/api/stocks/sectors', methods=['GET'])
+def api_stock_sectors():
+    """業種の一覧（絞り込みプルダウン用）。実データから作り10分キャッシュする。"""
+    import time as _time
+    try:
+        if _sector_cache['values'] and _time.time() - _sector_cache['fetched_at'] < 600:
+            return jsonify({'sectors': _sector_cache['values']}), 200
+
+        client = get_supabase_client()
+        sectors = set()
+        page = 0
+        while page < 10:  # 上限を設けて暴走を防ぐ
+            res = (client.table('screened_latest')
+                   .select('sector')
+                   .range(page * 1000, page * 1000 + 999)
+                   .execute())
+            rows = res.data or []
+            for r in rows:
+                s = (r.get('sector') or '').strip()
+                if s:
+                    sectors.add(s)
+            if len(rows) < 1000:
+                break
+            page += 1
+
+        values = sorted(sectors)
+        _sector_cache['values'] = values
+        _sector_cache['fetched_at'] = _time.time()
+        return jsonify({'sectors': values}), 200
+    except Exception as e:
+        print(f'業種一覧の取得エラー: {e}')
+        return jsonify({'sectors': []}), 200
+
+
+@app.route('/api/stocks/screen', methods=['GET'])
+def api_screen_stocks():
+    """全銘柄を横断して絞り込み・並べ替え・ページングする。"""
+    try:
+        client = get_supabase_client()
+
+        page = max(1, request.args.get('page', 1, type=int) or 1)
+        per_page = request.args.get('per_page', 50, type=int) or 50
+        per_page = min(max(per_page, 1), 200)
+
+        sort = request.args.get('sort') or 'match_rate'
+        if sort not in SCREEN_SORTABLE:
+            sort = 'match_rate'
+        desc = (request.args.get('order') or 'desc').lower() != 'asc'
+
+        query = client.table('screened_latest').select(SCREEN_COLUMNS, count='exact')
+
+        # 社名が無い行は分析が成立していないので除外する
+        query = query.not_.is_('company_name', 'null')
+
+        # 数値の絞り込み
+        for param, (column, op) in SCREEN_FILTERS.items():
+            raw = request.args.get(param)
+            if raw is None or raw == '':
+                continue
+            try:
+                value = float(raw)
+            except ValueError:
+                continue
+            query = query.gte(column, value) if op == 'gte' else query.lte(column, value)
+
+        sector = (request.args.get('sector') or '').strip()
+        if sector:
+            query = query.eq('sector', sector)
+
+        # 銘柄コード・社名の部分一致
+        keyword = (request.args.get('q') or '').strip()
+        if keyword:
+            safe = keyword.replace(',', ' ').replace('(', ' ').replace(')', ' ').strip()
+            if safe:
+                query = query.or_(f'company_code.ilike.*{safe}*,company_name.ilike.*{safe}*')
+
+        # 並べ替えるカラムが空の行は順位付けできないため除外する
+        # （例: ROE順で見たいのにROEが無い銘柄が混ざると一覧が読みにくい）
+        if sort != 'company_code':
+            query = query.not_.is_(sort, 'null')
+
+        # ROE順のときは自己資本が極端に薄い企業を除外する。
+        # ROE = 純利益 ÷ 自己資本 のため、分母が小さいと数値が爆発する。
+        # 実データでは自己資本比率3.49%の銘柄がROE10,404%として1位に来ており、
+        # そのままではランキングとして成立しない。
+        # include_anomalies=1 で除外を解除できる。
+        if sort == 'roe' and request.args.get('include_anomalies') != '1':
+            query = query.gte('equity_ratio', ROE_MIN_EQUITY_RATIO)
+
+        offset = (page - 1) * per_page
+        res = query.order(sort, desc=desc).range(offset, offset + per_page - 1).execute()
+
+        total = res.count or 0
+        return jsonify({
+            'rows': res.data or [],
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (total + per_page - 1) // per_page if per_page else 1,
+            'sort': sort,
+            'order': 'desc' if desc else 'asc',
+        }), 200
+    except Exception as e:
+        print(f'スクリーニングのエラー: {e}')
+        return jsonify({'error': '銘柄の絞り込みに失敗しました', 'rows': [], 'total': 0}), 500
+
+
 @app.route('/api/stock/price-history/<company_code>', methods=['GET'])
 def api_price_history(company_code):
     """チャート用の株価履歴を返す。
