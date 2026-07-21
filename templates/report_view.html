@@ -11,6 +11,18 @@
   値を差し替えるだけで済むよう、テキストは各ブロックに素直に置いている。
 #}
 <div class="rp-wrap">
+
+  <!-- 操作バー（印刷・画像化には含めない） -->
+  <div class="rp-actions">
+    <button type="button" class="rp-btn rp-btn-primary" onclick="downloadReportPdf()">
+      <i class="fas fa-file-pdf"></i>PDFで保存
+    </button>
+    <button type="button" class="rp-btn" id="rpPngBtn" onclick="downloadReportPng()">
+      <i class="fas fa-image"></i>画像で保存
+    </button>
+    <span class="rp-actions-note">PDFは印刷ダイアログで「PDFに保存」を選んでください（A4縦）</span>
+  </div>
+
   <div class="rp-page" id="reportPage">
 
     <!-- ===== タイトル ===== -->
@@ -231,15 +243,41 @@
     --rp-line: #d8e0ee;
   }
 
-  .rp-wrap { background: #f7f7f5; padding: 24px 16px 48px; }
+  .rp-wrap { background: #f7f7f5; padding: 18px 16px 48px; }
+
+  /* 操作バー */
+  .rp-actions {
+    max-width: 1060px; margin: 0 auto 14px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .rp-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; font-size: 13px; font-weight: 600;
+    color: #525252; background: #fff;
+    border: 1px solid #ebebeb; border-radius: 8px;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .rp-btn:hover { border-color: var(--rp-navy); color: var(--rp-navy); }
+  .rp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .rp-btn-primary { background: var(--rp-navy); color: #fff; border-color: var(--rp-navy); }
+  .rp-btn-primary:hover { background: #2E5395; color: #fff; }
+  .rp-actions-note { font-size: 11px; color: #a3a3a3; margin-left: 4px; }
+
+  /* A4縦(210×297mm)と同じ縦横比。印刷時はこの幅をA4に縮小して収める */
   .rp-page {
-    max-width: 1060px;
+    width: 1060px;
+    max-width: 100%;
     margin: 0 auto;
     background: var(--rp-bg);
     padding: 26px 24px 20px;
     border-radius: 6px;
     font-family: 'Noto Sans JP', 'Inter', sans-serif;
     color: #1a1a1a;
+    box-sizing: border-box;
+  }
+  @media (min-width: 1100px) {
+    /* 1060px幅に対するA4の高さ = 1060 ÷ (210/297) ≒ 1499px */
+    .rp-page { min-height: 1499px; }
   }
 
   /* --- タイトル --- */
@@ -264,14 +302,23 @@
     background: #fff; border-radius: 10px; padding: 0 14px 14px;
     box-shadow: 0 1px 3px rgba(31,56,100,0.10);
   }
+  /* 右端の斜めカットは clip-path ではなく三角形の疑似要素で作る。
+     clip-path は html2canvas（画像保存）が解釈できず、画像化すると形が崩れるため。 */
   .rp-banner {
+    position: relative;
     display: inline-flex; align-items: center; gap: 7px;
+    height: 34px; box-sizing: border-box;
     background: var(--rp-navy); color: #fff;
     font-size: 14px; font-weight: 700;
-    padding: 7px 26px 7px 14px;
+    padding: 0 28px 0 14px;
     margin: 0 0 12px -14px;
     border-radius: 10px 0 0 0;
-    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 100%, 0 100%);
+  }
+  .rp-banner::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 0; height: 0;
+    border-top: 34px solid #fff;
+    border-left: 14px solid transparent;
   }
   .rp-banner i { font-size: 13px; }
   .rp-banner-warn { background: var(--rp-navy); }
@@ -385,15 +432,24 @@
     box-shadow: 0 1px 3px rgba(31,56,100,0.10);
   }
   .rp-summary-label {
+    position: relative;
     background: var(--rp-navy); color: #fff;
     display: flex; align-items: center; gap: 8px;
     font-size: 16px; font-weight: 700;
-    padding: 16px 30px 16px 18px;
-    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 100%, 0 100%);
+    height: 68px; box-sizing: border-box;
+    padding: 0 34px 0 18px;
     white-space: nowrap;
   }
+  .rp-summary-label::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 0; height: 0;
+    border-top: 68px solid #fff;
+    border-left: 17px solid transparent;
+  }
   .rp-summary-body {
-    flex: 1; padding: 14px 18px;
+    flex: 1; height: 68px; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 18px;
     font-size: 15px; font-weight: 700; line-height: 1.75; color: var(--rp-navy);
   }
 
@@ -408,20 +464,98 @@
     .rp-payout { grid-template-columns: 1fr; }
     .rp-payout-item { border-left: none; border-top: 1px solid var(--rp-line); padding-top: 6px; }
     .rp-summary { flex-direction: column; }
-    .rp-summary-label { clip-path: none; justify-content: center; padding: 10px; }
+    .rp-summary-label { justify-content: center; padding: 10px; height: auto; }
+    .rp-summary-label::after { display: none; }
+    .rp-summary-body { height: auto; padding: 14px 18px; }
     .rp-title { font-size: 26px; }
   }
 
-  /* --- 印刷 --- */
+  /* --- 印刷（A4縦1ページに収める） ---
+     デザインは1060px幅で組んでいるため、A4の印刷可能幅に合わせて縮小する。
+     A4縦 210×297mm、余白6mmとして印刷可能幅198mm ≒ 748px。
+     748 ÷ 1060 ≒ 0.70 で縮小し、外側の箱を縮小後の寸法に固定して
+     はみ出しによる2ページ目の発生を防ぐ。 */
+  @page { size: A4 portrait; margin: 6mm; }
+
   @media print {
-    header, nav, .bottom-tab-nav, .rp-wrap { background: #fff !important; }
-    header, nav, .bottom-tab-nav { display: none !important; }
-    .rp-wrap { padding: 0; }
-    .rp-page { max-width: none; }
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    header, nav, .bottom-tab-nav, .slide-menu, .slide-menu-overlay,
+    .rp-actions { display: none !important; }
+
+    .rp-wrap {
+      background: #fff !important;
+      padding: 0 !important;
+      width: 742px;
+      height: 1050px;
+      overflow: hidden;
+    }
+    .rp-page {
+      width: 1060px;
+      min-height: 1499px;
+      transform: scale(0.70);
+      transform-origin: top left;
+      box-shadow: none;
+      border-radius: 0;
+      background: var(--rp-bg) !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .rp-card, .rp-banner, .rp-summary-label, .rp-numcircle, .rp-dot {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
   }
 </style>
 
 <script>
+  // レポート名（保存ファイル名に使う）
+  const REPORT_FILENAME = '企業分析レポート_ヒューマンテクノロジーズ_5621';
+
+  // PDFは印刷ダイアログ経由にする。
+  // ライブラリでPDF化すると文字が画像になり劣化するが、印刷なら文字のまま出せるため。
+  function downloadReportPdf() {
+    window.print();
+  }
+
+  // 画像保存は html2canvas を使う。使うときだけ読み込む。
+  function downloadReportPng() {
+    const btn = document.getElementById('rpPngBtn');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>画像を作成中...';
+
+    const run = () => {
+      html2canvas(document.getElementById('reportPage'), {
+        scale: 2,                 // 2倍で描画して粗さを防ぐ
+        backgroundColor: '#e9eef7',
+        useCORS: true,
+        logging: false,
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = REPORT_FILENAME + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }).catch(err => {
+        console.error('画像の作成に失敗:', err);
+        alert('画像を作成できませんでした。PDFでの保存をお試しください。');
+      }).finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      });
+    };
+
+    if (window.html2canvas) { run(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = run;
+    s.onerror = () => {
+      btn.disabled = false;
+      btn.innerHTML = original;
+      alert('画像化ライブラリを読み込めませんでした。PDFでの保存をお試しください。');
+    };
+    document.head.appendChild(s);
+  }
+
 (function () {
   // 値をグラフ上に直接書き込むための小さなプラグイン。
   // 画像のレポートと同じく、点や棒のそばに数値を出す。
