@@ -387,8 +387,17 @@
   .rp-foot-note { font-size: 10.5px; color: #555; margin-top: 8px; line-height: 1.6; }
 
   /* --- スナップショット --- */
-  .rp-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  /* 見た目は4列だが、8分割で持つ。
+     3行目は 信用倍率 / 設立日 / 上場日 の3つで1枠余るため、
+     設立日と上場日を1.5倍幅(span 3)にして 2+3+3=8 でぴったり埋める。
+     CSSグリッドは1.5列を直接指定できないので分割数を倍にしている。 */
+  .rp-stat-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 9px; }
+  .rp-stat { grid-column: span 2; }        /* 通常タイル = 4列相当の1つ分 */
+  .rp-stat-wide { grid-column: span 3; }   /* 1.5倍幅 */
+
+  /* 財務健全性は3列。8分割の指定を上書きする */
   .rp-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .rp-grid-3 .rp-stat { grid-column: span 1; }
   .rp-stat {
     background: #fff; border: 1px solid var(--rp-line); border-radius: 9px;
     padding: 8px 6px 10px; text-align: center;
@@ -497,7 +506,9 @@
     .rp-main { grid-template-columns: 1fr; }
     .rp-bottom { grid-template-columns: 1fr; }
     .rp-chart-row { grid-template-columns: 1fr; }
-    .rp-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    /* 狭い画面では2列。8分割前提のspan指定を打ち消す */
+    .rp-stat-grid, .rp-grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .rp-stat, .rp-stat-wide, .rp-grid-3 .rp-stat { grid-column: span 1; }
     .rp-payout { grid-template-columns: 1fr; }
     .rp-payout-item { border-left: none; border-top: 1px solid var(--rp-line); padding-top: 6px; }
     .rp-summary { flex-direction: column; }
