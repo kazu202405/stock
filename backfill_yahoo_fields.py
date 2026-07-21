@@ -74,8 +74,11 @@ def load_targets(only_missing=True):
 
 def fill_one(code, analyzer):
     """1銘柄のYahoo由来項目を取得して保存する。保存した項目数を返す。"""
+    # 対象は screened_latest から抽出した既存行なので UPDATE を使う。
+    # upsert は INSERT ... ON CONFLICT として実行されるため、
+    # 部分的な項目だけを渡すと INSERT 側でNOT NULL制約に引っかかる（23502）。
     from jp_company_scraper import get_yahoo_japan_profile
-    from supabase_client import upsert_screened_data
+    from supabase_client import update_screened_data
 
     symbol = code if code.endswith('.T') else f'{code}.T'
     data = {'company_code': code}
@@ -115,8 +118,9 @@ def fill_one(code, analyzer):
         return 0
 
     data['profile_updated_at'] = datetime.now(timezone.utc).isoformat()
-    upsert_screened_data(data)
-    return len(data) - 2  # company_code と profile_updated_at を除く
+    payload = {k: v for k, v in data.items() if k != 'company_code'}
+    update_screened_data(code, payload)
+    return len(payload) - 1  # profile_updated_at を除いた実項目数
 
 
 def main():

@@ -1901,9 +1901,14 @@ def api_retry_summary_jp(company_code):
             translated = bool(summary_jp)
 
         if summary_jp:
-            # screened_latestに保存（行が無い銘柄でも保存できるようupsertを使う）
+            # 既存行があればUPDATE、無ければINSERT相当のupsert。
+            # upsertは INSERT ... ON CONFLICT として実行されるため、部分的な項目だけを
+            # 渡すとNOT NULL制約に引っかかる（23502）。まずUPDATEを試すのが安全。
             try:
-                upsert_screened_data({'company_code': code, 'business_summary_jp': summary_jp})
+                if get_screened_data(code):
+                    update_screened_data(code, {'business_summary_jp': summary_jp})
+                else:
+                    upsert_screened_data({'company_code': code, 'business_summary_jp': summary_jp})
                 print(f"日本語事業概要を保存しました: {code}（LLM翻訳: {translated}）")
             except Exception as e:
                 print(f"日本語事業概要の保存エラー: {e}")
