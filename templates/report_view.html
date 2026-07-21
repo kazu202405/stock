@@ -14,13 +14,13 @@
 
   <!-- 操作バー（印刷・画像化には含めない） -->
   <div class="rp-actions">
-    <button type="button" class="rp-btn rp-btn-primary" onclick="downloadReportPdf()">
+    <button type="button" class="rp-btn rp-btn-primary" id="rpPdfBtn" onclick="downloadReportPdf()">
       <i class="fas fa-file-pdf"></i>PDFで保存
     </button>
     <button type="button" class="rp-btn" id="rpPngBtn" onclick="downloadReportPng()">
       <i class="fas fa-image"></i>画像で保存
     </button>
-    <span class="rp-actions-note">PDFは印刷ダイアログで「PDFに保存」を選んでください（A4縦）</span>
+    <span class="rp-actions-note">PDFはA4縦1ページで出力されます</span>
   </div>
 
   <div class="rp-page" id="reportPage">
@@ -478,8 +478,11 @@
 
   .rp-disclaimer { font-size: 10.5px; color: #666; margin: 0 2px; line-height: 1.6; }
 
-  /* --- レスポンシブ --- */
-  @media (max-width: 900px) {
+  /* --- レスポンシブ ---
+     必ず screen に限定すること。印刷時のページ幅はA4=約794pxとして
+     評価されるため、限定しないと紙に印刷するときスマホ用レイアウトが
+     発動してレイアウトが崩れる。 */
+  @media screen and (max-width: 900px) {
     .rp-main { grid-template-columns: 1fr; }
     .rp-bottom { grid-template-columns: 1fr; }
     .rp-chart-row { grid-template-columns: 1fr; }
@@ -547,71 +550,108 @@
   // レポート名（保存ファイル名に使う）
   const REPORT_FILENAME = '企業分析レポート_ヒューマンテクノロジーズ_5621';
 
-  // PDFは印刷ダイアログ経由にする。
-  // ライブラリでPDF化すると文字が画像になり劣化するが、印刷なら文字のまま出せるため。
-  function downloadReportPdf() {
-    window.print();
+  // 外部ライブラリは押されたときだけ読み込む（初期表示を重くしない）
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('読み込み失敗: ' + src));
+      document.head.appendChild(s);
+    });
   }
 
-  // 画像保存は html2canvas を使う。使うときだけ読み込む。
-  function downloadReportPng() {
-    const btn = document.getElementById('rpPngBtn');
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>画像を作成中...';
-
-    const run = () => {
-      const el = document.getElementById('reportPage');
-
-      // html2canvas はウィンドウ幅を基準に描くため、レポート幅がウィンドウより
-      // 広いと右が切れる。撮影中だけ実寸に固定し、描画範囲も明示する。
-      const savedWidth = el.style.width;
-      const savedMaxWidth = el.style.maxWidth;
-      el.style.width = '1060px';
-      el.style.maxWidth = 'none';
-
-      const restore = () => {
-        el.style.width = savedWidth;
-        el.style.maxWidth = savedMaxWidth;
-      };
-
-      html2canvas(el, {
+  // レポートを画像として取り込む。PDF・画像保存で共通に使う。
+  //
+  // html2canvas はウィンドウ幅を基準に描画するため、レポート幅(1060px)が
+  // ウィンドウより広いと右が切れる。撮影中だけ実寸に固定し、描画範囲も明示する。
+  async function captureReport() {
+    if (!window.html2canvas) {
+      await loadScript('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+    }
+    const el = document.getElementById('reportPage');
+    const savedWidth = el.style.width;
+    const savedMaxWidth = el.style.maxWidth;
+    el.style.width = '1060px';
+    el.style.maxWidth = 'none';
+    try {
+      return await html2canvas(el, {
         scale: 2,                 // 2倍で描画して粗さを防ぐ
         backgroundColor: '#e9eef7',
         useCORS: true,
         logging: false,
         width: el.scrollWidth,
         height: el.scrollHeight,
-        windowWidth: el.scrollWidth + 80,   // 実寸より広く取り、右端の切れを防ぐ
+        windowWidth: el.scrollWidth + 80,
         windowHeight: el.scrollHeight + 80,
         scrollX: 0,
         scrollY: 0,
-      }).then(canvas => {
-        restore();
+      });
+    } finally {
+      el.style.width = savedWidth;
+      el.style.maxWidth = savedMaxWidth;
+    }
+  }
+
+  function withBusyButton(btn, label, task) {
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>' + label;
+    return task().finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    });
+  }
+
+  // PDFは「画面を画像として取り込み、A4に貼る」方式にする。
+  //
+  // ブラウザの印刷機能を使うと、印刷時のページ幅(A4≒794px)がCSSのメディア
+  // クエリに評価されてスマホ用レイアウトが発動したり、canvasで描いたグラフが
+  // 再描画されず崩れたりする。画像化なら画面の見たままがそのまま出る。
+  function downloadReportPdf() {
+    const btn = document.getElementById('rpPdfBtn');
+    withBusyButton(btn, 'PDFを作成中...', async () => {
+      try {
+        if (!window.jspdf) {
+          await loadScript('https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js');
+        }
+        const canvas = await captureReport();
+        const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        // A4(210×297mm)に余白4mmで内接させる
+        const margin = 4;
+        const maxW = 210 - margin * 2;
+        const maxH = 297 - margin * 2;
+        const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+        const w = canvas.width * ratio;
+        const h = canvas.height * ratio;
+
+        pdf.addImage(
+          canvas.toDataURL('image/png'), 'PNG',
+          (210 - w) / 2, (297 - h) / 2, w, h
+        );
+        pdf.save(REPORT_FILENAME + '.pdf');
+      } catch (err) {
+        console.error('PDFの作成に失敗:', err);
+        alert('PDFを作成できませんでした。画像での保存をお試しください。');
+      }
+    });
+  }
+
+  function downloadReportPng() {
+    const btn = document.getElementById('rpPngBtn');
+    withBusyButton(btn, '画像を作成中...', async () => {
+      try {
+        const canvas = await captureReport();
         const link = document.createElement('a');
         link.download = REPORT_FILENAME + '.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
-      }).catch(err => {
+      } catch (err) {
         console.error('画像の作成に失敗:', err);
-        alert('画像を作成できませんでした。PDFでの保存をお試しください。');
-      }).finally(() => {
-        restore();
-        btn.disabled = false;
-        btn.innerHTML = original;
-      });
-    };
-
-    if (window.html2canvas) { run(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
-    s.onload = run;
-    s.onerror = () => {
-      btn.disabled = false;
-      btn.innerHTML = original;
-      alert('画像化ライブラリを読み込めませんでした。PDFでの保存をお試しください。');
-    };
-    document.head.appendChild(s);
+        alert('画像を作成できませんでした。時間をおいてお試しください。');
+      }
+    });
   }
 
 (function () {
