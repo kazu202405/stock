@@ -24,6 +24,43 @@
         font-weight: 600;
         border-bottom-color: #1b4332;
     }
+    /* ヘッダーのドロップダウン */
+    .nav-dropdown-wrap { position: relative; }
+    .nav-link-btn {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .nav-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 8px;
+        min-width: 180px;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        padding: 6px;
+        z-index: 60;
+    }
+    .nav-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: #525252;
+        text-decoration: none;
+        border-radius: 7px;
+        transition: all 0.15s;
+        white-space: nowrap;
+    }
+    .nav-dropdown-item:hover { background: #f0fdf4; color: #1b4332; }
+    .nav-dropdown-item i { font-size: 11px; color: #2d6a4f; width: 14px; text-align: center; }
+
     /* ボトムタブナビ（モバイル） */
     .bottom-tab-nav {
         position: fixed;
@@ -158,9 +195,22 @@
                     <a href="/community" class="nav-link px-2 py-1.5 text-sm font-medium">
                         コミュニティ
                     </a>
-                    <a href="/search" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        企業情報
-                    </a>
+                    <!-- 企業情報: 銘柄検索とスクリーニングをまとめる -->
+                    <div class="nav-dropdown-wrap" x-data="{ open: false }" @click.outside="open = false">
+                        <button type="button" class="nav-link nav-link-btn px-2 py-1.5 text-sm font-medium"
+                                @click="open = !open" :class="{ 'active': open }">
+                            企業情報
+                            <i class="fas fa-chevron-down" style="font-size:9px; margin-left:4px;"></i>
+                        </button>
+                        <div class="nav-dropdown" x-show="open" x-cloak @click="open = false">
+                            <a href="/search" class="nav-dropdown-item">
+                                <i class="fas fa-search"></i>銘柄検索
+                            </a>
+                            <a href="/screener" class="nav-dropdown-item">
+                                <i class="fas fa-filter"></i>スクリーニング
+                            </a>
+                        </div>
+                    </div>
                     {% if is_logged_in and user_role == 'admin' %}
                     <a href="/dashboard/admin" class="nav-link px-2 py-1.5 text-sm font-medium">
                         銘柄管理
@@ -282,6 +332,12 @@
         </div>
         <!-- メニューリンク -->
         <div style="padding: 8px 0;">
+            <a href="/search" class="slide-menu-link">
+                <i class="fas fa-search"></i>銘柄検索
+            </a>
+            <a href="/screener" class="slide-menu-link">
+                <i class="fas fa-filter"></i>スクリーニング
+            </a>
             <a href="/mypage" class="slide-menu-link">
                 <i class="fas fa-file-alt"></i>マイノート
             </a>
