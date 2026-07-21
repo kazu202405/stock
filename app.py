@@ -1856,10 +1856,10 @@ def api_get_technical_stocks():
 def _translate_summary_to_jp(english_text):
     """英語の事業概要をLLMで日本語要約する（スクレイピング失敗時の最終フォールバック）。
     成功時は日本語テキスト、失敗時は None を返す。"""
-    if not english_text or not GPT_API:
+    import llm
+    if not english_text or not llm.is_available():
         return None
     try:
-        import openai
         prompt = (
             "以下は海外データベースに載っている企業の事業内容の説明文です。"
             "これを日本語で、事実だけを簡潔に要約してください。\n"
@@ -1870,14 +1870,8 @@ def _translate_summary_to_jp(english_text):
             "- 要約文のみを出力し、前置きや見出しは付けない\n\n"
             f"{english_text[:3000]}"
         )
-        completion = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            request_timeout=30,
-        )
-        text = (completion['choices'][0]['message']['content'] or '').strip()
-        return text or None
+        text = llm.chat(prompt, model='gpt-4o-mini', temperature=0.2, timeout=30)
+        return (text or '').strip() or None
     except Exception as e:
         print(f"事業概要のLLM翻訳エラー: {e}")
         return None
@@ -1918,6 +1912,27 @@ def api_retry_summary_jp(company_code):
             return jsonify({"error": "日本語の事業概要を取得できませんでした"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/report/<source>/<key>', methods=['GET'])
+def api_report(source, key):
+    """企業分析レポートのデータを返す。
+    source は将来 'own'（経営者が自社の数字で作る）を足せるようURLに含めている。
+    """
+    try:
+        import report_builder
+        if source != 'listed':
+            return jsonify({'error': 'このデータ源にはまだ対応していません'}), 400
+
+        code = normalize_code(key)
+        regenerate = request.args.get('regenerate') == '1'
+        report = report_builder.build_report('listed', code, regenerate=regenerate)
+        if not report:
+            return jsonify({'error': 'この銘柄のデータがまだありません'}), 404
+        return jsonify(report), 200
+    except Exception as e:
+        print(f'レポート生成エラー {source}/{key}: {e}')
+        return jsonify({'error': 'レポートを作成できませんでした'}), 500
 
 
 # =============================================

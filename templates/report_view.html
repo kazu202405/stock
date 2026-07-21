@@ -1,0 +1,528 @@
+{% extends "layout.html" %}
+
+{% block title %}企業分析レポート - Company Note{% endblock %}
+
+{% block content %}
+{#
+  企業分析レポート（1枚もの）
+
+  現在はデザイン確定用にサンプルデータを直書きしている。
+  レイアウトが固まったら report_builder.build_report() の返り値を流し込む。
+  値を差し替えるだけで済むよう、テキストは各ブロックに素直に置いている。
+#}
+<div class="rp-wrap">
+  <div class="rp-page" id="reportPage">
+
+    <!-- ===== タイトル ===== -->
+    <div class="rp-head">
+      <div>
+        <h1 class="rp-title">企業分析レポート</h1>
+        <div class="rp-subtitle">株式会社ヒューマンテクノロジーズ（5621.T）</div>
+      </div>
+      <div class="rp-head-note">公開情報ベース / 学び目的の分析</div>
+    </div>
+
+    <!-- ===== 上段: 左(1,3,4) / 右(2,5) ===== -->
+    <div class="rp-main">
+
+      <!-- ---------- 左カラム ---------- -->
+      <div class="rp-col-left">
+
+        <!-- 1. ひとことで言うと -->
+        <section class="rp-card">
+          <div class="rp-banner"><i class="fas fa-comment-dots"></i>1. ひとことで言うと</div>
+          <p class="rp-lead">
+            勤怠管理・人事給与クラウド「KING OF TIME」を軸に、企業のバックオフィス効率化を支えるSaaS企業。毎日使われる基幹システムを提供し、ストック型収益と低解約率を強みに成長している。
+          </p>
+        </section>
+
+        <!-- 3. 勝ち筋 -->
+        <section class="rp-card">
+          <div class="rp-banner"><i class="fas fa-trophy"></i>3. 勝ち筋</div>
+          <ul class="rp-icon-list">
+            <li><span class="rp-dot"><i class="fas fa-clock"></i></span>勤怠という“毎日使う業務インフラ”を押さえる</li>
+            <li><span class="rp-dot"><i class="fas fa-cloud"></i></span>SaaS型ストック収益で売上が積み上がる</li>
+            <li><span class="rp-dot"><i class="fas fa-lock"></i></span>導入後の乗り換えが起きにくく低解約率</li>
+            <li><span class="rp-dot"><i class="fas fa-project-diagram"></i></span>勤怠から人事・給与・労務へ横展開できる</li>
+            <li><span class="rp-dot"><i class="fas fa-users"></i></span>利用社数6.1万社・利用ID数385万IDが強み</li>
+          </ul>
+        </section>
+
+        <!-- 4. オーナー経営 -->
+        <section class="rp-card">
+          <div class="rp-banner"><i class="fas fa-user-friends"></i>4. オーナー経営</div>
+          <div class="rp-tag">オーナー経営色が強い</div>
+          <p class="rp-body">
+            筆頭株主のニューホライズン株式会社（37.53%）は、恵志章夫氏の資産管理会社。恵志章夫氏は11.99%を直接保有し、同氏は代表取締役会長。株主と経営陣の目線が近い会社と見られる。
+          </p>
+
+          <div class="rp-mini-title">主要株主（上位5名）</div>
+          <table class="rp-holders">
+            <tr><td class="rp-rank">1.</td><td>ニューホライズン株式会社</td><td class="rp-pct">37.53%</td></tr>
+            <tr><td class="rp-rank">2.</td><td>恵志 章夫</td><td class="rp-pct">11.99%</td></tr>
+            <tr><td class="rp-rank">3.</td><td>日本カストディ銀行（信託口）</td><td class="rp-pct">7.24%</td></tr>
+            <tr><td class="rp-rank">4.</td><td>日本マスタートラスト信託銀行（信託口）</td><td class="rp-pct">5.16%</td></tr>
+            <tr><td class="rp-rank">5.</td><td>飯泉 満</td><td class="rp-pct">4.69%</td></tr>
+          </table>
+          <div class="rp-foot-note">代表取締役会長：恵志 章夫 ／ 代表取締役社長：家崎 晃一</div>
+        </section>
+      </div>
+
+      <!-- ---------- 右カラム ---------- -->
+      <div class="rp-col-right">
+
+        <!-- 2. 会社スナップショット -->
+        <section class="rp-card">
+          <div class="rp-banner"><i class="fas fa-building"></i>2. 会社スナップショット</div>
+          <div class="rp-stat-grid">
+            <div class="rp-stat">
+              <div class="rp-stat-label">株価</div>
+              <div class="rp-stat-value"><i class="fas fa-chart-line rp-ic"></i><span class="rp-num">¥1,376</span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">業種</div>
+              <div class="rp-stat-value"><i class="fas fa-server rp-ic"></i><span class="rp-num rp-num-sm">Software・<br>Infrastucture</span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">時価総額</div>
+              <div class="rp-stat-value"><i class="fas fa-coins rp-ic"></i><span class="rp-num">132<small>億円</small></span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">自己資本比率</div>
+              <div class="rp-stat-value"><i class="fas fa-shield-alt rp-ic"></i><span class="rp-num">75.26<small>%</small></span></div>
+            </div>
+
+            <div class="rp-stat">
+              <div class="rp-stat-label">営業利益率</div>
+              <div class="rp-stat-value"><i class="fas fa-chart-bar rp-ic"></i><span class="rp-num">15.38<small>%</small></span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">PER</div>
+              <div class="rp-stat-value"><span class="rp-badge-ic">P/E</span><span class="rp-num">12.99<small>倍</small></span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">PBR</div>
+              <div class="rp-stat-value"><span class="rp-badge-ic">P/B</span><span class="rp-num">2.5<small>倍</small></span></div>
+            </div>
+            <div class="rp-stat">
+              <div class="rp-stat-label">配当利回り</div>
+              <div class="rp-stat-value"><span class="rp-badge-ic">¥</span><span class="rp-num">4.87<small>%</small></span></div>
+            </div>
+
+            <div class="rp-stat">
+              <div class="rp-stat-label">信用倍率</div>
+              <div class="rp-stat-value"><i class="fas fa-balance-scale rp-ic"></i><span class="rp-num">0.00<small>倍</small></span></div>
+            </div>
+            <div class="rp-stat rp-stat-wide">
+              <div class="rp-stat-label">設立日</div>
+              <div class="rp-stat-value"><i class="fas fa-calendar-alt rp-ic"></i><span class="rp-num rp-num-md">2011年12月13日</span></div>
+            </div>
+            <div class="rp-stat rp-stat-wide">
+              <div class="rp-stat-label">上場日</div>
+              <div class="rp-stat-value"><i class="fas fa-flag rp-ic"></i><span class="rp-num rp-num-md">2023年12月22日</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. 直近5年の推移 -->
+        <section class="rp-card">
+          <div class="rp-banner"><i class="fas fa-chart-bar"></i>5. 直近5年の推移</div>
+          <div class="rp-chart-row">
+            <div class="rp-chart-box">
+              <div class="rp-chart-title">A. 売上高・営業利益</div>
+              <div class="rp-chart-area"><canvas id="chartRevenue"></canvas></div>
+            </div>
+            <div class="rp-chart-box">
+              <div class="rp-chart-title">B. 自己資本比率・ROA</div>
+              <div class="rp-chart-area"><canvas id="chartEquity"></canvas></div>
+            </div>
+          </div>
+
+          <div class="rp-payout">
+            <div class="rp-payout-label">配当性向（%）</div>
+            <div class="rp-payout-item"><div class="rp-payout-year">2024年3月</div><div class="rp-payout-value">30.3<small>%</small></div></div>
+            <div class="rp-payout-item"><div class="rp-payout-year">2025年3月</div><div class="rp-payout-value">30.0<small>%</small></div></div>
+            <div class="rp-payout-item"><div class="rp-payout-year">2026年3月</div><div class="rp-payout-value">30.2<small>%</small></div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ===== 下段: 6 / 7 / 8 ===== -->
+    <div class="rp-bottom">
+
+      <!-- 6. 財務健全性 -->
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-landmark"></i>6. 財務健全性</div>
+        <div class="rp-stat-grid rp-grid-3">
+          <div class="rp-stat">
+            <div class="rp-stat-label">現預金</div>
+            <div class="rp-stat-value"><span class="rp-badge-ic">¥</span><span class="rp-num">40<small>億円</small></span></div>
+          </div>
+          <div class="rp-stat">
+            <div class="rp-stat-label">流動負債</div>
+            <div class="rp-stat-value"><i class="fas fa-coins rp-ic"></i><span class="rp-num">15<small>億円</small></span></div>
+          </div>
+          <div class="rp-stat">
+            <div class="rp-stat-label">流動比率</div>
+            <div class="rp-stat-value"><i class="fas fa-chart-pie rp-ic"></i><span class="rp-num">339.5<small>%</small></span></div>
+          </div>
+          <div class="rp-stat">
+            <div class="rp-stat-label">営業CF</div>
+            <div class="rp-stat-value"><i class="fas fa-chart-bar rp-ic"></i><span class="rp-num">10.3<small>億円</small></span></div>
+          </div>
+          <div class="rp-stat">
+            <div class="rp-stat-label">配当性向</div>
+            <div class="rp-stat-value"><i class="fas fa-chart-pie rp-ic"></i><span class="rp-num">30.0<small>%</small></span></div>
+          </div>
+          <div class="rp-stat">
+            <div class="rp-stat-label">信用倍率</div>
+            <div class="rp-stat-value"><i class="fas fa-balance-scale rp-ic"></i><span class="rp-num">0.00<small>倍</small></span></div>
+          </div>
+        </div>
+        <div class="rp-cash-trend">現預金推移：16億円　→　40億円</div>
+      </section>
+
+      <!-- 7. リスク -->
+      <section class="rp-card">
+        <div class="rp-banner rp-banner-warn"><i class="fas fa-exclamation-triangle"></i>7. リスク</div>
+        <ul class="rp-risk-list">
+          <li><i class="fas fa-exclamation-triangle"></i>HR SaaS市場での競争激化</li>
+          <li><i class="fas fa-exclamation-triangle"></i>プロダクト拡張の実行リスク</li>
+          <li><i class="fas fa-exclamation-triangle"></i>法改正対応の継続負荷</li>
+          <li><i class="fas fa-exclamation-triangle"></i>高成長期待の反動</li>
+        </ul>
+      </section>
+
+      <!-- 8. 学べること -->
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-graduation-cap"></i>8. 学べること</div>
+        <ul class="rp-learn-list">
+          <li><span class="rp-numcircle">1</span>毎日使われる基幹業務は強い</li>
+          <li><span class="rp-numcircle">2</span>ストック型SaaSは低解約率が武器</li>
+          <li><span class="rp-numcircle">3</span>オーナー経営は長期視点に<br>つながりやすい</li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- ===== まとめ ===== -->
+    <div class="rp-summary">
+      <div class="rp-summary-label"><i class="fas fa-book-open"></i>まとめ</div>
+      <div class="rp-summary-body">
+        数字で見ると、成長性・収益性・財務のバランスが良い。<br>
+        事業で見ると、「勤怠」を起点に人事・給与へ広がるSaaSモデルが強い。
+      </div>
+    </div>
+
+    <p class="rp-disclaimer">
+      ※ 本レポートは投資助言ではなく、公開情報をもとに企業のビジネスモデル・財務・成長要因を学ぶための分析コンテンツです。
+    </p>
+  </div>
+</div>
+
+<style>
+  :root {
+    --rp-navy: #1F3864;
+    --rp-navy-soft: #2E5395;
+    --rp-bg: #e9eef7;
+    --rp-blue: #2E75B6;
+    --rp-orange: #ED7D31;
+    --rp-gold: #FFC000;
+    --rp-line: #d8e0ee;
+  }
+
+  .rp-wrap { background: #f7f7f5; padding: 24px 16px 48px; }
+  .rp-page {
+    max-width: 1060px;
+    margin: 0 auto;
+    background: var(--rp-bg);
+    padding: 26px 24px 20px;
+    border-radius: 6px;
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    color: #1a1a1a;
+  }
+
+  /* --- タイトル --- */
+  .rp-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; margin-bottom: 16px;
+  }
+  .rp-title {
+    font-size: 34px; font-weight: 800; color: var(--rp-navy);
+    letter-spacing: -0.01em; line-height: 1.15; margin: 0;
+  }
+  .rp-subtitle { font-size: 17px; font-weight: 700; color: var(--rp-navy); margin-top: 6px; }
+  .rp-head-note { font-size: 11px; color: #7a7a7a; white-space: nowrap; padding-bottom: 4px; }
+
+  /* --- レイアウト --- */
+  .rp-main { display: grid; grid-template-columns: 340px 1fr; gap: 13px; align-items: start; }
+  .rp-col-left, .rp-col-right { display: flex; flex-direction: column; gap: 13px; }
+  .rp-bottom { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 13px; margin-top: 13px; align-items: start; }
+
+  /* --- カード --- */
+  .rp-card {
+    background: #fff; border-radius: 10px; padding: 0 14px 14px;
+    box-shadow: 0 1px 3px rgba(31,56,100,0.10);
+  }
+  .rp-banner {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--rp-navy); color: #fff;
+    font-size: 14px; font-weight: 700;
+    padding: 7px 26px 7px 14px;
+    margin: 0 0 12px -14px;
+    border-radius: 10px 0 0 0;
+    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 100%, 0 100%);
+  }
+  .rp-banner i { font-size: 13px; }
+  .rp-banner-warn { background: var(--rp-navy); }
+
+  .rp-lead { font-size: 13px; line-height: 1.85; margin: 0; color: #1a1a1a; }
+  .rp-body { font-size: 12px; line-height: 1.8; margin: 0 0 10px; color: #1a1a1a; }
+
+  /* --- 勝ち筋 --- */
+  .rp-icon-list { list-style: none; margin: 0; padding: 0; }
+  .rp-icon-list li {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12.5px; font-weight: 500; line-height: 1.5;
+    padding: 6px 0;
+  }
+  .rp-dot {
+    flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--rp-navy); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+
+  /* --- オーナー経営 --- */
+  .rp-tag {
+    display: inline-block; border: 1.5px solid var(--rp-gold);
+    background: #fffbe9; color: #7a5a00;
+    font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 6px; margin-bottom: 10px;
+  }
+  .rp-mini-title {
+    font-size: 12px; font-weight: 700; color: #fff; background: var(--rp-navy-soft);
+    padding: 5px 10px; border-radius: 5px 5px 0 0; margin-top: 4px;
+  }
+  .rp-holders { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .rp-holders td { padding: 5px 8px; border-bottom: 1px solid var(--rp-line); }
+  .rp-holders tr:last-child td { border-bottom: none; }
+  .rp-rank { width: 18px; color: #555; }
+  .rp-pct { text-align: right; font-weight: 700; color: var(--rp-navy); white-space: nowrap; }
+  .rp-foot-note { font-size: 10.5px; color: #555; margin-top: 8px; line-height: 1.6; }
+
+  /* --- スナップショット --- */
+  .rp-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .rp-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .rp-stat {
+    background: #fff; border: 1px solid var(--rp-line); border-radius: 9px;
+    padding: 8px 6px 10px; text-align: center;
+  }
+  .rp-stat-label { font-size: 11px; font-weight: 600; color: #333; margin-bottom: 5px; }
+  .rp-stat-value { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; }
+  .rp-ic { color: var(--rp-navy); font-size: 17px; }
+  .rp-badge-ic {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--rp-navy); color: var(--rp-navy);
+    font-size: 9px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 24px;
+  }
+  .rp-num { font-size: 22px; font-weight: 800; color: var(--rp-navy); letter-spacing: -0.02em; }
+  .rp-num small { font-size: 11px; font-weight: 700; margin-left: 1px; }
+  .rp-num-md { font-size: 15px; }
+  .rp-num-sm { font-size: 12px; line-height: 1.35; }
+
+  /* --- チャート --- */
+  .rp-chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rp-chart-box { background: #fff; }
+  .rp-chart-title { text-align: center; font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+  .rp-chart-area { position: relative; height: 210px; }
+
+  .rp-payout {
+    display: grid; grid-template-columns: 150px repeat(3, 1fr);
+    align-items: center; gap: 8px;
+    border: 1px solid var(--rp-line); border-radius: 9px;
+    padding: 8px 10px; margin-top: 12px;
+  }
+  .rp-payout-label { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+  .rp-payout-item { text-align: center; border-left: 1px solid var(--rp-line); }
+  .rp-payout-year { font-size: 11px; color: #444; margin-bottom: 2px; }
+  .rp-payout-value { font-size: 21px; font-weight: 800; color: var(--rp-navy); }
+  .rp-payout-value small { font-size: 11px; margin-left: 1px; }
+
+  /* --- 財務健全性 --- */
+  .rp-cash-trend {
+    margin-top: 9px; background: #eef2fa; border-radius: 7px;
+    padding: 7px 10px; font-size: 11.5px; font-weight: 600; color: var(--rp-navy); text-align: center;
+  }
+
+  /* --- リスク --- */
+  .rp-risk-list { list-style: none; margin: 0; padding: 0; }
+  .rp-risk-list li {
+    display: flex; align-items: flex-start; gap: 9px;
+    font-size: 12.5px; font-weight: 500; line-height: 1.5; padding: 8px 0;
+  }
+  .rp-risk-list i { color: var(--rp-gold); font-size: 15px; margin-top: 1px; }
+
+  /* --- 学べること --- */
+  .rp-learn-list { list-style: none; margin: 0; padding: 0; }
+  .rp-learn-list li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; font-weight: 500; line-height: 1.5; padding: 8px 0;
+  }
+  .rp-numcircle {
+    flex: 0 0 27px; width: 27px; height: 27px; border-radius: 50%;
+    background: var(--rp-navy); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+
+  /* --- まとめ --- */
+  .rp-summary {
+    display: flex; align-items: stretch; gap: 0;
+    background: #fff; border-radius: 10px; margin-top: 13px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(31,56,100,0.10);
+  }
+  .rp-summary-label {
+    background: var(--rp-navy); color: #fff;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 16px; font-weight: 700;
+    padding: 16px 30px 16px 18px;
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 100%, 0 100%);
+    white-space: nowrap;
+  }
+  .rp-summary-body {
+    flex: 1; padding: 14px 18px;
+    font-size: 15px; font-weight: 700; line-height: 1.75; color: var(--rp-navy);
+  }
+
+  .rp-disclaimer { font-size: 10.5px; color: #666; margin: 12px 2px 0; line-height: 1.6; }
+
+  /* --- レスポンシブ --- */
+  @media (max-width: 900px) {
+    .rp-main { grid-template-columns: 1fr; }
+    .rp-bottom { grid-template-columns: 1fr; }
+    .rp-chart-row { grid-template-columns: 1fr; }
+    .rp-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .rp-payout { grid-template-columns: 1fr; }
+    .rp-payout-item { border-left: none; border-top: 1px solid var(--rp-line); padding-top: 6px; }
+    .rp-summary { flex-direction: column; }
+    .rp-summary-label { clip-path: none; justify-content: center; padding: 10px; }
+    .rp-title { font-size: 26px; }
+  }
+
+  /* --- 印刷 --- */
+  @media print {
+    header, nav, .bottom-tab-nav, .rp-wrap { background: #fff !important; }
+    header, nav, .bottom-tab-nav { display: none !important; }
+    .rp-wrap { padding: 0; }
+    .rp-page { max-width: none; }
+  }
+</style>
+
+<script>
+(function () {
+  // 値をグラフ上に直接書き込むための小さなプラグイン。
+  // 画像のレポートと同じく、点や棒のそばに数値を出す。
+  const valueLabels = {
+    id: 'rpValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = '700 11px "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'center';
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.hideLabels) return;
+        const meta = chart.getDatasetMeta(di);
+        meta.data.forEach((pt, i) => {
+          const v = ds.data[i];
+          if (v == null) return;
+          ctx.fillStyle = ds.labelColor || ds.borderColor || '#333';
+          const offset = ds.labelBelow ? 15 : -8;
+          ctx.fillText(Number(v).toFixed(ds.labelDigits ?? 2), pt.x, pt.y + offset);
+        });
+      });
+      ctx.restore();
+    }
+  };
+
+  const baseFont = { family: "'Noto Sans JP', sans-serif", size: 11 };
+
+  // A. 売上高（棒）・営業利益（折れ線）
+  new Chart(document.getElementById('chartRevenue'), {
+    data: {
+      labels: ['2023年\n3月', '2024年\n3月', '2025年\n3月', '2026年\n3月', '2027年\n3月（予）'],
+      datasets: [
+        {
+          type: 'bar', label: '売上高（億円）',
+          data: [42.23, 50.35, 60.55, 74.96, 85.69],
+          backgroundColor: '#2E75B6', barPercentage: 0.55,
+          yAxisID: 'y', labelColor: '#1F3864', labelDigits: 2, order: 2,
+        },
+        {
+          type: 'line', label: '営業利益（億円）',
+          data: [3.29, 5.20, 9.31, 13.70, 13.37],
+          borderColor: '#ED7D31', backgroundColor: '#ED7D31',
+          borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#ED7D31',
+          tension: 0, yAxisID: 'y1', labelColor: '#ED7D31', labelDigits: 2,
+          labelBelow: true, order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 14 } },
+      plugins: {
+        legend: { position: 'top', labels: { font: baseFont, boxWidth: 11, boxHeight: 11, padding: 12 } },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { ...baseFont, size: 10 } } },
+        y: { min: 0, max: 100, ticks: { stepSize: 20, font: baseFont }, grid: { color: '#e6e6e6' } },
+        y1: { position: 'right', min: 0, max: 20, ticks: { stepSize: 5, font: baseFont }, grid: { drawOnChartArea: false } },
+      },
+    },
+    plugins: [valueLabels],
+  });
+
+  // B. 自己資本比率・ROA
+  new Chart(document.getElementById('chartEquity'), {
+    type: 'line',
+    data: {
+      labels: ['2022年3月', '2023年3月', '2024年3月', '2025年3月'],
+      datasets: [
+        {
+          label: '自己資本比率（%）',
+          data: [70.0, 64.9, 79.6, 75.3],
+          borderColor: '#2E75B6', backgroundColor: '#2E75B6',
+          borderWidth: 2.5, pointRadius: 5, tension: 0,
+          yAxisID: 'y', labelColor: '#1F3864', labelDigits: 1,
+        },
+        {
+          label: 'ROA（%）',
+          data: [16.9, 8.5, 8.5, 12.2],
+          borderColor: '#ED7D31', backgroundColor: '#ED7D31',
+          borderWidth: 2.5, pointRadius: 5, tension: 0,
+          yAxisID: 'y1', labelColor: '#ED7D31', labelDigits: 1, labelBelow: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 14 } },
+      plugins: {
+        legend: { position: 'top', labels: { font: baseFont, boxWidth: 11, boxHeight: 11, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { ...baseFont, size: 10 } } },
+        y: { min: 0, max: 100, ticks: { stepSize: 20, font: baseFont }, grid: { color: '#e6e6e6' } },
+        y1: { position: 'right', min: 0, max: 25, ticks: { stepSize: 5, font: baseFont }, grid: { drawOnChartArea: false } },
+      },
+    },
+    plugins: [valueLabels],
+  });
+})();
+</script>
+{% endblock %}

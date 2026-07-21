@@ -65,6 +65,27 @@ def screener():
     return render_template('screener.html')
 
 
+@app.route('/report')
+def report_select():
+    """企業分析レポート。
+    現在はデザイン確認用にサンプルデータを直書きしている。
+    レイアウト確定後、report_builder.build_report() の結果を流し込む。
+    """
+    guard = _require_login()
+    if guard: return guard
+    return render_template('report_view.html')
+
+
+@app.route('/report/<source>/<key>')
+def report_view(source, key):
+    """企業分析レポート本体。
+    source は将来 'own'（自社決算から作る）を足せるようURLに含めている。
+    """
+    guard = _require_login()
+    if guard: return guard
+    return render_template('report_view.html', source=source, key=key)
+
+
 @app.route('/mypage')
 def mypage():
     """マイノート"""
