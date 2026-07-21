@@ -70,11 +70,11 @@
 
           <div class="rp-mini-title">主要株主（上位5名）</div>
           <table class="rp-holders">
-            <tr><td class="rp-rank">1.</td><td>ニューホライズン株式会社</td><td class="rp-pct">37.53%</td></tr>
-            <tr><td class="rp-rank">2.</td><td>恵志 章夫</td><td class="rp-pct">11.99%</td></tr>
-            <tr><td class="rp-rank">3.</td><td>日本カストディ銀行（信託口）</td><td class="rp-pct">7.24%</td></tr>
-            <tr><td class="rp-rank">4.</td><td>日本マスタートラスト信託銀行（信託口）</td><td class="rp-pct">5.16%</td></tr>
-            <tr><td class="rp-rank">5.</td><td>飯泉 満</td><td class="rp-pct">4.69%</td></tr>
+            <tr><td class="rp-rank">1.</td><td class="rp-name">ニューホライズン株式会社</td><td class="rp-pct">37.53%</td></tr>
+            <tr><td class="rp-rank">2.</td><td class="rp-name">恵志 章夫</td><td class="rp-pct">11.99%</td></tr>
+            <tr><td class="rp-rank">3.</td><td class="rp-name">日本カストディ銀行（信託口）</td><td class="rp-pct">7.24%</td></tr>
+            <tr><td class="rp-rank">4.</td><td class="rp-name">日本マスタートラスト信託銀行（信託口）</td><td class="rp-pct">5.16%</td></tr>
+            <tr><td class="rp-rank">5.</td><td class="rp-name">飯泉 満</td><td class="rp-pct">4.69%</td></tr>
           </table>
           <div class="rp-foot-note">代表取締役会長：恵志 章夫 ／ 代表取締役社長：家崎 晃一</div>
         </section>
@@ -368,11 +368,22 @@
     font-size: 12px; font-weight: 700; color: #fff; background: var(--rp-navy-soft);
     padding: 5px 10px; border-radius: 5px 5px 0 0; margin-top: 4px;
   }
-  .rp-holders { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-  .rp-holders td { padding: 5px 8px; border-bottom: 1px solid var(--rp-line); }
+  /* 列幅をブラウザ任せにすると名前の列が潰れて数文字で折り返すため、
+     table-layout:fixed で配分を固定する。順位と比率の幅を先に確保し、
+     残りをすべて名前に渡す。 */
+  .rp-holders { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+  .rp-holders td {
+    padding: 6px 4px; border-bottom: 1px solid var(--rp-line);
+    vertical-align: top; line-height: 1.45;
+  }
   .rp-holders tr:last-child td { border-bottom: none; }
-  .rp-rank { width: 18px; color: #555; }
-  .rp-pct { text-align: right; font-weight: 700; color: var(--rp-navy); white-space: nowrap; }
+  .rp-rank { width: 17px; color: #555; }
+  /* 長い社名は折り返しを許すが、折り返した行が順位の下に潜り込まないようにする */
+  .rp-name { overflow-wrap: anywhere; }
+  .rp-pct {
+    width: 48px; text-align: right; font-weight: 700;
+    color: var(--rp-navy); white-space: nowrap;
+  }
   .rp-foot-note { font-size: 10.5px; color: #555; margin-top: 8px; line-height: 1.6; }
 
   /* --- スナップショット --- */

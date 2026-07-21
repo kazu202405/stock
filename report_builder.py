@@ -64,6 +64,31 @@ def _fiscal_label(date_str):
         return str(date_str)[:7]
 
 
+# 株主名の表示上限（文字数）。レポートの株主欄はおよそ20字で1行に収まる。
+HOLDER_NAME_MAX = 20
+
+
+def shorten_holder_name(name):
+    """株主名を表示用に詰める。
+
+    レポートの株主欄は幅が狭く、長い社名がそのままだと折り返して読みにくい。
+    まず意味が変わらない範囲（法人格の表記など）を落とし、それでも長い場合は
+    末尾を省略する。外国系の信託銀行など30字近い名前があるため上限が必要。
+    例: 「日本マスタートラスト信託銀行株式会社（信託口）」→「日本マスタートラスト信託銀行(信託口)」
+    """
+    if not name:
+        return name
+    s = str(name).strip()
+    for token in ('株式会社', '(株)', '（株）', '有限会社'):
+        s = s.replace(token, '')
+    # 全角括弧は幅を食うので半角に寄せる
+    s = s.replace('（', '(').replace('）', ')')
+    s = s.strip('　 ')
+    if len(s) > HOLDER_NAME_MAX:
+        s = s[:HOLDER_NAME_MAX - 1].rstrip('　 ') + '…'
+    return s
+
+
 def _oku(value):
     """円 → 億円（小数1桁）。すでに億円単位のカラムはそのまま渡さないこと。"""
     if value is None:
@@ -214,7 +239,10 @@ def build_from_screened(row):
             'equity_roa': equity_roa,
             'payout': [{'label': _fiscal_label(p['date']), 'value': round(p['value'], 1)} for p in payout[-3:]],
         },
-        'shareholders': [s for s in shareholders if isinstance(s, dict)][:5],
+        'shareholders': [
+            {**s, 'name': shorten_holder_name(s.get('name'))}
+            for s in shareholders if isinstance(s, dict)
+        ][:5],
         'officers': [o for o in officers if isinstance(o, dict)][:5],
         'narrative': None,
     }
