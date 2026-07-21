@@ -77,10 +77,16 @@ def fetch(url, timeout=15):
 
     try:
         response = requests.get(url, headers=HEADERS, timeout=timeout)
-        if response.status_code != 200:
-            print(f'[YahooJP] HTTP {response.status_code}: {url}')
-            record_failure()
+        status = response.status_code
+
+        if status != 200:
+            print(f'[YahooJP] HTTP {status}: {url}')
+            # 404 は「その銘柄にそのページが無い」だけで、遮断されたわけではない。
+            # ETF・新規上場銘柄などで普通に起きるため、ブレーカーの判定には含めない。
+            if status in (403, 429) or status >= 500:
+                record_failure()
             return None
+
         response.encoding = 'utf-8'
         record_success()
         return response.text

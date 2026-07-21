@@ -126,8 +126,11 @@ def fill_one(code, analyzer):
 def main():
     parser = argparse.ArgumentParser(description='Yahoo!JP由来項目の穴埋め')
     parser.add_argument('--limit', type=int, default=0)
-    parser.add_argument('--sleep', type=float, default=1.5,
-                        help='銘柄間の待機秒数。短くするとブロックされやすい')
+    parser.add_argument('--sleep', type=float, default=5.0,
+                        help='銘柄間の待機秒数。1銘柄あたりYahooに2回リクエストするため、'
+                             '5秒で約20回/分になる')
+    parser.add_argument('--max-per-run', type=int, default=400,
+                        help='1回の実行で処理する上限。数日に分けて流すための安全弁')
     parser.add_argument('--all', action='store_true',
                         help='欠けているものだけでなく全銘柄を対象にする')
     parser.add_argument('--dry-run', action='store_true')
@@ -151,12 +154,18 @@ def main():
         print('  migration_company_profile_fields.sql を適用済みか確認してください')
         return
 
-    if args.limit:
-        targets = targets[:args.limit]
+    remaining_total = len(targets)
+    cap = args.limit or args.max_per_run
+    if cap and len(targets) > cap:
+        targets = targets[:cap]
 
-    print(f'処理対象: {len(targets)}件')
+    rate = 60.0 / (args.sleep + 1.5) * 2   # 1銘柄あたりYahooへ2リクエスト
+    print(f'未処理: {remaining_total}件 / 今回処理: {len(targets)}件')
     print(f'推定所要時間: {fmt_duration(len(targets) * (1.5 + args.sleep))}')
-    print(f'待機: {args.sleep}秒/銘柄（ブロック回避のため長めに設定）')
+    print(f'待機: {args.sleep}秒/銘柄（Yahooへ約{rate:.0f}回/分）')
+    if remaining_total > len(targets):
+        print(f'※ 1回の上限{cap}件で区切っています。'
+              f'完了まで約{-(-remaining_total // len(targets))}回に分けて実行してください')
 
     if args.dry_run:
         print('\n--dry-run のため実行せず終了します')
