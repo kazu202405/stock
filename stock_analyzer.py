@@ -823,12 +823,11 @@ class StockAnalyzer:
         # 3. 最終手段：Yahoo Finance JPからスクレイピング（日本株のみ）
         if symbol.endswith('.T') and (not result["industry"] or not result["sector"]):
             try:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
+                from yahoo_jp_guard import fetch as yahoo_fetch
                 url = f"https://finance.yahoo.co.jp/quote/{symbol}/profile"
-                response = requests.get(url, headers=headers, timeout=5)
-                
+                _html = yahoo_fetch(url, timeout=5)
+                response = type('R', (), {'status_code': 200 if _html else 503, 'text': _html or ''})()
+
                 if response.status_code == 200:
                     # 簡易的なパース（実際のHTML構造に応じて調整が必要）
                     import re
@@ -1094,12 +1093,11 @@ class StockAnalyzer:
             # Yahoo!ファイナンス日本版のURL
             url = f"https://finance.yahoo.co.jp/quote/{code}.T"
 
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            response = requests.get(url, headers=headers, timeout=10)
-            response.encoding = 'utf-8'
+            from yahoo_jp_guard import fetch as yahoo_fetch
+            _html = yahoo_fetch(url, timeout=10)
+            if not _html:
+                return result
+            response = type('R', (), {'status_code': 200, 'text': _html})()
 
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -1163,12 +1161,11 @@ class StockAnalyzer:
             # Yahoo!ファイナンス日本版の業績ページURL
             url = f"https://finance.yahoo.co.jp/quote/{code}.T/performance"
 
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            response = requests.get(url, headers=headers, timeout=10)
-            response.encoding = 'utf-8'
+            from yahoo_jp_guard import fetch as yahoo_fetch
+            _html = yahoo_fetch(url, timeout=10)
+            if not _html:
+                return result
+            response = type('R', (), {'status_code': 200, 'text': _html})()
 
             if response.status_code == 200:
                 html = response.text

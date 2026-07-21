@@ -15,10 +15,15 @@ def fetch_jp_labels(symbol: str):
         return None, None
 
     try:
+        # サーキットブレーカー経由で取得する。
+        # Yahoo!JPがブロック/障害中に毎銘柄リクエストを投げ続けると
+        # ブロックが長引くため、連続失敗したら以降はリクエストしない。
+        from yahoo_jp_guard import fetch as yahoo_fetch
+
         url = f"https://finance.yahoo.co.jp/quote/{symbol}"
-        response = requests.get(url, headers=UA, timeout=15)
-        response.raise_for_status()
-        html = response.text
+        html = yahoo_fetch(url)
+        if not html:
+            return None, None
         soup = BeautifulSoup(html, "html.parser")
 
         # 会社名（ページ上部の見出しなど）
