@@ -751,7 +751,7 @@
                     {# 財務データは決算発表時にしか変わらない。全件やり直すと約4.5時間かかるが、
                        決算を出した銘柄だけなら平常日は数件〜数十件で済む。 #}
                     <button class="gc-fetch-btn" onclick="updateEarnings()" id="earningsBtn"
-                            style="background-color: #1b4332;" title="本日決算発表・業績修正のあった銘柄だけ財務データを更新します">
+                            style="background-color: #1b4332;" title="決算発表・業績修正のあった銘柄の財務データを更新します（押し忘れた日の分も残っています）">
                         決算銘柄を更新
                     </button>
                     {% endif %}
@@ -1254,6 +1254,9 @@
     // 数千行を一度に描画すると重いため、既定100件・ボタンで100件ずつ追加する。
     // 並べ替えや絞り込みを変えたら表示件数を100に戻す（条件を変えたのに
     // 前の表示件数が残っていると、何件目まで見ているのか分からなくなるため）。
+    // 詳細取得の1回あたり上限。全件だと数時間かかりサーバーの応答に影響するため区切る
+    const TECH_ANALYZE_LIMIT = 200;
+
     const ROWS_STEP = 100;
     const shownRows = {};   // タブ名 -> 現在の表示件数
 
@@ -3092,12 +3095,39 @@
     async function analyzeTechStocks() {
         const btn = document.getElementById('techAnalyzeBtn');
         const stopBtn = document.getElementById('techStopBtn');
+
+        // 対象が多いと数時間かかるうえ、その間サーバーの応答が重くなる。
+        // うっかり押して長時間走らせないよう、件数と所要時間を伝えて確認する。
+        const n = technicalStocksCache.length;
+        const limit = TECH_ANALYZE_LIMIT;
+        const willRun = Math.min(n, limit);
+        const mins = Math.ceil(willRun * 5 / 60);
+        if (n > limit) {
+            if (!confirm(
+                `未分析が${n.toLocaleString()}件あります。
+` +
+                `1回の実行では古い順に${limit}件まで処理します（約${mins}分）。
+
+` +
+                `※ 決算があった銘柄だけを更新したい場合は、条件合致企業タブの
+` +
+                `　「決算銘柄を更新」のほうが速く済みます。
+
+実行しますか？`
+            )) return;
+        } else if (willRun > 20) {
+            if (!confirm(`${willRun}件を分析します（約${mins}分）。実行しますか？`)) return;
+        }
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 開始中...';
         stopBtn.style.display = 'inline-block';
 
         try {
-            const response = await fetch('/api/technical-stocks/analyze', { method: 'POST' });
+            const response = await fetch('/api/technical-stocks/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit: TECH_ANALYZE_LIMIT }),
+            });
             const data = await response.json();
 
             if (response.ok) {
