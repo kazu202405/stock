@@ -354,20 +354,19 @@
 
     .watchlist-table .clickable-row { cursor: pointer; }
 
-    /* ウォッチリストのページャー */
-    .wl-pager {
-        display: flex; align-items: center; justify-content: center; gap: 14px;
-        padding: 14px 10px;
+    /* 一覧の「もっと見る」（全タブ共通） */
+    .rows-more {
+        display: flex; align-items: center; justify-content: center;
+        gap: 14px; padding: 14px 10px; flex-wrap: wrap;
     }
-    .wl-page-btn {
-        padding: 6px 16px; font-size: 13px; color: #525252;
+    .rows-more-info { font-size: 12px; color: #737373; }
+    .rows-more-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 20px; font-size: 13px; font-weight: 500; color: #525252;
         background: #fff; border: 1px solid #ebebeb; border-radius: 7px;
         cursor: pointer; transition: all .15s; font-family: inherit;
     }
-    .wl-page-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
-    .wl-page-btn:disabled { opacity: .4; cursor: not-allowed; }
-    .wl-page-info { font-size: 12px; color: #737373; }
-    .wl-page-info strong { color: #1b4332; }
+    .rows-more-btn:hover { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
 
     .filter-item-keyword input { min-width: 150px; }
 
@@ -1207,27 +1206,66 @@
     // ソート状態
     let currentSort = { key: null, asc: true };
 
-    // ウォッチリストのページング。全件描画は重く、目的の行も探しにくい
-    const WL_PER_PAGE = 100;
-    let wlPage = 1;
-    let wlFiltered = [];
+    // ===== 一覧の表示件数（全タブ共通） =====
+    // 数千行を一度に描画すると重いため、既定100件・ボタンで100件ずつ追加する。
+    // 並べ替えや絞り込みを変えたら表示件数を100に戻す（条件を変えたのに
+    // 前の表示件数が残っていると、何件目まで見ているのか分からなくなるため）。
+    const ROWS_STEP = 100;
+    const shownRows = {};   // タブ名 -> 現在の表示件数
+
+    function shownCount(key) {
+        if (!shownRows[key]) shownRows[key] = ROWS_STEP;
+        return shownRows[key];
+    }
+
+    function resetShown(key) {
+        shownRows[key] = ROWS_STEP;
+    }
+
+    function showMore(key) {
+        shownRows[key] = shownCount(key) + ROWS_STEP;
+        rerenderTab(key);
+    }
+
+    // 「もっと見る」のHTMLを返す。全件表示済みなら件数だけ出す。
+    function moreRowsHtml(key, shown, total) {
+        if (total <= ROWS_STEP) return '';
+        const visible = Math.min(shown, total);
+        if (visible >= total) {
+            return `<div class="rows-more"><span class="rows-more-info">
+                ${total.toLocaleString()}件すべて表示中</span></div>`;
+        }
+        return `
+            <div class="rows-more">
+                <span class="rows-more-info">${visible.toLocaleString()} / ${total.toLocaleString()} 件を表示中</span>
+                <button class="rows-more-btn" onclick="showMore('${key}')">
+                    もっと見る <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    // タブごとの再描画。表示件数を変えたときに呼ぶ
+    function rerenderTab(key) {
+        if (key === 'watchlist') applyFilterAndSort();
+        else if (key === 'technical') applyTechFilters(true);
+        else if (key === 'favorite') applyFavFilters(true);
+        else if (key === 'dividend') applyDivFilters(true);
+        else if (key === 'gc') renderGcStocks(gcStocksCache || []);
+        else if (key === 'dc') renderDcStocks(dcStocksCache || []);
+    }
 
     function renderWatchlist(watchlist) {
         watchlistCache = watchlist;
-        wlPage = 1;
+        resetShown('watchlist');
         applyFilterAndSort();
     }
 
-    function goWatchlistPage(page) {
-        wlPage = Math.max(1, page);
-        applyFilterAndSort();
-        document.getElementById('watchlistContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // 絞り込み・並べ替えを変えたら1ページ目に戻す。
-    // 3ページ目を見ている状態で条件を変えると、結果が少なくなって空振りするため。
+    // 絞り込み・並べ替えを変えたら表示件数を100に戻す。
+    // 条件を変えたのに前の表示件数が残っていると、何件目まで見ているのか
+    // 分からなくなるため。
     function resetWatchlistPage() {
-        wlPage = 1;
+        resetShown('watchlist');
         applyFilterAndSort();
     }
 
@@ -1298,11 +1336,8 @@
 
         // 全件を一度に描画すると重く、目的の行も探しにくいのでページに区切る。
         // 絞り込み・並べ替えの結果に対して区切るため、条件を変えたら1ページ目に戻す。
-        wlFiltered = list;
-        const totalPages = Math.max(1, Math.ceil(list.length / WL_PER_PAGE));
-        if (wlPage > totalPages) wlPage = totalPages;
-        const pageStart = (wlPage - 1) * WL_PER_PAGE;
-        const pageRows = list.slice(pageStart, pageStart + WL_PER_PAGE);
+        const shown = shownCount('watchlist');
+        const pageRows = list.slice(0, shown);
 
         const sortIcon = (key) => {
             if (currentSort.key !== key) return '<span class="sort-icon">▲▼</span>';
@@ -1372,21 +1407,7 @@
 
         html += '</tbody></table>';
 
-        // ページャー（1ページに収まるときは出さない）
-        if (totalPages > 1) {
-            const from = pageStart + 1;
-            const to = Math.min(pageStart + WL_PER_PAGE, list.length);
-            html += `
-                <div class="wl-pager">
-                    <button class="wl-page-btn" ${wlPage <= 1 ? 'disabled' : ''} onclick="goWatchlistPage(${wlPage - 1})">前へ</button>
-                    <span class="wl-page-info">
-                        ${list.length.toLocaleString()}件中 <strong>${from}〜${to}</strong> 件目
-                        （${wlPage} / ${totalPages} ページ）
-                    </span>
-                    <button class="wl-page-btn" ${wlPage >= totalPages ? 'disabled' : ''} onclick="goWatchlistPage(${wlPage + 1})">次へ</button>
-                </div>
-            `;
-        }
+        html += moreRowsHtml('watchlist', shown, list.length);
 
         content.innerHTML = html;
     }
@@ -1807,7 +1828,10 @@
         input.addEventListener('input', () => applyFavFilters());
     });
 
-    function applyFavFilters() {
+    function applyFavFilters(keepShown) {
+        // 条件を変えたら表示件数を100に戻す（showMoreからの再描画時は維持する）
+        if (!keepShown) resetShown('favorite');
+
         let list = [...favoriteCache];
 
         const matchMin = parseFloat(document.getElementById('favFilterMatchMin')?.value);
@@ -1907,7 +1931,14 @@
                 <tbody>
         `;
 
-        list.forEach(item => {
+        // 数千行を一度に描くと重いので、表示中の件数までに絞る
+
+        const _shown = shownCount('favorite');
+
+        const _rows = list.slice(0, _shown);
+
+
+        _rows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const sector = item.sector || '---';
@@ -1938,6 +1969,7 @@
         });
 
         html += '</tbody></table>';
+        html += moreRowsHtml('favorite', _shown, list.length);
         content.innerHTML = html;
     }
 
@@ -1988,7 +2020,10 @@
         input.addEventListener('input', () => applyDivFilters());
     });
 
-    function applyDivFilters() {
+    function applyDivFilters(keepShown) {
+        // 条件を変えたら表示件数を100に戻す（showMoreからの再描画時は維持する）
+        if (!keepShown) resetShown('dividend');
+
         let list = [...dividendCache];
 
         const matchMin = parseFloat(document.getElementById('divFilterMatchMin')?.value);
@@ -2096,7 +2131,14 @@
                 <tbody>
         `;
 
-        list.forEach(item => {
+        // 数千行を一度に描くと重いので、表示中の件数までに絞る
+
+        const _shown = shownCount('dividend');
+
+        const _rows = list.slice(0, _shown);
+
+
+        _rows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const sector = item.sector || '---';
@@ -2127,6 +2169,7 @@
         });
 
         html += '</tbody></table>';
+        html += moreRowsHtml('dividend', _shown, list.length);
         content.innerHTML = html;
     }
 
@@ -2313,7 +2356,14 @@
                 <tbody>
         `;
 
-        stocks.forEach(item => {
+        // 数千行を一度に描くと重いので、表示中の件数までに絞る
+
+        const _shown = shownCount('gc');
+
+        const _rows = stocks.slice(0, _shown);
+
+
+        _rows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}/120` : '---';
@@ -2344,6 +2394,7 @@
         });
 
         html += '</tbody></table>';
+        html += moreRowsHtml('gc', _shown, stocks.length);
         content.innerHTML = html;
     }
 
@@ -2548,7 +2599,14 @@
                 <tbody>
         `;
 
-        stocks.forEach(item => {
+        // 数千行を一度に描くと重いので、表示中の件数までに絞る
+
+        const _shown = shownCount('dc');
+
+        const _rows = stocks.slice(0, _shown);
+
+
+        _rows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const market = item.market || '---';
@@ -2573,6 +2631,7 @@
         });
 
         html += '</tbody></table>';
+        html += moreRowsHtml('dc', _shown, stocks.length);
         content.innerHTML = html;
     }
 
@@ -2607,7 +2666,10 @@
         el.addEventListener('change', () => applyTechFilters());
     });
 
-    function applyTechFilters() {
+    function applyTechFilters(keepShown) {
+        // 条件を変えたら表示件数を100に戻す（showMoreからの再描画時は維持する）
+        if (!keepShown) resetShown('technical');
+
         let list = [...technicalStocksCache];
 
         const matchMin = parseFloat(document.getElementById('techFilterMatchMin')?.value);
@@ -2725,14 +2787,20 @@
                         <th class="sortable" onclick="sortTechColumn('gc_date')">GC発生日${techSortIcon('gc_date')}</th>
                         <th class="sortable" onclick="sortTechColumn('dc_date')">DC発生日${techSortIcon('dc_date')}</th>
                         <th>方向</th>
-                        <th class="sortable" onclick="sortTechColumn('cross_count')" title="1年間の交差回数。多いほど方向感に乏しい">交差${techSortIcon('cross_count')}</th>
                         <th>取得</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        stocks.forEach(item => {
+        // 数千行を一度に描くと重いので、表示中の件数までに絞る
+
+        const _shown = shownCount('technical');
+
+        const _rows = stocks.slice(0, _shown);
+
+
+        _rows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
@@ -2761,13 +2829,13 @@
                     <td>${gcDate}${daysAgo(item.gc_date)}</td>
                     <td>${dcDate}${daysAgo(item.dc_date)}</td>
                     <td class="${trend.cls}">${trend.label}</td>
-                    <td style="text-align:center; color:#737373;">${item.cross_count != null ? item.cross_count + '回' : '---'}</td>
                     <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>
                 </tr>
             `;
         });
 
         html += '</tbody></table>';
+        html += moreRowsHtml('technical', _shown, stocks.length);
         content.innerHTML = html;
     }
 
