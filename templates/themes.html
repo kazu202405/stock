@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+
+{#
+  テーマ・業種の索引。ログイン不要。
+
+  個別のテーマページへ辿れる導線がここしか無いため、
+  クローラーにテーマページの存在を知らせる役割も兼ねる。
+#}
+
+{% block title %}テーマ・業種から企業を探す | Company Note{% endblock %}
+
+{% block meta_description %}東証33業種と事業テーマから上場企業を探せる索引。半導体・防衛・再生可能エネルギーなどのテーマごとに、関連する企業の事業内容と財務データをまとめています。{% endblock %}
+
+{% block og_title %}テーマ・業種から企業を探す{% endblock %}
+{% block og_description %}東証33業種と事業テーマから上場企業を探せる索引。{% endblock %}
+
+{% block content %}
+<style>
+    .tix-wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    .tix-head {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-left: 3px solid #1b4332;
+        border-radius: 12px;
+        padding: 22px 24px;
+        margin-bottom: 20px;
+    }
+    .tix-title {
+        font-family: 'Noto Serif JP', serif;
+        font-size: 26px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 8px;
+    }
+    .tix-lead { font-size: 13px; color: #525252; line-height: 1.8; }
+
+    .tix-group { margin-bottom: 26px; }
+    .tix-group-name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #737373;
+        letter-spacing: 0.04em;
+        padding-bottom: 7px;
+        margin-bottom: 11px;
+        border-bottom: 1px solid #ebebeb;
+    }
+    .tix-group-name span { color: #a3a3a3; font-weight: 400; margin-left: 6px; }
+
+    .tix-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .tix-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        padding: 6px 13px;
+        font-size: 13px;
+        color: #1a1a1a;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 20px;
+        transition: all 0.15s;
+    }
+    .tix-chip:hover { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
+    .tix-chip em { font-style: normal; font-size: 11px; color: #a3a3a3; }
+
+    .tix-note { font-size: 11px; color: #a3a3a3; line-height: 1.7; margin-top: 20px; }
+
+    @media (max-width: 640px) { .tix-title { font-size: 21px; } }
+</style>
+
+<div class="tix-wrap">
+    <div class="tix-head">
+        <h1 class="tix-title">テーマ・業種から企業を探す</h1>
+        <p class="tix-lead">
+            東京証券取引所の33業種区分と、各社の事業内容から分類したテーマで企業を探せます。<br>
+            気になる分野を選ぶと、関連する企業の事業内容と財務データが並びます。
+        </p>
+    </div>
+
+    {% for g in groups %}
+    <div class="tix-group">
+        <div class="tix-group-name">
+            {{ g.category }}<span>{{ g.tags|length }}件</span>
+        </div>
+        <div class="tix-chips">
+            {% for t in g.tags %}
+            <a class="tix-chip" href="/theme/{{ t.name|urlencode }}"
+               {% if t.description %}title="{{ t.description }}"{% endif %}>
+                {{ t.name }}<em>{{ t.count }}</em>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <p class="tix-note">
+        ※ 業種は東京証券取引所の33業種区分にもとづきます。<br>
+        ※ テーマは各社の事業内容をもとに分類したもので、掲載は特定銘柄の推奨ではありません。
+    </p>
+</div>
+{% endblock %}
