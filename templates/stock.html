@@ -767,6 +767,10 @@
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="favFilterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="favFilterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
                     <div class="filter-item">
                         <label>合致度</label>
                         <input type="number" id="favFilterMatchMin" placeholder="以上" step="1">
@@ -815,6 +819,10 @@
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="divFilterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="divFilterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
                     <div class="filter-item">
                         <label>合致度</label>
                         <input type="number" id="divFilterMatchMin" placeholder="以上" step="1">
@@ -872,6 +880,15 @@
             <div class="match-rate-description">
                 kabutan.jpのゴールデンクロス（5日線が25日線を上抜け）銘柄から、PER40倍未満・PBR10倍未満を抽出しています。
             </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="gcFilterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="gcFilterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetGCFilters()">リセット</button>
+                </div>
+            </div>
             <div id="gcContent">
                 <div class="watchlist-empty">「取得」ボタンを押してGC銘柄を取得してください</div>
             </div>
@@ -889,6 +906,15 @@
             <div class="match-rate-description">
                 kabutan.jpのデッドクロス（5日線が25日線を下抜け）銘柄の一覧です。フィルタなしで全件表示しています。
             </div>
+            <div class="filter-action-bar">
+                <div class="filter-bar" id="dcFilterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="dcFilterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
+                    <button class="filter-reset-btn" onclick="resetDCFilters()">リセット</button>
+                </div>
+            </div>
             <div id="dcContent">
                 <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
             </div>
@@ -905,6 +931,10 @@
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="techFilterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="techFilterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
                     <div class="filter-item">
                         <label>合致度</label>
                         <input type="number" id="techFilterMatchMin" placeholder="以上" step="1">
@@ -1246,13 +1276,30 @@
     }
 
     // タブごとの再描画。表示件数を変えたときに呼ぶ
+    function resetGCFilters() {
+        const el = document.getElementById('gcFilterKeyword');
+        if (el) el.value = '';
+        renderGcStocks(gcStocksCache || []);
+    }
+
+    function resetDCFilters() {
+        const el = document.getElementById('dcFilterKeyword');
+        if (el) el.value = '';
+        renderDcStocks(dcStocksCache || []);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('gcFilterKeyword')?.addEventListener('input', () => renderGcStocks(gcStocksCache || []));
+        document.getElementById('dcFilterKeyword')?.addEventListener('input', () => renderDcStocks(dcStocksCache || []));
+    });
+
     function rerenderTab(key) {
         if (key === 'watchlist') applyFilterAndSort();
         else if (key === 'technical') applyTechFilters(true);
         else if (key === 'favorite') applyFavFilters(true);
         else if (key === 'dividend') applyDivFilters(true);
-        else if (key === 'gc') renderGcStocks(gcStocksCache || []);
-        else if (key === 'dc') renderDcStocks(dcStocksCache || []);
+        else if (key === 'gc') renderGcStocks(gcStocksCache || [], true);
+        else if (key === 'dc') renderDcStocks(dcStocksCache || [], true);
     }
 
     function renderWatchlist(watchlist) {
@@ -1846,7 +1893,7 @@
         const divMax = parseFloat(document.getElementById('favFilterDivMax')?.value);
 
         // 銘柄コード・会社名での絞り込み
-        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        const keyword = (document.getElementById('favFilterKeyword')?.value || '').trim().toLowerCase();
         if (keyword) {
             list = list.filter(i =>
                 (i.company_code || '').toLowerCase().includes(keyword) ||
@@ -2038,7 +2085,7 @@
         const divMax = parseFloat(document.getElementById('divFilterDivMax')?.value);
 
         // 銘柄コード・会社名での絞り込み
-        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        const keyword = (document.getElementById('divFilterKeyword')?.value || '').trim().toLowerCase();
         if (keyword) {
             list = list.filter(i =>
                 (i.company_code || '').toLowerCase().includes(keyword) ||
@@ -2324,8 +2371,19 @@
         }
     }
 
-    function renderGcStocks(stocks) {
-        gcStocksCache = stocks;
+    function renderGcStocks(stocks, keepShown) {
+        // 再描画（絞り込み・もっと見る）ではキャッシュを上書きしない
+        if (stocks !== gcStocksCache) gcStocksCache = stocks;
+        if (!keepShown) resetShown('gc');
+
+        // 銘柄コード・会社名での絞り込み
+        const _kw = (document.getElementById('gcFilterKeyword')?.value || '').trim().toLowerCase();
+        if (_kw) {
+            stocks = stocks.filter(i =>
+                (i.company_code || '').toLowerCase().includes(_kw) ||
+                (i.company_name || '').toLowerCase().includes(_kw)
+            );
+        }
 
         const content = document.getElementById('gcContent');
         const countElement = document.getElementById('gcCount');
@@ -2570,8 +2628,19 @@
         }
     }
 
-    function renderDcStocks(stocks) {
-        dcStocksCache = stocks;
+    function renderDcStocks(stocks, keepShown) {
+        // 再描画（絞り込み・もっと見る）ではキャッシュを上書きしない
+        if (stocks !== dcStocksCache) dcStocksCache = stocks;
+        if (!keepShown) resetShown('dc');
+
+        // 銘柄コード・会社名での絞り込み
+        const _kw = (document.getElementById('dcFilterKeyword')?.value || '').trim().toLowerCase();
+        if (_kw) {
+            stocks = stocks.filter(i =>
+                (i.company_code || '').toLowerCase().includes(_kw) ||
+                (i.company_name || '').toLowerCase().includes(_kw)
+            );
+        }
 
         const content = document.getElementById('dcContent');
         const countElement = document.getElementById('dcCount');
@@ -2685,7 +2754,7 @@
         const trendFilter = document.getElementById('techFilterTrend')?.value || '';
 
         // 銘柄コード・会社名での絞り込み
-        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        const keyword = (document.getElementById('techFilterKeyword')?.value || '').trim().toLowerCase();
         if (keyword) {
             list = list.filter(i =>
                 (i.company_code || '').toLowerCase().includes(keyword) ||
