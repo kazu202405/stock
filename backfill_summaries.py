@@ -30,14 +30,20 @@ def fmt_duration(seconds):
     return f'{h}時間{m}分' if h else (f'{m}分{s}秒' if m else f'{s}秒')
 
 
-def load_targets(overwrite=False):
+def sg_model():
+    import summary_generator
+    return summary_generator.MODEL
+
+
+def load_targets(overwrite=False, retag=False):
     from supabase_client import get_supabase_client
     client = get_supabase_client()
     rows = []
     page = 0
     while page < 20:
         res = (client.table('screened_latest')
-               .select('company_code, company_name, sector, business_summary_jp')
+               .select('company_code, company_name, sector, industry_jp, '
+                       'business_summary_jp')
                .range(page * 1000, page * 1000 + 999)
                .execute())
         chunk = res.data or []
@@ -48,6 +54,9 @@ def load_targets(overwrite=False):
             break
         page += 1
 
+    if retag:
+        # 概要が既にある銘柄だけ。これを使い回してテーマを付け直す
+        return [r for r in rows if r.get('business_summary_jp')]
     if overwrite:
         return rows
     return [r for r in rows if not r.get('business_summary_jp')]
@@ -74,13 +83,18 @@ def main():
         print('\n[中止] OPENAI_API_KEY が設定されていません')
         return
 
-    targets = load_targets(overwrite=args.overwrite)
+    targets = load_targets(overwrite=args.overwrite, retag=args.retag)
     if args.limit:
         targets = targets[:args.limit]
 
+    if args.retag:
+        print('モード: テーマの付け直しのみ（事業概要は変更しません）')
     print(f'処理対象: {len(targets)}件')
-    print(f'推定所要時間: {fmt_duration(len(targets) * (2.0 + args.sleep))}')
-    print(f'推定費用: 約{len(targets) * 0.1:.0f}円（gpt-4o-mini）')
+    # 付け直しは英語説明の取得が不要なぶん速く、入力も短いので安い
+    per_sec = 1.2 if args.retag else 2.0
+    per_yen = 0.04 if args.retag else 0.1
+    print(f'推定所要時間: {fmt_duration(len(targets) * (per_sec + args.sleep))}')
+    print(f'推定費用: 約{len(targets) * per_yen:.0f}円（{sg_model()}）')
 
     if args.dry_run:
         print('\n--dry-run のため実行せず終了します')
@@ -107,13 +121,25 @@ def main():
     try:
         for i, row in enumerate(targets, 1):
             code = row['company_code']
+            industry = row.get('industry_jp')
             try:
-                result = sg.generate(code, row.get('company_name'), row.get('sector'),
-                                     themes=themes)
-                text = result.get('summary')
-                tags = result.get('themes') or []
+                if args.retag:
+                    text = row.get('business_summary_jp')
+                    tags = sg.generate_themes_only(text, row.get('company_name'),
+                                                   industry, themes=themes)
+                else:
+                    result = sg.generate(code, row.get('company_name'), row.get('sector'),
+                                         themes=themes, industry=industry)
+                    text = result.get('summary')
+                    tags = result.get('themes') or []
+
+                # 業種タグはJPXが付けている。同じ名前をllm名義で入れ直すと
+                # source が上書きされ、次の付け直しで消えてしまう
+                tags = [t for t in tags if t != industry]
+
                 if text:
-                    update_screened_data(code, {'business_summary_jp': text})
+                    if not args.retag:
+                        update_screened_data(code, {'business_summary_jp': text})
 
                     # タグは付け替えになるので、いったん消してから入れ直す
                     if tags:
