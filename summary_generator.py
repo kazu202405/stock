@@ -26,9 +26,39 @@
 
 MODEL = 'gpt-4o-mini'
 
+# 1銘柄に付けるテーマの上限。多すぎると「何の会社か」がぼやける
+MAX_TAGS = 5
 
-def build_prompt(english_text, company_name=None, sector=None):
-    """英文の逐語訳ではなく「何で稼ぐ会社か」が掴める説明を書かせる。
+_tag_cache = {'names': None}
+
+
+def load_taggable_themes():
+    """LLMに選ばせるテーマ名の一覧。属性(中国関連・指数など)は含めない。
+
+    属性は事業説明文からは正しく判定できず、推測で付けると誤りが混ざるため
+    tagging_enabled=false にしてある。
+    """
+    if _tag_cache['names'] is not None:
+        return _tag_cache['names']
+    try:
+        from supabase_client import get_supabase_client
+        res = (get_supabase_client().table('stock_tags')
+               .select('name')
+               .eq('kind', 'theme')
+               .eq('tagging_enabled', True)
+               .order('sort_order')
+               .execute())
+        _tag_cache['names'] = [r['name'] for r in (res.data or [])]
+    except Exception as e:
+        print(f'テーマ一覧の取得エラー: {e}')
+        _tag_cache['names'] = []
+    return _tag_cache['names']
+
+
+def build_prompt(english_text, company_name=None, sector=None, themes=None):
+    """事業概要とテーマ判定を1回の呼び出しでまとめて行わせる。
+
+    別々に呼ぶと費用も時間も倍になるうえ、同じ英語説明を2度読ませることになる。
 
     プロンプト設計の経緯:
       - 単に翻訳させると事業分野の羅列になり、読んでも会社像が結ばなかった
@@ -39,23 +69,42 @@ def build_prompt(english_text, company_name=None, sector=None):
         （例: 「厨房機器の製造・販売」→「商業用厨房機器のメーカー。
               政府・医療・ホテル向けに設計や施工管理も」）
     """
-    hint = f'（参考／出力には含めない）業種: {sector or "不明"}\n\n' if sector else ''
+    hint = f'（参考）業種: {sector or "不明"}\n' if sector else ''
+
+    theme_block = ''
+    if themes:
+        theme_block = (
+            '\n【テーマ候補】\n'
+            'この一覧の中から、事業内容に実際に該当するものだけを選んでください。\n'
+            f'- 最大{MAX_TAGS}個。該当が無ければ空の配列にする\n'
+            '- 一覧に無い名前を作らない（表記を1文字も変えない）\n'
+            '- 少しでも関係がありそう、という理由で広く付けない。'
+            '主要な事業として説明文から読み取れるものだけに絞る\n\n'
+            + '、'.join(themes) + '\n'
+        )
+
     return (
-        'あなたは企業分析の解説者です。次の英語の事業説明から、日本語の事業概要を書いてください。\n\n'
-        '狙い: 一読して「何を売って、誰から、どう稼ぐ会社か」が掴めること。\n\n'
-        '書き方:\n'
+        'あなたは企業分析の解説者です。次の英語の事業説明を読み、'
+        '日本語の事業概要と、該当する事業テーマを判定してください。\n\n'
+        '【事業概要の書き方】\n'
+        '狙い: 一読して「何を売って、誰から、どう稼ぐ会社か」が掴めること。\n'
         '- 全体で60〜90文字。体言止め中心\n'
         '- 1文目: 会社の類型を最初に言い切る\n'
         '    （例: 〜のメーカー / 〜の専門商社 / 受託開発 / 店舗運営 / サブスク型 など）\n'
         '- 2文目: 主な顧客や用途、事業の広がりを一言\n'
         '- 事業分野を羅列しない。重要な2〜3個に絞る\n'
         '- 成長率や財務数値は書かない（別欄に表示されるため）\n'
-        '- 社名は書かない。英語の固有名詞は音訳しない\n'
+        '- 社名は書かない\n'
+        '- 出力にアルファベットを使わない。英語表記の商品名は日本語の一般名詞に'
+        '置き換える（例:「Hobonichi Techo」→「手帳」）。カタカナへの音訳もしない。'
+        'ただしIT・AI・EC・DXなど定着した略語は可\n'
         '- シェア・業界順位・「最大手」など、英語説明に無い評価は書かない\n'
         '- 投資判断を促す表現は書かない\n'
-        '- 要約文のみ出力\n\n'
+        + theme_block +
+        '\n次のJSONのみを出力してください（前後に説明を付けない）:\n'
+        '{"summary": "事業概要", "themes": ["テーマ名", ...]}\n\n'
         + hint +
-        f'英語説明:\n{english_text[:2500]}'
+        f'\n英語説明:\n{english_text[:2500]}'
     )
 
 
@@ -84,22 +133,30 @@ def fetch_english_summary(code):
         return None
 
 
-def generate(code, company_name=None, sector=None, english_text=None):
-    """1銘柄の日本語事業概要を生成する。失敗時は None。"""
+def generate(code, company_name=None, sector=None, english_text=None, themes=None):
+    """1銘柄の事業概要とテーマを生成する。
+
+    Returns:
+        {'summary': str|None, 'themes': [str]} 生成できなければ summary が None
+    """
     import llm
+    empty = {'summary': None, 'themes': []}
     if not llm.is_available():
-        return None
+        return empty
 
     english = english_text or fetch_english_summary(code)
     if not english or len(english) < 40:
-        return None
+        return empty
 
-    text = llm.chat(build_prompt(english, company_name, sector),
-                    model=MODEL, temperature=0.3, timeout=45)
-    if not text:
-        return None
+    if themes is None:
+        themes = load_taggable_themes()
 
-    text = text.strip().strip('"').strip('「').strip('」')
+    data = llm.chat_json(build_prompt(english, company_name, sector, themes),
+                         model=MODEL, temperature=0.3, timeout=60)
+    if not isinstance(data, dict):
+        return empty
+
+    text = (data.get('summary') or '').strip().strip('"').strip('「').strip('」')
 
     # 英語の商品名がそのまま残ることがある（例:「Hobonichi Techo」）。
     # 指示だけでは防ぎきれないため、残っていたら1度だけ書き直させる。
@@ -114,4 +171,8 @@ def generate(code, company_name=None, sector=None, english_text=None):
         if retry and not _has_foreign_words(retry):
             text = retry.strip().strip('"').strip('「').strip('」')
 
-    return text or None
+    # 一覧に無い名前を作ることがあるため、必ずマスタと突き合わせて捨てる
+    allowed = set(themes)
+    picked = [t for t in (data.get('themes') or []) if isinstance(t, str) and t in allowed]
+
+    return {'summary': text or None, 'themes': picked[:MAX_TAGS]}

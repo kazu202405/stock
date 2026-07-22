@@ -1,5 +1,5 @@
 """
-事業概要（日本語）を全銘柄に生成する。
+事業概要（日本語）とテーマタグを全銘柄に生成する。
 
 Yahoo!ファイナンス日本版へは一切アクセスしない。
 yfinanceの英語説明をLLMで日本語化するため、レート制限で止まることがない。
@@ -58,6 +58,8 @@ def main():
     parser.add_argument('--limit', type=int, default=0)
     parser.add_argument('--sleep', type=float, default=0.3,
                         help='銘柄間の待機秒数。yfinanceのレート制限対策')
+    parser.add_argument('--retag', action='store_true',
+                        help='事業概要はそのままに、テーマだけ付け直す')
     parser.add_argument('--overwrite', action='store_true',
                         help='既に日本語概要がある銘柄も作り直す')
     parser.add_argument('--dry-run', action='store_true')
@@ -88,7 +90,13 @@ def main():
         return
 
     import summary_generator as sg
-    from supabase_client import update_screened_data
+    from supabase_client import update_screened_data, get_supabase_client
+
+    client = get_supabase_client()
+    themes = sg.load_taggable_themes()
+    print(f'テーマ候補: {len(themes)}件')
+    if not themes:
+        print('[警告] テーマ候補が0件です。migration_stock_tags.sql を適用済みか確認してください')
 
     started = time.time()
     ok = fail = skip = 0
@@ -100,12 +108,28 @@ def main():
         for i, row in enumerate(targets, 1):
             code = row['company_code']
             try:
-                text = sg.generate(code, row.get('company_name'), row.get('sector'))
+                result = sg.generate(code, row.get('company_name'), row.get('sector'),
+                                     themes=themes)
+                text = result.get('summary')
+                tags = result.get('themes') or []
                 if text:
                     update_screened_data(code, {'business_summary_jp': text})
+
+                    # タグは付け替えになるので、いったん消してから入れ直す
+                    if tags:
+                        try:
+                            client.table('stock_tag_map').delete().eq(
+                                'company_code', code).eq('source', 'llm').execute()
+                            client.table('stock_tag_map').upsert(
+                                [{'company_code': code, 'tag_name': t, 'source': 'llm'}
+                                 for t in tags]).execute()
+                        except Exception as e:
+                            print(f'  タグ保存エラー ({code}): {e}')
+
                     ok += 1
                     consecutive_fail = 0
-                    status = f'OK  {text[:34]}...'
+                    tag_label = ('  [' + '/'.join(tags) + ']') if tags else ''
+                    status = f'OK  {text[:26]}...{tag_label}'
                 else:
                     # 英語説明が無い銘柄（ETF・新規上場など）は失敗ではない
                     skip += 1
