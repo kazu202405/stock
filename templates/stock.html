@@ -902,7 +902,7 @@
                 <span class="watchlist-title"></span>
             </div>
             <div class="match-rate-description">
-                過去にゴールデンクロス（GC）またはデッドクロス（DC）が検出された銘柄の一覧です。screened_latestに永続保存された日付を表示しています。
+                保存済みの日足から5日線と25日線の交差を計算した結果です。GC/DCが「いつ起きたか」を日付で表示し、発生日の新しい順に並べられます。
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="techFilterBar">
@@ -947,6 +947,14 @@
                     <button class="filter-reset-btn" onclick="resetTechFilters()">リセット</button>
                 </div>
                 <div class="action-buttons">
+                    {% if is_admin %}
+                    {# GC/DCの再計算はDBの日足だけを使うためネットワークを叩かない。
+                       外部サイトのレート制限と無関係に何度でも実行できる。 #}
+                    <button class="gc-fetch-btn" onclick="recalcMaCrosses()" id="maRecalcBtn"
+                            style="background-color: #1b4332;" title="保存済みの日足からGC/DC発生日を計算し直します">
+                        GC/DC再計算
+                    </button>
+                    {% endif %}
                     <button class="gc-fetch-btn" onclick="analyzeTechStocks()" id="techAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopTechAnalyze()" id="techStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                 </div>
@@ -2755,6 +2763,63 @@
 
     let tech_analyze_status_running = false;
     let techAnalyzePolling = null;
+
+    // GC/DCの再計算。
+    // 保存済みの日足だけを使うためネットワークを叩かず、数分で終わる。
+    // 実行中はボタンを進捗表示に変えて、二重起動を防ぐ。
+    async function recalcMaCrosses() {
+        const btn = document.getElementById('maRecalcBtn');
+        if (!btn || btn.disabled) return;
+
+        btn.disabled = true;
+        btn.textContent = '計算を開始中...';
+
+        try {
+            const res = await fetch('/api/ma-crosses/recalculate', { method: 'POST' });
+            if (res.status === 409) {
+                btn.textContent = '既に実行中';
+                setTimeout(() => pollMaCrosses(btn), 1000);
+                return;
+            }
+            if (!res.ok) throw new Error('開始できませんでした');
+            pollMaCrosses(btn);
+        } catch (e) {
+            console.error('GC/DC再計算エラー:', e);
+            btn.disabled = false;
+            btn.textContent = 'GC/DC再計算';
+            alert('再計算を開始できませんでした。しばらくしてからお試しください。');
+        }
+    }
+
+    function pollMaCrosses(btn) {
+        const timer = setInterval(async () => {
+            try {
+                const res = await fetch('/api/ma-crosses/status');
+                const st = await res.json();
+
+                if (st.running) {
+                    const pct = st.total ? Math.floor(st.done * 100 / st.total) : 0;
+                    btn.textContent = `計算中 ${pct}%（${st.done}/${st.total}）`;
+                    return;
+                }
+
+                clearInterval(timer);
+                btn.disabled = false;
+                if (st.error) {
+                    btn.textContent = 'GC/DC再計算';
+                    alert('再計算に失敗しました: ' + st.error);
+                } else {
+                    btn.textContent = `完了 ${st.saved}件`;
+                    setTimeout(() => { btn.textContent = 'GC/DC再計算'; }, 4000);
+                    loadTechnicalStocks();   // 計算結果を画面に反映
+                }
+            } catch (e) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = 'GC/DC再計算';
+            }
+        }, 1500);
+    }
 
     async function analyzeTechStocks() {
         const btn = document.getElementById('techAnalyzeBtn');

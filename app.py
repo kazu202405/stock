@@ -1919,6 +1919,110 @@ def api_retry_summary_jp(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+# =============================================
+# 移動平均クロス（GC/DC）の再計算
+#
+# 従来 signal_stocks.gc_date には「スクレイピングした時刻」が全銘柄一律で
+# 入っており、いつGCしたかは分からなかった。保存済みの日足から自前で計算する。
+# ネットワークを使わないので外部サイトのレート制限とは無関係に実行できる。
+# =============================================
+
+ma_cross_status = {"running": False, "done": 0, "total": 0, "saved": 0,
+                   "stop_requested": False, "finished_at": None, "error": None}
+
+
+def _recalc_ma_crosses_background():
+    global ma_cross_status
+    import ma_cross
+    try:
+        def progress(done, total, saved):
+            ma_cross_status["done"] = done
+            ma_cross_status["total"] = total
+            ma_cross_status["saved"] = saved
+
+        result = ma_cross.calculate_for_all(
+            progress=progress,
+            should_stop=lambda: ma_cross_status["stop_requested"],
+        )
+        ma_cross_status["saved"] = result["saved"]
+        ma_cross_status["total"] = result["total"]
+        ma_cross_status["done"] = result["total"]
+    except Exception as e:
+        print(f'GC/DC再計算エラー: {e}')
+        ma_cross_status["error"] = str(e)[:200]
+    finally:
+        from datetime import datetime, timezone
+        ma_cross_status["running"] = False
+        ma_cross_status["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+
+@app.route('/api/ma-crosses/recalculate', methods=['POST'])
+def api_recalc_ma_crosses():
+    """保存済みの日足からGC/DC発生日を再計算する（バックグラウンド）"""
+    global ma_cross_status
+    if ma_cross_status["running"]:
+        return jsonify({"error": "すでに実行中です", "status": ma_cross_status}), 409
+
+    ma_cross_status = {"running": True, "done": 0, "total": 0, "saved": 0,
+                       "stop_requested": False, "finished_at": None, "error": None}
+    threading.Thread(target=_recalc_ma_crosses_background, daemon=True).start()
+    return jsonify({"started": True}), 202
+
+
+@app.route('/api/ma-crosses/status', methods=['GET'])
+def api_ma_crosses_status():
+    return jsonify(ma_cross_status), 200
+
+
+@app.route('/api/ma-crosses/stop', methods=['POST'])
+def api_stop_ma_crosses():
+    ma_cross_status["stop_requested"] = True
+    return jsonify({"stopping": True}), 200
+
+
+@app.route('/api/ma-crosses', methods=['GET'])
+def api_list_ma_crosses():
+    """GC（またはDC）発生日の新しい順に銘柄を返す。
+
+    type=gc|dc、days で「直近N日以内に発生したもの」に絞れる。
+    """
+    try:
+        from datetime import date, timedelta
+        client = get_supabase_client()
+
+        cross_type = (request.args.get('type') or 'gc').lower()
+        column = 'latest_dc_date' if cross_type == 'dc' else 'latest_gc_date'
+        limit = min(max(request.args.get('limit', 100, type=int) or 100, 1), 500)
+
+        query = (client.table('ma_crosses')
+                 .select('company_code, latest_gc_date, latest_dc_date, cross_count')
+                 .not_.is_(column, 'null'))
+
+        days = request.args.get('days', type=int)
+        if days:
+            query = query.gte(column, (date.today() - timedelta(days=days)).isoformat())
+
+        res = query.order(column, desc=True).limit(limit).execute()
+        rows = res.data or []
+
+        # 銘柄名などを screened_latest から補う
+        codes = [r['company_code'] for r in rows]
+        detail = {}
+        for i in range(0, len(codes), 100):
+            chunk = codes[i:i + 100]
+            d = (client.table('screened_latest')
+                 .select('company_code, company_name, sector, stock_price, market_cap, per_forward, pbr, match_rate')
+                 .in_('company_code', chunk).execute())
+            for x in (d.data or []):
+                detail[x['company_code']] = x
+
+        merged = [{**r, **detail.get(r['company_code'], {})} for r in rows]
+        return jsonify({'type': cross_type, 'rows': merged, 'total': len(merged)}), 200
+    except Exception as e:
+        print(f'GC/DC一覧の取得エラー: {e}')
+        return jsonify({'error': '取得できませんでした', 'rows': []}), 500
+
+
 @app.route('/api/report/<source>/<key>', methods=['GET'])
 def api_report(source, key):
     """企業分析レポートのデータを返す。
