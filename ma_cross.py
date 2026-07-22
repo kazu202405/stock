@@ -157,6 +157,7 @@ def calculate_for_all(progress=None, should_stop=None,
 
     # まとめて保存（1件ずつupsertすると件数分の往復が発生して遅い）
     saved = 0
+    first_error = None
     for i in range(0, len(payloads), 200):
         batch = payloads[i:i + 200]
         try:
@@ -164,7 +165,18 @@ def calculate_for_all(progress=None, should_stop=None,
             saved += len(batch)
         except Exception as e:
             print(f'ma_crosses 保存エラー: {e}')
+            if first_error is None:
+                first_error = str(e)
         if progress:
             progress(done=total, total=total, saved=saved)
+
+    # 保存が1件も通らなかった場合は失敗として扱う。
+    # ログに出すだけだと画面上は「完了」と表示され、
+    # テーブル未作成などの原因に気づけないため。
+    if payloads and saved == 0:
+        raise RuntimeError(
+            f'計算は{len(payloads)}件成功しましたが、保存が1件も通りませんでした。'
+            f'migration_ma_crosses.sql を適用済みか確認してください。原因: {first_error}'
+        )
 
     return {'total': total, 'saved': saved, 'skipped': skipped}
