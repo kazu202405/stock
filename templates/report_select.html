@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block title %}企業分析レポート - Company Note{% endblock %}
+
+{% block content %}
+<div class="min-h-screen" style="background:#f7f7f5;">
+  <div class="text-white" style="background: linear-gradient(135deg, #1F3864, #2E5395, #1F3864);">
+    <div class="max-w-none mx-auto px-6 py-8">
+      <h1 class="text-3xl font-bold tracking-tight mb-2">
+        <i class="fas fa-file-invoice mr-2" style="color:#9db8e0;"></i>企業分析レポート
+      </h1>
+      <p class="text-slate-300 text-lg">財務データと事業内容を1枚にまとめたレポートを作ります</p>
+    </div>
+  </div>
+
+  <div style="max-width:900px; margin:0 auto; padding:28px 20px 60px;" x-data="reportSelect()" x-init="init()">
+
+    <!-- 企業を探す -->
+    <div class="rs-card">
+      <div class="rs-label">企業を選ぶ</div>
+      <div style="position:relative;">
+        <i class="fas fa-search" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:14px;"></i>
+        <input type="text" class="rs-input" placeholder="銘柄コードまたは企業名を入力（例: 7203 / トヨタ）"
+               x-model.debounce.300ms="q" @input="search()" autocomplete="off">
+      </div>
+
+      <div class="rs-results" x-show="rows.length > 0" x-cloak>
+        <template x-for="r in rows" :key="r.company_code">
+          <a :href="'/report/listed/' + r.company_code" class="rs-item">
+            <div>
+              <div class="rs-item-name" x-text="r.company_name || r.company_code"></div>
+              <div class="rs-item-sub">
+                <span x-text="r.company_code"></span>
+                <span x-show="r.sector" x-text="' / ' + r.sector"></span>
+              </div>
+            </div>
+            <i class="fas fa-chevron-right" style="color:#c4c4c4; font-size:12px;"></i>
+          </a>
+        </template>
+      </div>
+
+      <div x-show="q && !loading && rows.length === 0" x-cloak
+           style="padding:20px; text-align:center; color:#a3a3a3; font-size:13px;">
+        該当する企業が見つかりませんでした
+      </div>
+      <div x-show="loading" x-cloak style="padding:20px; text-align:center; color:#a3a3a3; font-size:13px;">
+        <i class="fas fa-spinner fa-spin"></i> 検索中...
+      </div>
+    </div>
+
+    <!-- 自社の数字でレポートを作る（将来） -->
+    <div class="rs-card rs-card-muted">
+      <div class="rs-label">自社の数字でレポートを作る</div>
+      <p style="font-size:13px; color:#737373; line-height:1.8; margin:0 0 12px;">
+        自社の決算数値を入力して、同じ形式のレポートを作る機能を準備中です。<br>
+        業種・規模の近い企業の基準値と比べた評価も併せて出す想定です。
+      </p>
+      <span class="rs-soon">準備中</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rs-card {
+    background:#fff; border:1px solid #ebebeb; border-radius:12px;
+    padding:20px 22px; margin-bottom:16px;
+  }
+  .rs-card-muted { background:#fafafa; }
+  .rs-label {
+    font-size:12px; font-weight:700; color:#737373;
+    letter-spacing:0.04em; margin-bottom:12px;
+  }
+  .rs-input {
+    width:100%; padding:12px 14px 12px 40px;
+    border:1px solid #ebebeb; border-radius:10px;
+    font-size:14px; color:#1a1a1a; background:#fff;
+    outline:none; transition:border-color .15s; box-sizing:border-box;
+    font-family:inherit;
+  }
+  .rs-input:focus { border-color:#1F3864; }
+  .rs-results { margin-top:10px; border-top:1px solid #f0f0f0; }
+  .rs-item {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 6px; border-bottom:1px solid #f0f0f0;
+    text-decoration:none; transition:background .15s;
+  }
+  .rs-item:hover { background:#f7faf8; }
+  .rs-item-name { font-size:14px; font-weight:600; color:#1a1a1a; }
+  .rs-item-sub { font-size:11px; color:#a3a3a3; margin-top:2px; }
+  .rs-soon {
+    display:inline-block; padding:4px 12px; border-radius:20px;
+    background:#f0f0ec; color:#a3a3a3; font-size:11px; font-weight:600;
+  }
+</style>
+
+<script>
+  function reportSelect() {
+    return {
+      q: '', rows: [], loading: false,
+
+      init() { this.search(); },   // 初期表示は合致度の高い順
+
+      async search() {
+        this.loading = true;
+        try {
+          const p = new URLSearchParams({ per_page: 20, sort: 'match_rate', order: 'desc' });
+          if (this.q.trim()) p.set('q', this.q.trim());
+          const res = await fetch('/api/stocks/screen?' + p.toString());
+          const data = await res.json();
+          this.rows = data.rows || [];
+        } catch (e) {
+          console.error('企業検索エラー:', e);
+          this.rows = [];
+        }
+        this.loading = false;
+      },
+    };
+  }
+</script>
+{% endblock %}

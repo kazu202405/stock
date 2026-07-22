@@ -1,0 +1,221 @@
+{#
+  企業分析レポート本体（データ駆動）
+
+  report_builder.build_report() が返す共通構造だけを見て描画する。
+  データ源（上場企業 / 将来の自社決算）を知らないので、
+  builder を足せばこの描画をそのまま使い回せる。
+
+  値が無いセクションは丸ごと出さない。空欄だらけのレポートは
+  「壊れている」ように見えるため。
+#}
+{% set c = report.company %}
+{% set n = report.narrative %}
+{% set tr = report.trends %}
+
+<div class="rp-page" id="reportPage">
+
+  <!-- ===== タイトル ===== -->
+  <div class="rp-head">
+    <div>
+      <h1 class="rp-title">企業分析レポート</h1>
+      <div class="rp-subtitle">
+        {{ c.name or c.code }}{% if c.code %}（{{ c.code }}）{% endif %}
+      </div>
+    </div>
+    <div class="rp-head-note">公開情報ベース / 学び目的の分析</div>
+  </div>
+
+  <!-- ===== 上段: 左(1,3,4) / 右(2,5) ===== -->
+  <div class="rp-main">
+
+    <!-- ---------- 左カラム ---------- -->
+    <div class="rp-col-left">
+
+      <!-- 1. ひとことで言うと -->
+      {% if n and n.one_line %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-comment-dots"></i>1. ひとことで言うと</div>
+        <p class="rp-lead">{{ n.one_line }}</p>
+      </section>
+      {% elif report.business_summary %}
+      {# 文章生成前は事業概要をそのまま出す #}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-comment-dots"></i>1. 事業内容</div>
+        <p class="rp-lead">{{ report.business_summary|safe }}</p>
+      </section>
+      {% endif %}
+
+      <!-- 3. 勝ち筋 -->
+      {% if n and n.strengths %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-trophy"></i>3. 勝ち筋</div>
+        <ul class="rp-icon-list">
+          {% for s in n.strengths %}
+          <li><span class="rp-dot"><i class="fas fa-check"></i></span>{{ s }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      <!-- 4. オーナー経営 -->
+      {% if report.shareholders or c.ceo_name %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-user-friends"></i>4. 株主構成</div>
+
+        {% if report.shareholders and report.shareholders[0].ratio and report.shareholders[0].ratio >= 30 %}
+        <div class="rp-tag">オーナー経営色が強い</div>
+        {% endif %}
+
+        {% if report.shareholders %}
+        <div class="rp-mini-title">主要株主（上位{{ report.shareholders|length }}名）</div>
+        <table class="rp-holders">
+          {% for h in report.shareholders %}
+          <tr>
+            <td class="rp-rank">{{ loop.index }}.</td>
+            <td class="rp-name">{{ h.name or '—' }}</td>
+            <td class="rp-pct">{% if h.ratio %}{{ '%.2f'|format(h.ratio) }}%{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+
+        {% if c.ceo_name %}
+        <div class="rp-foot-note">代表者：{{ c.ceo_name }}</div>
+        {% endif %}
+      </section>
+      {% endif %}
+    </div>
+
+    <!-- ---------- 右カラム ---------- -->
+    <div class="rp-col-right">
+
+      <!-- 2. 会社スナップショット -->
+      {% if report.snapshot %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-building"></i>2. 会社スナップショット</div>
+        <div class="rp-stat-grid">
+          {% for item in report.snapshot %}
+          <div class="rp-stat{% if item.label in ('設立', '従業員数', '業種') %} rp-stat-wide{% endif %}">
+            <div class="rp-stat-label">{{ item.label }}</div>
+            <div class="rp-stat-value">
+              {% set ic = {
+                '株価': 'fa-chart-line', '業種': 'fa-server', '時価総額': 'fa-coins',
+                '自己資本比率': 'fa-shield-alt', '営業利益率': 'fa-chart-bar',
+                '信用倍率': 'fa-balance-scale', '設立': 'fa-calendar-alt',
+                '従業員数': 'fa-users'
+              } %}
+              {% if item.label in ('PER', 'PBR', '配当利回り') %}
+                <span class="rp-badge-ic">{{ {'PER': 'P/E', 'PBR': 'P/B', '配当利回り': '¥'}[item.label] }}</span>
+              {% else %}
+                <i class="fas {{ ic.get(item.label, 'fa-circle') }} rp-ic"></i>
+              {% endif %}
+              <span class="rp-num{% if item.value is string and item.value|length > 8 %} rp-num-sm{% elif item.label in ('設立', '従業員数') %} rp-num-md{% endif %}">
+                {% if item.label == '株価' %}¥{{ '{:,}'.format(item.value|int) }}{% else %}{{ item.value }}{% endif %}{% if item.unit %}<small>{{ item.unit }}</small>{% endif %}
+              </span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <!-- 5. 推移 -->
+      {% if tr.revenue_op or tr.equity_roa %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-chart-bar"></i>5. 業績の推移</div>
+        <div class="rp-chart-row">
+          {% if tr.revenue_op %}
+          <div class="rp-chart-box">
+            <div class="rp-chart-title">A. 売上高・営業利益</div>
+            <div class="rp-chart-area"><canvas id="chartRevenue"></canvas></div>
+          </div>
+          {% endif %}
+          {% if tr.equity_roa %}
+          <div class="rp-chart-box">
+            <div class="rp-chart-title">B. 自己資本比率・ROA</div>
+            <div class="rp-chart-area"><canvas id="chartEquity"></canvas></div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if tr.payout %}
+        <div class="rp-payout" style="grid-template-columns: 150px repeat({{ tr.payout|length }}, 1fr);">
+          <div class="rp-payout-label">配当性向（%）</div>
+          {% for p in tr.payout %}
+          <div class="rp-payout-item">
+            <div class="rp-payout-year">{{ p.label }}</div>
+            <div class="rp-payout-value">{{ p.value }}<small>%</small></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ===== 下段: 6 / 7 / 8 ===== -->
+  {% if report.health or (n and (n.risks or n.learnings)) %}
+  <div class="rp-bottom" style="grid-template-columns: repeat({{ [ (1 if report.health else 0) + (1 if n and n.risks else 0) + (1 if n and n.learnings else 0), 1 ]|max }}, 1fr);">
+
+    <!-- 6. 財務健全性 -->
+    {% if report.health %}
+    <section class="rp-card">
+      <div class="rp-banner"><i class="fas fa-landmark"></i>6. 財務指標</div>
+      <div class="rp-stat-grid rp-grid-3">
+        {% for item in report.health %}
+        <div class="rp-stat">
+          <div class="rp-stat-label">{{ item.label }}</div>
+          <div class="rp-stat-value">
+            <span class="rp-num">{{ item.value }}{% if item.unit %}<small>{{ item.unit }}</small>{% endif %}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if report.cash_trend %}
+      <div class="rp-cash-trend">
+        現預金推移：{{ report.cash_trend.from }}億円　→　{{ report.cash_trend.to }}億円
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- 7. リスク -->
+    {% if n and n.risks %}
+    <section class="rp-card">
+      <div class="rp-banner"><i class="fas fa-exclamation-triangle"></i>7. 注意して見る点</div>
+      <ul class="rp-risk-list">
+        {% for r in n.risks %}
+        <li><i class="fas fa-exclamation-triangle"></i>{{ r }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <!-- 8. 学べること -->
+    {% if n and n.learnings %}
+    <section class="rp-card">
+      <div class="rp-banner"><i class="fas fa-graduation-cap"></i>8. 学べること</div>
+      <ul class="rp-learn-list">
+        {% for l in n.learnings %}
+        <li><span class="rp-numcircle">{{ loop.index }}</span>{{ l }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ===== まとめ ===== -->
+  {% if n and n.closing %}
+  <div class="rp-summary">
+    <div class="rp-summary-label"><i class="fas fa-book-open"></i>まとめ</div>
+    <div class="rp-summary-body">{{ n.closing }}</div>
+  </div>
+  {% endif %}
+
+  <p class="rp-disclaimer">
+    ※ 本レポートは投資助言ではなく、公開情報をもとに企業のビジネスモデル・財務・成長要因を学ぶための分析コンテンツです。
+    {% if c.as_of %}<br>※ データ取得日：{{ c.as_of[:10] }}{% endif %}
+  </p>
+</div>

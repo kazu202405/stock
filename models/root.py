@@ -73,23 +73,39 @@ def screener():
 
 @app.route('/report')
 def report_select():
-    """企業分析レポート。
-    現在はデザイン確認用にサンプルデータを直書きしている。
-    レイアウト確定後、report_builder.build_report() の結果を流し込む。
-    """
+    """レポートを見る企業を選ぶ入口"""
     guard = _require_login()
     if guard: return guard
-    return render_template('report_view.html')
+    return render_template('report_select.html')
 
 
 @app.route('/report/<source>/<key>')
 def report_view(source, key):
     """企業分析レポート本体。
-    source は将来 'own'（自社決算から作る）を足せるようURLに含めている。
+
+    source はデータ源。将来 'own'（経営者が自社決算から作る）を足せるよう
+    URLに含めている。描画側は共通で、build_report が返す構造だけを見る。
     """
     guard = _require_login()
     if guard: return guard
-    return render_template('report_view.html', source=source, key=key)
+
+    import report_builder
+    if source not in ('listed',):
+        return render_template('report_view.html', report=None,
+                               error='このデータ源にはまだ対応していません'), 400
+
+    try:
+        report = report_builder.build_report(source, normalize_code(key))
+    except Exception as e:
+        print(f'レポート生成エラー {source}/{key}: {e}')
+        return render_template('report_view.html', report=None,
+                               error='レポートを作成できませんでした'), 500
+
+    if not report:
+        return render_template('report_view.html', report=None,
+                               error='この銘柄のデータがまだありません'), 404
+
+    return render_template('report_view.html', report=report)
 
 
 @app.route('/mypage')
