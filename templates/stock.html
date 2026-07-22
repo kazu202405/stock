@@ -979,9 +979,15 @@
                     {% if is_admin %}
                     {# GC/DCの再計算はDBの日足だけを使うためネットワークを叩かない。
                        外部サイトのレート制限と無関係に何度でも実行できる。 #}
+                    {# 日足を更新してもGC/DCを計算し直さないと結果が変わらないため、
+                       1つのボタンで最後まで通す。 #}
+                    <button class="gc-fetch-btn" onclick="updateDailyPrices()" id="dailyUpdateBtn"
+                            style="background-color: #2d6a4f;" title="最新の日足を取得し、続けてGC/DCを再計算します">
+                        日足更新＋GC再計算
+                    </button>
                     <button class="gc-fetch-btn" onclick="recalcMaCrosses()" id="maRecalcBtn"
-                            style="background-color: #1b4332;" title="保存済みの日足からGC/DC発生日を計算し直します">
-                        GC/DC再計算
+                            style="background-color: #1b4332;" title="保存済みの日足からGC/DC発生日を計算し直します（取得はしません）">
+                        GC/DC再計算のみ
                     </button>
                     {% endif %}
                     <button class="gc-fetch-btn" onclick="analyzeTechStocks()" id="techAnalyzeBtn">0件 詳細取得</button>
@@ -2914,6 +2920,57 @@
 
     let tech_analyze_status_running = false;
     let techAnalyzePolling = null;
+
+    // 日足の更新 → GC/DC再計算を1本で通す。
+    // 日足だけ新しくしてもGC/DCを計算し直さないと画面の値は変わらないため。
+    async function updateDailyPrices() {
+        const btn = document.getElementById('dailyUpdateBtn');
+        if (!btn || btn.disabled) return;
+        if (!confirm('全銘柄の日足を取得し直し、GC/DCを再計算します。数分かかります。実行しますか？')) return;
+
+        btn.disabled = true;
+        btn.textContent = '開始中...';
+        try {
+            const res = await fetch('/api/price-history/update', { method: 'POST' });
+            if (res.status === 409) { btn.textContent = '既に実行中'; }
+            else if (!res.ok) throw new Error('開始できませんでした');
+            pollDailyUpdate(btn);
+        } catch (e) {
+            console.error('日足更新エラー:', e);
+            btn.disabled = false;
+            btn.textContent = '日足更新＋GC再計算';
+            alert('開始できませんでした。しばらくしてからお試しください。');
+        }
+    }
+
+    function pollDailyUpdate(btn) {
+        const timer = setInterval(async () => {
+            try {
+                const st = await (await fetch('/api/price-history/update/status')).json();
+                if (st.running) {
+                    const pct = st.total ? Math.floor(st.done * 100 / st.total) : 0;
+                    btn.textContent = st.phase === 'GC/DCを再計算中'
+                        ? 'GC/DC再計算中...'
+                        : `日足取得中 ${pct}%（${st.done}/${st.total}）`;
+                    return;
+                }
+                clearInterval(timer);
+                btn.disabled = false;
+                if (st.error) {
+                    btn.textContent = '日足更新＋GC再計算';
+                    alert('失敗しました: ' + st.error);
+                } else {
+                    btn.textContent = `完了 日足${st.saved}件`;
+                    setTimeout(() => { btn.textContent = '日足更新＋GC再計算'; }, 5000);
+                    loadTechnicalStocks();
+                }
+            } catch (e) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = '日足更新＋GC再計算';
+            }
+        }, 2000);
+    }
 
     // GC/DCの再計算。
     // 保存済みの日足だけを使うためネットワークを叩かず、数分で終わる。

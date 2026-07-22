@@ -59,6 +59,49 @@ def fetch_ohlc(symbol, period='1y'):
     return rows
 
 
+def fetch_ohlc_batch(codes, period='1y', chunk_size=100):
+    """複数銘柄の日足をまとめて取得する。{code: rows} を返す。
+
+    1銘柄ずつ取ると3,900件で約40分かかる。yfinanceのバッチ取得なら
+    リクエスト数が銘柄数分の1になり、大幅に短縮できる。
+    """
+    import yfinance as yf
+    import pandas as pd
+    import warnings
+    warnings.filterwarnings('ignore')
+
+    result = {}
+    for i in range(0, len(codes), chunk_size):
+        chunk = codes[i:i + chunk_size]
+        symbols = [to_symbol(c) for c in chunk]
+        try:
+            df = yf.download(' '.join(symbols), period=period, progress=False,
+                             threads=True, auto_adjust=False, group_by='ticker')
+        except Exception as e:
+            print(f'日足のバッチ取得エラー ({i}-{i + len(chunk)}): {e}')
+            continue
+
+        for code, sym in zip(chunk, symbols):
+            try:
+                sub = df[sym] if len(symbols) > 1 else df
+                rows = []
+                for idx, row in sub.iterrows():
+                    if pd.isna(row.get('Close')):
+                        continue
+                    rows.append({
+                        'time': int(idx.timestamp()),
+                        'open': float(row['Open']) if pd.notna(row['Open']) else None,
+                        'high': float(row['High']) if pd.notna(row['High']) else None,
+                        'low': float(row['Low']) if pd.notna(row['Low']) else None,
+                        'close': float(row['Close']),
+                    })
+                if rows:
+                    result[code] = rows
+            except Exception:
+                continue
+    return result
+
+
 def downsample(rows, granularity):
     """日足を週足/月足に集約する。
     open=期間最初の始値 / high=期間最高値 / low=期間最安値 / close=期間最後の終値
