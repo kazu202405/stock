@@ -271,11 +271,35 @@ def stock_detail(code):
     ⚠️ クローキング（検索エンジンにだけ全文を見せる）は規約違反になるため、
     未ログインユーザーとクローラーには必ず同じ内容を返すこと。
     """
-    company = get_screened_data(normalize_code(code)) or {}
+    normalized = normalize_code(code)
+    company = get_screened_data(normalized) or {}
+
+    # テーマは検索エンジンにも読ませたいのでサーバー側で出す。
+    # テーマページへの相互リンクにもなり、銘柄ページ同士がつながる。
+    tags = []
+    try:
+        rows = (get_supabase_client().table('stock_tag_map')
+                .select('tag_name')
+                .eq('company_code', normalized)
+                .execute().data or [])
+        names = [r['tag_name'] for r in rows]
+        if names:
+            # 業種を先に、テーマを後に。表示順を安定させる
+            master = (get_supabase_client().table('stock_tags')
+                      .select('name, kind, sort_order')
+                      .in_('name', names[:100])
+                      .execute().data or [])
+            master.sort(key=lambda m: (0 if m.get('kind') == 'industry' else 1,
+                                       m.get('sort_order') or 0))
+            tags = [m['name'] for m in master]
+    except Exception as e:
+        print(f'テーマの取得エラー {normalized}: {e}')
+
     return render_template(
         'stock_detail.html',
         stock_code=code,
         company=company,
+        tags=tags,
         is_logged_in=bool(session.get('user_id')),
     )
 

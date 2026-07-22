@@ -476,6 +476,32 @@
         margin-bottom: 12px;
     }
 
+    /* 業種・テーマ。テーマページへの相互リンクを兼ねる */
+    .stk-tags {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-color);
+    }
+    .stk-tags-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        margin-bottom: 7px;
+    }
+    .stk-tags-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .stk-tag {
+        display: inline-block;
+        padding: 4px 11px;
+        font-size: 0.75rem;
+        color: #1b4332;
+        background: #f0fdf4;
+        border: 1px solid #d7ede0;
+        border-radius: 20px;
+        transition: all 0.15s;
+    }
+    .stk-tag:hover { background: #1b4332; border-color: #1b4332; color: #fff; }
+
     .detail-row {
         display: flex;
         justify-content: space-between;
@@ -855,9 +881,29 @@
         <div class="detail-card" style="grid-column: 1 / -1;">
             <div class="detail-header">事業概要</div>
             <div class="detail-content">
+                {#
+                  概要はサーバー側で出す。JSで差し込むだけだと、クローラーが
+                  最初に読むHTMLが「更新ボタンを押すと…」のままになり、
+                  全銘柄ページが同じ中身として扱われるため。
+                #}
                 <div id="business-summary-content" style="line-height: 1.8; color: var(--text-primary); font-size: 0.95rem;">
-                    <div style="color: var(--text-secondary); text-align: center; padding: 20px;">更新ボタンを押すと事業概要が表示されます</div>
+                    {% if _summary %}
+                        <div style="line-height: 1.8; color: var(--text-primary);">{{ _summary }}</div>
+                    {% else %}
+                        <div style="color: var(--text-secondary); text-align: center; padding: 20px;">更新ボタンを押すと事業概要が表示されます</div>
+                    {% endif %}
                 </div>
+
+                {% if tags %}
+                <div class="stk-tags">
+                    <div class="stk-tags-label">業種・テーマ</div>
+                    <div class="stk-tags-list">
+                        {% for t in tags %}
+                        <a class="stk-tag" href="/theme/{{ t|urlencode }}">{{ t }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
