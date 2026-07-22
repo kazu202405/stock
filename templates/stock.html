@@ -747,6 +747,14 @@
                     <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">条件合致企業登録</button>
                     <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
+                    {% if is_admin %}
+                    {# 財務データは決算発表時にしか変わらない。全件やり直すと約4.5時間かかるが、
+                       決算を出した銘柄だけなら平常日は数件〜数十件で済む。 #}
+                    <button class="gc-fetch-btn" onclick="updateEarnings()" id="earningsBtn"
+                            style="background-color: #1b4332;" title="本日決算発表・業績修正のあった銘柄だけ財務データを更新します">
+                        決算銘柄を更新
+                    </button>
+                    {% endif %}
                     <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">合致度再計算</button>
@@ -2920,6 +2928,58 @@
 
     let tech_analyze_status_running = false;
     let techAnalyzePolling = null;
+
+    // 決算発表があった銘柄だけ財務データを更新する。
+    // 財務データが変わるのは決算を出したときだけなので、全件やり直す必要がない。
+    async function updateEarnings() {
+        const btn = document.getElementById('earningsBtn');
+        if (!btn || btn.disabled) return;
+
+        btn.disabled = true;
+        btn.textContent = '対象を確認中...';
+        try {
+            const res = await fetch('/api/earnings/update', { method: 'POST' });
+            const data = await res.json();
+
+            if (res.status === 409) { btn.textContent = '既に実行中'; return; }
+            if (!res.ok) throw new Error(data.error || '開始できませんでした');
+
+            if (!data.started) {
+                btn.textContent = '対象なし';
+                alert(data.message || '本日決算を発表した銘柄はありませんでした');
+                setTimeout(() => { btn.textContent = '決算銘柄を更新'; }, 3000);
+                btn.disabled = false;
+                return;
+            }
+            pollEarnings(btn);
+        } catch (e) {
+            console.error('決算更新エラー:', e);
+            btn.disabled = false;
+            btn.textContent = '決算銘柄を更新';
+            alert('開始できませんでした: ' + e.message);
+        }
+    }
+
+    function pollEarnings(btn) {
+        const timer = setInterval(async () => {
+            try {
+                const st = await (await fetch('/api/earnings/update/status')).json();
+                if (st.running) {
+                    btn.textContent = `更新中 ${st.done}/${st.total}`;
+                    return;
+                }
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = `完了 ${st.done - st.errors}件`;
+                setTimeout(() => { btn.textContent = '決算銘柄を更新'; }, 5000);
+                loadWatchlist();
+            } catch (e) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = '決算銘柄を更新';
+            }
+        }, 2000);
+    }
 
     // 日足の更新 → GC/DC再計算を1本で通す。
     // 日足だけ新しくしてもGC/DCを計算し直さないと画面の値は変わらないため。

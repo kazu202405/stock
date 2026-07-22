@@ -1998,6 +1998,89 @@ def _recalc_ma_crosses_background():
         ma_cross_status["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
+earnings_status = {"running": False, "done": 0, "total": 0, "errors": 0,
+                   "codes": [], "stop_requested": False, "finished_at": None, "error": None}
+
+
+def _update_earnings_background(codes):
+    """決算発表があった銘柄だけを再分析する。
+
+    財務データは1銘柄10回のAPI呼び出しが必要で全件やり直すと約4.5時間かかるが、
+    決算を出した銘柄だけなら平常日は数件〜数十件で済む。
+    """
+    global earnings_status
+    analyzer = StockAnalyzer()
+    import time as _time
+
+    for i, code in enumerate(codes):
+        if earnings_status["stop_requested"]:
+            break
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if not result:
+                earnings_status["errors"] += 1
+        except Exception as e:
+            print(f'決算更新エラー ({code}): {e}')
+            earnings_status["errors"] += 1
+        earnings_status["done"] = i + 1
+        if i < len(codes) - 1:
+            _time.sleep(0.35)   # yfinanceのレート制限対策
+
+    from datetime import datetime, timezone
+    earnings_status["running"] = False
+    earnings_status["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+
+@app.route('/api/earnings/announced', methods=['GET'])
+def api_earnings_announced():
+    """本日決算発表・業績修正のあった銘柄を返す（更新はしない）"""
+    try:
+        import earnings_scraper
+        include_upcoming = request.args.get('upcoming') == '1'
+        data = earnings_scraper.fetch_announced_stocks(include_upcoming=include_upcoming)
+        return jsonify(data), 200
+    except Exception as e:
+        print(f'決算発表銘柄の取得エラー: {e}')
+        return jsonify({'error': '取得できませんでした', 'stocks': []}), 500
+
+
+@app.route('/api/earnings/update', methods=['POST'])
+def api_update_earnings():
+    """決算発表があった銘柄の財務データを更新する（バックグラウンド）"""
+    global earnings_status
+    if earnings_status["running"]:
+        return jsonify({"error": "すでに実行中です"}), 409
+
+    try:
+        import earnings_scraper
+        data = earnings_scraper.fetch_announced_stocks()
+        codes = [s['company_code'] for s in data['stocks']]
+    except Exception as e:
+        print(f'決算発表銘柄の取得エラー: {e}')
+        return jsonify({"error": "決算発表銘柄を取得できませんでした"}), 500
+
+    if not codes:
+        return jsonify({"started": False, "message": "本日決算を発表した銘柄はありませんでした",
+                        "total": 0}), 200
+
+    earnings_status = {"running": True, "done": 0, "total": len(codes), "errors": 0,
+                       "codes": codes, "stop_requested": False,
+                       "finished_at": None, "error": None}
+    threading.Thread(target=_update_earnings_background, args=(codes,), daemon=True).start()
+    return jsonify({"started": True, "total": len(codes), "codes": codes}), 202
+
+
+@app.route('/api/earnings/update/status', methods=['GET'])
+def api_earnings_status():
+    return jsonify(earnings_status), 200
+
+
+@app.route('/api/earnings/update/stop', methods=['POST'])
+def api_stop_earnings():
+    earnings_status["stop_requested"] = True
+    return jsonify({"stopping": True}), 200
+
+
 daily_update_status = {"running": False, "phase": "", "done": 0, "total": 0,
                        "saved": 0, "stop_requested": False, "finished_at": None, "error": None}
 
