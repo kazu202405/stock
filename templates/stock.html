@@ -2439,6 +2439,18 @@
     }
 
     // scraped_atをyyyy/mm/dd形式に変換
+    // 「2026/07/21」だけでは最近かどうか掴みにくいので経過日数を添える
+    function daysAgo(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+        if (diff < 0) return '';
+        const label = diff === 0 ? '今日' : `${diff}日前`;
+        const color = diff <= 5 ? '#15803d' : '#a3a3a3';
+        return ` <span style="font-size:0.7rem; color:${color};">${label}</span>`;
+    }
+
     function formatScrapedDate(dateStr) {
         if (!dateStr) return '---';
         const d = new Date(dateStr);
@@ -2710,9 +2722,10 @@
                         <th class="sortable" onclick="sortTechColumn('per')">PER${techSortIcon('per')}</th>
                         <th class="sortable" onclick="sortTechColumn('pbr')">PBR${techSortIcon('pbr')}</th>
                         <th class="sortable" onclick="sortTechColumn('dividend_yield')">配当利回り${techSortIcon('dividend_yield')}</th>
-                        <th>GC</th>
-                        <th>DC</th>
+                        <th class="sortable" onclick="sortTechColumn('gc_date')">GC発生日${techSortIcon('gc_date')}</th>
+                        <th class="sortable" onclick="sortTechColumn('dc_date')">DC発生日${techSortIcon('dc_date')}</th>
                         <th>方向</th>
+                        <th class="sortable" onclick="sortTechColumn('cross_count')" title="1年間の交差回数。多いほど方向感に乏しい">交差${techSortIcon('cross_count')}</th>
                         <th>取得</th>
                     </tr>
                 </thead>
@@ -2745,9 +2758,10 @@
                     <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
-                    <td>${gcDate}</td>
-                    <td>${dcDate}</td>
+                    <td>${gcDate}${daysAgo(item.gc_date)}</td>
+                    <td>${dcDate}${daysAgo(item.dc_date)}</td>
                     <td class="${trend.cls}">${trend.label}</td>
+                    <td style="text-align:center; color:#737373;">${item.cross_count != null ? item.cross_count + '回' : '---'}</td>
                     <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>
                 </tr>
             `;

@@ -1808,29 +1808,67 @@ def api_tech_analyze_status():
 
 @app.route('/api/technical-stocks', methods=['GET'])
 def api_get_technical_stocks():
-    """GC/DC形成日を持つ銘柄を一覧取得（signal_stocks + screened_latestマージ）"""
+    """GC/DC発生日を持つ銘柄を一覧取得。
+
+    日付は ma_crosses（保存済みの日足から自前計算したもの）を使う。
+    signal_stocks.gc_date はスクレイピングした時刻が全銘柄一律で入っており、
+    「いつGCしたか」を表していないため。
+    ma_crosses が未作成・空の場合は従来通り signal_stocks にフォールバックする。
+    """
     try:
         client = get_supabase_client()
 
-        # signal_stocksからGC/DC日付を持つ銘柄を取得
-        signals = client.table('signal_stocks').select('*').or_(
-            'gc_date.not.is.null,dc_date.not.is.null'
-        ).order('company_code').execute()
+        signals = []
+        source = 'ma_crosses'
+        try:
+            page = 0
+            while page < 10:
+                res = (client.table('ma_crosses')
+                       .select('company_code, latest_gc_date, latest_dc_date, cross_count')
+                       .or_('latest_gc_date.not.is.null,latest_dc_date.not.is.null')
+                       .range(page * 1000, page * 1000 + 999)
+                       .execute())
+                chunk = res.data or []
+                if not chunk:
+                    break
+                for r in chunk:
+                    signals.append({
+                        'company_code': r['company_code'],
+                        'gc_date': r.get('latest_gc_date'),
+                        'dc_date': r.get('latest_dc_date'),
+                        'cross_count': r.get('cross_count'),
+                    })
+                if len(chunk) < 1000:
+                    break
+                page += 1
+        except Exception as e:
+            print(f'ma_crosses 参照エラー（signal_stocksにフォールバック）: {e}')
+            signals = []
 
-        codes = [s['company_code'] for s in signals.data]
+        if not signals:
+            source = 'signal_stocks'
+            res = client.table('signal_stocks').select('*').or_(
+                'gc_date.not.is.null,dc_date.not.is.null'
+            ).order('company_code').execute()
+            signals = res.data or []
+
+        codes = [s['company_code'] for s in signals]
 
         # screened_latestから最新の財務データを取得
+        # in_ に数千件を一度に渡すとURLが長くなりすぎるため分割して取得する
         screened_map = {}
-        if codes:
+        for i in range(0, len(codes), 100):
+            chunk = codes[i:i + 100]
             screened = client.table('screened_latest').select(
                 'company_code,company_name,sector,market_cap,stock_price,'
                 'per_forward,pbr,dividend_yield,match_rate,analyzed_at'
-            ).in_('company_code', codes).execute()
-            screened_map = {s['company_code']: s for s in screened.data}
+            ).in_('company_code', chunk).execute()
+            for x in (screened.data or []):
+                screened_map[x['company_code']] = x
 
         # マージ: screened_latestの財務データで補完
         result = []
-        for sig in signals.data:
+        for sig in signals:
             code = sig['company_code']
             sc = screened_map.get(code, {})
             result.append({
@@ -1845,10 +1883,14 @@ def api_get_technical_stocks():
                 'match_rate': sc.get('match_rate') or sig.get('match_rate'),
                 'gc_date': sig.get('gc_date'),
                 'dc_date': sig.get('dc_date'),
+                'cross_count': sig.get('cross_count'),
                 'analyzed_at': sc.get('analyzed_at') or sig.get('analyzed_at'),
             })
 
-        return jsonify({"technical_stocks": result}), 200
+        # 直近でGCした順を既定にする（何もしなくても「今どれがGCしたか」が分かる）
+        result.sort(key=lambda r: (r.get('gc_date') or '', r.get('dc_date') or ''), reverse=True)
+
+        return jsonify({"technical_stocks": result, "source": source}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
