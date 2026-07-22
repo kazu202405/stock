@@ -159,6 +159,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Company Note{% endblock %}</title>
+
+    {# SEO: ページごとに上書きできるようブロックにしている。
+       銘柄ページのように数千ページある場合、ここが固定だと
+       全ページ重複コンテンツ扱いになりインデックスされない。 #}
+    <meta name="description" content="{% block meta_description %}企業の財務データから、その会社が何で稼いでいるかを学ぶための企業分析ノート。{% endblock %}">
+    {% block canonical %}{% endblock %}
+
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:site_name" content="Company Note">
+    <meta property="og:title" content="{% block og_title %}Company Note{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}企業の財務データから、その会社が何で稼いでいるかを学ぶための企業分析ノート。{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    {% block head_extra %}{% endblock %}
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 

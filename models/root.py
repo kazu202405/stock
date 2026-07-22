@@ -4,8 +4,14 @@ from models.common import *
 from models.model import *
 from supabase_client import (
     authenticate_user, create_user as create_app_user,
-    get_user_by_id, get_user_by_referral_code, migrate_guest_notes
+    get_user_by_id, get_user_by_referral_code, migrate_guest_notes,
+    get_screened_data, get_supabase_client
 )
+
+
+def normalize_code(code):
+    """'7203.T' でも '7203' でもDB保存形式（.Tなし）に揃える"""
+    return (code or '').replace('.T', '').strip()
 
 
 def _require_login():
@@ -227,10 +233,82 @@ def logout():
 
 @app.route('/stock/<code>')
 def stock_detail(code):
-    """個別銘柄詳細ページ"""
-    guard = _require_login()
-    if guard: return guard
-    return render_template('stock_detail.html', stock_code=code)
+    """個別銘柄詳細ページ。
+
+    ログイン不要で開ける。検索エンジンに拾わせるための入口であり、
+    ここを閉じていると全銘柄ページがインデックスされず、検索流入が発生しないため。
+    深い情報（合致度・5年財務・株主等）はテンプレート側でぼかす。
+
+    ⚠️ クローキング（検索エンジンにだけ全文を見せる）は規約違反になるため、
+    未ログインユーザーとクローラーには必ず同じ内容を返すこと。
+    """
+    company = get_screened_data(normalize_code(code)) or {}
+    return render_template(
+        'stock_detail.html',
+        stock_code=code,
+        company=company,
+        is_logged_in=bool(session.get('user_id')),
+    )
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    """クローラー向けの指示。sitemapの場所を伝えるのが主目的。
+    ログインが要る画面や管理画面はクロールさせない。"""
+    base = request.url_root.rstrip('/')
+    body = '\n'.join([
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /mypage',
+        'Disallow: /dashboard',
+        'Disallow: /admin',
+        'Disallow: /login',
+        'Disallow: /register',
+        'Disallow: /api/',
+        '',
+        f'Sitemap: {base}/sitemap.xml',
+        '',
+    ])
+    return app.response_class(body, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    """全銘柄ページのsitemap。
+
+    これが無いとGoogleは数千ページの存在を知れない。
+    銘柄ページは相互リンクが薄く、辿って発見してもらうのが難しいため
+    sitemapでの申告が実質必須になる。
+    """
+    from xml.sax.saxutils import escape
+    base = request.url_root.rstrip('/')
+
+    urls = [(f'{base}/', '1.0')]
+    try:
+        client = get_supabase_client()
+        page = 0
+        while page < 60:   # 上限を設けて暴走を防ぐ
+            res = (client.table('screened_latest')
+                   .select('company_code, analyzed_at')
+                   .range(page * 1000, page * 1000 + 999)
+                   .execute())
+            rows = res.data or []
+            for r in rows:
+                code = r.get('company_code')
+                if code:
+                    urls.append((f'{base}/stock/{escape(str(code))}', '0.8'))
+            if len(rows) < 1000:
+                break
+            page += 1
+    except Exception as e:
+        print(f'sitemap生成エラー: {e}')
+
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, priority in urls:
+        parts.append(f'<url><loc>{loc}</loc><priority>{priority}</priority></url>')
+    parts.append('</urlset>')
+    return app.response_class('\n'.join(parts), mimetype='application/xml')
 
 
 @app.route('/search')

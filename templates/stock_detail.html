@@ -1,6 +1,39 @@
 {% extends "layout.html" %}
 
-{% block title %}銘柄詳細 - Company Note{% endblock %}
+{#
+  SEO用のメタ情報はサーバー側で出す。
+  JSでdocument.titleを書き換えるだけでは、クローラーが最初に読むHTMLが
+  全ページ同じタイトルになり、数千ページが重複コンテンツ扱いになるため。
+#}
+{% set _name = company.company_name or stock_code %}
+{% set _summary = (company.business_summary_jp or '')|striptags %}
+
+{% block title %}{{ _name }}（{{ stock_code }}）の企業分析・財務データ | Company Note{% endblock %}
+
+{% block meta_description %}{% if _summary %}{{ _summary[:110] }}{% else %}{{ _name }}（{{ stock_code }}）の売上・利益・自己資本比率・PER・PBRなど、財務データから事業構造を読み解く企業分析ノート。{% endif %}{% endblock %}
+
+{% block og_type %}article{% endblock %}
+{% block og_title %}{{ _name }}（{{ stock_code }}）の企業分析{% endblock %}
+{% block og_description %}{% if _summary %}{{ _summary[:110] }}{% else %}{{ _name }}の財務データと事業構造{% endif %}{% endblock %}
+
+{% block head_extra %}
+{# 有料部分があることをGoogleに正しく申告する。
+   これを付けずに一部を隠すと「クローキング（検索エンジンとユーザーに違う内容を見せる）」
+   と判定される恐れがあり、順位が下がる。 #}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": {{ (_name ~ '（' ~ stock_code ~ '）の企業分析')|tojson }},
+  "isAccessibleForFree": false,
+  "hasPart": {
+    "@type": "WebPageElement",
+    "isAccessibleForFree": false,
+    "cssSelector": ".members-only"
+  }
+}
+</script>
+{% endblock %}
 
 {% block content %}
 <style>
@@ -275,6 +308,41 @@
     .score-item-status { color: var(--text-secondary); font-weight: 500; }
     .score-item-status.pass { color: var(--success-color); }
     .score-item-status.fail { color: #a3a3a3; }
+
+    /* ===== 会員限定エリアのぼかし =====
+       未ログインでも「中身があること」は見せ、値だけを読めなくする。
+       全部隠すと薄いページと判定されSEOに不利、かつ登録の動機も生まれないため、
+       先頭の数行は実際に見せる（呼び水）。 */
+    /* 中身ごとぼかす（財務テーブル・株主など）。
+       見出しとCTAは残し、「何のセクションか」は分かるようにする */
+    .members-only > *:not(.detail-header):not(.score-header):not(.members-cta) {
+        filter: blur(5px);
+        user-select: none;
+        pointer-events: none;
+    }
+    /* 値だけぼかす（合致度スコア）。
+       何を評価しているかの項目名は読める状態にして、結果だけ隠す */
+    .members-only-values .score-value,
+    .members-only-values .score-item-status {
+        filter: blur(6px);
+        user-select: none;
+    }
+
+    .members-cta {
+        margin-top: 12px; padding: 14px 12px;
+        background: #f8faf8; border: 1px solid #e3ece6; border-radius: 10px;
+        text-align: center;
+    }
+    .members-cta-text { font-size: 12px; color: #525252; font-weight: 500; line-height: 1.7; margin-bottom: 9px; }
+    .members-cta-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 22px; border-radius: 8px;
+        background: #1b4332; color: #fff;
+        font-size: 13px; font-weight: 600; text-decoration: none;
+        transition: background 0.2s;
+    }
+    .members-cta-btn:hover { background: #2d6a4f; color: #fff; }
+    .members-cta-sub { display: block; font-size: 11px; color: #a3a3a3; margin-top: 7px; }
 
     /* チャートカード */
     .chart-header {
@@ -675,7 +743,7 @@
         </div>
 
         <!-- 中央: 合致度スコア -->
-        <div class="score-card">
+        <div class="score-card{% if not is_logged_in %} members-only-values{% endif %}">
             <div class="score-header">合致度</div>
             <div class="score-main">
                 <div class="score-value" id="score-value">--</div>
@@ -740,7 +808,9 @@
                     <i class="fas fa-book-open" style="font-size: 9px;"></i>用語を学ぶ<i class="fas fa-external-link-alt" style="font-size: 8px;"></i>
                 </a>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">この企業が業界基準の何項目を満たすか、12項目の判定を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
 
         <!-- 右側: チャート -->
         <div class="chart-card">
@@ -778,7 +848,7 @@
 
     <!-- 財務データテーブル -->
     <div style="margin-bottom: 20px;">
-        <div class="detail-card" style="grid-column: 1 / -1;">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
             <div class="detail-header">財務データ（直近5年）</div>
             <div class="detail-content" style="overflow-x: auto;">
                 <table class="financial-table" style="width: 100%; min-width: 800px;">
@@ -803,12 +873,14 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">売上・利益の5年推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
     </div>
 
     <!-- キャッシュフロー・財務指標テーブル -->
     <div style="margin-bottom: 20px;">
-        <div class="detail-card" style="grid-column: 1 / -1;">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
             <div class="detail-header">キャッシュフロー・財務指標</div>
             <div class="detail-content" style="overflow-x: auto;">
                 <table class="financial-table" style="width: 100%; min-width: 800px;">
@@ -834,13 +906,15 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">キャッシュフローの推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
     </div>
 
     <!-- 詳細情報セクション -->
     <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 20px; margin-bottom: 20px;">
         <!-- 財務健全性 -->
-        <div class="detail-card">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
             <div class="detail-header">財務健全性</div>
             <div class="detail-content">
                 <div class="detail-row">
@@ -876,10 +950,12 @@
                     </div>
                 </div>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">財務健全性の詳細を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
 
         <!-- 主要株主 -->
-        <div class="detail-card">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
             <div class="detail-header">主要株主</div>
             <div class="detail-content">
                 <div id="major-holders-content">
@@ -887,10 +963,12 @@
                 </div>
                 <div id="holders-source-left" style="margin-top: 10px; font-size: 11px; color: #666;"></div>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">主要株主を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
 
         <!-- 役員構成 -->
-        <div class="detail-card">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
             <div class="detail-header">役員構成</div>
             <div class="detail-content">
                 <div id="company-officers-content">
@@ -898,7 +976,9 @@
                 </div>
                 <div id="holders-source-right" style="margin-top: 10px; font-size: 11px; color: #666;"></div>
             </div>
-        </div>
+        
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">役員構成を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            </div>
     </div>
 </div>
 
