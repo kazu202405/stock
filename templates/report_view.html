@@ -526,7 +526,19 @@
   const RP = {% if report %}{{ {
       'revenue': report.trends.revenue_op,
       'equity': report.trends.equity_roa,
-  }|tojson }}{% else %}{ revenue: null, equity: null }{% endif %};
+  }|tojson }}{% elif show_sample %}{
+    // サンプル用の固定データ（ヒューマンテクノロジーズの公開情報より）
+    revenue: {
+      labels: ['2023年\n3月', '2024年\n3月', '2025年\n3月', '2026年\n3月', '2027年\n3月（予）'],
+      revenue: [42.23, 50.35, 60.55, 74.96, 85.69],
+      op_income: [3.29, 5.20, 9.31, 13.70, 13.37],
+    },
+    equity: {
+      labels: ['2022年3月', '2023年3月', '2024年3月', '2025年3月'],
+      equity_ratio: [70.0, 64.9, 79.6, 75.3],
+      roa: [16.9, 8.5, 8.5, 12.2],
+    },
+  }{% else %}{ revenue: null, equity: null }{% endif %};
 
   // 銘柄ごとに金額の桁が違うため、軸の上限は実データから決める
   function axisMax(values) {

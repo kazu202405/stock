@@ -354,6 +354,23 @@
 
     .watchlist-table .clickable-row { cursor: pointer; }
 
+    /* ウォッチリストのページャー */
+    .wl-pager {
+        display: flex; align-items: center; justify-content: center; gap: 14px;
+        padding: 14px 10px;
+    }
+    .wl-page-btn {
+        padding: 6px 16px; font-size: 13px; color: #525252;
+        background: #fff; border: 1px solid #ebebeb; border-radius: 7px;
+        cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .wl-page-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
+    .wl-page-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .wl-page-info { font-size: 12px; color: #737373; }
+    .wl-page-info strong { color: #1b4332; }
+
+    .filter-item-keyword input { min-width: 150px; }
+
 .company-name-cell {
         font-weight: 500;
         cursor: pointer;
@@ -689,6 +706,10 @@
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="filterBar">
+                    <div class="filter-item filter-item-keyword">
+                        <label>銘柄</label>
+                        <input type="text" id="filterKeyword" placeholder="コード・会社名" autocomplete="off">
+                    </div>
                     <div class="filter-item">
                         <label>合致度</label>
                         <input type="number" id="filterMatchMin" placeholder="以上" step="1">
@@ -1178,8 +1199,27 @@
     // ソート状態
     let currentSort = { key: null, asc: true };
 
+    // ウォッチリストのページング。全件描画は重く、目的の行も探しにくい
+    const WL_PER_PAGE = 100;
+    let wlPage = 1;
+    let wlFiltered = [];
+
     function renderWatchlist(watchlist) {
         watchlistCache = watchlist;
+        wlPage = 1;
+        applyFilterAndSort();
+    }
+
+    function goWatchlistPage(page) {
+        wlPage = Math.max(1, page);
+        applyFilterAndSort();
+        document.getElementById('watchlistContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 絞り込み・並べ替えを変えたら1ページ目に戻す。
+    // 3ページ目を見ている状態で条件を変えると、結果が少なくなって空振りするため。
+    function resetWatchlistPage() {
+        wlPage = 1;
         applyFilterAndSort();
     }
 
@@ -1197,6 +1237,15 @@
         const pbrMax = parseFloat(document.getElementById('filterPbrMax')?.value);
         const divMin = parseFloat(document.getElementById('filterDivMin')?.value);
         const divMax = parseFloat(document.getElementById('filterDivMax')?.value);
+
+        // 銘柄コード・会社名での絞り込み
+        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        if (keyword) {
+            list = list.filter(i =>
+                (i.company_code || '').toLowerCase().includes(keyword) ||
+                (i.company_name || '').toLowerCase().includes(keyword)
+            );
+        }
 
         if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
         if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
@@ -1239,6 +1288,14 @@
             return;
         }
 
+        // 全件を一度に描画すると重く、目的の行も探しにくいのでページに区切る。
+        // 絞り込み・並べ替えの結果に対して区切るため、条件を変えたら1ページ目に戻す。
+        wlFiltered = list;
+        const totalPages = Math.max(1, Math.ceil(list.length / WL_PER_PAGE));
+        if (wlPage > totalPages) wlPage = totalPages;
+        const pageStart = (wlPage - 1) * WL_PER_PAGE;
+        const pageRows = list.slice(pageStart, pageStart + WL_PER_PAGE);
+
         const sortIcon = (key) => {
             if (currentSort.key !== key) return '<span class="sort-icon">▲▼</span>';
             return currentSort.asc
@@ -1269,7 +1326,7 @@
                 <tbody>
         `;
 
-        list.forEach(item => {
+        pageRows.forEach(item => {
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const sector = item.sector || '---';
@@ -1306,6 +1363,23 @@
         });
 
         html += '</tbody></table>';
+
+        // ページャー（1ページに収まるときは出さない）
+        if (totalPages > 1) {
+            const from = pageStart + 1;
+            const to = Math.min(pageStart + WL_PER_PAGE, list.length);
+            html += `
+                <div class="wl-pager">
+                    <button class="wl-page-btn" ${wlPage <= 1 ? 'disabled' : ''} onclick="goWatchlistPage(${wlPage - 1})">前へ</button>
+                    <span class="wl-page-info">
+                        ${list.length.toLocaleString()}件中 <strong>${from}〜${to}</strong> 件目
+                        （${wlPage} / ${totalPages} ページ）
+                    </span>
+                    <button class="wl-page-btn" ${wlPage >= totalPages ? 'disabled' : ''} onclick="goWatchlistPage(${wlPage + 1})">次へ</button>
+                </div>
+            `;
+        }
+
         content.innerHTML = html;
     }
 
@@ -1316,23 +1390,23 @@
             currentSort.key = key;
             currentSort.asc = true;
         }
-        applyFilterAndSort();
+        resetWatchlistPage();
     }
 
-    const filterIds = ['filterMatchMin','filterMatchMax','filterCapMin','filterCapMax',
+    const filterIds = ['filterKeyword','filterMatchMin','filterMatchMax','filterCapMin','filterCapMax',
         'filterPerMin','filterPerMax','filterPbrMin','filterPbrMax','filterDivMin','filterDivMax'];
 
     function resetFilters() {
-        filterIds.forEach(id => { document.getElementById(id).value = ''; });
+        filterIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         currentSort = { key: null, asc: true };
-        applyFilterAndSort();
+        resetWatchlistPage();
     }
 
     // フィルター入力時にリアルタイム反映
     document.addEventListener('DOMContentLoaded', function() {
         filterIds.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('input', applyFilterAndSort);
+            if (el) el.addEventListener('input', resetWatchlistPage);
         });
     });
 
@@ -1739,6 +1813,15 @@
         const divMin = parseFloat(document.getElementById('favFilterDivMin')?.value);
         const divMax = parseFloat(document.getElementById('favFilterDivMax')?.value);
 
+        // 銘柄コード・会社名での絞り込み
+        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        if (keyword) {
+            list = list.filter(i =>
+                (i.company_code || '').toLowerCase().includes(keyword) ||
+                (i.company_name || '').toLowerCase().includes(keyword)
+            );
+        }
+
         if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
         if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
         if (!isNaN(capMin)) list = list.filter(i => i.market_cap != null && i.market_cap >= capMin);
@@ -1910,6 +1993,15 @@
         const pbrMax = parseFloat(document.getElementById('divFilterPbrMax')?.value);
         const divMin = parseFloat(document.getElementById('divFilterDivMin')?.value);
         const divMax = parseFloat(document.getElementById('divFilterDivMax')?.value);
+
+        // 銘柄コード・会社名での絞り込み
+        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        if (keyword) {
+            list = list.filter(i =>
+                (i.company_code || '').toLowerCase().includes(keyword) ||
+                (i.company_name || '').toLowerCase().includes(keyword)
+            );
+        }
 
         if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
         if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
@@ -2509,6 +2601,15 @@
         const divMin = parseFloat(document.getElementById('techFilterDivMin')?.value);
         const divMax = parseFloat(document.getElementById('techFilterDivMax')?.value);
         const trendFilter = document.getElementById('techFilterTrend')?.value || '';
+
+        // 銘柄コード・会社名での絞り込み
+        const keyword = (document.getElementById('filterKeyword')?.value || '').trim().toLowerCase();
+        if (keyword) {
+            list = list.filter(i =>
+                (i.company_code || '').toLowerCase().includes(keyword) ||
+                (i.company_name || '').toLowerCase().includes(keyword)
+            );
+        }
 
         if (!isNaN(matchMin)) list = list.filter(i => i.match_rate != null && i.match_rate >= matchMin);
         if (!isNaN(matchMax)) list = list.filter(i => i.match_rate != null && i.match_rate <= matchMax);
