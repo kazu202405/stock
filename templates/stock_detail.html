@@ -955,7 +955,7 @@
             </div>
 
         <!-- 主要株主 -->
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
+        <div class="detail-card">
             <div class="detail-header">主要株主</div>
             <div class="detail-content">
                 <div id="major-holders-content">
@@ -964,11 +964,10 @@
                 <div id="holders-source-left" style="margin-top: 10px; font-size: 11px; color: #666;"></div>
             </div>
         
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">主要株主を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
             </div>
 
         <!-- 役員構成 -->
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
+        <div class="detail-card">
             <div class="detail-header">役員構成</div>
             <div class="detail-content">
                 <div id="company-officers-content">
@@ -977,7 +976,6 @@
                 <div id="holders-source-right" style="margin-top: 10px; font-size: 11px; color: #666;"></div>
             </div>
         
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">役員構成を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
             </div>
     </div>
 </div>
