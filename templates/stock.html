@@ -352,7 +352,9 @@
         background: var(--bg-light);
     }
 
-    .watchlist-table .company-name-cell {
+    .watchlist-table .clickable-row { cursor: pointer; }
+
+.company-name-cell {
         font-weight: 500;
         cursor: pointer;
         color: var(--accent-color);
@@ -1284,9 +1286,9 @@
             const trend = getTrendDirection(item.gc_date, item.dc_date);
 
             html += `
-                <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
+                <tr class="clickable-row ${trend.cls ? 'row-' + trend.cls : ''}" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">
                     <td>${code}</td>
-                    <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
+                    <td class="company-name-cell">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
                     <td>${marketCap}</td>
@@ -1298,7 +1300,7 @@
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
                     <td class="${trend.cls}">${trend.label}</td>
-                    ${IS_ADMIN ? `<td><button class="delete-btn" onclick="removeFromWatchlist('${code}')">削除</button></td>` : ''}
+                    ${IS_ADMIN ? `<td><button class="delete-btn" onclick="event.stopPropagation(); removeFromWatchlist('${code}')">削除</button></td>` : ''}
                 </tr>
             `;
         });

@@ -344,6 +344,17 @@
     .members-cta-btn:hover { background: #2d6a4f; color: #fff; }
     .members-cta-sub { display: block; font-size: 11px; color: #a3a3a3; margin-top: 7px; }
 
+    /* レポートへの導線 */
+    .report-link-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 14px; border-radius: 6px;
+        background: #1F3864; color: #fff;
+        font-size: 0.8rem; font-weight: 600; text-decoration: none;
+        transition: background 0.2s; white-space: nowrap;
+    }
+    .report-link-btn:hover { background: #2E5395; color: #fff; }
+    .report-link-btn i { font-size: 11px; }
+
     /* チャートカード */
     .chart-header {
         display: flex;
@@ -678,6 +689,11 @@
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
+            {# レポートへの主導線はここに置く。銘柄を特定したあとに見るものなので、
+               別途「企業を選ぶ」画面を用意するより自然で、検索UIの重複も避けられる。 #}
+            <a href="/report/listed/{{ stock_code }}" class="report-link-btn">
+                <i class="fas fa-file-invoice"></i>レポートを見る
+            </a>
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
             <button class="demo-trade-btn" id="demoBuyBtn" onclick="openDetailBuyModal()">
                 <i class="fas fa-plus" style="font-size: 10px;"></i>購入

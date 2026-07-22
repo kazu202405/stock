@@ -134,7 +134,8 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         <template x-for="row in rows" :key="row.company_code">
-                            <tr class="hover:bg-gray-50 transition-colors">
+                            <tr class="hover:bg-gray-50 transition-colors scr-row"
+                                @click="location.href = '/stock/' + row.company_code">
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <a :href="'/stock/' + row.company_code" class="scr-name-link">
                                         <span x-text="row.company_name || '---'"></span>
@@ -342,6 +343,11 @@
         color: #1a1a1a;
         font-variant-numeric: tabular-nums;
     }
+    /* ホバーで色が変わる以上、行のどこを押しても遷移させる。
+       見た目だけクリックできそうで実際は社名しか押せない、という
+       食い違いをなくす。 */
+    .scr-row { cursor: pointer; }
+
     .scr-name-link {
         font-size: 13px;
         font-weight: 500;
@@ -619,7 +625,8 @@
                 : opMargin >= 15 ? 'pill-good' : opMargin >= 5 ? 'pill-mid' : 'pill-low';
 
             html += `
-                <tr class="hover:bg-gray-50 transition-colors">
+                <tr class="hover:bg-gray-50 transition-colors scr-row"
+                    onclick="location.href='/stock/${item.company_code}'">
                     <td class="px-4 py-3 whitespace-nowrap">
                         <a href="/stock/${item.company_code}" class="scr-name-link">${item.company_name || '---'}</a>
                         <div style="font-size:11px; color:#a3a3a3;">${item.company_code}</div>
@@ -634,7 +641,7 @@
                     <td class="scr-td-num">${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}</td>
                     <td class="scr-td-num">${item.dividend_yield ? Number(item.dividend_yield).toFixed(2) + '%' : '---'}</td>
                     <td class="px-4 py-3 whitespace-nowrap">
-                        <button onclick="removeFavorite('${item.company_code}')"
+                        <button onclick="event.stopPropagation(); removeFavorite('${item.company_code}')"
                                 class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
                             <i class="fas fa-trash-alt mr-1"></i>削除
                         </button>
