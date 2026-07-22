@@ -3,72 +3,194 @@
 {% block title %}企業分析レポート - Company Note{% endblock %}
 
 {% block content %}
-<div class="min-h-screen" style="background:#f7f7f5;">
-  <div class="text-white" style="background: linear-gradient(135deg, #1F3864, #2E5395, #1F3864);">
+{#
+  レポートを作る企業を選ぶページ。
+
+  色はアプリのブランド（深緑）に合わせる。レポート用紙そのものは紺だが、
+  それは「書類のデザイン」であってアプリの色ではない。ここで紺を使うと
+  他画面と地続きに見えなくなる。
+#}
+<div class="min-h-screen" style="background:#f7f7f5;" x-data="reportSelect()" x-init="init()">
+
+  <!-- ヘッダー -->
+  <div class="text-white" style="background: linear-gradient(135deg, #1b4332, #2d6a4f, #1b4332);">
     <div class="max-w-none mx-auto px-6 py-8">
-      <h1 class="text-3xl font-bold tracking-tight mb-2">
-        <i class="fas fa-file-invoice mr-2" style="color:#9db8e0;"></i>企業分析レポート
-      </h1>
-      <p class="text-slate-300 text-lg">財務データと事業内容を1枚にまとめたレポートを作ります</p>
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-bold tracking-tight mb-2">
+            <i class="fas fa-file-invoice mr-2" style="color:#95d5b2;"></i>企業分析レポート
+          </h1>
+          <p class="text-slate-300 text-lg">財務データと事業内容を、A4 1枚にまとめます</p>
+        </div>
+        <a href="/report/sample" class="rs-sample-link">
+          <i class="fas fa-eye"></i>サンプルを見る
+        </a>
+      </div>
     </div>
   </div>
 
-  <div style="max-width:900px; margin:0 auto; padding:28px 20px 60px;" x-data="reportSelect()" x-init="init()">
+  <div style="max-width:960px; margin:0 auto; padding:24px 20px 60px;">
 
-    <!-- 企業を探す -->
+    <!-- 何が作れるのか先に見せる -->
+    <div class="rs-intro">
+      <div class="rs-intro-label">レポートに入る内容</div>
+      <div class="rs-chips">
+        <span class="rs-chip"><i class="fas fa-comment-dots"></i>事業内容</span>
+        <span class="rs-chip"><i class="fas fa-building"></i>会社スナップショット</span>
+        <span class="rs-chip"><i class="fas fa-trophy"></i>基準を満たす点</span>
+        <span class="rs-chip"><i class="fas fa-user-friends"></i>株主構成</span>
+        <span class="rs-chip"><i class="fas fa-chart-bar"></i>業績の推移</span>
+        <span class="rs-chip"><i class="fas fa-landmark"></i>財務指標</span>
+        <span class="rs-chip"><i class="fas fa-exclamation-triangle"></i>注意して見る点</span>
+      </div>
+      <p class="rs-intro-note">
+        PDF・画像として保存できます。※ 企業によって取得できている情報が異なるため、出る項目は変わります。
+      </p>
+    </div>
+
+    <!-- 企業を選ぶ -->
     <div class="rs-card">
-      <div class="rs-label">企業を選ぶ</div>
-      <div style="position:relative;">
-        <i class="fas fa-search" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#a3a3a3; font-size:14px;"></i>
-        <input type="text" class="rs-input" placeholder="銘柄コードまたは企業名を入力（例: 7203 / トヨタ）"
-               x-model.debounce.300ms="q" @input="search()" autocomplete="off">
+      <div class="rs-card-head">
+        <div class="rs-label">企業を選ぶ</div>
+        <div class="rs-sort">
+          <span class="rs-sort-label">並び順</span>
+          <template x-for="s in sorts" :key="s.key">
+            <button type="button" class="rs-sort-btn" :class="{ 'active': sort === s.key }"
+                    @click="setSort(s.key)" x-text="s.label"></button>
+          </template>
+        </div>
       </div>
 
-      <div class="rs-results" x-show="rows.length > 0" x-cloak>
-        <template x-for="r in rows" :key="r.company_code">
-          <a :href="'/report/listed/' + r.company_code" class="rs-item">
-            <div>
-              <div class="rs-item-name" x-text="r.company_name || r.company_code"></div>
-              <div class="rs-item-sub">
-                <span x-text="r.company_code"></span>
-                <span x-show="r.sector" x-text="' / ' + r.sector"></span>
-              </div>
-            </div>
-            <i class="fas fa-chevron-right" style="color:#c4c4c4; font-size:12px;"></i>
-          </a>
+      <div style="position:relative;">
+        <i class="fas fa-search rs-search-ic"></i>
+        <input type="text" class="rs-input" placeholder="銘柄コードまたは企業名で検索（例: 7203 / トヨタ）"
+               x-model.debounce.300ms="q" @input="search(1)" autocomplete="off">
+      </div>
+
+      <!-- 今どの並びで何件出ているのかを必ず示す -->
+      <div class="rs-status">
+        <template x-if="!loading">
+          <span>
+            <template x-if="q.trim()">
+              <span>「<strong x-text="q.trim()"></strong>」の検索結果 <strong x-text="total.toLocaleString()"></strong> 件</span>
+            </template>
+            <template x-if="!q.trim()">
+              <span><strong x-text="total.toLocaleString()"></strong> 社から、<strong x-text="currentSortLabel"></strong>に表示しています</span>
+            </template>
+          </span>
+        </template>
+        <template x-if="loading">
+          <span style="color:#a3a3a3;"><i class="fas fa-spinner fa-spin"></i> 読み込み中...</span>
         </template>
       </div>
 
-      <div x-show="q && !loading && rows.length === 0" x-cloak
-           style="padding:20px; text-align:center; color:#a3a3a3; font-size:13px;">
-        該当する企業が見つかりませんでした
+      <!-- 合致度の意味を説明する（数字だけ出しても伝わらない） -->
+      <div class="rs-legend" x-show="sort === 'match_rate'" x-cloak>
+        <i class="fas fa-info-circle"></i>
+        <span><strong>合致度</strong>は、財務の12項目（自己資本比率・営業利益率・ROA・PER など）が基準を満たすかを100点で採点したものです。</span>
       </div>
-      <div x-show="loading" x-cloak style="padding:20px; text-align:center; color:#a3a3a3; font-size:13px;">
-        <i class="fas fa-spinner fa-spin"></i> 検索中...
+
+      <div class="rs-results">
+        <template x-for="(r, i) in rows" :key="r.company_code">
+          <a :href="'/report/listed/' + r.company_code" class="rs-item">
+            <div class="rs-item-rank" x-show="sort === 'match_rate' && !q.trim()" x-text="(page - 1) * perPage + i + 1"></div>
+            <div class="rs-score" :class="scoreClass(r.match_rate)">
+              <span class="rs-score-num" x-text="r.match_rate != null ? r.match_rate : '—'"></span>
+              <span class="rs-score-unit">点</span>
+            </div>
+            <div class="rs-item-main">
+              <div class="rs-item-name" x-text="r.company_name || r.company_code"></div>
+              <div class="rs-item-sub">
+                <span x-text="r.company_code"></span>
+                <span x-show="r.sector"> ・ <span x-text="r.sector"></span></span>
+                <span x-show="r.market_cap"> ・ 時価総額 <span x-text="fmtOku(r.market_cap)"></span></span>
+              </div>
+            </div>
+            <span class="rs-item-go">レポートを見る<i class="fas fa-chevron-right"></i></span>
+          </a>
+        </template>
+
+        <div x-show="!loading && rows.length === 0" x-cloak class="rs-empty">
+          <i class="fas fa-search"></i>
+          <p>該当する企業が見つかりませんでした</p>
+          <button type="button" class="rs-reset" @click="q=''; search(1)">条件をクリア</button>
+        </div>
+      </div>
+
+      <div class="rs-pager" x-show="totalPages > 1" x-cloak>
+        <button type="button" class="rs-page-btn" :disabled="page <= 1" @click="search(page - 1)">前へ</button>
+        <span class="rs-page-info"><strong x-text="page"></strong> / <span x-text="totalPages"></span></span>
+        <button type="button" class="rs-page-btn" :disabled="page >= totalPages" @click="search(page + 1)">次へ</button>
       </div>
     </div>
 
-    <!-- 自社の数字でレポートを作る（将来） -->
-    <div class="rs-card rs-card-muted">
-      <div class="rs-label">自社の数字でレポートを作る</div>
-      <p style="font-size:13px; color:#737373; line-height:1.8; margin:0 0 12px;">
-        自社の決算数値を入力して、同じ形式のレポートを作る機能を準備中です。<br>
-        業種・規模の近い企業の基準値と比べた評価も併せて出す想定です。
-      </p>
-      <span class="rs-soon">準備中</span>
+    <!-- 自社版（準備中） -->
+    <div class="rs-own">
+      <div class="rs-own-icon"><i class="fas fa-store"></i></div>
+      <div class="rs-own-body">
+        <div class="rs-own-title">自社の数字でレポートを作る<span class="rs-soon">準備中</span></div>
+        <p class="rs-own-text">
+          上場企業と同じ形式で、自社の決算数値からレポートを作れるようにします。
+          業種・規模の近い企業の基準値と比べた評価も併せて出す予定です。
+        </p>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
+  .rs-sample-link {
+    display:inline-flex; align-items:center; gap:7px;
+    padding:9px 18px; border-radius:8px;
+    background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.3);
+    color:#fff; font-size:13px; font-weight:600; text-decoration:none;
+    transition:background .15s; white-space:nowrap;
+  }
+  .rs-sample-link:hover { background:rgba(255,255,255,0.24); color:#fff; }
+
+  /* レポートの中身の予告 */
+  .rs-intro {
+    background:#fff; border:1px solid #ebebeb; border-radius:12px;
+    padding:16px 18px; margin-bottom:16px;
+  }
+  .rs-intro-label {
+    font-size:11px; font-weight:700; color:#737373;
+    letter-spacing:.04em; margin-bottom:10px;
+  }
+  .rs-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .rs-chip {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:5px 11px; border-radius:20px;
+    background:#f0fdf4; color:#15803d;
+    font-size:12px; font-weight:500;
+  }
+  .rs-chip i { font-size:10px; }
+  .rs-intro-note { font-size:11px; color:#a3a3a3; margin:10px 0 0; line-height:1.6; }
+
   .rs-card {
     background:#fff; border:1px solid #ebebeb; border-radius:12px;
-    padding:20px 22px; margin-bottom:16px;
+    padding:18px 20px; margin-bottom:16px;
   }
-  .rs-card-muted { background:#fafafa; }
-  .rs-label {
-    font-size:12px; font-weight:700; color:#737373;
-    letter-spacing:0.04em; margin-bottom:12px;
+  .rs-card-head {
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px; margin-bottom:12px;
+  }
+  .rs-label { font-size:13px; font-weight:700; color:#1a1a1a; }
+
+  .rs-sort { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+  .rs-sort-label { font-size:11px; color:#a3a3a3; margin-right:2px; }
+  .rs-sort-btn {
+    padding:5px 12px; font-size:12px; font-weight:500;
+    color:#737373; background:#fff;
+    border:1px solid #ebebeb; border-radius:20px;
+    cursor:pointer; transition:all .15s; font-family:inherit;
+  }
+  .rs-sort-btn:hover { border-color:#2d6a4f; color:#1b4332; }
+  .rs-sort-btn.active { background:#1b4332; border-color:#1b4332; color:#fff; }
+
+  .rs-search-ic {
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:#a3a3a3; font-size:14px;
   }
   .rs-input {
     width:100%; padding:12px 14px 12px 40px;
@@ -77,42 +199,157 @@
     outline:none; transition:border-color .15s; box-sizing:border-box;
     font-family:inherit;
   }
-  .rs-input:focus { border-color:#1F3864; }
-  .rs-results { margin-top:10px; border-top:1px solid #f0f0f0; }
+  .rs-input:focus { border-color:#2d6a4f; }
+
+  .rs-status { font-size:12px; color:#525252; margin:12px 2px 0; }
+  .rs-status strong { color:#1b4332; }
+
+  .rs-legend {
+    display:flex; align-items:flex-start; gap:7px;
+    margin-top:10px; padding:9px 12px;
+    background:#f8faf8; border-radius:8px;
+    font-size:11.5px; color:#525252; line-height:1.6;
+  }
+  .rs-legend i { color:#2d6a4f; margin-top:2px; }
+
+  .rs-results { margin-top:8px; }
   .rs-item {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:12px 6px; border-bottom:1px solid #f0f0f0;
+    display:flex; align-items:center; gap:12px;
+    padding:13px 8px; border-bottom:1px solid #f0f0f0;
     text-decoration:none; transition:background .15s;
   }
   .rs-item:hover { background:#f7faf8; }
+  .rs-item:hover .rs-item-go { color:#1b4332; }
+  .rs-item-rank {
+    flex:0 0 22px; text-align:center;
+    font-size:12px; font-weight:700; color:#c4c4c4;
+  }
+  /* 点数は「何点か」だけでなく高低が一目で分かるようにする */
+  .rs-score {
+    flex:0 0 46px; height:46px; border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    line-height:1;
+  }
+  .rs-score-num { font-size:16px; font-weight:800; }
+  .rs-score-unit { font-size:9px; margin-top:2px; opacity:.75; }
+  .score-high { background:#dcfce7; color:#15803d; }
+  .score-mid  { background:#fef9c3; color:#a16207; }
+  .score-low  { background:#f3f4f6; color:#9ca3af; }
+
+  .rs-item-main { flex:1; min-width:0; }
   .rs-item-name { font-size:14px; font-weight:600; color:#1a1a1a; }
-  .rs-item-sub { font-size:11px; color:#a3a3a3; margin-top:2px; }
+  .rs-item-sub { font-size:11px; color:#a3a3a3; margin-top:3px; }
+  .rs-item-go {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:12px; font-weight:500; color:#c4c4c4;
+    white-space:nowrap; transition:color .15s;
+  }
+  .rs-item-go i { font-size:10px; }
+
+  .rs-empty { text-align:center; padding:34px 12px; }
+  .rs-empty i { font-size:26px; color:#d4d4d4; margin-bottom:10px; }
+  .rs-empty p { font-size:13px; color:#a3a3a3; margin:0 0 12px; }
+  .rs-reset {
+    padding:6px 16px; font-size:12px; color:#525252;
+    background:#fff; border:1px solid #ebebeb; border-radius:7px;
+    cursor:pointer; font-family:inherit;
+  }
+
+  .rs-pager {
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    margin-top:16px;
+  }
+  .rs-page-btn {
+    padding:6px 16px; font-size:13px; color:#525252;
+    background:#fff; border:1px solid #ebebeb; border-radius:7px;
+    cursor:pointer; transition:all .15s; font-family:inherit;
+  }
+  .rs-page-btn:hover:not(:disabled) { border-color:#2d6a4f; color:#1b4332; }
+  .rs-page-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .rs-page-info { font-size:13px; color:#525252; }
+  .rs-page-info strong { color:#1b4332; }
+
+  /* 自社版 */
+  .rs-own {
+    display:flex; gap:14px; align-items:flex-start;
+    background:#fafafa; border:1px dashed #dcdcdc; border-radius:12px;
+    padding:18px 20px;
+  }
+  .rs-own-icon {
+    flex:0 0 40px; height:40px; border-radius:10px;
+    background:#f0f0ec; color:#a3a3a3;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .rs-own-title {
+    font-size:14px; font-weight:700; color:#525252;
+    display:flex; align-items:center; gap:9px; margin-bottom:5px;
+  }
+  .rs-own-text { font-size:12px; color:#a3a3a3; line-height:1.75; margin:0; }
   .rs-soon {
-    display:inline-block; padding:4px 12px; border-radius:20px;
-    background:#f0f0ec; color:#a3a3a3; font-size:11px; font-weight:600;
+    padding:3px 10px; border-radius:20px;
+    background:#f0f0ec; color:#a3a3a3; font-size:10px; font-weight:600;
+  }
+
+  @media (max-width: 640px) {
+    .rs-item-go span { display:none; }
+    .rs-card-head { align-items:flex-start; flex-direction:column; }
   }
 </style>
 
 <script>
   function reportSelect() {
     return {
-      q: '', rows: [], loading: false,
+      q: '', rows: [], total: 0, page: 1, perPage: 20, totalPages: 1,
+      sort: 'match_rate', loading: true,
 
-      init() { this.search(); },   // 初期表示は合致度の高い順
+      sorts: [
+        { key: 'match_rate', label: '合致度が高い順', status: '合致度が高い順' },
+        { key: 'market_cap',  label: '規模が大きい順', status: '時価総額が大きい順' },
+        { key: 'company_code', label: '銘柄コード順',  status: '銘柄コード順' },
+      ],
 
-      async search() {
+      get currentSortLabel() {
+        const s = this.sorts.find(x => x.key === this.sort);
+        return s ? s.status : '';
+      },
+
+      init() { this.search(1); },
+
+      setSort(key) {
+        this.sort = key;
+        this.search(1);
+      },
+
+      async search(page) {
         this.loading = true;
+        this.page = Math.max(1, page || 1);
         try {
-          const p = new URLSearchParams({ per_page: 20, sort: 'match_rate', order: 'desc' });
+          const p = new URLSearchParams({
+            per_page: this.perPage,
+            page: this.page,
+            sort: this.sort,
+            order: this.sort === 'company_code' ? 'asc' : 'desc',
+          });
           if (this.q.trim()) p.set('q', this.q.trim());
           const res = await fetch('/api/stocks/screen?' + p.toString());
           const data = await res.json();
           this.rows = data.rows || [];
+          this.total = data.total || 0;
+          this.totalPages = data.total_pages || 1;
         } catch (e) {
           console.error('企業検索エラー:', e);
-          this.rows = [];
+          this.rows = []; this.total = 0; this.totalPages = 1;
         }
         this.loading = false;
+      },
+
+      scoreClass(v) {
+        if (v == null) return 'score-low';
+        return v >= 70 ? 'score-high' : v >= 40 ? 'score-mid' : 'score-low';
+      },
+      fmtOku(v) {
+        if (v == null) return '—';
+        return v >= 10000 ? (v / 10000).toFixed(1) + '兆円' : Math.round(v).toLocaleString() + '億円';
       },
     };
   }
