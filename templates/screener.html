@@ -43,6 +43,60 @@
             </div>
         </div>
 
+        <!-- テーマで探す -->
+        <div class="scr-card" style="margin-bottom:12px;" x-show="themeCategories.length">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div class="scr-card-label" style="margin:0;">テーマで探す</div>
+                <button class="scr-theme-toggle" @click="themePanel = !themePanel">
+                    <i class="fas" :class="themePanel ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                    <span x-text="themePanel ? '閉じる' : '一覧から選ぶ'"></span>
+                </button>
+                <button class="scr-theme-clear" x-show="selectedTags.length" @click="clearTags()">
+                    選択を解除
+                </button>
+            </div>
+
+            <!-- 選んだテーマ -->
+            <div class="scr-chips" x-show="selectedTags.length" style="margin-top:10px;">
+                <template x-for="t in selectedTags" :key="t">
+                    <button class="scr-chip is-on" @click="toggleTag(t)">
+                        <span x-text="t"></span><i class="fas fa-times"></i>
+                    </button>
+                </template>
+            </div>
+
+            <div x-show="themePanel" x-cloak style="margin-top:12px;">
+                <!-- カテゴリ -->
+                <div class="scr-chips" style="margin-bottom:10px;">
+                    <template x-for="c in themeCategories" :key="c.category">
+                        <button class="scr-cat" :class="{ 'is-on': openCategory === c.category }"
+                                @click="openCategory = c.category">
+                            <span x-text="c.category"></span>
+                            <span class="scr-cat-n" x-text="c.tags.length"></span>
+                        </button>
+                    </template>
+                </div>
+                <!-- テーマ -->
+                <template x-for="c in themeCategories" :key="'t-' + c.category">
+                    <div class="scr-chips" x-show="openCategory === c.category">
+                        <template x-for="t in c.tags" :key="t.name">
+                            <button class="scr-chip"
+                                    :class="{ 'is-on': selectedTags.includes(t.name) }"
+                                    :title="t.description || ''"
+                                    @click="toggleTag(t.name)">
+                                <span x-text="t.name"></span>
+                                <span class="scr-chip-n" x-text="t.count"></span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+                <p style="font-size:11px; color:#a3a3a3; margin-top:10px; line-height:1.6;">
+                    複数選ぶと、いずれかに当てはまる企業を表示します。<br>
+                    業種は東証の33業種区分、テーマは事業内容から分類したものです。
+                </p>
+            </div>
+        </div>
+
         <!-- 絞り込み -->
         <div class="scr-card" style="margin-bottom:12px;">
             <div class="scr-card-label">絞り込み</div>
@@ -52,12 +106,26 @@
                     <input type="text" x-model.debounce.400ms="filters.q" @input="search(1)"
                            placeholder="例: 7203 / トヨタ" autocomplete="off">
                 </div>
+                <div class="scr-field" style="grid-column: span 2;">
+                    <label>事業内容に含む言葉</label>
+                    <input type="text" x-model.debounce.400ms="filters.business" @input="search(1)"
+                           placeholder="例: 厨房 / 金型 / 学習塾" autocomplete="off">
+                </div>
                 <div class="scr-field">
-                    <label>業種</label>
-                    <select x-model="filters.sector" @change="search(1)">
+                    <label>業種（東証33業種）</label>
+                    <select x-model="filters.industry" @change="search(1)">
                         <option value="">すべて</option>
                         <template x-for="s in sectors" :key="s">
                             <option :value="s" x-text="s"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="scr-field">
+                    <label>市場</label>
+                    <select x-model="filters.market" @change="search(1)">
+                        <option value="">すべて</option>
+                        <template x-for="m in markets" :key="m">
+                            <option :value="m" x-text="m"></option>
                         </template>
                     </select>
                 </div>
@@ -136,18 +204,23 @@
                         <template x-for="row in rows" :key="row.company_code">
                             <tr class="hover:bg-gray-50 transition-colors scr-row"
                                 @click="location.href = '/stock/' + row.company_code">
-                                <td class="px-4 py-3 whitespace-nowrap">
+                                <td class="px-4 py-3">
                                     <a :href="'/stock/' + row.company_code" class="scr-name-link">
                                         <span x-text="row.company_name || '---'"></span>
                                     </a>
-                                    <div style="font-size:11px; color:#a3a3a3;" x-text="row.company_code"></div>
+                                    <div style="font-size:11px; color:#a3a3a3;">
+                                        <span x-text="row.company_code"></span>
+                                        <span x-show="row.market_segment" x-text="' / ' + row.market_segment"></span>
+                                    </div>
+                                    <div class="scr-summary" x-show="row.business_summary_jp"
+                                         x-text="row.business_summary_jp"></div>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="scr-match" :class="matchClass(row.match_rate)"
                                           x-text="row.match_rate != null ? row.match_rate : '---'"></span>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="scr-badge" x-text="row.sector || '---'"></span>
+                                    <span class="scr-badge" x-text="row.industry_jp || row.sector || '---'"></span>
                                 </td>
                                 <td class="scr-td-num" x-text="fmtOku(row.market_cap)"></td>
                                 <td class="scr-td-num" x-text="fmtYen(row.stock_price)"></td>
@@ -296,6 +369,61 @@
     .scr-preset-btn:hover { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
     .scr-preset-btn.active { background: #1b4332; border-color: #1b4332; color: #fff; }
 
+    /* --- テーマ検索 --- */
+    .scr-theme-toggle, .scr-theme-clear {
+        font-size: 12px;
+        color: #525252;
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 4px;
+    }
+    .scr-theme-toggle:hover { color: #1b4332; }
+    .scr-theme-clear { color: #a3a3a3; }
+    .scr-theme-clear:hover { color: #b91c1c; }
+
+    .scr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .scr-chip, .scr-cat {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 11px;
+        font-size: 12px;
+        color: #525252;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+        line-height: 1.4;
+    }
+    .scr-chip:hover, .scr-cat:hover { border-color: #2d6a4f; color: #1b4332; background: #f0fdf4; }
+    .scr-chip.is-on, .scr-cat.is-on { background: #1b4332; border-color: #1b4332; color: #fff; }
+
+    /* 件数はテーマ名より一段弱く見せる */
+    .scr-chip-n, .scr-cat-n { font-size: 10px; color: #a3a3a3; }
+    .scr-chip.is-on .scr-chip-n, .scr-cat.is-on .scr-cat-n { color: rgba(255,255,255,0.7); }
+
+    .scr-cat { background: #fafaf8; }
+
+    /* 一覧の事業概要。何をしている会社かを一覧のまま掴めるようにする */
+    .scr-summary {
+        font-size: 11px;
+        color: #737373;
+        line-height: 1.5;
+        margin-top: 4px;
+        max-width: 340px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
     .scr-filter-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -422,6 +550,11 @@
         return {
             rows: [],
             sectors: [],
+            markets: [],
+            themeCategories: [],
+            openCategory: '',
+            themePanel: false,
+            selectedTags: [],
             total: 0,
             page: 1,
             perPage: 50,
@@ -431,7 +564,8 @@
             loading: true,
             activePreset: '',
             filters: {
-                q: '', sector: '', match_rate_min: '', equity_ratio_min: '',
+                q: '', industry: '', market: '', business: '',
+                match_rate_min: '', equity_ratio_min: '',
                 operating_margin_min: '', roe_min: '', per_max: '', pbr_max: '',
                 dividend_yield_min: '', market_cap_min: '',
             },
@@ -460,14 +594,47 @@
 
             async init() {
                 this.loadSectors();
+                this.loadThemes();
                 await this.search(1);
             },
 
             async loadSectors() {
                 try {
                     const res = await fetch('/api/stocks/sectors');
-                    if (res.ok) this.sectors = (await res.json()).sectors || [];
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    this.sectors = data.industries || data.sectors || [];
+                    this.markets = data.markets || [];
                 } catch (e) { /* 業種の絞り込みが使えないだけなので黙って続行 */ }
+            },
+
+            async loadThemes() {
+                try {
+                    const res = await fetch('/api/stocks/tags?kind=theme');
+                    if (!res.ok) return;
+                    const cats = (await res.json()).categories || [];
+                    // 該当銘柄が1件も無いテーマは押しても空振りするので出さない
+                    this.themeCategories = cats
+                        .map(c => ({ ...c, tags: (c.tags || []).filter(t => t.count > 0) }))
+                        .filter(c => c.tags.length)
+                        .sort((a, b) => b.count - a.count);
+                    if (this.themeCategories.length) {
+                        this.openCategory = this.themeCategories[0].category;
+                    }
+                } catch (e) { /* テーマ検索が使えないだけなので黙って続行 */ }
+            },
+
+            toggleTag(name) {
+                const i = this.selectedTags.indexOf(name);
+                if (i >= 0) this.selectedTags.splice(i, 1);
+                else this.selectedTags.push(name);
+                this.search(1);
+            },
+
+            clearTags() {
+                if (!this.selectedTags.length) return;
+                this.selectedTags = [];
+                this.search(1);
             },
 
             buildQuery(page) {
@@ -479,6 +646,8 @@
                 Object.entries(this.filters).forEach(([k, v]) => {
                     if (v !== '' && v !== null && v !== undefined) p.set(k, v);
                 });
+                // テーマは複数選べるので同じ名前で並べて渡す
+                this.selectedTags.forEach(t => p.append('tag', t));
                 return p.toString();
             },
 
@@ -523,6 +692,7 @@
 
             resetFilters(doSearch = true) {
                 Object.keys(this.filters).forEach(k => { this.filters[k] = ''; });
+                this.selectedTags = [];
                 this.activePreset = '';
                 if (doSearch) {
                     this.sort = 'match_rate';
@@ -632,7 +802,7 @@
                         <div style="font-size:11px; color:#a3a3a3;">${item.company_code}</div>
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap"><span class="scr-match ${getMatchRateClass(item.match_rate)}">${matchRate}</span></td>
-                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-badge">${item.sector || '---'}</span></td>
+                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-badge">${item.industry_jp || item.sector || '---'}</span></td>
                     <td class="scr-td-num">${formatMarketCapOku(item.market_cap)}</td>
                     <td class="scr-td-num">${formatWatchlistPrice(item.stock_price)}</td>
                     <td class="scr-td-num"><span class="scr-pill ${equityClass}">${equityRatio != null ? equityRatio + '%' : '---'}</span></td>

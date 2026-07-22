@@ -2354,7 +2354,8 @@ SCREEN_FILTERS = {
 }
 
 SCREEN_COLUMNS = (
-    'company_code, company_name, sector, market_cap, stock_price, '
+    'company_code, company_name, sector, industry_jp, market_segment, '
+    'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
     'dividend_yield, match_rate, analyzed_at'
 )
@@ -2363,41 +2364,159 @@ SCREEN_COLUMNS = (
 # これを下回るとROEの分母が小さすぎて数値が不安定になるため順位付けに使わない。
 ROE_MIN_EQUITY_RATIO = 5
 
+# 東証の市場区分。プルダウンの並びは規模の大きい順に固定する
+MARKET_SEGMENTS = ['プライム', 'スタンダード', 'グロース']
+
 _sector_cache = {'values': None, 'fetched_at': 0}
 
 
 @app.route('/api/stocks/sectors', methods=['GET'])
 def api_stock_sectors():
-    """業種の一覧（絞り込みプルダウン用）。実データから作り10分キャッシュする。"""
+    """業種の一覧（絞り込みプルダウン用）。実データから作り10分キャッシュする。
+
+    業種はJPXの33業種区分（industry_jp）を使う。
+    従来使っていた sector は英語の分類を訳したもので粒度が粗く
+    （「資本財」に機械も電機も建設も入る）、絞り込みの軸にならなかった。
+    """
     import time as _time
     try:
-        if _sector_cache['values'] and _time.time() - _sector_cache['fetched_at'] < 600:
-            return jsonify({'sectors': _sector_cache['values']}), 200
+        cached = _sector_cache['values']
+        if cached and _time.time() - _sector_cache['fetched_at'] < 600:
+            return jsonify({'sectors': cached, 'industries': cached,
+                            'markets': MARKET_SEGMENTS}), 200
 
         client = get_supabase_client()
-        sectors = set()
+        industries = set()
         page = 0
         while page < 10:  # 上限を設けて暴走を防ぐ
             res = (client.table('screened_latest')
-                   .select('sector')
+                   .select('industry_jp')
                    .range(page * 1000, page * 1000 + 999)
                    .execute())
             rows = res.data or []
             for r in rows:
-                s = (r.get('sector') or '').strip()
+                s = (r.get('industry_jp') or '').strip()
                 if s:
-                    sectors.add(s)
+                    industries.add(s)
             if len(rows) < 1000:
                 break
             page += 1
 
-        values = sorted(sectors)
+        values = sorted(industries)
         _sector_cache['values'] = values
         _sector_cache['fetched_at'] = _time.time()
-        return jsonify({'sectors': values}), 200
+        return jsonify({'sectors': values, 'industries': values,
+                        'markets': MARKET_SEGMENTS}), 200
     except Exception as e:
         print(f'業種一覧の取得エラー: {e}')
-        return jsonify({'sectors': []}), 200
+        return jsonify({'sectors': [], 'industries': [],
+                        'markets': MARKET_SEGMENTS}), 200
+
+
+_tag_count_cache = {'values': None, 'fetched_at': 0}
+
+
+def _tag_counts(client):
+    """テーマごとの銘柄数。10分キャッシュする。
+
+    件数はテーブル全体を読まないと出せない。タグは1銘柄あたり数件付くため
+    全銘柄で1万行を超える。毎回読むと画面の表示が目に見えて遅くなる。
+    """
+    import time as _time
+    if (_tag_count_cache['values'] is not None
+            and _time.time() - _tag_count_cache['fetched_at'] < 600):
+        return _tag_count_cache['values']
+
+    counts = {}
+    page = 0
+    while page < 50:
+        res = (client.table('stock_tag_map')
+               .select('tag_name')
+               .range(page * 1000, page * 1000 + 999)
+               .execute())
+        rows = res.data or []
+        for r in rows:
+            counts[r['tag_name']] = counts.get(r['tag_name'], 0) + 1
+        if len(rows) < 1000:
+            break
+        page += 1
+
+    _tag_count_cache['values'] = counts
+    _tag_count_cache['fetched_at'] = _time.time()
+    return counts
+
+
+@app.route('/api/stocks/tags', methods=['GET'])
+def api_stock_tags():
+    """テーマ・属性の一覧をカテゴリごとに返す。
+
+    銘柄数も返すので、画面側で「該当0件のテーマ」を出さずに済む。
+    """
+    try:
+        client = get_supabase_client()
+        kind = request.args.get('kind')          # theme / attribute
+        include_hidden = request.args.get('all') == '1'
+
+        query = client.table('stock_tags').select(
+            'name, kind, category, description, display_active, sort_order')
+        if kind:
+            query = query.eq('kind', kind)
+        if not include_hidden:
+            query = query.eq('display_active', True)
+        tags = (query.order('sort_order').execute().data or [])
+
+        counts = _tag_counts(client)
+
+        categories = {}
+        for t in tags:
+            cat = t.get('category') or 'その他'
+            categories.setdefault(cat, {'category': cat, 'kind': t.get('kind'),
+                                        'count': 0, 'tags': []})
+            entry = {**t, 'count': counts.get(t['name'], 0)}
+            categories[cat]['tags'].append(entry)
+            categories[cat]['count'] += entry['count']
+
+        return jsonify({'categories': list(categories.values())}), 200
+    except Exception as e:
+        print(f'タグ一覧の取得エラー: {e}')
+        return jsonify({'error': '取得できませんでした', 'categories': []}), 500
+
+
+def _codes_for_tags(client, tag_names=None, category=None):
+    """指定のテーマ／カテゴリに該当する銘柄コードの集合を返す。
+
+    カテゴリ指定では、そのカテゴリに属するテーマを1つでも持つ銘柄を拾う。
+    銘柄に「金融」という大枠タグを別途付ける必要はない。
+    """
+    names = list(tag_names or [])
+
+    if category:
+        res = (client.table('stock_tags')
+               .select('name')
+               .eq('category', category)
+               .execute())
+        names.extend(r['name'] for r in (res.data or []))
+
+    if not names:
+        return None   # 絞り込み指定なし
+
+    codes = set()
+    # in_ に多数を渡すとURLが長くなりすぎるため分割する
+    for i in range(0, len(names), 50):
+        chunk = names[i:i + 50]
+        page = 0
+        while page < 30:
+            res = (client.table('stock_tag_map')
+                   .select('company_code')
+                   .in_('tag_name', chunk)
+                   .range(page * 1000, page * 1000 + 999)
+                   .execute())
+            rows = res.data or []
+            codes.update(r['company_code'] for r in rows)
+            if len(rows) < 1000:
+                break
+            page += 1
+    return codes
 
 
 @app.route('/api/stocks/screen', methods=['GET'])
@@ -2431,9 +2550,45 @@ def api_screen_stocks():
                 continue
             query = query.gte(column, value) if op == 'gte' else query.lte(column, value)
 
+        # 業種はJPXの33業種（industry_jp）で絞る。
+        # sector は旧来の粗い分類。保存済みURLが壊れないよう受け付けは残すが、
+        # どちらの列を見るかは推測せずパラメータ名で決める
+        industry = (request.args.get('industry') or '').strip()
+        if industry:
+            query = query.eq('industry_jp', industry)
+
         sector = (request.args.get('sector') or '').strip()
-        if sector:
+        if sector and not industry:
             query = query.eq('sector', sector)
+
+        market = (request.args.get('market') or '').strip()
+        if market in MARKET_SEGMENTS:
+            query = query.eq('market_segment', market)
+
+        # テーマ／カテゴリでの絞り込み。
+        # カテゴリ指定では、そのカテゴリのテーマを1つでも持つ銘柄を拾う
+        # （銘柄に「金融」のような大枠タグを別途付ける必要はない）。
+        tag_names = [t for t in request.args.getlist('tag') if t.strip()]
+        tag_category = (request.args.get('tag_category') or '').strip()
+        if tag_names or tag_category:
+            codes = _codes_for_tags(client, tag_names, tag_category or None)
+            if not codes:
+                # 該当銘柄が無い場合は空を返す。フィルタ自体を無視すると
+                # 「絞り込んだのに全件出る」という誤解を招く
+                return jsonify({'rows': [], 'total': 0, 'page': page,
+                                'per_page': per_page, 'total_pages': 1,
+                                'sort': sort, 'order': 'desc' if desc else 'asc'}), 200
+            # in_ の上限を超えないよう、多すぎる場合は絞り込みを分割せず件数で制限する
+            query = query.in_('company_code', list(codes)[:2000])
+
+        # 事業内容のフリーワード検索。
+        # テーマで拾いきれない長い裾（「厨房」「金型」など）を拾うため。
+        # 日本語は単語区切りが無いので部分一致で扱う
+        business = (request.args.get('business') or '').strip()
+        if business:
+            safe = business.replace(',', ' ').replace('(', ' ').replace(')', ' ').strip()
+            if safe:
+                query = query.ilike('business_summary_jp', f'*{safe}*')
 
         # 銘柄コード・社名の部分一致
         keyword = (request.args.get('q') or '').strip()
