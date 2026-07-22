@@ -89,6 +89,44 @@ def shorten_holder_name(name):
     return s
 
 
+# 合致度スコアと同じ12項目の判定基準。
+# LLMが使えない状況でも「強み」「注意点」を事実ベースで書けるようにするため、
+# ここでは数値の比較だけで判定する（生成AIに書かせない＝嘘が混じらない）。
+CRITERIA = [
+    ('market_cap',       'lte', 700,  '時価総額が700億円以下（成長余地が残る規模）', '時価総額が700億円を超える'),
+    ('equity_ratio',     'gte', 30,   '自己資本比率が30%以上（財務が安定）',        '自己資本比率が30%を下回る'),
+    ('operating_margin', 'gte', 10,   '営業利益率が10%以上（稼ぐ力が高い）',        '営業利益率が10%に届かない'),
+    ('operating_cf',     'gt',  0,    '営業キャッシュフローがプラス',               '営業キャッシュフローがマイナス'),
+    ('free_cf',          'gt',  0,    'フリーキャッシュフローがプラス',             'フリーキャッシュフローがマイナス'),
+    ('roa',              'gt',  4.5,  'ROAが4.5%超（資産を効率よく使えている）',     'ROAが4.5%以下'),
+    ('per_forward',      'lt',  40,   'PERが40倍未満',                            'PERが40倍以上（期待が先行）'),
+    ('pbr',              'lt',  10,   'PBRが10倍未満',                            'PBRが10倍以上'),
+]
+
+
+def evaluate_criteria(row):
+    """財務指標を基準と突き合わせ、満たす項目と満たさない項目に分ける。
+
+    LLMを使わずに「強み」「注意して見る点」を埋めるための材料。
+    値が無い項目はどちらにも入れない（判定できないものを断定しないため）。
+    """
+    passed, failed = [], []
+    for key, op, threshold, ok_text, ng_text in CRITERIA:
+        value = row.get(key)
+        if value is None:
+            continue
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+        hit = (value <= threshold if op == 'lte' else
+               value >= threshold if op == 'gte' else
+               value > threshold if op == 'gt' else
+               value < threshold)
+        (passed if hit else failed).append(ok_text if hit else ng_text)
+    return passed, failed
+
+
 def _oku(value):
     """円 → 億円（小数1桁）。すでに億円単位のカラムはそのまま渡さないこと。"""
     if value is None:
@@ -246,6 +284,11 @@ def build_from_screened(row):
         'officers': [o for o in officers if isinstance(o, dict)][:5],
         'narrative': None,
     }
+
+    # LLMが使えないときでも埋められる、事実ベースの強み・注意点。
+    # 生成AIに書かせないので、表示内容が実際の数値と食い違うことがない。
+    passed, failed = evaluate_criteria(row)
+    report['criteria'] = {'passed': passed[:5], 'failed': failed[:4]}
 
     # どのセクションが描けるか（テンプレート側の分岐を単純にするため）
     report['availability'] = {

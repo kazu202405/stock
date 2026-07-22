@@ -79,6 +79,19 @@ def report_select():
     return render_template('report_select.html')
 
 
+@app.route('/report/sample')
+def report_sample():
+    """レポートの完成イメージ（固定データ）。
+
+    実データが揃っていない銘柄でも、レポートがどこまで書けるものかを
+    確認できるようにするためのページ。
+    ⚠️ 中身は特定企業の実例なので、他銘柄のレポートには絶対に流用しない。
+    """
+    guard = _require_login()
+    if guard: return guard
+    return render_template('report_view.html', report=None, show_sample=True)
+
+
 @app.route('/report/<source>/<key>')
 def report_view(source, key):
     """企業分析レポート本体。

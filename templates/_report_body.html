@@ -45,12 +45,23 @@
       </section>
       {% endif %}
 
-      <!-- 3. 勝ち筋 -->
+      <!-- 3. 勝ち筋／基準を満たす点
+           LLMの文章があればそれを、無ければ合致度12項目の判定結果を出す。
+           後者は数値の比較だけで作っているため、内容が実データと食い違わない。 -->
       {% if n and n.strengths %}
       <section class="rp-card">
         <div class="rp-banner"><i class="fas fa-trophy"></i>3. 勝ち筋</div>
         <ul class="rp-icon-list">
           {% for s in n.strengths %}
+          <li><span class="rp-dot"><i class="fas fa-check"></i></span>{{ s }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% elif report.criteria and report.criteria.passed %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-trophy"></i>3. 基準を満たす点</div>
+        <ul class="rp-icon-list">
+          {% for s in report.criteria.passed %}
           <li><span class="rp-dot"><i class="fas fa-check"></i></span>{{ s }}</li>
           {% endfor %}
         </ul>
@@ -155,8 +166,10 @@
   </div>
 
   <!-- ===== 下段: 6 / 7 / 8 ===== -->
-  {% if report.health or (n and (n.risks or n.learnings)) %}
-  <div class="rp-bottom" style="grid-template-columns: repeat({{ [ (1 if report.health else 0) + (1 if n and n.risks else 0) + (1 if n and n.learnings else 0), 1 ]|max }}, 1fr);">
+  {% set has_risk = (n and n.risks) or (report.criteria and report.criteria.failed) %}
+  {% set has_learn = n and n.learnings %}
+  {% if report.health or has_risk or has_learn %}
+  <div class="rp-bottom" style="grid-template-columns: repeat({{ [ (1 if report.health else 0) + (1 if has_risk else 0) + (1 if has_learn else 0), 1 ]|max }}, 1fr);">
 
     <!-- 6. 財務健全性 -->
     {% if report.health %}
@@ -180,12 +193,21 @@
     </section>
     {% endif %}
 
-    <!-- 7. リスク -->
+    <!-- 7. 注意して見る点（LLM文章が無ければ基準未達の項目を出す） -->
     {% if n and n.risks %}
     <section class="rp-card">
       <div class="rp-banner"><i class="fas fa-exclamation-triangle"></i>7. 注意して見る点</div>
       <ul class="rp-risk-list">
         {% for r in n.risks %}
+        <li><i class="fas fa-exclamation-triangle"></i>{{ r }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% elif report.criteria and report.criteria.failed %}
+    <section class="rp-card">
+      <div class="rp-banner"><i class="fas fa-exclamation-triangle"></i>7. 基準に届かない点</div>
+      <ul class="rp-risk-list">
+        {% for r in report.criteria.failed %}
         <li><i class="fas fa-exclamation-triangle"></i>{{ r }}</li>
         {% endfor %}
       </ul>

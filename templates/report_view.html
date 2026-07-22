@@ -11,6 +11,12 @@
     <p>{{ error }}</p>
     <a href="/report" class="rp-btn rp-btn-primary">別の企業を選ぶ</a>
   </div>
+  {% elif show_sample %}
+  <div class="rp-actions">
+    <a href="/report" class="rp-btn"><i class="fas fa-arrow-left"></i>企業を選ぶ</a>
+    <span class="rp-actions-note">レポートの完成イメージです（固定データ）</span>
+  </div>
+  {% include '_report_sample.html' %}
   {% elif report %}
 
   <!-- 操作バー（印刷・画像化には含めない） -->
@@ -60,6 +66,20 @@
   .rp-btn-primary { background: var(--rp-navy); color: #fff; border-color: var(--rp-navy); }
   .rp-btn-primary:hover { background: #2E5395; color: #fff; }
   .rp-actions-note { font-size: 11px; color: #a3a3a3; margin-left: 4px; }
+
+  .rp-sample-notice {
+    max-width: 1060px; margin: 0 auto 12px;
+    background: #fff8e6; border: 1px solid #ffe0a3; border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; color: #7a5a00; line-height: 1.7;
+  }
+  .rp-sample-notice i { margin-right: 6px; }
+
+  .rp-empty {
+    max-width: 560px; margin: 60px auto; text-align: center;
+    background: #fff; border: 1px solid #ebebeb; border-radius: 12px; padding: 40px 24px;
+  }
+  .rp-empty i { font-size: 32px; color: #d4d4d4; margin-bottom: 12px; }
+  .rp-empty p { font-size: 14px; color: #737373; margin: 0 0 18px; }
 
   /* A4縦(210×297mm)と同じ縦横比。印刷時はこの幅をA4に縮小して収める */
   .rp-page {
