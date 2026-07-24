@@ -518,3 +518,15 @@ def admin_users():
     guard = _require_admin()
     if guard: return guard
     return render_template('admin_users.html')
+
+
+@app.route('/admin/themes')
+def admin_themes():
+    """テーマ運用画面（admin専用）。
+
+    テーマの過剰/未使用の把握、手動でのタグ付け、細分化テーマの仕込み、
+    表示ON/OFF、LLMによる候補提案を行う。
+    """
+    guard = _require_admin()
+    if guard: return guard
+    return render_template('admin_themes.html', is_admin=True)

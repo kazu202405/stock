@@ -2482,6 +2482,323 @@ def api_stock_tags():
         return jsonify({'error': '取得できませんでした', 'categories': []}), 500
 
 
+# ---- テーマ管理（admin専用） ----
+
+def _bump_tag_cache():
+    """テーマを編集したら、一覧・件数のキャッシュを捨てて次回作り直させる"""
+    _tag_count_cache['values'] = None
+    _tag_count_cache['fetched_at'] = 0
+
+
+@app.route('/api/admin/themes', methods=['GET'])
+@role_required('admin')
+def api_admin_themes():
+    """テーマ・業種の全件（非表示・未使用も含む）をカテゴリ別に返す。
+
+    運用画面用なので display_active=false のものも隠さない。
+    件数は0のテーマも「未使用として把握したい」ため一覧に残す。
+    """
+    try:
+        client = get_supabase_client()
+        tags = (client.table('stock_tags')
+                .select('name, kind, category, description, tagging_enabled, '
+                        'display_active, sort_order')
+                .order('sort_order').execute().data or [])
+        counts = _tag_counts(client)
+
+        cats = {}
+        for t in tags:
+            cat = t.get('category') or 'その他'
+            cats.setdefault(cat, {'category': cat, 'tags': []})
+            cats[cat]['tags'].append({**t, 'count': counts.get(t['name'], 0)})
+        return jsonify({'categories': list(cats.values())}), 200
+    except Exception as e:
+        print(f'テーマ管理一覧の取得エラー: {e}')
+        return jsonify({'error': '取得できませんでした', 'categories': []}), 500
+
+
+@app.route('/api/admin/themes', methods=['POST'])
+@role_required('admin')
+def api_admin_theme_create():
+    """テーマを新規追加する"""
+    try:
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'テーマ名を入力してください'}), 400
+
+        client = get_supabase_client()
+        exists = (client.table('stock_tags').select('name')
+                  .eq('name', name).limit(1).execute().data)
+        if exists:
+            return jsonify({'error': f'「{name}」は既にあります'}), 409
+
+        row = {
+            'name': name,
+            'kind': data.get('kind') or 'theme',
+            'category': (data.get('category') or 'その他').strip(),
+            'description': (data.get('description') or '').strip() or None,
+            'tagging_enabled': bool(data.get('tagging_enabled', True)),
+            'display_active': bool(data.get('display_active', True)),
+            'sort_order': int(data.get('sort_order') or 900),
+        }
+        client.table('stock_tags').insert(row).execute()
+        _bump_tag_cache()
+        return jsonify({'success': True, 'tag': row}), 200
+    except Exception as e:
+        print(f'テーマ追加エラー: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/themes/<path:name>', methods=['PATCH'])
+@role_required('admin')
+def api_admin_theme_update(name):
+    """テーマの属性（説明・表示ON/OFF・LLM候補ON/OFF・カテゴリ等）を更新する。
+
+    主キーの name 自体は変更しない。改名すると stock_tag_map との整合を
+    取り直す必要があり、事故のもとになるため別operationにしてある。
+    """
+    try:
+        data = request.get_json() or {}
+        patch = {}
+        for key in ('category', 'description'):
+            if key in data:
+                patch[key] = (data.get(key) or '').strip() or None
+        for key in ('tagging_enabled', 'display_active'):
+            if key in data:
+                patch[key] = bool(data.get(key))
+        if 'sort_order' in data:
+            patch['sort_order'] = int(data.get('sort_order') or 900)
+        if not patch:
+            return jsonify({'error': '更新内容がありません'}), 400
+
+        client = get_supabase_client()
+        res = (client.table('stock_tags').update(patch)
+               .eq('name', name).execute())
+        if not res.data:
+            return jsonify({'error': 'テーマが見つかりません'}), 404
+        _bump_tag_cache()
+        return jsonify({'success': True, 'tag': res.data[0]}), 200
+    except Exception as e:
+        print(f'テーマ更新エラー: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/themes/<path:name>', methods=['DELETE'])
+@role_required('admin')
+def api_admin_theme_delete(name):
+    """テーマを削除する。付いている銘柄の紐付けも一緒に消す。
+
+    紐付けを残すと、マスタに無いタグが宙に浮いて画面で拾えなくなる。
+    """
+    try:
+        client = get_supabase_client()
+        client.table('stock_tag_map').delete().eq('tag_name', name).execute()
+        client.table('stock_tags').delete().eq('name', name).execute()
+        _bump_tag_cache()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f'テーマ削除エラー: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/themes/<path:name>/stocks', methods=['GET'])
+@role_required('admin')
+def api_admin_theme_stocks(name):
+    """そのテーマが付いている銘柄の一覧（手動編集画面用）"""
+    try:
+        client = get_supabase_client()
+        codes = []
+        page = 0
+        while page < 20:
+            res = (client.table('stock_tag_map')
+                   .select('company_code, source')
+                   .eq('tag_name', name)
+                   .range(page * 1000, page * 1000 + 999).execute())
+            rows = res.data or []
+            codes.extend(rows)
+            if len(rows) < 1000:
+                break
+            page += 1
+
+        src = {r['company_code']: r.get('source') for r in codes}
+        names = list(src.keys())
+        detail = {}
+        for i in range(0, len(names), 100):
+            chunk = names[i:i + 100]
+            res = (client.table('screened_latest')
+                   .select('company_code, company_name, industry_jp')
+                   .in_('company_code', chunk).execute())
+            for r in (res.data or []):
+                detail[r['company_code']] = r
+
+        stocks = []
+        for code in names:
+            d = detail.get(code, {})
+            stocks.append({
+                'company_code': code,
+                'company_name': d.get('company_name'),
+                'industry_jp': d.get('industry_jp'),
+                'source': src.get(code),
+            })
+        stocks.sort(key=lambda s: s['company_code'])
+        return jsonify({'name': name, 'total': len(stocks), 'stocks': stocks}), 200
+    except Exception as e:
+        print(f'テーマ別銘柄の取得エラー: {e}')
+        return jsonify({'error': str(e), 'stocks': []}), 500
+
+
+@app.route('/api/admin/themes/<path:name>/stocks', methods=['POST'])
+@role_required('admin')
+def api_admin_theme_add_stock(name):
+    """銘柄にテーマを手動で付ける。
+
+    source='manual' で入れる。次にLLMで付け直しても、manualは
+    上書き対象外なので消えない（backfillはsource='llm'だけ入れ替える）。
+    """
+    try:
+        data = request.get_json() or {}
+        code = normalize_code((data.get('company_code') or '').strip())
+        if not code:
+            return jsonify({'error': '銘柄コードを指定してください'}), 400
+
+        client = get_supabase_client()
+        tag = (client.table('stock_tags').select('name')
+               .eq('name', name).limit(1).execute().data)
+        if not tag:
+            return jsonify({'error': 'テーマが見つかりません'}), 404
+        stock = (client.table('screened_latest').select('company_code, company_name, industry_jp')
+                 .eq('company_code', code).limit(1).execute().data)
+        if not stock:
+            return jsonify({'error': f'銘柄 {code} が見つかりません'}), 404
+
+        client.table('stock_tag_map').upsert(
+            {'company_code': code, 'tag_name': name, 'source': 'manual'}).execute()
+        _bump_tag_cache()
+        s = stock[0]
+        return jsonify({'success': True, 'stock': {
+            'company_code': code, 'company_name': s.get('company_name'),
+            'industry_jp': s.get('industry_jp'), 'source': 'manual'}}), 200
+    except Exception as e:
+        print(f'テーマへの銘柄追加エラー: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/themes/<path:name>/stocks/<code>', methods=['DELETE'])
+@role_required('admin')
+def api_admin_theme_remove_stock(name, code):
+    """銘柄からテーマを外す"""
+    try:
+        client = get_supabase_client()
+        client.table('stock_tag_map').delete().eq(
+            'tag_name', name).eq('company_code', normalize_code(code)).execute()
+        _bump_tag_cache()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f'テーマからの銘柄削除エラー: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/themes/<path:name>/suggest', methods=['POST'])
+@role_required('admin')
+def api_admin_theme_suggest(name):
+    """このテーマに該当しそうな銘柄をLLMに提案させる。
+
+    未使用テーマ（HBM・パワー半導体など）は事業説明文だけからは判定しづらく、
+    全銘柄を再走査するのは費用が高い。そこで2段構えにする。
+
+      1. キーワードで候補を粗く絞る（説明文の部分一致。費用ゼロ）
+      2. 候補だけをLLMに渡し、本当に該当するかを判定させる
+
+    こうすると、全3,600件でなく数十件の判定で済む。
+    提案するだけで、実際に付けるかは人が確認して決める。
+    """
+    try:
+        data = request.get_json() or {}
+        keywords = [k.strip() for k in (data.get('keywords') or '').split(',') if k.strip()]
+
+        client = get_supabase_client()
+        tag = (client.table('stock_tags').select('name, description')
+               .eq('name', name).limit(1).execute().data)
+        if not tag:
+            return jsonify({'error': 'テーマが見つかりません'}), 404
+        desc = tag[0].get('description') or ''
+
+        # キーワード未指定ならテーマ名自体を使う
+        if not keywords:
+            keywords = [name]
+
+        # 既に付いている銘柄は候補から除く
+        already = set()
+        page = 0
+        while page < 20:
+            res = (client.table('stock_tag_map').select('company_code')
+                   .eq('tag_name', name)
+                   .range(page * 1000, page * 1000 + 999).execute())
+            rows = res.data or []
+            already.update(r['company_code'] for r in rows)
+            if len(rows) < 1000:
+                break
+            page += 1
+
+        # キーワードで候補を集める（説明文の部分一致）
+        candidates = {}
+        for kw in keywords[:8]:
+            res = (client.table('screened_latest')
+                   .select('company_code, company_name, industry_jp, business_summary_jp')
+                   .ilike('business_summary_jp', f'*{kw}*')
+                   .limit(60).execute())
+            for r in (res.data or []):
+                if r['company_code'] not in already:
+                    candidates[r['company_code']] = r
+        cand = list(candidates.values())[:50]
+
+        if not cand:
+            return jsonify({'name': name, 'suggestions': [],
+                            'note': '候補が見つかりませんでした。キーワードを変えてみてください。'}), 200
+
+        # LLMに該当判定させる
+        import llm
+        if not llm.is_available():
+            # LLMが無ければキーワード一致をそのまま候補として返す
+            return jsonify({'name': name, 'suggestions': [
+                {'company_code': c['company_code'], 'company_name': c.get('company_name'),
+                 'industry_jp': c.get('industry_jp'), 'reason': 'キーワード一致'}
+                for c in cand[:20]]}), 200
+
+        listing = '\n'.join(
+            f"{c['company_code']} {c.get('company_name') or ''}: "
+            f"{(c.get('business_summary_jp') or '')[:80]}" for c in cand)
+        prompt = (
+            f'次のテーマに、本当に該当する企業だけを選んでください。\n'
+            f'テーマ: {name}\n'
+            f'定義: {desc or "（定義なし）"}\n\n'
+            '判定は事業内容にもとづいて厳しめに。関連しそう・将来性がある程度では選ばない。\n'
+            '各企業について、該当するかと一言の理由を返してください。\n\n'
+            '候補:\n' + listing + '\n\n'
+            '次のJSONのみ:\n'
+            '{"picks": [{"code": "銘柄コード", "reason": "該当する理由"}, ...]}')
+        result = llm.chat_json(prompt, model='gpt-4o-mini', temperature=0.2, timeout=60)
+
+        picks = (result or {}).get('picks') or []
+        by_code = {c['company_code']: c for c in cand}
+        suggestions = []
+        for p in picks:
+            code = str(p.get('code') or '').strip()
+            if code in by_code:
+                c = by_code[code]
+                suggestions.append({
+                    'company_code': code, 'company_name': c.get('company_name'),
+                    'industry_jp': c.get('industry_jp'),
+                    'reason': (p.get('reason') or '')[:60]})
+
+        return jsonify({'name': name, 'suggestions': suggestions,
+                        'scanned': len(cand)}), 200
+    except Exception as e:
+        print(f'テーマ提案エラー: {e}')
+        return jsonify({'error': str(e), 'suggestions': []}), 500
+
+
 def _codes_for_tags(client, tag_names=None, category=None):
     """指定のテーマ／カテゴリに該当する銘柄コードの集合を返す。
 

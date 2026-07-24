@@ -1,0 +1,388 @@
+{% extends "layout.html" %}
+{% block title %}テーマ管理 - Company Note{% endblock %}
+
+{% block content %}
+<style>
+    .thm-adm { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+    .thm-stat { background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:14px 18px; }
+    .thm-stat .n { font-size:22px; font-weight:700; color:#1a1a1a; }
+    .thm-stat .l { font-size:11px; color:#737373; }
+
+    .thm-cat { margin-bottom:22px; }
+    .thm-cat-h {
+        display:flex; align-items:center; gap:8px;
+        font-size:12px; font-weight:700; color:#737373; letter-spacing:.04em;
+        padding-bottom:7px; margin-bottom:10px; border-bottom:1px solid #ebebeb;
+    }
+    .thm-cat-h .k { font-size:10px; color:#a3a3a3; font-weight:400; }
+
+    .thm-row {
+        display:flex; align-items:center; gap:10px;
+        background:#fff; border:1px solid #ebebeb; border-radius:9px;
+        padding:8px 12px; margin-bottom:6px;
+    }
+    .thm-row.off { opacity:.55; }
+    .thm-nm { font-size:13px; font-weight:600; color:#1a1a1a; min-width:0; }
+    .thm-nm .badge-ind { font-size:9px; color:#2d6a4f; background:#f0fdf4; border-radius:3px; padding:1px 5px; margin-left:5px; }
+    .thm-cnt { font-size:12px; color:#525252; white-space:nowrap; }
+    .thm-cnt.zero { color:#c2410c; }
+    .thm-desc { font-size:11px; color:#a3a3a3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .thm-btn {
+        font-size:11px; padding:4px 10px; border-radius:6px; cursor:pointer;
+        border:1px solid #ebebeb; background:#fff; color:#525252; white-space:nowrap;
+        transition:all .15s; font-family:inherit;
+    }
+    .thm-btn:hover { border-color:#2d6a4f; color:#1b4332; background:#f0fdf4; }
+    .thm-btn.danger:hover { border-color:#dc2626; color:#dc2626; background:#fef2f2; }
+    .thm-btn.primary { background:#1b4332; border-color:#1b4332; color:#fff; }
+    .thm-btn.primary:hover { background:#164029; }
+
+    .thm-toggle { font-size:11px; color:#737373; display:inline-flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap; }
+    .thm-toggle input { cursor:pointer; }
+
+    /* モーダル */
+    .thm-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
+    .thm-modal { background:#fff; border-radius:14px; width:100%; max-width:640px; padding:22px 24px; }
+    .thm-modal h3 { font-size:16px; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
+    .thm-modal .sub { font-size:12px; color:#737373; margin-bottom:16px; }
+    .thm-field { margin-bottom:12px; }
+    .thm-field label { display:block; font-size:11px; color:#737373; margin-bottom:3px; }
+    .thm-field input, .thm-field select, .thm-field textarea {
+        width:100%; padding:7px 10px; border:1px solid #ebebeb; border-radius:7px;
+        font-size:13px; color:#1a1a1a; font-family:inherit; box-sizing:border-box; outline:none;
+    }
+    .thm-field input:focus, .thm-field textarea:focus, .thm-field select:focus { border-color:#2d6a4f; }
+
+    .thm-stk {
+        display:flex; align-items:center; gap:8px;
+        padding:6px 0; border-bottom:1px solid #f2f2f0; font-size:13px;
+    }
+    .thm-stk .src { font-size:9px; border-radius:3px; padding:1px 5px; }
+    .thm-stk .src.manual { background:#eef2ff; color:#4338ca; }
+    .thm-stk .src.llm { background:#f5f5f4; color:#78716c; }
+    .thm-stk .src.jpx { background:#f0fdf4; color:#2d6a4f; }
+
+    [x-cloak] { display:none !important; }
+</style>
+
+<div class="thm-adm" x-data="adminThemes()" x-init="init()">
+
+    <div style="margin-bottom:18px;">
+        <h1 style="font-size:20px; font-weight:600; color:#1a1a1a;">テーマ管理</h1>
+        <p style="font-size:13px; color:#737373; margin-top:2px;">
+            テーマの追加・編集、銘柄への手動タグ付け、表示切り替え。業種（東証33業種）はJPXから自動同期されます。
+        </p>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:20px;">
+        <div class="thm-stat"><div class="n" x-text="stats.total">-</div><div class="l">テーマ・業種の総数</div></div>
+        <div class="thm-stat"><div class="n" x-text="stats.used">-</div><div class="l">使用中（1件以上）</div></div>
+        <div class="thm-stat"><div class="n" style="color:#c2410c;" x-text="stats.unused">-</div><div class="l">未使用（0件）</div></div>
+        <div class="thm-stat"><div class="n" x-text="stats.hidden">-</div><div class="l">非表示</div></div>
+    </div>
+
+    <!-- 操作バー -->
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+        <input type="text" x-model.debounce.300ms="filter" placeholder="テーマ名で絞り込み"
+               style="flex:1; min-width:200px; padding:7px 12px; border:1px solid #ebebeb; border-radius:8px; font-size:13px;">
+        <label class="thm-toggle"><input type="checkbox" x-model="onlyUnused"> 未使用のみ</label>
+        <button class="thm-btn primary" @click="openCreate()"><i class="fas fa-plus"></i> テーマを追加</button>
+    </div>
+
+    <div x-show="loading" style="text-align:center; padding:40px; color:#a3a3a3;">
+        <i class="fas fa-spinner fa-spin"></i> 読み込み中...
+    </div>
+
+    <!-- カテゴリ別リスト -->
+    <template x-for="cat in visibleCategories" :key="cat.category">
+        <div class="thm-cat">
+            <div class="thm-cat-h">
+                <span x-text="cat.category"></span>
+                <span class="k" x-text="cat.tags.length + '件'"></span>
+            </div>
+            <template x-for="t in cat.tags" :key="t.name">
+                <div class="thm-row" :class="{ off: !t.display_active }">
+                    <div style="flex:1; min-width:0;">
+                        <span class="thm-nm">
+                            <span x-text="t.name"></span>
+                            <span class="badge-ind" x-show="t.kind === 'industry'">業種</span>
+                        </span>
+                        <div class="thm-desc" x-show="t.description" x-text="t.description"></div>
+                    </div>
+                    <span class="thm-cnt" :class="{ zero: t.count === 0 }" x-text="t.count + '社'"></span>
+                    <label class="thm-toggle" title="画面の一覧に出すか">
+                        <input type="checkbox" :checked="t.display_active" @change="toggle(t, 'display_active', $event.target.checked)"> 表示
+                    </label>
+                    <button class="thm-btn" @click="openStocks(t)">銘柄</button>
+                    <button class="thm-btn" @click="openEdit(t)">編集</button>
+                    <button class="thm-btn danger" @click="removeTheme(t)" x-show="t.kind !== 'industry'">削除</button>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <!-- 追加/編集モーダル -->
+    <div class="thm-modal-bg" x-show="editModal" x-cloak @click.self="editModal=false">
+        <div class="thm-modal">
+            <h3 x-text="editing.isNew ? 'テーマを追加' : 'テーマを編集'"></h3>
+            <p class="sub" x-text="editing.isNew ? '' : editing.name + ' の設定を変更します（名前は変更できません）'"></p>
+
+            <div class="thm-field" x-show="editing.isNew">
+                <label>テーマ名 <span style="color:#dc2626;">*</span></label>
+                <input type="text" x-model="editing.name" placeholder="例: パワー半導体">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="thm-field">
+                    <label>カテゴリ</label>
+                    <input type="text" x-model="editing.category" placeholder="例: AI・半導体" list="cat-list">
+                    <datalist id="cat-list">
+                        <template x-for="c in categoryNames" :key="c"><option :value="c"></option></template>
+                    </datalist>
+                </div>
+                <div class="thm-field">
+                    <label>並び順</label>
+                    <input type="number" x-model.number="editing.sort_order" placeholder="900">
+                </div>
+            </div>
+            <div class="thm-field">
+                <label>定義（LLMの判定に使われます。紛らわしいテーマほど効果的）</label>
+                <textarea rows="2" x-model="editing.description" placeholder="例: 半導体そのものを設計・製造する企業。製造装置や部材には付けない"></textarea>
+            </div>
+            <div style="display:flex; gap:18px; margin:6px 0 16px;">
+                <label class="thm-toggle"><input type="checkbox" x-model="editing.tagging_enabled"> LLMのタグ付け候補に含める</label>
+                <label class="thm-toggle"><input type="checkbox" x-model="editing.display_active"> 画面に表示する</label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button class="thm-btn" @click="editModal=false">キャンセル</button>
+                <button class="thm-btn primary" @click="saveTheme()" x-text="saving ? '保存中...' : '保存'"></button>
+            </div>
+            <p x-show="editErr" style="color:#dc2626; font-size:12px; margin-top:8px;" x-text="editErr"></p>
+        </div>
+    </div>
+
+    <!-- 銘柄編集モーダル -->
+    <div class="thm-modal-bg" x-show="stockModal" x-cloak @click.self="stockModal=false">
+        <div class="thm-modal">
+            <h3><span x-text="stockTag.name"></span> の銘柄</h3>
+            <p class="sub"><span x-text="stockTotal"></span>社が該当。手動で付けたタグ（manual）はLLMの付け直しでも消えません。</p>
+
+            <!-- 手動追加 -->
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <input type="text" x-model="addCode" placeholder="銘柄コードを入力して追加（例: 6146）"
+                       @keydown.enter="addStock()"
+                       style="flex:1; padding:7px 10px; border:1px solid #ebebeb; border-radius:7px; font-size:13px;">
+                <button class="thm-btn primary" @click="addStock()">追加</button>
+            </div>
+
+            <!-- LLM提案 -->
+            <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:9px; padding:12px; margin-bottom:14px;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span style="font-size:12px; font-weight:600; color:#525252;">
+                        <i class="fas fa-wand-magic-sparkles"></i> 該当しそうな銘柄をAIに探させる
+                    </span>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <input type="text" x-model="suggestKw" placeholder="検索する言葉（例: パワー半導体, SiC）空欄ならテーマ名で検索"
+                           style="flex:1; padding:6px 10px; border:1px solid #ebebeb; border-radius:7px; font-size:12px;">
+                    <button class="thm-btn" @click="runSuggest()" x-text="suggesting ? '検索中...' : '探す'"></button>
+                </div>
+                <template x-if="suggestions.length">
+                    <div style="margin-top:10px;">
+                        <template x-for="s in suggestions" :key="s.company_code">
+                            <div class="thm-stk">
+                                <div style="flex:1; min-width:0;">
+                                    <span style="font-weight:600;" x-text="s.company_name || s.company_code"></span>
+                                    <span style="font-size:11px; color:#a3a3a3;" x-text="' ' + s.company_code"></span>
+                                    <div style="font-size:11px; color:#737373;" x-text="s.reason"></div>
+                                </div>
+                                <button class="thm-btn" @click="addStock(s.company_code)">付ける</button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <p x-show="suggestNote" style="font-size:11px; color:#a3a3a3; margin-top:8px;" x-text="suggestNote"></p>
+            </div>
+
+            <!-- 現在の銘柄 -->
+            <div style="max-height:320px; overflow-y:auto;">
+                <template x-for="s in stocks" :key="s.company_code">
+                    <div class="thm-stk">
+                        <span class="src" :class="s.source" x-text="s.source || '—'"></span>
+                        <div style="flex:1; min-width:0;">
+                            <span style="font-weight:500;" x-text="s.company_name || s.company_code"></span>
+                            <span style="font-size:11px; color:#a3a3a3;" x-text="' ' + s.company_code + (s.industry_jp ? ' / ' + s.industry_jp : '')"></span>
+                        </div>
+                        <button class="thm-btn danger" @click="removeStock(s.company_code)">外す</button>
+                    </div>
+                </template>
+                <div x-show="!stocks.length" style="text-align:center; color:#a3a3a3; padding:20px; font-size:13px;">
+                    まだ銘柄が付いていません。
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+                <button class="thm-btn" @click="stockModal=false">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function adminThemes() {
+    return {
+        categories: [],
+        loading: true,
+        filter: '',
+        onlyUnused: false,
+
+        editModal: false, editing: {}, saving: false, editErr: '',
+        stockModal: false, stockTag: {}, stocks: [], stockTotal: 0,
+        addCode: '',
+        suggestKw: '', suggesting: false, suggestions: [], suggestNote: '',
+
+        get stats() {
+            let total = 0, used = 0, unused = 0, hidden = 0;
+            this.categories.forEach(c => c.tags.forEach(t => {
+                total++;
+                if (t.count > 0) used++; else unused++;
+                if (!t.display_active) hidden++;
+            }));
+            return { total, used, unused, hidden };
+        },
+
+        get categoryNames() { return this.categories.map(c => c.category); },
+
+        get visibleCategories() {
+            const f = this.filter.trim();
+            return this.categories.map(c => ({
+                ...c,
+                tags: c.tags.filter(t =>
+                    (!f || t.name.includes(f)) &&
+                    (!this.onlyUnused || t.count === 0))
+            })).filter(c => c.tags.length);
+        },
+
+        async init() { await this.load(); },
+
+        async load() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/admin/themes');
+                const data = await res.json();
+                this.categories = data.categories || [];
+            } catch (e) { console.error(e); }
+            this.loading = false;
+        },
+
+        openCreate() {
+            this.editing = { isNew: true, name: '', kind: 'theme', category: '',
+                             description: '', sort_order: 900,
+                             tagging_enabled: true, display_active: true };
+            this.editErr = '';
+            this.editModal = true;
+        },
+
+        openEdit(t) {
+            this.editing = { isNew: false, ...t };
+            this.editErr = '';
+            this.editModal = true;
+        },
+
+        async saveTheme() {
+            this.saving = true; this.editErr = '';
+            try {
+                const e = this.editing;
+                let res;
+                if (e.isNew) {
+                    res = await fetch('/api/admin/themes', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(e) });
+                } else {
+                    res = await fetch('/api/admin/themes/' + encodeURIComponent(e.name), {
+                        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            category: e.category, description: e.description,
+                            sort_order: e.sort_order, tagging_enabled: e.tagging_enabled,
+                            display_active: e.display_active }) });
+                }
+                const data = await res.json();
+                if (!res.ok) { this.editErr = data.error || '保存に失敗しました'; this.saving = false; return; }
+                this.editModal = false;
+                await this.load();
+            } catch (e) { this.editErr = '通信エラー'; }
+            this.saving = false;
+        },
+
+        async toggle(t, field, value) {
+            try {
+                await fetch('/api/admin/themes/' + encodeURIComponent(t.name), {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value }) });
+                t[field] = value;
+            } catch (e) { console.error(e); }
+        },
+
+        async removeTheme(t) {
+            if (!confirm(`「${t.name}」を削除しますか？付いている${t.count}社のタグも外れます。`)) return;
+            try {
+                await fetch('/api/admin/themes/' + encodeURIComponent(t.name), { method: 'DELETE' });
+                await this.load();
+            } catch (e) { console.error(e); }
+        },
+
+        async openStocks(t) {
+            this.stockTag = t; this.stocks = []; this.stockTotal = 0;
+            this.addCode = ''; this.suggestKw = ''; this.suggestions = []; this.suggestNote = '';
+            this.stockModal = true;
+            await this.loadStocks();
+        },
+
+        async loadStocks() {
+            try {
+                const res = await fetch('/api/admin/themes/' + encodeURIComponent(this.stockTag.name) + '/stocks');
+                const data = await res.json();
+                this.stocks = data.stocks || [];
+                this.stockTotal = data.total || 0;
+            } catch (e) { console.error(e); }
+        },
+
+        async addStock(code) {
+            const c = (code || this.addCode || '').trim();
+            if (!c) return;
+            try {
+                const res = await fetch('/api/admin/themes/' + encodeURIComponent(this.stockTag.name) + '/stocks', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_code: c }) });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || '追加できませんでした'); return; }
+                this.addCode = '';
+                this.suggestions = this.suggestions.filter(s => s.company_code !== c);
+                await this.loadStocks();
+            } catch (e) { console.error(e); }
+        },
+
+        async removeStock(code) {
+            try {
+                await fetch('/api/admin/themes/' + encodeURIComponent(this.stockTag.name) + '/stocks/' + encodeURIComponent(code), { method: 'DELETE' });
+                await this.loadStocks();
+            } catch (e) { console.error(e); }
+        },
+
+        async runSuggest() {
+            this.suggesting = true; this.suggestions = []; this.suggestNote = '';
+            try {
+                const res = await fetch('/api/admin/themes/' + encodeURIComponent(this.stockTag.name) + '/suggest', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keywords: this.suggestKw }) });
+                const data = await res.json();
+                this.suggestions = data.suggestions || [];
+                if (!this.suggestions.length) this.suggestNote = data.note || '該当しそうな銘柄は見つかりませんでした。';
+            } catch (e) { this.suggestNote = '通信エラー'; }
+            this.suggesting = false;
+        },
+    };
+}
+</script>
+{% endblock %}
