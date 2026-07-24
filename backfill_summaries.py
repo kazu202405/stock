@@ -43,7 +43,12 @@ def load_targets(overwrite=False, retag=False):
     while page < 20:
         res = (client.table('screened_latest')
                .select('company_code, company_name, sector, industry_jp, '
-                       'business_summary_jp')
+                       'market_segment, business_summary_jp')
+               # JPXの市場区分がある＝内国株式に限る。
+               # ETF・投信・上場廃止銘柄はyfinanceに事業説明が無く、
+               # これらが先頭に固まると連続失敗の安全装置が誤作動して、
+               # 後ろの本物の企業まで処理が止まる。最初から除外する。
+               .not_.is_('market_segment', 'null')
                .range(page * 1000, page * 1000 + 999)
                .execute())
         chunk = res.data or []
