@@ -8,25 +8,42 @@
     .thm-stat .n { font-size:22px; font-weight:700; color:#1a1a1a; }
     .thm-stat .l { font-size:11px; color:#737373; }
 
-    .thm-cat { margin-bottom:22px; }
+    /* カテゴリの塊。左に緑のアクセントを付けて区切りを強くする */
+    .thm-cat { margin-bottom:20px; background:#fff; border:1px solid #ebebeb; border-radius:12px; overflow:hidden; }
     .thm-cat-h {
         display:flex; align-items:center; gap:8px;
-        font-size:12px; font-weight:700; color:#737373; letter-spacing:.04em;
-        padding-bottom:7px; margin-bottom:10px; border-bottom:1px solid #ebebeb;
+        font-size:12.5px; font-weight:700; color:#1b4332; letter-spacing:.02em;
+        padding:11px 16px; background:#f7faf8; border-bottom:1px solid #ebebeb;
+        border-left:3px solid #1b4332;
     }
-    .thm-cat-h .k { font-size:10px; color:#a3a3a3; font-weight:400; }
+    .thm-cat-h .k { font-size:11px; color:#a3a3a3; font-weight:500; }
 
+    /* 行は浮かせず、細い区切り線で並べる。列は固定幅で全行そろえる */
     .thm-row {
-        display:flex; align-items:center; gap:10px;
-        background:#fff; border:1px solid #ebebeb; border-radius:9px;
-        padding:8px 12px; margin-bottom:6px;
+        display:grid;
+        grid-template-columns: minmax(0,1fr) 132px 62px 168px;
+        align-items:center; gap:12px;
+        padding:9px 16px; border-bottom:1px solid #f2f2f0;
     }
-    .thm-row.off { opacity:.55; }
-    .thm-nm { font-size:13px; font-weight:600; color:#1a1a1a; min-width:0; }
-    .thm-nm .badge-ind { font-size:9px; color:#2d6a4f; background:#f0fdf4; border-radius:3px; padding:1px 5px; margin-left:5px; }
-    .thm-cnt { font-size:12px; color:#525252; white-space:nowrap; }
-    .thm-cnt.zero { color:#c2410c; }
-    .thm-desc { font-size:11px; color:#a3a3a3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .thm-row:last-child { border-bottom:none; }
+    .thm-row:hover { background:#fafaf8; }
+    .thm-row.off .thm-nm-main { opacity:.5; }
+
+    .thm-nm-main { min-width:0; }
+    .thm-nm { font-size:13.5px; font-weight:600; color:#1a1a1a; display:flex; align-items:center; gap:6px; }
+    .thm-nm .txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .badge-ind { flex:none; font-size:9px; color:#2d6a4f; background:#f0fdf4; border:1px solid #d7ede0; border-radius:3px; padding:1px 5px; }
+    .thm-desc { font-size:11px; color:#a3a3a3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+
+    /* 件数はバー付きで分布が一目で分かるようにする */
+    .thm-cnt { display:flex; align-items:center; gap:7px; }
+    .thm-cnt .bar { flex:1; height:5px; background:#eef0ee; border-radius:3px; overflow:hidden; }
+    .thm-cnt .bar span { display:block; height:100%; background:#2d6a4f; border-radius:3px; }
+    .thm-cnt .num { font-size:12px; color:#525252; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:36px; text-align:right; }
+    .thm-cnt.zero .num { color:#c2410c; font-weight:600; }
+    .thm-cnt.zero .bar span { background:#f0b088; }
+
+    .thm-acts { display:flex; gap:6px; justify-content:flex-end; }
 
     .thm-btn {
         font-size:11px; padding:4px 10px; border-radius:6px; cursor:pointer;
@@ -37,9 +54,16 @@
     .thm-btn.danger:hover { border-color:#dc2626; color:#dc2626; background:#fef2f2; }
     .thm-btn.primary { background:#1b4332; border-color:#1b4332; color:#fff; }
     .thm-btn.primary:hover { background:#164029; }
+    /* 削除が無い業種行でもボタン位置がずれないよう、空きスロットで幅を保つ */
+    .thm-btn.ghost { visibility:hidden; }
 
-    .thm-toggle { font-size:11px; color:#737373; display:inline-flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap; }
-    .thm-toggle input { cursor:pointer; }
+    /* 表示切り替えはスイッチ風に */
+    .thm-sw { position:relative; display:inline-block; width:34px; height:19px; cursor:pointer; }
+    .thm-sw input { opacity:0; width:0; height:0; }
+    .thm-sw .track { position:absolute; inset:0; background:#d4d4d4; border-radius:19px; transition:.15s; }
+    .thm-sw .track:before { content:''; position:absolute; width:15px; height:15px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+    .thm-sw input:checked + .track { background:#2d6a4f; }
+    .thm-sw input:checked + .track:before { transform:translateX(15px); }
 
     /* モーダル */
     .thm-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:60; display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
@@ -84,7 +108,7 @@
 
     <!-- 操作バー -->
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
-        <input type="text" x-model.debounce.300ms="filter" placeholder="テーマ名で絞り込み"
+        <input type="search" name="theme-filter" autocomplete="off" x-model.debounce.300ms="filter" placeholder="テーマ名で絞り込み"
                style="flex:1; min-width:200px; padding:7px 12px; border:1px solid #ebebeb; border-radius:8px; font-size:13px;">
         <label class="thm-toggle"><input type="checkbox" x-model="onlyUnused"> 未使用のみ</label>
         <button class="thm-btn primary" @click="openCreate()"><i class="fas fa-plus"></i> テーマを追加</button>
@@ -103,20 +127,27 @@
             </div>
             <template x-for="t in cat.tags" :key="t.name">
                 <div class="thm-row" :class="{ off: !t.display_active }">
-                    <div style="flex:1; min-width:0;">
+                    <div class="thm-nm-main">
                         <span class="thm-nm">
-                            <span x-text="t.name"></span>
+                            <span class="txt" x-text="t.name"></span>
                             <span class="badge-ind" x-show="t.kind === 'industry'">業種</span>
                         </span>
                         <div class="thm-desc" x-show="t.description" x-text="t.description"></div>
                     </div>
-                    <span class="thm-cnt" :class="{ zero: t.count === 0 }" x-text="t.count + '社'"></span>
-                    <label class="thm-toggle" title="画面の一覧に出すか">
-                        <input type="checkbox" :checked="t.display_active" @change="toggle(t, 'display_active', $event.target.checked)"> 表示
+                    <div class="thm-cnt" :class="{ zero: t.count === 0 }">
+                        <span class="bar"><span :style="'width:' + Math.min(100, Math.round(t.count / 4)) + '%'"></span></span>
+                        <span class="num" x-text="t.count"></span>
+                    </div>
+                    <label class="thm-sw" title="画面の一覧に出すか">
+                        <input type="checkbox" :checked="t.display_active" @change="toggle(t, 'display_active', $event.target.checked)">
+                        <span class="track"></span>
                     </label>
-                    <button class="thm-btn" @click="openStocks(t)">銘柄</button>
-                    <button class="thm-btn" @click="openEdit(t)">編集</button>
-                    <button class="thm-btn danger" @click="removeTheme(t)" x-show="t.kind !== 'industry'">削除</button>
+                    <div class="thm-acts">
+                        <button class="thm-btn" @click="openStocks(t)">銘柄</button>
+                        <button class="thm-btn" @click="openEdit(t)">編集</button>
+                        <button class="thm-btn danger" x-show="t.kind !== 'industry'" @click="removeTheme(t)">削除</button>
+                        <button class="thm-btn ghost" x-show="t.kind === 'industry'" disabled>削除</button>
+                    </div>
                 </div>
             </template>
         </div>
@@ -130,12 +161,12 @@
 
             <div class="thm-field" x-show="editing.isNew">
                 <label>テーマ名 <span style="color:#dc2626;">*</span></label>
-                <input type="text" x-model="editing.name" placeholder="例: パワー半導体">
+                <input type="text" autocomplete="off" x-model="editing.name" placeholder="例: パワー半導体">
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <div class="thm-field">
                     <label>カテゴリ</label>
-                    <input type="text" x-model="editing.category" placeholder="例: AI・半導体" list="cat-list">
+                    <input type="text" autocomplete="off" x-model="editing.category" placeholder="例: AI・半導体" list="cat-list">
                     <datalist id="cat-list">
                         <template x-for="c in categoryNames" :key="c"><option :value="c"></option></template>
                     </datalist>
@@ -170,7 +201,7 @@
 
             <!-- 手動追加 -->
             <div style="display:flex; gap:8px; margin-bottom:12px;">
-                <input type="text" x-model="addCode" placeholder="銘柄コードを入力して追加（例: 6146）"
+                <input type="text" name="stock-code" autocomplete="off" x-model="addCode" placeholder="銘柄コードを入力して追加（例: 6146）"
                        @keydown.enter="addStock()"
                        style="flex:1; padding:7px 10px; border:1px solid #ebebeb; border-radius:7px; font-size:13px;">
                 <button class="thm-btn primary" @click="addStock()">追加</button>
@@ -184,7 +215,7 @@
                     </span>
                 </div>
                 <div style="display:flex; gap:8px; margin-top:8px;">
-                    <input type="text" x-model="suggestKw" placeholder="検索する言葉（例: パワー半導体, SiC）空欄ならテーマ名で検索"
+                    <input type="search" name="suggest-kw" autocomplete="off" x-model="suggestKw" placeholder="検索する言葉（例: パワー半導体, SiC）空欄ならテーマ名で検索"
                            style="flex:1; padding:6px 10px; border:1px solid #ebebeb; border-radius:7px; font-size:12px;">
                     <button class="thm-btn" @click="runSuggest()" x-text="suggesting ? '検索中...' : '探す'"></button>
                 </div>
