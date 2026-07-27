@@ -3043,9 +3043,34 @@ def api_get_current_price(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+# 未ログインでも返してよいフィールド（許可リスト方式＝既定は返さない）。
+# 会員限定の中身（5年財務・CF・財務健全性・会社予想・成長率・ROA）を
+# APIから外すための土台。ここに無い列は非会員には一切返らない。
+#
+# 重要: 以前は screened_latest の全カラムを誰にでも返し、画面ではCSSで
+# ぼかしていただけだった。ぼかしは見た目だけで、DevTools・ソース表示・
+# APIのNetworkタブ・curl で中身が丸見えだった。会員限定は必ずサーバー側で
+# 落とす。合致度の判定はブラウザでこれらの値から計算しているため、
+# 入力値を渡さなければ非会員は判定を再現できない。
+FREE_SCREENED_FIELDS = {
+    'company_code', 'company_name', 'sector', 'industry_jp', 'market_segment',
+    'stock_price', 'market_cap', 'per_forward', 'pbr', 'equity_ratio',
+    'operating_margin', 'dividend_yield',
+    'business_summary', 'business_summary_jp',
+    'gc_date', 'dc_date', 'analyzed_at',
+    # 主要株主・役員は公開情報の整理なので無料側
+    'major_holders', 'institutional_holders', 'company_officers',
+    'major_shareholders_jp',
+}
+
+
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])
 def api_get_screened_stock(company_code):
-    """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）"""
+    """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）。
+
+    未ログインには無料フィールドだけを返す。会員限定の数値をブラウザに送らない
+    ことが唯一の確実な保護（CSSぼかしはDevToolsで外れる）。
+    """
     try:
         company_code = normalize_code(company_code)
         data = get_screened_data(company_code)
@@ -3060,6 +3085,11 @@ def api_get_screened_stock(company_code):
                     s = sig.data[0]
                     data['gc_date'] = data.get('gc_date') or s.get('gc_date')
                     data['dc_date'] = data.get('dc_date') or s.get('dc_date')
+
+            # 未ログインには無料フィールドのみ。会員限定はサーバー側で落とす
+            if not session.get('user_id'):
+                data = {k: v for k, v in data.items() if k in FREE_SCREENED_FIELDS}
+
             return jsonify(data), 200
         return jsonify({"error": "not found"}), 404
     except Exception as e:
