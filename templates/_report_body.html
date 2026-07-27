@@ -106,7 +106,10 @@
         <div class="rp-banner"><i class="fas fa-building"></i>2. 会社スナップショット</div>
         <div class="rp-stat-grid">
           {% for item in report.snapshot %}
-          <div class="rp-stat{% if item.label in ('設立', '従業員数', '業種') %} rp-stat-wide{% endif %}">
+          {# 業種は幅を広げない。広げると通常タイルとの列がずれて2行目以降がガタつく。
+             長い業種名は rp-num-sm（下の分岐）で小さく折り返す。設立・従業員数は
+             サンプル同様に末尾で1.5倍幅にして行末をそろえる。 #}
+          <div class="rp-stat{% if item.label in ('設立', '従業員数') %} rp-stat-wide{% endif %}">
             <div class="rp-stat-label">{{ item.label }}</div>
             <div class="rp-stat-value">
               {% set ic = {
@@ -120,7 +123,9 @@
               {% else %}
                 <i class="fas {{ ic.get(item.label, 'fa-circle') }} rp-ic"></i>
               {% endif %}
-              <span class="rp-num{% if item.value is string and item.value|length > 8 %} rp-num-sm{% elif item.label in ('設立', '従業員数') %} rp-num-md{% endif %}">
+              {# 業種は数値でなく分類名なので常に小さめ。大きいフォントのままだと
+                 通常幅のタイルに収まらず折り返して崩れる（例:「情報・通信業」）。 #}
+              <span class="rp-num{% if item.label == '業種' or (item.value is string and item.value|length > 8) %} rp-num-sm{% elif item.label in ('設立', '従業員数') %} rp-num-md{% endif %}">
                 {% if item.label == '株価' %}¥{{ '{:,}'.format(item.value|int) }}{% else %}{{ item.value }}{% endif %}{% if item.unit %}<small>{{ item.unit }}</small>{% endif %}
               </span>
             </div>

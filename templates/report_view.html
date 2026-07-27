@@ -213,10 +213,14 @@
   .rp-stat { grid-column: span 2; }        /* 通常タイル = 4列相当の1つ分 */
   .rp-stat-wide { grid-column: span 3; }   /* 1.5倍幅 */
 
-  /* 財務健全性は3列。8分割の指定を上書きする */
-  .rp-grid-3 { grid-template-columns: repeat(3, 1fr); }
-  .rp-grid-3 .rp-stat { grid-column: span 1; }
+  /* 財務健全性などは3列。項目数が3の倍数でないと余りが出るため、
+     grid固定でなくflexで中央寄せにして、端数の行が締まって見えるようにする。
+     （欠損項目があると銘柄ごとに個数が変わり、5個なら3+2で右端が空いていた） */
+  .rp-grid-3 { display: flex; flex-wrap: wrap; justify-content: center; }
+  /* min-width:0 で内容が長いセルも基準幅を超えて広がらないようにし、全枠を等幅にする */
+  .rp-grid-3 .rp-stat { grid-column: auto; flex: 0 0 calc((100% - 18px) / 3); min-width: 0; }
   .rp-stat {
+    box-sizing: border-box;
     background: #fff; border: 1px solid var(--rp-line); border-radius: 9px;
     padding: 8px 6px 10px; text-align: center;
   }
@@ -325,8 +329,10 @@
     .rp-bottom { grid-template-columns: 1fr; }
     .rp-chart-row { grid-template-columns: 1fr; }
     /* 狭い画面では2列。8分割前提のspan指定を打ち消す */
-    .rp-stat-grid, .rp-grid-3 { grid-template-columns: repeat(2, 1fr); }
-    .rp-stat, .rp-stat-wide, .rp-grid-3 .rp-stat { grid-column: span 1; }
+    .rp-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .rp-stat, .rp-stat-wide { grid-column: span 1; }
+    /* rp-grid-3 はflexなので基準幅で2列にする */
+    .rp-grid-3 .rp-stat { flex: 0 0 calc((100% - 9px) / 2); }
     .rp-payout { grid-template-columns: 1fr; }
     .rp-payout-item { border-left: none; border-top: 1px solid var(--rp-line); padding-top: 6px; }
     .rp-summary { flex-direction: column; }
