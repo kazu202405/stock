@@ -220,17 +220,49 @@ def build_from_screened(row):
 
     # --- 財務の健全性 ---
     # サンプル(/report/sample)に合わせ、健全性を測る項目に統一する。
-    # ROE・ROA・EPSは収益性の指標なのでこの節には入れない
+    # ROE・ROA・EPSは収益性の指標なのでこの節の基本セットには入れない
     # （ROAは「5. 業績の推移」のグラフBに出る）。
+
+    # スカラー列(cash等)が未取得でも、cf_history に履歴が入っていることが多い。
+    # その最新値から補う（現預金推移は出ているのに現預金が空、という不整合を防ぐ）。
+    cl_hist = _series(cf, 'current_liabilities')
+    ca_hist = _series(cf, 'current_assets')
+
+    cash_val = row.get('cash')
+    if cash_val is None and cash_hist:
+        cash_val = _oku(cash_hist[-1]['value'])
+
+    current_liab_val = row.get('current_liabilities')
+    if current_liab_val is None and cl_hist:
+        current_liab_val = _oku(cl_hist[-1]['value'])
+
+    current_ratio_val = row.get('current_ratio')
+    if current_ratio_val is None and cl_hist and ca_hist:
+        # 最新期の 流動資産 ÷ 流動負債 ×100。日付をそろえて計算する
+        ca_map = {r['date']: r['value'] for r in ca_hist}
+        latest = cl_hist[-1]
+        ca = ca_map.get(latest['date'])
+        if ca and latest['value']:
+            current_ratio_val = ca / latest['value'] * 100
+
     health = [
-        item('現預金', row.get('cash'), '億円', 1),
-        item('流動負債', row.get('current_liabilities'), '億円', 1),
-        item('流動比率', row.get('current_ratio'), '%', 1),
+        item('現預金', cash_val, '億円', 1),
+        item('流動負債', current_liab_val, '億円', 1),
+        item('流動比率', current_ratio_val, '%', 1),
         item('営業CF', row.get('operating_cf'), '億円', 1),
         item('配当性向', row.get('payout_ratio'), '%', 1),
         item('信用倍率', row.get('margin_trading_ratio'), '倍', 2),
     ]
     health = [x for x in health if x]
+
+    # 履歴からも補えず項目が少ない銘柄は、収益性の指標で補ってスカスカを防ぐ。
+    # 健全性データが揃う銘柄では発火しないので、サンプルと同じ見た目のまま。
+    if len(health) < 4:
+        for extra in (item('ROE', row.get('roe'), '%', 1),
+                      item('ROA', row.get('roa'), '%', 1),
+                      item('EPS', row.get('eps'), '円', 1)):
+            if extra:
+                health.append(extra)
 
     # 現預金の推移（最初と最後だけ示す）
     cash_trend = None
