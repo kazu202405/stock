@@ -959,7 +959,7 @@ def api_get_gc_stocks():
 
 
 def _fetch_and_save_gc_stocks():
-    """GC銘柄をスクレイピングしてsignal_stocks+screened_latestに保存"""
+    """GC銘柄をスクレイピングしてsignal_stocksに保存"""
     from datetime import datetime, timezone
     stocks = scrape_gc_stocks()
 
@@ -970,16 +970,11 @@ def _fetch_and_save_gc_stocks():
     # signal_stocksにupsert（既存のdc_dateは保持される）
     upsert_signal_stocks(stocks)
 
-    # screened_latestにもGC形成日を永続保存
-    try:
-        client = get_supabase_client()
-        codes = [s['company_code'] for s in stocks]
-        for code in codes:
-            client.table('screened_latest').update(
-                {'gc_date': now}
-            ).eq('company_code', code).execute()
-    except Exception as e:
-        print(f"GC日付の永続保存エラー: {e}")
+    # screened_latest.gc_date には書かない。
+    # 以前はここに「取得時刻」を入れていたが、それは実際のクロス日ではない。
+    # screened_latest.gc_date は日足から計算した本当のGC発生日を持つ列にし、
+    # 更新は ma_cross.sync_gc_to_screened に一本化する。ここで上書きすると
+    # スクリーナーのGC日が取得時刻で汚れる。
 
     return stocks
 
@@ -2334,7 +2329,7 @@ def api_report(source, key):
 SCREEN_SORTABLE = {
     'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
     'roe', 'roa', 'equity_ratio', 'operating_margin', 'dividend_yield',
-    'company_code', 'analyzed_at',
+    'company_code', 'analyzed_at', 'gc_date',
 }
 
 # クエリパラメータ名 -> (カラム, 比較方向)
@@ -2357,7 +2352,7 @@ SCREEN_COLUMNS = (
     'company_code, company_name, sector, industry_jp, market_segment, '
     'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
-    'dividend_yield, match_rate, analyzed_at'
+    'dividend_yield, match_rate, analyzed_at, gc_date, dc_date'
 )
 
 # ROEランキングで採用する自己資本比率の下限(%)。
@@ -2836,6 +2831,19 @@ def _codes_for_tags(client, tag_names=None, category=None):
     return codes
 
 
+def _attach_gc(rows):
+    """各行に gc_active（今ゴールデン状態か）を付ける。
+
+    gc_date / dc_date は screened_latest に持たせているので追加の問い合わせは不要。
+    直近のクロスがGCなら（GCの後にDCが来ていなければ）True。
+    単なる状態の色分け用で、売買を促す表現は付けない。
+    """
+    for r in rows:
+        gc = r.get('gc_date')
+        dc = r.get('dc_date')
+        r['gc_active'] = bool(gc and (not dc or gc >= dc))
+
+
 @app.route('/api/stocks/screen', methods=['GET'])
 def api_screen_stocks():
     """全銘柄を横断して絞り込み・並べ替え・ページングする。"""
@@ -2930,9 +2938,12 @@ def api_screen_stocks():
         offset = (page - 1) * per_page
         res = query.order(sort, desc=desc).range(offset, offset + per_page - 1).execute()
 
+        rows = res.data or []
+        _attach_gc(rows)
+
         total = res.count or 0
         return jsonify({
-            'rows': res.data or [],
+            'rows': rows,
             'total': total,
             'page': page,
             'per_page': per_page,

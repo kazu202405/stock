@@ -179,4 +179,27 @@ def calculate_for_all(progress=None, should_stop=None,
             f'migration_ma_crosses.sql を適用済みか確認してください。原因: {first_error}'
         )
 
-    return {'total': total, 'saved': saved, 'skipped': skipped}
+    # スクリーナーで並べ替えられるよう、GC/DC日を screened_latest にも複製する
+    synced = sync_gc_to_screened(client, payloads)
+
+    return {'total': total, 'saved': saved, 'skipped': skipped, 'synced': synced}
+
+
+def sync_gc_to_screened(client, payloads):
+    """ma_crosses の結果を screened_latest.gc_date / dc_date に反映する。
+
+    スクリーナーは screened_latest を並べ替えるため、GC日をこちらへ持たせる。
+    日付は銘柄ごとにばらばらなので、同じ値でまとめる余地が少なく、
+    1件ずつ更新する。定期的に走る計算処理の一部なので許容範囲。
+    """
+    synced = 0
+    for p in payloads:
+        try:
+            client.table('screened_latest').update({
+                'gc_date': p.get('latest_gc_date'),
+                'dc_date': p.get('latest_dc_date'),
+            }).eq('company_code', p['company_code']).execute()
+            synced += 1
+        except Exception as e:
+            print(f"GC同期エラー ({p['company_code']}): {e}")
+    return synced

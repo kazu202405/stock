@@ -222,6 +222,14 @@
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="scr-badge" x-text="row.industry_jp || row.sector || '---'"></span>
                                 </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span x-show="row.gc_date" class="scr-gc" :class="{ active: row.gc_active }"
+                                          :title="row.gc_active ? '直近のクロスはゴールデンクロス' : 'その後にデッドクロスが発生'">
+                                        <i class="fas fa-arrow-trend-up"></i>
+                                        <span x-text="fmtGcDate(row.gc_date)"></span>
+                                    </span>
+                                    <span x-show="!row.gc_date" style="color:#d4d4d4;">—</span>
+                                </td>
                                 <td class="scr-td-num" x-text="fmtOku(row.market_cap)"></td>
                                 <td class="scr-td-num" x-text="fmtYen(row.stock_price)"></td>
                                 <td class="scr-td-num">
@@ -240,13 +248,13 @@
                         </template>
 
                         <tr x-show="!loading && rows.length === 0">
-                            <td colspan="11" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                            <td colspan="12" class="px-4 py-12 text-center" style="color:#a3a3a3;">
                                 <i class="fas fa-search text-2xl mb-3 block"></i>
                                 条件に一致する企業がありませんでした。条件をゆるめてお試しください。
                             </td>
                         </tr>
                         <tr x-show="loading && rows.length === 0">
-                            <td colspan="11" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                            <td colspan="12" class="px-4 py-12 text-center" style="color:#a3a3a3;">
                                 <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
                                 読み込み中...
                             </td>
@@ -510,6 +518,13 @@
     .match-medium { color: #a16207; }
     .match-low { color: #9ca3af; }
 
+    /* ゴールデンクロス。移動平均が上抜けした事実と日付を示すだけで、
+       売買を促す表現は付けない。直近がGC状態なら緑、DCが来ていれば灰色。 */
+    .scr-gc { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:#a3a3a3; white-space:nowrap; }
+    .scr-gc.active { color:#1b4332; font-weight:600; }
+    .scr-gc i { font-size:10px; }
+    .scr-gc.active i { color:#2d6a4f; }
+
     .scr-pager {
         display: flex;
         align-items: center;
@@ -574,6 +589,7 @@
             columns: [
                 { key: 'match_rate',       label: '合致度' },
                 { key: 'sector',           label: '業種', noSort: true },
+                { key: 'gc_date',          label: 'GC' },
                 { key: 'market_cap',       label: '時価総額' },
                 { key: 'stock_price',      label: '株価' },
                 { key: 'equity_ratio',     label: '自己資本比率' },
@@ -709,6 +725,13 @@
             fmtYen(v) { return v == null ? '---' : '¥' + Math.round(v).toLocaleString(); },
             fmtPct(v, digits = 1) { return v == null ? '---' : Number(v).toFixed(digits) + '%'; },
             fmtMultiple(v, digits = 1) { return v == null ? '---' : Number(v).toFixed(digits) + '倍'; },
+            fmtGcDate(d) {
+                if (!d) return '';
+                // '2026-07-21' でも '2026-07-21T00:00:00+00:00' でも先頭10文字が日付
+                const p = String(d).slice(0, 10).split('-');
+                if (p.length < 3) return d;
+                return `${p[0].slice(2)}/${parseInt(p[1])}/${parseInt(p[2])}`;
+            },
             matchClass(v) {
                 if (v == null) return 'match-low';
                 return v >= 70 ? 'match-high' : v >= 40 ? 'match-medium' : 'match-low';
@@ -734,7 +757,7 @@
         tableContainer.classList.remove('hidden');
         emptyState.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="11" class="px-4 py-12 text-center text-gray-500">
+            <tr><td colspan="12" class="px-4 py-12 text-center text-gray-500">
                 <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>データを読み込み中...
             </td></tr>`;
 
@@ -747,7 +770,7 @@
             console.error('ウォッチリスト取得エラー:', err);
             favorites = [];
             tbody.innerHTML = `
-                <tr><td colspan="11" class="px-4 py-12 text-center text-red-500">
+                <tr><td colspan="12" class="px-4 py-12 text-center text-red-500">
                     <i class="fas fa-exclamation-circle text-2xl mb-3 block"></i>
                     データの読み込みに失敗しました。ページを再読み込みしてお試しください。
                 </td></tr>`;
