@@ -219,15 +219,16 @@ def build_from_screened(row):
     snapshot = [x for x in snapshot if x]
 
     # --- 財務の健全性 ---
+    # サンプル(/report/sample)に合わせ、健全性を測る項目に統一する。
+    # ROE・ROA・EPSは収益性の指標なのでこの節には入れない
+    # （ROAは「5. 業績の推移」のグラフBに出る）。
     health = [
         item('現預金', row.get('cash'), '億円', 1),
         item('流動負債', row.get('current_liabilities'), '億円', 1),
         item('流動比率', row.get('current_ratio'), '%', 1),
         item('営業CF', row.get('operating_cf'), '億円', 1),
         item('配当性向', row.get('payout_ratio'), '%', 1),
-        item('ROE', row.get('roe'), '%', 1),
-        item('ROA', row.get('roa'), '%', 1),
-        item('EPS', row.get('eps'), '円', 1),
+        item('信用倍率', row.get('margin_trading_ratio'), '倍', 2),
     ]
     health = [x for x in health if x]
 
