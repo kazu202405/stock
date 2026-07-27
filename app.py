@@ -3454,6 +3454,25 @@ def fetch_prices_batch(codes, chunk_size=200):
     return prices
 
 
+def scheduled_enqueue_earnings():
+    """定期実行: 決算発表のあった銘柄を検知して earnings_queue に積む。
+
+    kabutanの決算ページは「最新営業日の分」しか表示しないため、毎日拾わないと
+    その日の発表が翌日には見えなくなり取り逃す。検知だけを自動化し、台帳に
+    積んでおく。財務データの再取得（重い・1銘柄10リクエスト）は手動のまま。
+
+    午後と夜の2回走らせる。場中の発表は夕方には一覧から消えることがあり、
+    引け後の発表は夜まで出そろわないため、両方を取りこぼさないようにする。
+    """
+    from datetime import datetime
+    print(f"[Scheduler] 決算検知開始: {datetime.now()}")
+    try:
+        pending, by_source = _enqueue_announced()
+        print(f"[Scheduler] 決算検知: 内訳{by_source} / 未処理キュー{len(pending)}件")
+    except Exception as e:
+        print(f"[Scheduler] 決算検知エラー: {e}")
+
+
 def scheduled_update_stock_prices():
     """定期実行: screened_latest全銘柄の株価を更新する"""
     from datetime import datetime
@@ -3504,6 +3523,9 @@ scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_e
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25, id='price_update_morning')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45, id='price_update_midday')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id='price_update_closing')
+# 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
+scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='earnings_detect_afternoon')
+scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
 
 # スケジューラは1プロセスでのみ起動させる。
 # ENABLE_SCHEDULER=false にすると起動しない（将来worker側へcronを分離する際に、
@@ -3511,7 +3533,7 @@ scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id=
 ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'true').lower() not in ('false', '0', 'no')
 if ENABLE_SCHEDULER:
     scheduler.start()
-    print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20 JST）")
+    print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20, 決算検知: 15:30/21:00 JST）")
     # アプリ終了時にスケジューラも停止
     atexit.register(lambda: scheduler.shutdown(wait=False))
 else:
