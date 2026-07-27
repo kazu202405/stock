@@ -903,9 +903,14 @@ def analyze_stocks_batch():
 
 
 @app.route('/api/stock/cache/<symbol>', methods=['GET'])
+@login_required_api
 def get_cached_analysis(symbol):
     """
-    キャッシュされた分析結果を取得
+    キャッシュされた分析結果を取得（会員限定）。
+
+    output/snapshot_*.json を返す旧分析フローのファイルキャッシュ。全項目を
+    含むため、公開ページからは使っていないが素通しにすると会員限定データの
+    抜け道になる。ログイン必須にする。
     """
     try:
         # ファイル名のサニタイズ
@@ -2298,8 +2303,9 @@ def api_list_ma_crosses():
 
 
 @app.route('/api/report/<source>/<key>', methods=['GET'])
+@login_required_api
 def api_report(source, key):
-    """企業分析レポートのデータを返す。
+    """企業分析レポートのデータを返す。会員限定（/reportページと同じ基準）。
     source は将来 'own'（経営者が自社の数字で作る）を足せるようURLに含めている。
     """
     try:
@@ -2845,8 +2851,14 @@ def _attach_gc(rows):
 
 
 @app.route('/api/stocks/screen', methods=['GET'])
+@login_required_api
 def api_screen_stocks():
-    """全銘柄を横断して絞り込み・並べ替え・ページングする。"""
+    """全銘柄を横断して絞り込み・並べ替え・ページングする。
+
+    会員限定。match_rate（合致度スコア）や横断的な絞り込みは会員価値であり、
+    スクリーナー画面自体がログイン必須。APIを素通しにするとスコアを直叩きで
+    収集できてしまうため、ページと同じ基準でゲートする。
+    """
     try:
         client = get_supabase_client()
 
