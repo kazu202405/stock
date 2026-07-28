@@ -1185,7 +1185,21 @@
     let currentPeriodKey = '1y';
     // 粒度ごとに取得済みデータをキャッシュする（同じ粒度なら再取得しない）
     const historyCache = { daily: null, weekly: null, monthly: null };
-    window.currentCurrency = 'JPY';
+
+    // 銘柄コードから通貨を推定する。
+    // 分析データが未登録の銘柄では data.currency が来ないため、既定のJPYのままだと
+    // 米国株の株価が「¥336」と円記号で出てしまう。price_history.to_symbol と同じ判定
+    // （4桁で先頭が数字なら日本株。367Aのような新形式も含む）を使って保険をかける。
+    function defaultCurrencyForCode(code) {
+        const c = String(code || '').replace('.T', '').trim();
+        return (c.length === 4 && /^\d/.test(c)) ? 'JPY' : 'USD';
+    }
+
+    function currencySymbol(currency) {
+        return (currency || 'JPY') === 'JPY' ? '¥' : '$';
+    }
+
+    window.currentCurrency = defaultCurrencyForCode(STOCK_CODE);
 
     // 表示期間の定義。
     // 長期を日足で描くと本数が多すぎて潰れるため、期間に応じて足を間引く。
@@ -1237,7 +1251,7 @@
     }
 
     function chartCurrencySymbol() {
-        return (window.currentCurrency || 'JPY') === 'JPY' ? '¥' : '$';
+        return currencySymbol(window.currentCurrency);
     }
 
     // 単純移動平均（SMA）を計算する。
@@ -2233,7 +2247,9 @@
 
     // キャッシュデータ表示
     function displayCachedData(data) {
-        window.currentCurrency = 'JPY';
+        // screened_latest は通貨を持っていないので、銘柄コードから決める
+        window.currentCurrency = defaultCurrencyForCode(data.company_code || STOCK_CODE);
+        initCompareButton();
 
         // 会社名
         const nameEl = document.getElementById('companyName');
@@ -2244,7 +2260,8 @@
 
         // 株価
         const priceEl = document.getElementById('stockPriceDisplay');
-        if (priceEl) priceEl.textContent = data.stock_price ? `¥${formatNumber(data.stock_price)}` : '---';
+        if (priceEl) priceEl.textContent = data.stock_price
+            ? `${currencySymbol(window.currentCurrency)}${formatNumber(data.stock_price)}` : '---';
 
         // 銘柄コードと業種
         const codeEl = document.getElementById('companyCodeInfo');
@@ -2348,7 +2365,9 @@
 
     // フル分析結果の表示
     function displayFullAnalysis(data) {
-        window.currentCurrency = data.currency || 'JPY';
+        // 分析側が通貨を取れないことがある（yfinanceのfast_infoが空など）ので、
+        // その場合も銘柄コードから補う
+        window.currentCurrency = data.currency || defaultCurrencyForCode(STOCK_CODE);
         initCompareButton();   // 通貨が判明してから「日経平均/S&P500」の表記を確定させる
 
         const nameEl = document.getElementById('companyName');
@@ -2357,8 +2376,7 @@
 
         const priceEl = document.getElementById('stockPriceDisplay');
         if (priceEl && data.last_price) {
-            const currency = data.currency === 'JPY' ? '¥' : '$';
-            priceEl.textContent = `${currency}${formatNumber(data.last_price)}`;
+            priceEl.textContent = `${currencySymbol(window.currentCurrency)}${formatNumber(data.last_price)}`;
         }
 
         const codeEl = document.getElementById('companyCodeInfo');
@@ -2383,14 +2401,14 @@
         updateMetric('per', data.per, '倍', 'PER', industryForPER);
         updateMetric('pbr', data.pbr, '倍', 'PBR', industryForPER);
         updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', industryForPER);
-        updateMetric('market-cap', data.market_cap, data.currency, '時価総額', industryForPER);
+        updateMetric('market-cap', data.market_cap, window.currentCurrency, '時価総額', industryForPER);
 
         updateFinancialYearTable(data);
         updateBusinessSummary(data);
         updateHoldersAndOfficers(data);
 
         if (data.price_history && data.price_history.length > 0) {
-            window.currentCurrency = data.currency || 'JPY';
+            window.currentCurrency = data.currency || defaultCurrencyForCode(STOCK_CODE);
             initCompareButton();
             // 最新の日足で差し替える。長期(週足/月足)のキャッシュは別粒度なのでそのまま残す
             historyCache.daily = data.price_history;
@@ -2405,8 +2423,8 @@
 
         const chartTitle = document.querySelector('.chart-title');
         if (chartTitle && data.last_price) {
-            const currency = data.currency === 'JPY' ? '¥' : '$';
-            chartTitle.textContent = `株価推移（現在値: ${currency}${formatNumber(data.last_price)}）`;
+            chartTitle.textContent =
+                `株価推移（現在値: ${currencySymbol(window.currentCurrency)}${formatNumber(data.last_price)}）`;
         }
 
         // スコアカード（分析データから算出）
