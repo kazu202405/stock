@@ -2996,6 +2996,47 @@ def api_price_history(company_code):
         return jsonify({"error": "株価履歴を取得できませんでした"}), 500
 
 
+@app.route('/api/market/indices', methods=['GET'])
+def api_market_indices():
+    """マーケットページの一覧カード用。全指数の最新値と前日比を返す。"""
+    try:
+        import market_data as md
+        return jsonify({'items': md.get_summaries()}), 200
+    except Exception as e:
+        print(f'指数一覧の取得エラー: {e}')
+        return jsonify({'error': '指数を取得できませんでした', 'items': []}), 500
+
+
+@app.route('/api/market/index/<key>', methods=['GET'])
+def api_market_index(key):
+    """指数のチャート用データ。range=1m|3m|6m|1y は日足、2y〜5y は週足、10y は月足。
+
+    キー（n225 等）でしか引けないようにしているのは、任意のティッカーを
+    外部から投げ込ませないため。
+    """
+    try:
+        import market_data as md
+        idx = md.INDEX_BY_KEY.get(key)
+        if not idx:
+            return jsonify({'error': '不明な指数です'}), 404
+
+        range_key = (request.args.get('range') or '1y').lower()
+        rows, granularity = md.get_rows(key, range_key)
+        return jsonify({
+            'key': key,
+            'name': idx['name'],
+            'currency': idx['currency'],
+            'prefix': idx['prefix'],
+            'decimals': idx['decimals'],
+            'range': range_key,
+            'granularity': granularity,
+            'rows': rows or [],
+        }), 200
+    except Exception as e:
+        print(f'指数チャートの取得エラー {key}: {e}')
+        return jsonify({'error': '指数を取得できませんでした'}), 500
+
+
 def _fetch_live_price(company_code):
     """yfinanceから現在の株価を取得（内部ヘルパー）。成功時はfloat、失敗時はNoneを返す"""
     try:

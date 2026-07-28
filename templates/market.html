@@ -1,0 +1,690 @@
+{% extends "layout.html" %}
+
+{#
+  マーケット（指数チャート）。
+
+  設計方針:
+    「今日いくら動いたか」を煽るページにしない。企業の決算や株価を読むときの
+    背景として市場全体を見る、という位置づけ。だから
+      - 既定の表示期間は1年（短期の値動きを主役にしない）
+      - 比較タブでは「基準日=100」に揃えて、指数どうしの相対的な強弱を見る
+    の2点を軸にしている。
+#}
+
+{% block title %}マーケット | Company Note{% endblock %}
+
+{% block meta_description %}日経平均・TOPIX・ダウ平均・S&P500・ドル円・ビットコインの長期推移。企業の業績を読むときの背景として市場全体の動きを確認できます。{% endblock %}
+
+{% block content %}
+<style>
+    .mk-wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    /* ページ見出し */
+    .mk-head {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-left: 3px solid #1b4332;
+        border-radius: 12px;
+        padding: 22px 24px;
+        margin-bottom: 20px;
+    }
+    .mk-title {
+        font-family: 'Noto Serif JP', serif;
+        font-size: 26px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 8px;
+    }
+    .mk-lead { font-size: 13px; color: #525252; line-height: 1.8; }
+
+    /* 指数カード一覧 */
+    .mk-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+    .mk-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 14px 16px;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .mk-card:hover { border-color: #d4d4d4; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .mk-card.active {
+        border-color: #1b4332;
+        box-shadow: 0 0 0 1px #1b4332 inset;
+    }
+    .mk-card-region {
+        font-size: 10px;
+        font-weight: 600;
+        color: #a3a3a3;
+        letter-spacing: 0.04em;
+    }
+    .mk-card-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 3px 0 8px;
+    }
+    .mk-card-last {
+        font-size: 20px;
+        font-weight: 700;
+        color: #1a1a1a;
+        letter-spacing: -0.01em;
+        font-variant-numeric: tabular-nums;
+    }
+    .mk-card-change {
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 2px;
+        font-variant-numeric: tabular-nums;
+    }
+    .mk-up   { color: #d64545; }   /* 日本の慣習に合わせ 上昇=赤 / 下落=青 */
+    .mk-down { color: #4a7fb5; }
+    .mk-flat { color: #a3a3a3; }
+    .mk-card-date { font-size: 10px; color: #a3a3a3; margin-top: 6px; }
+
+    /* チャートカード */
+    .mk-panel {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 20px 22px 18px;
+        margin-bottom: 20px;
+    }
+    .mk-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 4px;
+    }
+    .mk-panel-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+    .mk-panel-sub { font-size: 11px; color: #a3a3a3; margin-top: 2px; }
+
+    /* タブ（個別 / 比較） */
+    .mk-tabs { display: inline-flex; gap: 2px; background: #f4f4f2; border-radius: 7px; padding: 3px; }
+    .mk-tab {
+        padding: 5px 14px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #737373;
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+    }
+    .mk-tab:hover { color: #1a1a1a; }
+    .mk-tab.active { background: #fff; color: #1b4332; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+    /* 期間切替 */
+    .mk-periods { display: inline-flex; gap: 2px; background: #f4f4f2; border-radius: 7px; padding: 3px; }
+    .mk-period-btn {
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #737373;
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+    }
+    .mk-period-btn:hover { color: #1a1a1a; }
+    .mk-period-btn.active { background: #fff; color: #1b4332; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+    .mk-chart { width: 100%; height: 420px; margin-top: 14px; }
+    .mk-chart-empty {
+        display: flex; align-items: center; justify-content: center;
+        height: 100%; color: #a3a3a3; font-size: 13px;
+    }
+
+    /* 凡例 */
+    .mk-legend {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+        margin-top: 8px; font-size: 11px; color: #737373;
+    }
+    .mk-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .mk-legend-line { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+
+    /* 比較タブの指数トグル */
+    .mk-toggles { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .mk-toggle {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px;
+        font-size: 12px;
+        color: #737373;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 20px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+    }
+    .mk-toggle:hover { border-color: #d4d4d4; }
+    .mk-toggle.on { color: #1a1a1a; font-weight: 600; border-color: #d4d4d4; background: #fafaf8; }
+    .mk-toggle-dot { width: 8px; height: 8px; border-radius: 50%; background: #d4d4d4; }
+    .mk-toggle.on .mk-toggle-dot { background: var(--dot); }
+
+    /* 説明 */
+    .mk-note {
+        margin-top: 14px;
+        padding: 12px 14px;
+        background: #fafaf8;
+        border-left: 3px solid #ebebeb;
+        border-radius: 0 6px 6px 0;
+        font-size: 12px;
+        color: #525252;
+        line-height: 1.8;
+    }
+    .mk-note strong { color: #1a1a1a; font-weight: 600; }
+    .mk-note-caution { border-left-color: #d4a72c; }
+
+    .mk-guide { font-size: 12px; color: #737373; line-height: 1.9; }
+    .mk-guide li { margin-bottom: 4px; }
+
+    @media (max-width: 640px) {
+        .mk-wrap { padding: 18px 14px 44px; }
+        .mk-title { font-size: 21px; }
+        .mk-chart { height: 320px; }
+        .mk-cards { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+        .mk-card { padding: 11px 12px; }
+        .mk-card-last { font-size: 17px; }
+    }
+</style>
+
+<div class="mk-wrap">
+
+    <div class="mk-head">
+        <h1 class="mk-title">マーケット</h1>
+        <p class="mk-lead">
+            日本・米国の主要な指数と、為替・暗号資産の推移です。<br>
+            相場を予想するためではなく、<strong>企業の業績や株価を読むときの背景</strong>として見る場所です。
+            「この会社の株価が下がったのは、この会社の問題なのか、市場全体が下がっているだけなのか」——
+            それを切り分けるのに使ってください。
+        </p>
+    </div>
+
+    <!-- 指数カード一覧 -->
+    <div class="mk-cards" id="mkCards"></div>
+
+    <!-- チャート -->
+    <div class="mk-panel">
+        <div class="mk-panel-head">
+            <div>
+                <div class="mk-panel-title" id="mkChartTitle">日経平均株価</div>
+                <div class="mk-panel-sub" id="mkChartSub"></div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <div class="mk-tabs">
+                    <button type="button" class="mk-tab active" data-tab="single">個別</button>
+                    <button type="button" class="mk-tab" data-tab="compare">比較</button>
+                </div>
+                <div class="mk-periods" id="mkPeriods"></div>
+            </div>
+        </div>
+
+        <!-- 比較タブの指数選択 -->
+        <div class="mk-toggles" id="mkToggles" style="display:none;"></div>
+
+        <div class="mk-chart" id="mkChart"></div>
+
+        <!-- 個別タブの凡例（移動平均） -->
+        <div class="mk-legend" id="mkLegend">
+            <span class="mk-legend-item"><span class="mk-legend-line" style="background:#7c3aed;"></span><span id="mkMa0">5日</span></span>
+            <span class="mk-legend-item"><span class="mk-legend-line" style="background:#2d6a4f;"></span><span id="mkMa1">25日</span></span>
+            <span class="mk-legend-item"><span class="mk-legend-line" style="background:#ea580c;"></span><span id="mkMa2">75日</span></span>
+            <span class="mk-legend-item" style="margin-left:4px; color:#a3a3a3;">陽線 赤 / 陰線 青</span>
+        </div>
+
+        <div class="mk-note" id="mkDesc"></div>
+        <div class="mk-note mk-note-caution" id="mkCaution" style="display:none;"></div>
+    </div>
+
+    <!-- 読み方 -->
+    <div class="mk-panel">
+        <div class="mk-panel-title" style="margin-bottom:10px;">指数の読み方</div>
+        <ul class="mk-guide" style="list-style:disc; padding-left:18px;">
+            <li><strong>日経平均とTOPIXがずれるとき</strong>は、値がさ株（1株の価格が高い一部の銘柄）だけが動いている可能性があります。市場全体の実感に近いのはTOPIXです。</li>
+            <li><strong>米国が動いた翌日の日本</strong>：日本市場は米国市場の終値を受けて始まります。前日の日経の下げがS&P500の下げと同じ幅なら、それは個別企業の話ではありません。</li>
+            <li><strong>ドル円</strong>は輸出企業の業績に直結します。決算の「増収」が実力なのか円安のおかげなのかは、この推移と重ねて見ると判断しやすくなります。</li>
+            <li><strong>比較タブ</strong>では、表示期間の初日を100として揃えます。値の大きさが違う指数どうしでも、どちらがどれだけ伸びたかを同じ物差しで見られます。</li>
+        </ul>
+    </div>
+
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // サーバ側の定義（market_data.INDEXES）をそのまま受け取る
+    const INDEXES = {{ indexes | tojson }};
+    const INDEX_BY_KEY = {};
+    INDEXES.forEach(i => { INDEX_BY_KEY[i.key] = i; });
+
+    // 比較チャートの線色。指数の並び順に割り当てる
+    const COMPARE_COLORS = ['#1b4332', '#d64545', '#4a7fb5', '#ea580c', '#7c3aed', '#0891b2'];
+
+    const PERIODS = [
+        { key: '1m',  label: '1ヶ月' },
+        { key: '3m',  label: '3ヶ月' },
+        { key: '6m',  label: '6ヶ月' },
+        { key: '1y',  label: '1年' },
+        { key: '2y',  label: '2年' },
+        { key: '5y',  label: '5年' },
+        { key: '10y', label: '10年' },
+    ];
+
+    // 表示期間の絞り込み日数。APIは粒度単位（日足/週足/月足）でしか返さないため、
+    // 1ヶ月・3ヶ月などは受け取った日足をクライアント側で切り出す。
+    const PERIOD_DAYS = { '1m': 31, '3m': 92, '6m': 184, '1y': 366, '2y': 731, '5y': 1827, '10y': 0 };
+
+    // 移動平均の単位表記（粒度で変わる: 5日 / 5週 / 5ヶ月）
+    const MA_UNIT = { daily: '日', weekly: '週', monthly: 'ヶ月' };
+    const MA_CONFIG = [
+        { period: 5,  color: '#7c3aed', width: 1.5 },
+        { period: 25, color: '#2d6a4f', width: 1.5 },
+        { period: 75, color: '#ea580c', width: 1.2 },
+    ];
+
+    let currentTab = 'single';
+    let currentKey = 'n225';
+    let currentPeriod = '1y';
+    let compareKeys = ['n225', 'sp500'];
+
+    let chart = null;
+    let resizeObserver = null;
+
+    // 取得済みデータ。cache[key][range] = {rows, granularity}
+    const cache = {};
+
+    // ---------------------------------------------------------
+    // 汎用
+    // ---------------------------------------------------------
+
+    // price_history の time は取引所ローカル0時のUNIX秒。
+    // そのまま渡すとUTC解釈で1日ずれるので 'YYYY-MM-DD' に正規化する。
+    function toBusinessDay(unixSec) {
+        return new Date((unixSec + 12 * 3600) * 1000).toISOString().slice(0, 10);
+    }
+
+    function formatValue(idx, v) {
+        if (v === null || v === undefined) return '—';
+        const d = idx.decimals || 0;
+        return (idx.prefix || '') + Number(v).toLocaleString('ja-JP', {
+            minimumFractionDigits: d, maximumFractionDigits: d,
+        });
+    }
+
+    function changeClass(v) {
+        if (v === null || v === undefined || v === 0) return 'mk-flat';
+        return v > 0 ? 'mk-up' : 'mk-down';
+    }
+
+    function computeSMA(rows, period) {
+        const out = [];
+        let sum = 0;
+        for (let i = 0; i < rows.length; i++) {
+            sum += rows[i].close;
+            if (i >= period) sum -= rows[i - period].close;
+            if (i >= period - 1) out.push({ time: rows[i].time, value: sum / period });
+        }
+        return out;
+    }
+
+    // 表示期間で切り出す（10年は全件）
+    function sliceByPeriod(rows) {
+        const days = PERIOD_DAYS[currentPeriod];
+        if (!days || rows.length === 0) return rows;
+        const latest = rows[rows.length - 1].time;
+        const cutoff = latest - days * 86400;
+        const sliced = rows.filter(r => r.time >= cutoff);
+        return sliced.length >= 2 ? sliced : rows;
+    }
+
+    async function loadRows(key) {
+        cache[key] = cache[key] || {};
+        if (cache[key][currentPeriod]) return cache[key][currentPeriod];
+        const res = await fetch(`/api/market/index/${key}?range=${currentPeriod}`);
+        const json = await res.json();
+        const data = {
+            rows: (json.rows || []).filter(r => r && r.close !== null && r.close !== undefined),
+            granularity: json.granularity || 'daily',
+        };
+        cache[key][currentPeriod] = data;
+        return data;
+    }
+
+    // ---------------------------------------------------------
+    // 一覧カード
+    // ---------------------------------------------------------
+
+    function renderCards(items) {
+        const wrap = document.getElementById('mkCards');
+        wrap.innerHTML = '';
+        items.forEach(item => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mk-card' + (item.key === currentKey ? ' active' : '');
+            btn.dataset.key = item.key;
+
+            // 符号は通貨記号の外に出す（"¥-47,220" ではなく "-¥47,220" と並べる）
+            const chg = item.change_pct;
+            const hasChange = chg !== null && chg !== undefined;
+            const sign = hasChange && chg < 0 ? '-' : (hasChange && chg > 0 ? '+' : '');
+            const chgText = !hasChange
+                ? '—'
+                : `${sign}${formatValue(item, Math.abs(item.change))} (${sign}${Math.abs(chg).toFixed(2)}%)`;
+
+            btn.innerHTML = `
+                <div class="mk-card-region">${item.region}</div>
+                <div class="mk-card-name">${item.short_name}</div>
+                <div class="mk-card-last">${formatValue(item, item.last)}</div>
+                <div class="mk-card-change ${changeClass(chg)}">${chgText}</div>
+                <div class="mk-card-date">${item.time ? toBusinessDay(item.time) : ''}</div>
+            `;
+            btn.onclick = () => {
+                if (currentTab === 'compare') {
+                    toggleCompare(item.key);
+                } else {
+                    currentKey = item.key;
+                    document.querySelectorAll('.mk-card').forEach(c =>
+                        c.classList.toggle('active', c.dataset.key === currentKey));
+                    render();
+                }
+            };
+            wrap.appendChild(btn);
+        });
+    }
+
+    async function loadCards() {
+        const wrap = document.getElementById('mkCards');
+        wrap.innerHTML = '<div style="grid-column:1/-1; color:#a3a3a3; font-size:12px; padding:8px 0;">読み込み中…</div>';
+        try {
+            const res = await fetch('/api/market/indices');
+            const json = await res.json();
+            const items = json.items || [];
+            if (!items.length) {
+                wrap.innerHTML = '<div style="grid-column:1/-1; color:#a3a3a3; font-size:12px;">指数を取得できませんでした</div>';
+                return;
+            }
+            renderCards(items);
+        } catch (e) {
+            wrap.innerHTML = '<div style="grid-column:1/-1; color:#a3a3a3; font-size:12px;">指数を取得できませんでした</div>';
+        }
+    }
+
+    // ---------------------------------------------------------
+    // チャート
+    // ---------------------------------------------------------
+
+    function destroyChart() {
+        if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
+        if (chart) { chart.remove(); chart = null; }
+        document.getElementById('mkChart').innerHTML = '';
+    }
+
+    function createChart(container, priceFormatter) {
+        return LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#a3a3a3',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                fontSize: 11,
+            },
+            grid: {
+                vertLines: { visible: false },
+                horzLines: { color: 'rgba(0,0,0,0.06)' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Magnet,
+                vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+            },
+            rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.08 } },
+            timeScale: { borderVisible: false, timeVisible: false, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            localization: { locale: 'ja-JP', priceFormatter: priceFormatter },
+        });
+    }
+
+    function observeResize(container) {
+        resizeObserver = new ResizeObserver(entries => {
+            if (!chart || !entries[0]) return;
+            const rect = entries[0].contentRect;
+            chart.applyOptions({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+            // 幅が変わるとローソクの間隔はそのままなので表示範囲がずれ、
+            // 価格軸が「見えている部分」に合わせて縮んでしまう。都度全期間に戻す。
+            chart.timeScale().fitContent();
+        });
+        resizeObserver.observe(container);
+    }
+
+    function showEmpty(message) {
+        document.getElementById('mkChart').innerHTML =
+            `<div class="mk-chart-empty">${message}</div>`;
+    }
+
+    // 個別: ローソク足 + 移動平均
+    async function renderSingle() {
+        const idx = INDEX_BY_KEY[currentKey];
+        const container = document.getElementById('mkChart');
+        destroyChart();
+        container.innerHTML = '<div class="mk-chart-empty">読み込み中…</div>';
+
+        const data = await loadRows(currentKey);
+        container.innerHTML = '';
+
+        // 移動平均は絞り込む「前」の全データで計算する
+        // （絞ってから計算すると1ヶ月表示で75本線が引けなくなる）
+        const all = data.rows;
+        if (!all.length) { showEmpty('データを取得できませんでした'); return; }
+
+        const smaFull = {};
+        MA_CONFIG.forEach(ma => { smaFull[ma.period] = computeSMA(all, ma.period); });
+
+        const shown = sliceByPeriod(all);
+        const cutoff = shown.length ? shown[0].time : -Infinity;
+
+        chart = createChart(container, p => formatValue(idx, Math.round(p * 100) / 100));
+
+        // 移動平均を先に置いてローソクの背面にする
+        MA_CONFIG.forEach(ma => {
+            const series = chart.addLineSeries({
+                color: ma.color, lineWidth: ma.width,
+                priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+            });
+            series.setData(smaFull[ma.period]
+                .filter(p => p.time >= cutoff)
+                .map(p => ({ time: toBusinessDay(p.time), value: p.value })));
+        });
+
+        // 陽線=赤 / 陰線=青（日本のチャートの慣習）
+        const candles = chart.addCandlestickSeries({
+            upColor: '#d64545', borderUpColor: '#d64545', wickUpColor: '#d64545',
+            downColor: '#4a7fb5', borderDownColor: '#4a7fb5', wickDownColor: '#4a7fb5',
+            priceLineVisible: false,
+        });
+        candles.setData(shown
+            .filter(d => d.open != null && d.high != null && d.low != null)
+            .map(d => ({ time: toBusinessDay(d.time), open: d.open, high: d.high, low: d.low, close: d.close })));
+
+        chart.timeScale().fitContent();
+        observeResize(container);
+
+        // 凡例の単位を粒度に合わせる
+        const unit = MA_UNIT[data.granularity] || '日';
+        MA_CONFIG.forEach((ma, i) => {
+            const el = document.getElementById('mkMa' + i);
+            if (el) el.textContent = ma.period + unit;
+        });
+    }
+
+    // 比較: 表示期間の初日を100として重ねる
+    async function renderCompare() {
+        const container = document.getElementById('mkChart');
+        destroyChart();
+        container.innerHTML = '<div class="mk-chart-empty">読み込み中…</div>';
+
+        if (!compareKeys.length) {
+            showEmpty('比較する指数を選んでください');
+            return;
+        }
+
+        const loaded = await Promise.all(compareKeys.map(async k => ({
+            key: k, data: await loadRows(k),
+        })));
+        container.innerHTML = '';
+
+        const usable = loaded.filter(l => l.data.rows.length >= 2);
+        if (!usable.length) { showEmpty('データを取得できませんでした'); return; }
+
+        chart = createChart(container, p => p.toFixed(1));
+
+        usable.forEach(l => {
+            const idx = INDEX_BY_KEY[l.key];
+            const color = COMPARE_COLORS[INDEXES.findIndex(i => i.key === l.key) % COMPARE_COLORS.length];
+            const shown = sliceByPeriod(l.data.rows);
+            const base = shown[0].close;
+            if (!base) return;
+
+            const series = chart.addLineSeries({
+                color: color, lineWidth: 2,
+                priceLineVisible: false, lastValueVisible: true,
+                title: idx.short_name,
+            });
+            series.setData(shown.map(d => ({
+                time: toBusinessDay(d.time), value: d.close / base * 100,
+            })));
+        });
+
+        chart.timeScale().fitContent();
+        observeResize(container);
+    }
+
+    // ---------------------------------------------------------
+    // 画面の組み立て
+    // ---------------------------------------------------------
+
+    function renderToggles() {
+        const wrap = document.getElementById('mkToggles');
+        wrap.innerHTML = '';
+        INDEXES.forEach((idx, i) => {
+            const on = compareKeys.includes(idx.key);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mk-toggle' + (on ? ' on' : '');
+            btn.style.setProperty('--dot', COMPARE_COLORS[i % COMPARE_COLORS.length]);
+            btn.innerHTML = `<span class="mk-toggle-dot"></span>${idx.short_name}`;
+            btn.onclick = () => toggleCompare(idx.key);
+            wrap.appendChild(btn);
+        });
+    }
+
+    function toggleCompare(key) {
+        const at = compareKeys.indexOf(key);
+        if (at >= 0) {
+            compareKeys.splice(at, 1);
+        } else {
+            compareKeys.push(key);
+        }
+        renderToggles();
+        renderCompare();
+    }
+
+    function renderPeriods() {
+        const wrap = document.getElementById('mkPeriods');
+        wrap.innerHTML = '';
+        PERIODS.forEach(p => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mk-period-btn' + (p.key === currentPeriod ? ' active' : '');
+            btn.textContent = p.label;
+            btn.onclick = () => {
+                currentPeriod = p.key;
+                renderPeriods();
+                render();
+            };
+            wrap.appendChild(btn);
+        });
+    }
+
+    function renderHeader() {
+        const title = document.getElementById('mkChartTitle');
+        const sub = document.getElementById('mkChartSub');
+        const desc = document.getElementById('mkDesc');
+        const caution = document.getElementById('mkCaution');
+        const legend = document.getElementById('mkLegend');
+
+        if (currentTab === 'compare') {
+            title.textContent = '指数の比較';
+            sub.textContent = '表示期間の初日を100として揃えています';
+            desc.innerHTML = '値の大きさが違う指数どうしを同じ物差しで比べます。線が上にあるほど、その期間でよく上がったという意味です。';
+            caution.style.display = 'none';
+            legend.style.display = 'none';
+            return;
+        }
+
+        const idx = INDEX_BY_KEY[currentKey];
+        title.textContent = idx.name;
+        sub.textContent = idx.symbol;
+        desc.innerHTML = idx.description;
+        legend.style.display = 'flex';
+        if (idx.note) {
+            caution.innerHTML = '<strong>注意：</strong>' + idx.note;
+            caution.style.display = 'block';
+        } else {
+            caution.style.display = 'none';
+        }
+    }
+
+    function render() {
+        renderHeader();
+        if (currentTab === 'compare') {
+            renderCompare();
+        } else {
+            renderSingle();
+        }
+    }
+
+    function initTabs() {
+        document.querySelectorAll('.mk-tab').forEach(tab => {
+            tab.onclick = () => {
+                currentTab = tab.dataset.tab;
+                document.querySelectorAll('.mk-tab').forEach(t =>
+                    t.classList.toggle('active', t.dataset.tab === currentTab));
+                document.getElementById('mkToggles').style.display =
+                    currentTab === 'compare' ? 'flex' : 'none';
+                document.querySelectorAll('.mk-card').forEach(c =>
+                    c.classList.toggle('active', currentTab === 'single' && c.dataset.key === currentKey));
+                render();
+            };
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initTabs();
+        renderPeriods();
+        renderToggles();
+        loadCards();
+        render();
+    });
+})();
+</script>
+{% endblock %}

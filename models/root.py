@@ -71,6 +71,15 @@ def screener():
     return render_template('screener.html')
 
 
+@app.route('/market')
+def market():
+    """マーケット（日経平均・S&P500などの指数チャート）"""
+    guard = _require_login()
+    if guard: return guard
+    import market_data as md
+    return render_template('market.html', indexes=md.INDEXES)
+
+
 @app.route('/report')
 def report_select():
     """レポートを見る企業を選ぶ入口"""

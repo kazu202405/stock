@@ -231,16 +231,29 @@
                             </a>
                         </div>
                     </div>
+                    <a href="/market" class="nav-link px-2 py-1.5 text-sm font-medium">
+                        マーケット
+                    </a>
                     {% if is_logged_in and user_role == 'admin' %}
-                    <a href="/dashboard/admin" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        銘柄管理
-                    </a>
-                    <a href="/admin/users" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        ユーザー管理
-                    </a>
-                    <a href="/admin/themes" class="nav-link px-2 py-1.5 text-sm font-medium">
-                        テーマ管理
-                    </a>
+                    <!-- 管理: 管理者向けメニューをまとめる（企業情報と同じ形） -->
+                    <div class="nav-dropdown-wrap" x-data="{ open: false }" @click.outside="open = false">
+                        <button type="button" class="nav-link nav-link-btn px-2 py-1.5 text-sm font-medium"
+                                @click="open = !open" :class="{ 'active': open }">
+                            管理
+                            <i class="fas fa-chevron-down" style="font-size:9px; margin-left:4px;"></i>
+                        </button>
+                        <div class="nav-dropdown" x-show="open" x-cloak @click="open = false">
+                            <a href="/dashboard/admin" class="nav-dropdown-item">
+                                <i class="fas fa-cogs"></i>銘柄管理
+                            </a>
+                            <a href="/admin/users" class="nav-dropdown-item">
+                                <i class="fas fa-user-shield"></i>ユーザー管理
+                            </a>
+                            <a href="/admin/themes" class="nav-dropdown-item">
+                                <i class="fas fa-tags"></i>テーマ管理
+                            </a>
+                        </div>
+                    </div>
                     {% endif %}
                     <a href="/mypage" class="nav-link px-2 py-1.5 text-sm font-medium">
                         マイノート
@@ -367,17 +380,23 @@
             <a href="/report" class="slide-menu-link">
                 <i class="fas fa-file-invoice"></i>レポート
             </a>
+            <a href="/market" class="slide-menu-link">
+                <i class="fas fa-chart-line"></i>マーケット
+            </a>
             <a href="/mypage" class="slide-menu-link">
                 <i class="fas fa-file-alt"></i>マイノート
             </a>
             {% if is_logged_in and user_role == 'admin' %}
             <div style="border-top: 1px solid #ebebeb; margin: 8px 0;"></div>
-            <p style="padding: 4px 20px; font-size: 11px; color: #a3a3a3; font-weight: 600;">管理者</p>
+            <p style="padding: 4px 20px; font-size: 11px; color: #a3a3a3; font-weight: 600;">管理</p>
             <a href="/dashboard/admin" class="slide-menu-link">
                 <i class="fas fa-cogs"></i>銘柄管理
             </a>
             <a href="/admin/users" class="slide-menu-link">
                 <i class="fas fa-user-shield"></i>ユーザー管理
+            </a>
+            <a href="/admin/themes" class="slide-menu-link">
+                <i class="fas fa-tags"></i>テーマ管理
             </a>
             {% endif %}
         </div>
