@@ -3037,6 +3037,25 @@ def api_market_index(key):
         return jsonify({'error': '指数を取得できませんでした'}), 500
 
 
+@app.route('/api/market/valuation', methods=['GET'])
+def api_market_valuation():
+    """市場全体のPER・PBRの月次系列。
+
+    指数のPERではなく市場全体の数値（日本=東証プライム / 米国=S&P500）。
+    定義が違うので、出所と注記も一緒に返して画面に必ず出させる。
+    """
+    try:
+        import market_valuation as mval
+        series = mval.get_series()
+        return jsonify({
+            'markets': mval.MARKETS,
+            'series': series,
+        }), 200
+    except Exception as e:
+        print(f'市場バリュエーションの取得エラー: {e}')
+        return jsonify({'error': 'PERを取得できませんでした', 'series': {}}), 500
+
+
 def _fetch_live_price(company_code):
     """yfinanceから現在の株価を取得（内部ヘルパー）。成功時はfloat、失敗時はNoneを返す"""
     try:

@@ -22,6 +22,7 @@ charts/
 *.json
 !package.json
 !static/companies.json
+!static/market_valuation.json
 
 # ログ
 *.log

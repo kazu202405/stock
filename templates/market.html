@@ -193,6 +193,32 @@
     .mk-note strong { color: #1a1a1a; font-weight: 600; }
     .mk-note-caution { border-left-color: #d4a72c; }
 
+    /* バリュエーションの現在値 */
+    .mk-val-now { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+    .mk-val-card {
+        flex: 1 1 160px;
+        border: 1px solid #ebebeb;
+        border-radius: 10px;
+        padding: 12px 14px;
+    }
+    .mk-val-label { font-size: 11px; color: #737373; font-weight: 600; }
+    .mk-val-value {
+        font-size: 22px; font-weight: 700; color: #1a1a1a;
+        letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 3px;
+    }
+    .mk-val-value span { font-size: 12px; font-weight: 500; color: #737373; margin-left: 3px; }
+    .mk-val-meta { font-size: 10px; color: #a3a3a3; margin-top: 4px; }
+    .mk-val-diff {
+        flex: 1 1 260px;
+        display: flex; align-items: center;
+        padding: 12px 14px;
+        background: #fafaf8;
+        border-radius: 10px;
+        font-size: 12px; color: #525252; line-height: 1.7;
+    }
+    /* 「約1.4倍」が行またぎで割れると読めなくなる */
+    .mk-val-diff strong { white-space: nowrap; color: #1a1a1a; }
+
     .mk-guide { font-size: 12px; color: #737373; line-height: 1.9; }
     .mk-guide li { margin-bottom: 4px; }
 
@@ -252,6 +278,32 @@
 
         <div class="mk-note" id="mkDesc"></div>
         <div class="mk-note mk-note-caution" id="mkCaution" style="display:none;"></div>
+    </div>
+
+    <!-- バリュエーション（PER） -->
+    <div class="mk-panel">
+        <div class="mk-panel-head" style="margin-bottom:12px;">
+            <div>
+                <div class="mk-panel-title">日本と米国、どちらが割高か（PER）</div>
+                <div class="mk-panel-sub">市場全体の加重平均PER・月次</div>
+            </div>
+        </div>
+
+        <div class="mk-val-now" id="mkValNow"></div>
+        <div class="mk-chart" id="mkValChart" style="height:300px;"></div>
+        <div class="mk-legend" id="mkValLegend"></div>
+
+        <div class="mk-note">
+            PERは「株価が1株利益の何倍か」。<strong>20倍なら、今の利益が20年続いてやっと元が取れる値段</strong>という意味です。
+            数字が大きいほど、同じ利益に高い値段が付いている＝将来の成長を織り込んでいることになります。
+        </div>
+        <div class="mk-note mk-note-caution">
+            <strong>注意：</strong>これは<strong>日経平均のPERではなく市場全体のPER</strong>です。
+            日経平均のPERは日本経済新聞社が独自に算出しており、機械的な取得ができません。
+            日本は<strong>東証プライム市場・総合の加重平均（連結）／出所 JPX</strong>、
+            2022年3月以前は東証一部。米国は<strong>S&P500の実績PER／出所 multpl.com</strong>。
+            算出者も対象も違うため、水準の差をそのまま優劣として読まないでください。
+        </div>
     </div>
 
     <!-- 読み方 -->
@@ -678,12 +730,134 @@
         });
     }
 
+    // ---------------------------------------------------------
+    // バリュエーション（PER・月次）
+    // ---------------------------------------------------------
+
+    let valChart = null;
+    let valResizeObserver = null;
+
+    function renderValuationNow(markets, series) {
+        const wrap = document.getElementById('mkValNow');
+        const latest = {};
+        Object.keys(series).forEach(k => {
+            const rows = (series[k] || []).filter(r => r.per != null);
+            if (rows.length) latest[k] = rows[rows.length - 1];
+        });
+
+        const cards = Object.keys(markets).map(k => {
+            const m = markets[k];
+            const l = latest[k];
+            if (!l) return '';
+            const pbr = l.pbr != null ? `／PBR ${l.pbr.toFixed(1)}倍` : '';
+            return `<div class="mk-val-card" style="border-left:3px solid ${m.color};">
+                <div class="mk-val-label">${m.name}</div>
+                <div class="mk-val-value">${l.per.toFixed(1)}<span>倍</span></div>
+                <div class="mk-val-meta">${l.month.slice(0, 7).replace('-', '年')}月時点${pbr}</div>
+            </div>`;
+        }).join('');
+
+        // 「同じ利益にいくら払っているか」の差を一言で置く
+        let diff = '';
+        if (latest.jp_prime && latest.sp500) {
+            const ratio = latest.sp500.per / latest.jp_prime.per;
+            // 文章は必ず1つの子要素に入れる。
+            // .mk-val-diff は flex なので、直下にテキストと <strong> を並べると
+            // それぞれが別のflexアイテムになって文が分断される。
+            diff = `<div class="mk-val-diff"><div>` +
+                `同じ1円の利益に対して、米国株には日本株の<strong>約${ratio.toFixed(1)}倍</strong>の値段が付いています。` +
+                `</div></div>`;
+        }
+        wrap.innerHTML = cards + diff;
+    }
+
+    function renderValuationChart(markets, series) {
+        const container = document.getElementById('mkValChart');
+        const legend = document.getElementById('mkValLegend');
+        if (valResizeObserver) { valResizeObserver.disconnect(); valResizeObserver = null; }
+        if (valChart) { valChart.remove(); valChart = null; }
+        container.innerHTML = '';
+
+        const keys = Object.keys(markets).filter(k => (series[k] || []).length);
+        if (!keys.length) {
+            container.innerHTML = '<div class="mk-chart-empty">PERを取得できませんでした</div>';
+            return;
+        }
+
+        // 日本の系列が2020年からなので、比較できる共通期間に揃える
+        const starts = keys.map(k => series[k][0].month);
+        const commonStart = starts.sort()[starts.length - 1];
+
+        valChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#a3a3a3',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                fontSize: 11,
+            },
+            grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Magnet,
+                vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+            },
+            rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.1 } },
+            timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1) + '倍' },
+        });
+
+        keys.forEach(k => {
+            const s = valChart.addLineSeries({
+                color: markets[k].color, lineWidth: 2,
+                priceLineVisible: false, lastValueVisible: true, title: markets[k].short_name,
+            });
+            s.setData(series[k]
+                .filter(r => r.per != null && r.month >= commonStart)
+                .map(r => ({ time: r.month, value: r.per })));
+        });
+
+        valChart.timeScale().fitContent();
+        valResizeObserver = new ResizeObserver(entries => {
+            if (!valChart || !entries[0]) return;
+            const rect = entries[0].contentRect;
+            valChart.applyOptions({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+            valChart.timeScale().fitContent();
+        });
+        valResizeObserver.observe(container);
+
+        legend.innerHTML = keys.map(k =>
+            `<span class="mk-legend-item"><span class="mk-legend-line" style="background:${markets[k].color};"></span>${markets[k].name}</span>`
+        ).join('');
+    }
+
+    async function loadValuation() {
+        const container = document.getElementById('mkValChart');
+        container.innerHTML = '<div class="mk-chart-empty">読み込み中…</div>';
+        try {
+            const res = await fetch('/api/market/valuation');
+            const json = await res.json();
+            const markets = json.markets || {};
+            const series = json.series || {};
+            if (!Object.keys(series).length) {
+                container.innerHTML = '<div class="mk-chart-empty">PERを取得できませんでした</div>';
+                return;
+            }
+            renderValuationNow(markets, series);
+            renderValuationChart(markets, series);
+        } catch (e) {
+            container.innerHTML = '<div class="mk-chart-empty">PERを取得できませんでした</div>';
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         initTabs();
         renderPeriods();
         renderToggles();
         loadCards();
         render();
+        loadValuation();
     });
 })();
 </script>
