@@ -402,6 +402,43 @@
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
     }
 
+    /* 市場平均と比べるトグル */
+    .chart-compare-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 11px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #737373;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 20px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+    }
+    .chart-compare-btn:hover { border-color: #d4d4d4; color: #1a1a1a; }
+    .chart-compare-btn.on {
+        color: #1b4332;
+        font-weight: 600;
+        border-color: #1b4332;
+        background: #f4f8f6;
+    }
+
+    /* 比較したときの結果を一言で置く */
+    .chart-compare-summary {
+        margin-top: 8px;
+        padding: 9px 12px;
+        background: #fafaf8;
+        border-left: 3px solid #1b4332;
+        border-radius: 0 6px 6px 0;
+        font-size: 12px;
+        color: #525252;
+        line-height: 1.7;
+    }
+    .chart-compare-summary strong { color: #1a1a1a; font-weight: 600; white-space: nowrap; }
+
     /* チャート凡例（移動平均・ローソクの色の説明） */
     .chart-legend {
         display: flex;
@@ -878,21 +915,28 @@
         <div class="chart-card">
             <div class="chart-header">
                 <div class="chart-title">株価推移</div>
-                <!-- 期間ボタンは PERIOD_CONFIG から生成する -->
-                <div class="chart-period-switch" id="chartPeriodSwitch"></div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="chart-compare-btn" id="chartCompareBtn">
+                        <i class="fas fa-code-compare" style="font-size:9px;"></i><span id="chartCompareLabel">市場平均と比べる</span>
+                    </button>
+                    <!-- 期間ボタンは PERIOD_CONFIG から生成する -->
+                    <div class="chart-period-switch" id="chartPeriodSwitch"></div>
+                </div>
             </div>
-            <div class="chart-legend">
+            <div class="chart-legend" id="chartLegendMa">
                 <span class="chart-legend-item"><i style="background:#7c3aed;"></i><span id="maLabel0">5日</span></span>
                 <span class="chart-legend-item"><i style="background:#2d6a4f;"></i><span id="maLabel1">25日</span></span>
                 <span class="chart-legend-item"><i style="background:#ea580c;"></i><span id="maLabel2">75日</span></span>
                 <span class="chart-legend-item" style="margin-left:auto;"><i style="background:#d64545;"></i>陽線</span>
                 <span class="chart-legend-item"><i style="background:#4a7fb5;"></i>陰線</span>
             </div>
+            <div class="chart-legend" id="chartLegendCompare" style="display:none;"></div>
             <div class="chart-placeholder" id="tradingview-chart-container" style="margin-top: 10px; position: relative;">
                 <div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;">
                     チャートデータを読み込み中...
                 </div>
             </div>
+            <div class="chart-compare-summary" id="chartCompareSummary" style="display:none;"></div>
         </div>
     </div>
 
@@ -1157,6 +1201,21 @@
         { key: '10y', label: '10年',  days: 0,    granularity: 'monthly' },
     ];
 
+    // --- 市場平均との比較 ---
+    // 「株価が下がったのはこの会社の問題か、市場全体が下がっているだけか」を
+    // 切り分けるための表示。株価と指数は桁が違うので、表示期間の初日を100に
+    // 揃えた相対表示に切り替える（2軸で重ねると水準の比較を誤らせるため）。
+    let compareMode = false;
+    const compareCache = { daily: null, weekly: null, monthly: null };
+    const COMPARE_STOCK_COLOR = '#1b4332';
+    const COMPARE_INDEX_COLOR = '#a3a3a3';   // 指数は基準線なので控えめに
+
+    function compareIndex() {
+        return (window.currentCurrency || 'JPY') === 'USD'
+            ? { key: 'sp500', label: 'S&P500' }
+            : { key: 'n225', label: '日経平均' };
+    }
+
     // 移動平均は「本数」で計算するため、粒度に応じて単位表記を変える
     const MA_UNIT = { daily: '日', weekly: '週', monthly: 'ヶ月' };
 
@@ -1310,6 +1369,181 @@
         priceResizeObserver.observe(container);
     }
 
+    // 市場平均との相対チャート（表示期間の初日=100）
+    function showComparisonChart() {
+        const container = document.getElementById('tradingview-chart-container');
+        const summary = document.getElementById('chartCompareSummary');
+        if (!container) return;
+
+        if (priceResizeObserver) { priceResizeObserver.disconnect(); priceResizeObserver = null; }
+        if (priceChart) { priceChart.remove(); priceChart = null; priceSeries = null; }
+        container.innerHTML = '';
+
+        const gran = (PERIOD_CONFIG.find(p => p.key === currentPeriodKey) || {}).granularity || 'daily';
+        const idx = compareIndex();
+        const indexRows = compareCache[gran] || [];
+
+        if (fullPriceHistory.length === 0 || indexRows.length === 0) {
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">${idx.label}のデータを取得できませんでした</div>`;
+            summary.style.display = 'none';
+            return;
+        }
+
+        // 表示期間で絞る（ローソク表示と同じ考え方）
+        let cutoff = -Infinity;
+        if (chartPeriodDays > 0) {
+            const latest = fullPriceHistory[fullPriceHistory.length - 1].time;
+            const candidate = latest - chartPeriodDays * 86400;
+            if (fullPriceHistory.filter(d => d.time >= candidate).length >= 2) cutoff = candidate;
+        }
+
+        let stock = fullPriceHistory.filter(d => d.time >= cutoff && d.close != null);
+        let index = indexRows.filter(d => d.time >= cutoff && d.close != null);
+        if (stock.length < 2 || index.length < 2) {
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">比較できるデータがありません</div>`;
+            summary.style.display = 'none';
+            return;
+        }
+
+        // 上場が新しい銘柄など、開始日がずれる場合は遅い方に揃える。
+        // 揃えないと片方だけ先に動いて、伸び率の比較が成立しない。
+        const start = Math.max(stock[0].time, index[0].time);
+        stock = stock.filter(d => d.time >= start);
+        index = index.filter(d => d.time >= start);
+        if (stock.length < 2 || index.length < 2) {
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">比較できるデータがありません</div>`;
+            summary.style.display = 'none';
+            return;
+        }
+
+        const stockBase = stock[0].close;
+        const indexBase = index[0].close;
+
+        priceChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: measureChartHeight(container),
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#a3a3a3',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                fontSize: 11,
+            },
+            grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Magnet,
+                vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+            },
+            rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.08 } },
+            timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1) },
+        });
+
+        // 指数を先に引いて背面に置く（基準線なので銘柄の線を隠さない）
+        const indexSeries = priceChart.addLineSeries({
+            color: COMPARE_INDEX_COLOR, lineWidth: 2,
+            priceLineVisible: false, lastValueVisible: true, title: idx.label,
+        });
+        indexSeries.setData(index.map(d => ({
+            time: toBusinessDay(d.time), value: d.close / indexBase * 100,
+        })));
+
+        const stockSeries = priceChart.addLineSeries({
+            color: COMPARE_STOCK_COLOR, lineWidth: 2,
+            priceLineVisible: false, lastValueVisible: true, title: 'この銘柄',
+        });
+        stockSeries.setData(stock.map(d => ({
+            time: toBusinessDay(d.time), value: d.close / stockBase * 100,
+        })));
+
+        priceChart.timeScale().fitContent();
+
+        priceResizeObserver = new ResizeObserver(entries => {
+            if (!priceChart || !entries[0]) return;
+            const rect = entries[0].contentRect;
+            priceChart.applyOptions({
+                width: Math.floor(rect.width),
+                height: Math.max(CHART_MIN_HEIGHT, Math.floor(rect.height)),
+            });
+        });
+        priceResizeObserver.observe(container);
+
+        // 結果を一言で置く
+        const stockPct = (stock[stock.length - 1].close / stockBase - 1) * 100;
+        const indexPct = (index[index.length - 1].close / indexBase - 1) * 100;
+        const gap = stockPct - indexPct;
+        const label = (PERIOD_CONFIG.find(p => p.key === currentPeriodKey) || {}).label || '';
+        const sign = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+        const verdict = Math.abs(gap) < 0.05
+            ? `${idx.label}とほぼ同じ動きです。`
+            : (gap > 0
+                ? `${idx.label}より <strong>${Math.abs(gap).toFixed(1)}pt 強い</strong>動きです。`
+                : `${idx.label}より <strong>${Math.abs(gap).toFixed(1)}pt 弱い</strong>動きです。`);
+        summary.innerHTML =
+            `この${label}で、この銘柄は <strong>${sign(stockPct)}%</strong>、` +
+            `${idx.label}は <strong>${sign(indexPct)}%</strong>。${verdict}`;
+        summary.style.display = 'block';
+
+        // 凡例を比較用に差し替える
+        document.getElementById('chartLegendMa').style.display = 'none';
+        const legend = document.getElementById('chartLegendCompare');
+        legend.innerHTML =
+            `<span class="chart-legend-item"><i style="background:${COMPARE_STOCK_COLOR};"></i>この銘柄</span>` +
+            `<span class="chart-legend-item"><i style="background:${COMPARE_INDEX_COLOR};"></i>${idx.label}</span>` +
+            `<span class="chart-legend-item" style="margin-left:auto; color:#a3a3a3;">表示期間の初日を100として比較</span>`;
+        legend.style.display = 'flex';
+    }
+
+    // 比較用の指数データを取得する（粒度ごとにキャッシュ）
+    async function fetchCompareIndex() {
+        const conf = PERIOD_CONFIG.find(p => p.key === currentPeriodKey);
+        const gran = (conf || {}).granularity || 'daily';
+        if (compareCache[gran]) return compareCache[gran];
+        try {
+            const res = await fetch(`/api/market/index/${compareIndex().key}?range=${encodeURIComponent(currentPeriodKey)}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            compareCache[gran] = data.rows || [];
+            return compareCache[gran];
+        } catch (e) {
+            console.error('指数の取得エラー:', e);
+            return null;
+        }
+    }
+
+    // ローソク表示に戻す
+    function restoreCandleView() {
+        document.getElementById('chartCompareSummary').style.display = 'none';
+        document.getElementById('chartLegendCompare').style.display = 'none';
+        document.getElementById('chartLegendMa').style.display = 'flex';
+        showPriceChart(null);
+    }
+
+    async function toggleCompare() {
+        const btn = document.getElementById('chartCompareBtn');
+        compareMode = !compareMode;
+        btn.classList.toggle('on', compareMode);
+
+        if (!compareMode) {
+            restoreCandleView();
+            return;
+        }
+
+        const container = document.getElementById('tradingview-chart-container');
+        container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;"><span class="demo-loading-spinner-sm" style="margin-right:8px;"></span>${compareIndex().label}を取得中...</div>`;
+        await fetchCompareIndex();
+        showComparisonChart();
+    }
+
+    // 比較ボタンの初期化。米国株ならS&P500と比べる
+    function initCompareButton() {
+        const btn = document.getElementById('chartCompareBtn');
+        const label = document.getElementById('chartCompareLabel');
+        if (!btn || !label) return;
+        label.textContent = compareIndex().label + 'と比べる';
+        btn.onclick = toggleCompare;
+    }
+
     // 期間ボタンを生成する
     function buildPeriodButtons() {
         const wrap = document.getElementById('chartPeriodSwitch');
@@ -1363,6 +1597,14 @@
         }
 
         updateMaLegend(conf.granularity);
+
+        if (compareMode) {
+            // 比較中は指数側も同じ粒度に揃える
+            fullPriceHistory = historyCache[conf.granularity].filter(d => d && d.close != null);
+            await fetchCompareIndex();
+            showComparisonChart();
+            return;
+        }
         showPriceChart(historyCache[conf.granularity]);
     }
 
@@ -2107,6 +2349,7 @@
     // フル分析結果の表示
     function displayFullAnalysis(data) {
         window.currentCurrency = data.currency || 'JPY';
+        initCompareButton();   // 通貨が判明してから「日経平均/S&P500」の表記を確定させる
 
         const nameEl = document.getElementById('companyName');
         if (nameEl) nameEl.textContent = data.name_jp || data.name || data.symbol;
@@ -2148,6 +2391,7 @@
 
         if (data.price_history && data.price_history.length > 0) {
             window.currentCurrency = data.currency || 'JPY';
+            initCompareButton();
             // 最新の日足で差し替える。長期(週足/月足)のキャッシュは別粒度なのでそのまま残す
             historyCache.daily = data.price_history;
             currentPeriodKey = '1y';
@@ -2288,6 +2532,7 @@
 
         // チャートの期間ボタンを生成
         buildPeriodButtons();
+        initCompareButton();
 
         // まずキャッシュデータを表示
         try {

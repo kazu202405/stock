@@ -287,11 +287,13 @@
                 <div class="mk-panel-title">日本と米国、どちらが割高か（PER）</div>
                 <div class="mk-panel-sub">市場全体の加重平均PER・月次</div>
             </div>
+            <div class="mk-periods" id="mkValPeriods"></div>
         </div>
 
         <div class="mk-val-now" id="mkValNow"></div>
         <div class="mk-chart" id="mkValChart" style="height:300px;"></div>
         <div class="mk-legend" id="mkValLegend"></div>
+        <div class="mk-note" id="mkValLongNote" style="display:none;"></div>
 
         <div class="mk-note">
             PERは「株価が1株利益の何倍か」。<strong>20倍なら、今の利益が20年続いてやっと元が取れる値段</strong>という意味です。
@@ -736,6 +738,16 @@
 
     let valChart = null;
     let valResizeObserver = null;
+    let valData = null;          // {markets, series}
+    let valPeriod = '10y';
+
+    // 日本のPERは2020年1月分からしか公開されていない（JPXの月次Excelがそこから）。
+    // 米国は1990年まで遡れるので、長期を選ぶと日本の線が途中から始まる。
+    const VAL_PERIODS = [
+        { key: '5y',  label: '5年',  years: 5 },
+        { key: '10y', label: '10年', years: 10 },
+        { key: 'all', label: '30年+', years: 0 },
+    ];
 
     function renderValuationNow(markets, series) {
         const wrap = document.getElementById('mkValNow');
@@ -784,9 +796,23 @@
             return;
         }
 
-        // 日本の系列が2020年からなので、比較できる共通期間に揃える
-        const starts = keys.map(k => series[k][0].month);
-        const commonStart = starts.sort()[starts.length - 1];
+        // 表示開始月を決める。
+        // 短い期間では日本の系列に合わせて揃え、長期では米国だけ先に始まる形にする
+        // （日本は2020年より前が公開されていないので、線が途中から始まるのが正しい）。
+        const conf = VAL_PERIODS.find(p => p.key === valPeriod) || VAL_PERIODS[1];
+        let start;
+        if (conf.years) {
+            const latest = keys.map(k => series[k][series[k].length - 1].month).sort().pop();
+            const d = new Date(latest);
+            d.setFullYear(d.getFullYear() - conf.years);
+            start = d.toISOString().slice(0, 10);
+            // 日本の開始月より手前を指定しても、日本側は自然に途中から始まる
+            const jpStart = (series.jp_prime || [])[0];
+            if (jpStart && conf.years <= 10 && start < jpStart.month) start = jpStart.month;
+        } else {
+            start = keys.map(k => series[k][0].month).sort()[0];
+        }
+        const commonStart = start;
 
         valChart = LightweightCharts.createChart(container, {
             width: container.clientWidth,
@@ -803,7 +829,14 @@
                 vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
                 horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
             },
-            rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.1 } },
+            rightPriceScale: {
+                borderVisible: false,
+                scaleMargins: { top: 0.15, bottom: 0.1 },
+                // 長期では2009年の120倍超（利益がほぼ消えた局面）が突出し、
+                // 普段の20〜30倍の動きが1本の線に潰れる。対数軸にして両方読めるようにする。
+                mode: conf.years ? LightweightCharts.PriceScaleMode.Normal
+                                 : LightweightCharts.PriceScaleMode.Logarithmic,
+            },
             timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
             localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1) + '倍' },
         });
@@ -827,9 +860,44 @@
         });
         valResizeObserver.observe(container);
 
+        // 長期表示のときだけ、突出した山の意味を添える。
+        // 説明が無いと「2009年に米国株が異常に高かった」と読み違える。
+        const longNote = document.getElementById('mkValLongNote');
+        if (!conf.years) {
+            longNote.innerHTML =
+                '2009年に米国のPERが120倍を超えているのは、<strong>株価が上がったからではなく、金融危機で企業の利益がほぼ消えたため</strong>です。' +
+                'PERは分母が利益なので、利益が落ちるほど跳ね上がります。<strong>PERが高い＝割高、とは限らない</strong>ことがよく分かる場面です。' +
+                '（縦軸は対数目盛にしています）';
+            longNote.style.display = 'block';
+        } else {
+            longNote.style.display = 'none';
+        }
+
         legend.innerHTML = keys.map(k =>
             `<span class="mk-legend-item"><span class="mk-legend-line" style="background:${markets[k].color};"></span>${markets[k].name}</span>`
-        ).join('');
+        ).join('') + (
+            // 線が途中から始まる理由を、その場で説明しないと欠測に見える
+            (series.jp_prime || []).length && commonStart < series.jp_prime[0].month
+                ? `<span class="mk-legend-item" style="margin-left:auto; color:#a3a3a3;">日本は2020年1月から（それ以前は公開されていません）</span>`
+                : ''
+        );
+    }
+
+    function renderValPeriods() {
+        const wrap = document.getElementById('mkValPeriods');
+        wrap.innerHTML = '';
+        VAL_PERIODS.forEach(p => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mk-period-btn' + (p.key === valPeriod ? ' active' : '');
+            btn.textContent = p.label;
+            btn.onclick = () => {
+                valPeriod = p.key;
+                renderValPeriods();
+                if (valData) renderValuationChart(valData.markets, valData.series);
+            };
+            wrap.appendChild(btn);
+        });
     }
 
     async function loadValuation() {
@@ -844,7 +912,9 @@
                 container.innerHTML = '<div class="mk-chart-empty">PERを取得できませんでした</div>';
                 return;
             }
+            valData = { markets, series };
             renderValuationNow(markets, series);
+            renderValPeriods();
             renderValuationChart(markets, series);
         } catch (e) {
             container.innerHTML = '<div class="mk-chart-empty">PERを取得できませんでした</div>';
