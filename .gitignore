@@ -46,3 +46,16 @@ charts/
 nul
 tmpclaude-*
 .claude/
+.agents/
+
+# 作業メモ（リポジトリに残さない）
+# ※ base.md / prompt.md / suku.md / yomu.md は仕様の正本なので追跡したまま。
+#    *.md でまとめて除外しないこと
+x.md
+y.md
+z.md
+
+# 素材・配布物（GitHubに上げない）
+# 利用規約PDFや動画など、公開したくない資料がリポジトリ直下に置かれることがある
+*.pdf
+*.mp4
