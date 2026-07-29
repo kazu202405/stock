@@ -677,7 +677,7 @@
                 お気に入り
             </button>
             <button class="watchlist-tab active" onclick="switchTab('watchlist')" id="tab-watchlist">
-                条件合致企業
+                好調企業
             </button>
             <button class="watchlist-tab" onclick="switchTab('dividend')" id="tab-dividend">
                 高配当企業
@@ -695,7 +695,7 @@
             {% endif %}
         </div>
 
-        <!-- タブ1: 条件合致企業（既存ウォッチリスト） -->
+        <!-- タブ1: 好調企業（既存ウォッチリスト） -->
         <div class="tab-content active" id="tabContent-watchlist">
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
@@ -744,7 +744,7 @@
                 <div class="action-buttons">
                     {% if is_admin %}
                     <button class="gc-fetch-btn" onclick="openDividendRegisterModal()">高配当企業登録</button>
-                    <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">条件合致企業登録</button>
+                    <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">好調企業登録</button>
                     <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
                     {% if is_admin %}
@@ -1034,7 +1034,7 @@
     <div class="modal-overlay" id="bulkRegisterModal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>条件合致企業登録</h3>
+                <h3>好調企業登録</h3>
                 <button class="modal-close" onclick="closeBulkRegisterModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -1114,13 +1114,13 @@
 
                 if (diff > 0) {
                     titleEl.textContent = '四季報' + s.name + '発売まであと' + Math.ceil(diff) + '日（' + dateStr + '）';
-                    bodyEl.textContent = '条件合致企業の銘柄データを更新してください。新しい四季報データの反映をお忘れなく。';
+                    bodyEl.textContent = '好調企業の銘柄データを更新してください。新しい四季報データの反映をお忘れなく。';
                 } else if (diff === 0) {
                     titleEl.textContent = '本日 四季報' + s.name + '発売日です（' + dateStr + '）';
-                    bodyEl.textContent = '条件合致企業の銘柄データを更新してください。';
+                    bodyEl.textContent = '好調企業の銘柄データを更新してください。';
                 } else {
                     titleEl.textContent = '四季報' + s.name + 'が発売されました（' + dateStr + '）';
-                    bodyEl.textContent = '条件合致企業の銘柄データの更新はお済みですか？';
+                    bodyEl.textContent = '好調企業の銘柄データの更新はお済みですか？';
                 }
                 el.style.display = '';
                 break;
@@ -1765,7 +1765,7 @@
     }
 
     // ========================================
-    // 条件合致企業登録機能（一括登録）
+    // 好調企業登録機能（一括登録）
     // ========================================
 
     function openBulkRegisterModal() {
@@ -3109,7 +3109,7 @@
                 `1回の実行では古い順に${limit}件まで処理します（約${mins}分）。
 
 ` +
-                `※ 決算があった銘柄だけを更新したい場合は、条件合致企業タブの
+                `※ 決算があった銘柄だけを更新したい場合は、好調企業タブの
 ` +
                 `　「決算銘柄を更新」のほうが速く済みます。
 
