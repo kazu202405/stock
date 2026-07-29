@@ -143,9 +143,25 @@
     /* サマリーカード */
     .content-grid {
         display: grid;
-        grid-template-columns: 1fr 300px 2fr;
+        grid-template-columns: 1fr 300px minmax(0, 2fr);
         gap: 20px;
         margin-bottom: 20px;
+    }
+
+    /* グリッド／フレックスの子は既定が min-width:auto で、
+       「中身より小さくなれない」。チャートのcanvasは一度描いた幅を持つため、
+       ウィンドウを狭めてもカードが縮めず、横にはみ出す／折り返してスコアの右に
+       大きな空白ができる、という崩れ方をしていた。子に min-width:0 を許可する。 */
+    .content-grid > * {
+        min-width: 0;
+    }
+    .chart-card, .chart-card .chart-header, .chart-card .chart-placeholder {
+        min-width: 0;
+    }
+    /* canvasは幅を持って伸びっぱなしになりやすいので、親を超えさせない */
+    .chart-card canvas {
+        display: block;
+        max-width: 100%;
     }
 
     .summary-card, .score-card, .detail-card {
