@@ -4,7 +4,7 @@ import base64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import uuid
 from functools import wraps
-from flask import jsonify, request, session
+from flask import jsonify, request, session, redirect
 from config import *
 # from models.login import *  # ログイン機能無効化
 from models.common import *
@@ -53,6 +53,40 @@ def add_no_cache_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
+
+
+# =============================================
+# 正式ドメインへの集約
+#
+# 独自ドメインに移したあと、旧URL（*.onrender.com）に来た人と検索エンジンを
+# 新ドメインへ301で送る。301は「恒久的な移転」の意味なので、検索側の評価も
+# 引き継がれる。放置して両方のURLで同じ中身が見える状態にすると、評価が
+# 二手に分かれるうえ重複コンテンツとして扱われる。
+#
+# CANONICAL_HOST が未設定のときは何もしない。DNSが通る前に有効化すると
+# 存在しないドメインへ飛ばして全滅するため、切り替えは環境変数で行う。
+# =============================================
+
+CANONICAL_HOST = (os.getenv('CANONICAL_HOST') or '').strip().lower()
+
+
+@app.before_request
+def redirect_to_canonical_host():
+    if not CANONICAL_HOST:
+        return None
+
+    host = (request.host or '').lower()
+    if host == CANONICAL_HOST or host.startswith('127.0.0.1') or host.startswith('localhost'):
+        return None
+
+    # 死活監視はリダイレクトさせない。外部cronが旧URLを叩いている場合に、
+    # 監視が落ちたと誤検知されるのを避ける
+    if request.path.startswith('/health'):
+        return None
+
+    # full_path はクエリが無くても末尾に '?' を付けるので、有無で使い分ける
+    path = request.full_path if request.query_string else request.path
+    return redirect(f'https://{CANONICAL_HOST}{path}', code=301)
 
 
 # =============================================
