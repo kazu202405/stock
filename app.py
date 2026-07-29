@@ -2199,6 +2199,21 @@ def _update_daily_and_recalc_background():
         ma_cross_status.update({"running": True, "done": 0, "total": 0, "saved": 0,
                                 "stop_requested": False, "error": None})
         _recalc_ma_crosses_background()
+
+        # かぶたんとのすり合わせ。
+        # 日付の一致は求めない（かぶたんの日付は発生日ではなく取得日）。
+        # 「かぶたんは検知しているのに自前が古いまま」＝日足が壊れている銘柄を洗い出す。
+        try:
+            import ma_cross as _mc
+            agreement = _mc.compare_with_signals()
+            daily_update_status["agreement"] = agreement
+            print(f"[すり合わせ] 比較{agreement['compared']}件 / "
+                  f"かぶたんが検知済みで自前が古い: {agreement['stale_count']}件")
+            for s in agreement["samples"]:
+                print(f"   {s['company_code']} {s['kind']} かぶたん{s['kabutan']} / 自前{s['mine']}")
+        except Exception as e:
+            print(f'すり合わせエラー: {e}')
+
         daily_update_status["phase"] = "完了"
 
     except Exception as e:
@@ -2980,8 +2995,17 @@ def api_price_history(company_code):
         range_key = (request.args.get('range') or '1y').lower()
         granularity = ph.granularity_for_range(range_key)
 
+        crosses = None
         if granularity == 'daily':
             rows = ph.get_daily(code)
+            # 日足はここで最新化されるので、同じデータからGC/DCも計算し直す。
+            # これをやらないと、チャートには出ているクロスがトレンド表示に
+            # 反映されない（一括再計算を手で押すまでズレ続ける）。
+            try:
+                import ma_cross
+                crosses = ma_cross.calculate_for_code(code)
+            except Exception as e:
+                print(f'GC/DCの再計算エラー {code}: {e}')
         else:
             rows = ph.get_long_term(code, granularity)
 
@@ -2990,6 +3014,8 @@ def api_price_history(company_code):
             'range': range_key,
             'granularity': granularity,
             'rows': rows or [],
+            'gc_date': (crosses or {}).get('latest_gc_date'),
+            'dc_date': (crosses or {}).get('latest_dc_date'),
         }), 200
     except Exception as e:
         print(f"株価履歴の取得エラー {company_code}: {e}")
@@ -3618,6 +3644,30 @@ def scheduled_update_stock_prices():
         print(f"[Scheduler] 株価バッチ更新エラー: {e}")
 
 
+def scheduled_update_daily_and_crosses():
+    """定期実行: 全銘柄の日足を更新し、続けてGC/DCを再計算する。
+
+    これが無いと、日足だけが銘柄ページを開いたときに更新され（price_history側の
+    自動取得）、GC/DCは手で再計算するまで古いまま残る。結果、チャートには出ている
+    クロスがトレンド表示に出ない、という食い違いが起きる。
+
+    引け後の値が確定してから走らせたいので深夜に回す。
+    """
+    global daily_update_status
+    from datetime import datetime
+
+    if daily_update_status["running"] or ma_cross_status["running"]:
+        print("[Scheduler] 日足更新: すでに実行中のためスキップ")
+        return
+
+    print(f"[Scheduler] 日足更新＋GC/DC再計算 開始: {datetime.now()}")
+    daily_update_status = {"running": True, "phase": "準備中", "done": 0, "total": 0,
+                           "saved": 0, "stop_requested": False, "finished_at": None, "error": None}
+    _update_daily_and_recalc_background()
+    print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: {daily_update_status.get('phase')} "
+          f"/ 保存{daily_update_status.get('saved')}件")
+
+
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
@@ -3628,6 +3678,8 @@ scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id=
 # 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='earnings_detect_afternoon')
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
+# 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
+scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 
 # スケジューラは1プロセスでのみ起動させる。
 # ENABLE_SCHEDULER=false にすると起動しない（将来worker側へcronを分離する際に、
@@ -3635,7 +3687,8 @@ scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='ear
 ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'true').lower() not in ('false', '0', 'no')
 if ENABLE_SCHEDULER:
     scheduler.start()
-    print("[Scheduler] スケジューラ起動（GC/DC: 9:15/17:15, 株価更新: 9:25/11:45/15:20, 決算検知: 15:30/21:00 JST）")
+    print("[Scheduler] スケジューラ起動（GC/DC取得: 9:15/17:15, 株価更新: 9:25/11:45/15:20, "
+          "決算検知: 15:30/21:00, 日足＋GC/DC再計算: 3:30 JST）")
     # アプリ終了時にスケジューラも停止
     atexit.register(lambda: scheduler.shutdown(wait=False))
 else:

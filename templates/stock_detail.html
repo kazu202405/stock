@@ -1628,6 +1628,11 @@
             const res = await fetch(`/api/stock/price-history/${STOCK_CODE}?range=${encodeURIComponent(rangeKey)}`);
             if (!res.ok) return null;
             const data = await res.json();
+            // 日足と同時にGC/DCも計算し直されて返る。チャートとトレンド表示が
+            // 別々のデータを見てズレるのを防ぐため、こちらでバッジを更新する
+            if (data.gc_date || data.dc_date) {
+                updateTrendBadge(data.gc_date, data.dc_date);
+            }
             return data.rows || [];
         } catch (e) {
             console.error('株価履歴の取得エラー:', e);

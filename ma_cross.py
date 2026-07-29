@@ -89,6 +89,123 @@ def detect_crosses(rows, short_window=SHORT_WINDOW, long_window=LONG_WINDOW):
     }
 
 
+def calculate_for_code(company_code, short_window=SHORT_WINDOW, long_window=LONG_WINDOW):
+    """1銘柄だけ、保存済みの日足から交差を計算して保存する。
+
+    銘柄ページを開いたときに呼ぶ。日足は閲覧時に自動で取り直される
+    （price_history.get_daily）のに対し、GC/DCは一括再計算でしか更新されないため、
+    放っておくとチャートには出ているクロスがトレンド表示に反映されない。
+
+    ネットワークには触らない（DBの日足を読むだけ）。
+    Returns: {'latest_gc_date', 'latest_dc_date', 'changed'} / 日足が無ければ None
+    """
+    from supabase_client import get_supabase_client
+    client = get_supabase_client()
+
+    res = (client.table('stock_price_history')
+           .select('daily_1y')
+           .eq('company_code', company_code)
+           .execute())
+    if not res.data:
+        return None
+
+    daily = res.data[0].get('daily_1y')
+    if isinstance(daily, str):
+        import json
+        try:
+            daily = json.loads(daily)
+        except Exception:
+            daily = None
+    if not daily:
+        return None
+
+    result = detect_crosses(daily, short_window, long_window)
+
+    stored = (client.table('ma_crosses')
+              .select('latest_gc_date, latest_dc_date')
+              .eq('company_code', company_code)
+              .execute())
+    prev = stored.data[0] if stored.data else {}
+    changed = (str(prev.get('latest_gc_date') or '')[:10] != (result['latest_gc_date'] or '') or
+               str(prev.get('latest_dc_date') or '')[:10] != (result['latest_dc_date'] or ''))
+
+    # 変わっていなければ書かない（ページを開くたびに2テーブル更新するのは無駄）
+    if changed:
+        now = datetime.now(timezone.utc).isoformat()
+        payload = {
+            'company_code': company_code,
+            'latest_gc_date': result['latest_gc_date'],
+            'latest_dc_date': result['latest_dc_date'],
+            'cross_count': result['cross_count'],
+            'crosses': result['crosses'],
+            'short_window': short_window,
+            'long_window': long_window,
+            'calculated_at': now,
+        }
+        try:
+            client.table('ma_crosses').upsert(payload).execute()
+            sync_gc_to_screened(client, [payload])
+        except Exception as e:
+            print(f'GC/DCの保存エラー ({company_code}): {e}')
+
+    return {
+        'latest_gc_date': result['latest_gc_date'],
+        'latest_dc_date': result['latest_dc_date'],
+        'changed': changed,
+    }
+
+
+def compare_with_signals(client=None, recent_days=10, limit_samples=10):
+    """かぶたん(signal_stocks)と自前計算(ma_crosses)を突き合わせる。
+
+    ⚠️ 日付の一致は見ない。かぶたんの日付は「一覧に載っているのを取得した日」で
+    あって発生日ではないため、金曜に発生したクロスが月曜の日付で入る。
+    発生日の正本はあくまで自前計算（日足から算出）。
+
+    ここで見たいのは「かぶたんが最近クロスを検知しているのに、自前側が古いまま」
+    という取りこぼし。これは日足の更新が止まっているサインになる。
+    """
+    from datetime import date, timedelta
+    if client is None:
+        from supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+    cutoff = (date.today() - timedelta(days=recent_days)).isoformat()
+
+    def _fetch_all(table, cols):
+        out, page = [], 0
+        while page < 10:
+            res = client.table(table).select(cols).range(page * 1000, page * 1000 + 999).execute()
+            chunk = res.data or []
+            out.extend(chunk)
+            if len(chunk) < 1000:
+                break
+            page += 1
+        return out
+
+    signals = {r['company_code']: r for r in _fetch_all('signal_stocks', 'company_code, gc_date, dc_date')}
+    mine = {r['company_code']: r for r in _fetch_all('ma_crosses', 'company_code, latest_gc_date, latest_dc_date')}
+
+    stale = []
+    for code, s in signals.items():
+        m = mine.get(code)
+        if not m:
+            continue
+        for sig_key, my_key in (('gc_date', 'latest_gc_date'), ('dc_date', 'latest_dc_date')):
+            sig_date = str(s.get(sig_key) or '')[:10]
+            my_date = str(m.get(my_key) or '')[:10]
+            if sig_date and sig_date >= cutoff and my_date < sig_date:
+                stale.append({'company_code': code, 'kind': sig_key[:2],
+                              'kabutan': sig_date, 'mine': my_date or None})
+                break
+
+    return {
+        'compared': len(set(signals) & set(mine)),
+        'stale_count': len(stale),
+        'samples': stale[:limit_samples],
+    }
+
+
 def calculate_for_all(progress=None, should_stop=None,
                       short_window=SHORT_WINDOW, long_window=LONG_WINDOW):
     """保存済みの日足から全銘柄の交差を計算し ma_crosses に保存する。
