@@ -2135,11 +2135,15 @@
             }
         }
 
+        // 筆頭株主は日本語データ(strainer.jp由来)だけを出す。
+        // 以前はこれが無いとき institutional_holders(yfinance)に落としていたが、
+        // 中身が英語のまま画面に出ていた（"Pacer Advisors, Inc." など）。
+        // 機関投資家名は固有名詞なので訳すと不正確になるし、日本の個別株を
+        // 見るうえで米国の運用会社の保有比率は情報として噛み合わない。
+        // 出せないときは黙って出さない方が正しい。
         const topHolders = [];
         if (data.major_shareholders_jp && data.major_shareholders_jp.length > 0) {
             topHolders.push(...data.major_shareholders_jp.slice(0, 5).map(h => ({ name: h.name || 'N/A', percentage: h.ratio ? h.ratio.toFixed(2) : 'N/A' })));
-        } else if (data.institutional_holders && data.institutional_holders.length > 0) {
-            topHolders.push(...data.institutional_holders.slice(0, 5).map(h => ({ name: h.Holder || 'N/A', percentage: h['% Out'] ? (h['% Out'] * 100).toFixed(2) : 'N/A' })));
         }
 
         if (topHolders.length > 0) {
@@ -2352,16 +2356,18 @@
         if (cashNew && data.cash) cashNew.textContent = formatAmount(data.cash * 1e8, 'JPY');
 
         // 株主・役員（キャッシュ）
-        let holders = null, institutional = null, officers = null, shareholdersJp = null;
+        // institutional_holders(yfinance・英語)はもう画面に出さないので読まない。
+        // 判定にも入れない——入れると「英語データしか無い銘柄」で
+        // 中身が空のセクションだけが出てしまう。
+        let holders = null, officers = null, shareholdersJp = null;
         try {
             if (data.major_holders) holders = typeof data.major_holders === 'string' ? JSON.parse(data.major_holders) : data.major_holders;
-            if (data.institutional_holders) institutional = typeof data.institutional_holders === 'string' ? JSON.parse(data.institutional_holders) : data.institutional_holders;
             if (data.company_officers) officers = typeof data.company_officers === 'string' ? JSON.parse(data.company_officers) : data.company_officers;
             if (data.major_shareholders_jp) shareholdersJp = typeof data.major_shareholders_jp === 'string' ? JSON.parse(data.major_shareholders_jp) : data.major_shareholders_jp;
         } catch (e) { console.error('株主データパースエラー:', e); }
 
-        if (holders || institutional || shareholdersJp) {
-            updateMajorHolders({ major_holders: holders || [], institutional_holders: institutional || [], major_shareholders_jp: shareholdersJp || [] });
+        if (holders || shareholdersJp) {
+            updateMajorHolders({ major_holders: holders || [], major_shareholders_jp: shareholdersJp || [] });
         } else {
             document.getElementById('major-holders-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
         }
