@@ -320,7 +320,7 @@
         user-select: none;
         pointer-events: none;
     }
-    /* 値だけぼかす（合致度スコア）。
+    /* 値だけぼかす（スコア）。
        何を評価しているかの項目名は読める状態にして、結果だけ隠す */
     .members-only-values .score-value,
     .members-only-values .score-item-status {
@@ -821,12 +821,12 @@
             </div>
         </div>
 
-        <!-- 中央: 合致度スコア -->
+        <!-- 中央: スコア -->
         <div class="score-card">
-            <div class="score-header">合致度</div>
+            <div class="score-header">スコア</div>
             {% if not is_logged_in %}
             {#
-              非会員には合致度の中身を一切描画しない。
+              非会員にはスコアの中身を一切描画しない。
               項目名・閾値（自己資本比率≥30% 等）を出すと、無料表示の基本指標と
               突き合わせて登録なしで判定を再現できてしまう。判定の作り方そのものが
               価値なので、スコア・12項目・閾値はすべてサーバー側で出さない。
@@ -841,7 +841,7 @@
                     財務の健全性・成長性・割安さを横断した判定です。
                 </p>
             </div>
-            <div class="members-cta"><div class="members-cta-text">合致度スコアと12項目の判定を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>
+            <div class="members-cta"><div class="members-cta-text">スコアと12項目の判定を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>
         </div>
         {% else %}
             <div class="score-main">
@@ -899,7 +899,7 @@
                     <span class="score-item-status" id="score-pbr">--</span>
                 </div>
             </div>
-            <p style="font-size:10px; color:#a3a3a3; margin-top:12px; line-height:1.5;">※ 合致度は財務指標の参考値であり、投資判断を推奨するものではありません。</p>
+            <p style="font-size:10px; color:#a3a3a3; margin-top:12px; line-height:1.5;">※ スコアは財務指標の参考値であり、投資判断を推奨するものではありません。</p>
             <div style="text-align: right; margin-top: 6px;">
                 <a href="/learning" target="_blank"
                    style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #16a34a; text-decoration: none; padding: 3px 8px; background: #f0fdf4; border-radius: 10px; transition: all 0.2s;"
@@ -2117,11 +2117,11 @@
     }
 
     function updateScoreCard(data) {
-        // 非会員は合致度セクションをサーバー側で描画していない（要素が無い）。
+        // 非会員はスコアセクションをサーバー側で描画していない（要素が無い）。
         // 判定の入力値もAPIから返らないので、ここは丸ごとスキップする。
         if (!document.getElementById('score-details')) return;
 
-        // 各項目の合否を判定しながら合致度をJS側で再計算
+        // 各項目の合否を判定しながらスコアをJS側で再計算
         let calcScore = 0;
 
         const marketCap = data.market_cap;

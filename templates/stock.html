@@ -406,7 +406,7 @@
     .metric-warning { color: var(--warning-color); }
     .metric-danger { color: var(--danger-color); }
 
-    /* 合致度の色分け */
+    /* スコアの色分け */
     .match-rate-high { color: var(--success-color); font-weight: 600; }
     .match-rate-medium { color: var(--warning-color); font-weight: 600; }
     .match-rate-low { color: var(--danger-color); font-weight: 600; }
@@ -701,7 +701,7 @@
                 <span class="watchlist-title"></span>
             </div>
             <div class="match-rate-description">
-                「合致度」は、自己資本比率・営業利益率・ROE等の財務指標が、一般的な投資基準にどの程度合致しているかを示す参考値です。投資判断を推奨するものではありません。
+                「スコア」は、自己資本比率・営業利益率・ROE等の財務指標が、一般的な投資基準にどの程度合致しているかを示す参考値です。投資判断を推奨するものではありません。
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="filterBar">
@@ -710,7 +710,7 @@
                         <input type="text" id="filterKeyword" placeholder="コード・会社名" autocomplete="off">
                     </div>
                     <div class="filter-item">
-                        <label>合致度</label>
+                        <label>スコア</label>
                         <input type="number" id="filterMatchMin" placeholder="以上" step="1">
                         <span class="filter-sep">〜</span>
                         <input type="number" id="filterMatchMax" placeholder="以下" step="1">
@@ -757,7 +757,7 @@
                     {% endif %}
                     <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
-                    <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">合致度再計算</button>
+                    <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">スコア再計算</button>
                 </div>
             </div>
             <div id="watchlistContent">
@@ -780,7 +780,7 @@
                         <input type="text" id="favFilterKeyword" placeholder="コード・会社名" autocomplete="off">
                     </div>
                     <div class="filter-item">
-                        <label>合致度</label>
+                        <label>スコア</label>
                         <input type="number" id="favFilterMatchMin" placeholder="以上" step="1">
                         <span class="filter-sep">〜</span>
                         <input type="number" id="favFilterMatchMax" placeholder="以下" step="1">
@@ -832,7 +832,7 @@
                         <input type="text" id="divFilterKeyword" placeholder="コード・会社名" autocomplete="off">
                     </div>
                     <div class="filter-item">
-                        <label>合致度</label>
+                        <label>スコア</label>
                         <input type="number" id="divFilterMatchMin" placeholder="以上" step="1">
                         <span class="filter-sep">〜</span>
                         <input type="number" id="divFilterMatchMax" placeholder="以下" step="1">
@@ -944,7 +944,7 @@
                         <input type="text" id="techFilterKeyword" placeholder="コード・会社名" autocomplete="off">
                     </div>
                     <div class="filter-item">
-                        <label>合致度</label>
+                        <label>スコア</label>
                         <input type="number" id="techFilterMatchMin" placeholder="以上" step="1">
                         <span class="filter-sep">〜</span>
                         <input type="number" id="techFilterMatchMax" placeholder="以下" step="1">
@@ -1416,7 +1416,7 @@
                     <tr>
                         <th class="sortable" onclick="sortWatchlist('company_code')">コード${sortIcon('company_code')}</th>
                         <th class="sortable" onclick="sortWatchlist('company_name')">会社名${sortIcon('company_name')}</th>
-                        <th class="sortable" onclick="sortWatchlist('match_rate')">合致度${sortIcon('match_rate')}</th>
+                        <th class="sortable" onclick="sortWatchlist('match_rate')">スコア${sortIcon('match_rate')}</th>
                         <th>セクター</th>
                         <th class="sortable" onclick="sortWatchlist('market_cap')">時価総額${sortIcon('market_cap')}</th>
                         <th class="sortable" onclick="sortWatchlist('stock_price')">株価${sortIcon('stock_price')}</th>
@@ -1524,7 +1524,7 @@
         return 'metric-danger';
     }
 
-    // 合致度の色分けクラスを取得
+    // スコアの色分けクラスを取得
     function getMatchRateClass(value) {
         if (value === null || value === undefined) return '';
         if (value >= 58) return 'match-rate-high';
@@ -1634,7 +1634,7 @@
         }
 
         btn.disabled = false;
-        btn.textContent = '合致度再計算';
+        btn.textContent = 'スコア再計算';
     }
 
     function finishWlAnalyzeUI() {
@@ -1981,7 +1981,7 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th class="sortable" onclick="sortFavColumn('match_rate')">合致度${favSortIcon('match_rate')}</th>
+                        <th class="sortable" onclick="sortFavColumn('match_rate')">スコア${favSortIcon('match_rate')}</th>
                         <th>セクター</th>
                         <th class="sortable" onclick="sortFavColumn('market_cap')">時価総額${favSortIcon('market_cap')}</th>
                         <th class="sortable" onclick="sortFavColumn('stock_price')">株価${favSortIcon('stock_price')}</th>
@@ -2181,7 +2181,7 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th class="sortable" onclick="sortDivColumn('match_rate')">合致度${divSortIcon('match_rate')}</th>
+                        <th class="sortable" onclick="sortDivColumn('match_rate')">スコア${divSortIcon('match_rate')}</th>
                         <th>セクター</th>
                         <th class="sortable" onclick="sortDivColumn('market_cap')">時価総額${divSortIcon('market_cap')}</th>
                         <th class="sortable" onclick="sortDivColumn('stock_price')">株価${divSortIcon('stock_price')}</th>
@@ -2417,7 +2417,7 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th>合致度</th>
+                        <th>スコア</th>
                         <th>セクター</th>
                         <th>時価総額</th>
                         <th>株価</th>
@@ -2863,7 +2863,7 @@
                     <tr>
                         <th>コード</th>
                         <th>会社名</th>
-                        <th class="sortable" onclick="sortTechColumn('match_rate')">合致度${techSortIcon('match_rate')}</th>
+                        <th class="sortable" onclick="sortTechColumn('match_rate')">スコア${techSortIcon('match_rate')}</th>
                         <th>セクター</th>
                         <th class="sortable" onclick="sortTechColumn('market_cap')">時価総額${techSortIcon('market_cap')}</th>
                         <th class="sortable" onclick="sortTechColumn('stock_price')">株価${techSortIcon('stock_price')}</th>

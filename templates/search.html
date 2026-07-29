@@ -265,7 +265,7 @@
         margin-top: 2px;
     }
 
-    /* 合致度カード */
+    /* スコアカード */
     .score-card {
         background: white;
         border: 1px solid var(--border-color);
@@ -1261,9 +1261,9 @@
                 </div>
             </div>
 
-            <!-- 中央: 合致度スコア -->
+            <!-- 中央: スコア -->
             <div class="score-card">
-                <div class="score-header">合致度</div>
+                <div class="score-header">スコア</div>
                 <div class="score-main">
                     <div class="score-value" id="score-value">--</div>
                     <div class="score-label">/ 100</div>
@@ -1845,7 +1845,7 @@
                                     </template>
                                 </tr>
                                 <tr>
-                                    <td>合致度（%）</td>
+                                    <td>スコア（%）</td>
                                     <template x-for="(co, ci) in companies" :key="'match-'+ci">
                                         <td
                                             :class="cellClass('match_rate', ci, 'higher')"
@@ -2196,7 +2196,7 @@
             chartTitle.textContent = `株価推移（現在値: ${currency}${formatNumber(data.last_price)}）`;
         }
 
-        // 合致度スコアカードを更新（抽出データをSupabase形式に変換）
+        // スコアカードを更新（抽出データをSupabase形式に変換）
         const scoreData = convertToScoreFormat(data);
         updateScoreCard(scoreData);
     }
@@ -2963,7 +2963,7 @@
         summaryContent.innerHTML = html;
     }
 
-    // 合致度スコアカードを更新
+    // スコアカードを更新
     function updateScoreCard(data) {
         const scoreValue = document.getElementById('score-value');
         const matchRate = data.match_rate;
@@ -3439,7 +3439,7 @@ function compareApp() {
             // 13指標の定義: key, ラベル, 正規化の方向
             // higher=値が大きいほど良い, lower=値が小さいほど良い, neutral=大小の優劣なし
             var metrics = [
-                { key: 'match_rate',       label: '合致度',     dir: 'higher' },
+                { key: 'match_rate',       label: 'スコア',     dir: 'higher' },
                 { key: 'market_cap',       label: '時価総額',   dir: 'neutral' },
                 { key: 'stock_price',      label: '株価',       dir: 'neutral' },
                 { key: 'per_forward',      label: 'PER',        dir: 'lower' },

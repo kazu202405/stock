@@ -130,7 +130,7 @@
                     </select>
                 </div>
                 <div class="scr-field">
-                    <label>合致度 下限</label>
+                    <label>スコア 下限</label>
                     <input type="number" x-model.number="filters.match_rate_min" @change="search(1)" placeholder="例: 70" min="0" max="100">
                 </div>
                 <div class="scr-field">
@@ -304,7 +304,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="scr-th scr-th-sortable sortable" data-sort="company">企業名 <i class="fas fa-sort"></i></th>
-                            <th class="scr-th scr-th-sortable sortable" data-sort="match_rate">合致度 <i class="fas fa-sort"></i></th>
+                            <th class="scr-th scr-th-sortable sortable" data-sort="match_rate">スコア <i class="fas fa-sort"></i></th>
                             <th class="scr-th">セクター</th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="market_cap">時価総額 <i class="fas fa-sort"></i></th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="stock_price">株価 <i class="fas fa-sort"></i></th>
@@ -587,7 +587,7 @@
 
             // 並べ替え可能な列（APIのホワイトリストと対応）
             columns: [
-                { key: 'match_rate',       label: '合致度' },
+                { key: 'match_rate',       label: 'スコア' },
                 { key: 'sector',           label: '業種', noSort: true },
                 { key: 'gc_date',          label: 'GC' },
                 { key: 'market_cap',       label: '時価総額' },

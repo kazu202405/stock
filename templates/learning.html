@@ -277,7 +277,7 @@
         color: #a3a3a3;
     }
 
-    /* 合致度バー */
+    /* スコアバー */
     .match-bar-bg {
         width: 60px;
         height: 6px;
@@ -604,7 +604,7 @@
                                                 <span class="sort-arrow" x-show="sortKey === 'operating_margin'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
                                             </th>
                                             <th @click="sortBy('match_rate')" :class="{ 'sorted': sortKey === 'match_rate' }">
-                                                合致度
+                                                スコア
                                                 <span class="sort-arrow" x-show="sortKey === 'match_rate'" x-text="sortDir === 'asc' ? '\u25B2' : '\u25BC'"></span>
                                             </th>
                                         </tr>

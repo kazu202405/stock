@@ -1476,7 +1476,7 @@ def api_recalculate_match_rates():
 
         return jsonify({
             "success": True,
-            "message": f"{len(watchlist)}件中 {updated}件の合致度を更新しました"
+            "message": f"{len(watchlist)}件中 {updated}件のスコアを更新しました"
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
