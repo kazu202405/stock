@@ -194,25 +194,14 @@
         margin-bottom: 16px;
     }
 
-    .trend-badge {
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 2px 10px;
-        border-radius: 12px;
+    /* 移動平均のクロス日。事実だけを淡く置く。
+       「上昇トレンド」のような方向づけはしない（解釈になるため） */
+    .cross-info {
+        font-size: 0.7rem;
+        color: #a3a3a3;
         white-space: nowrap;
     }
-
-    .trend-badge.up {
-        color: #dc2626;
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-    }
-
-    .trend-badge.down {
-        color: #2563eb;
-        background: #eff6ff;
-        border: 1px solid #bfdbfe;
-    }
+    .cross-info b { font-weight: 600; color: #737373; }
 
     .key-metrics {
         display: grid;
@@ -784,7 +773,7 @@
             <div class="stock-price-display" id="stockPriceDisplay">---</div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="company-code" id="companyCodeInfo">---</div>
-                <span id="trendBadge" style="display: none;"></span>
+                <span id="crossInfo" class="cross-info" style="display: none;"></span>
             </div>
 
             <div class="key-metrics">
@@ -1631,7 +1620,7 @@
             // 日足と同時にGC/DCも計算し直されて返る。チャートとトレンド表示が
             // 別々のデータを見てズレるのを防ぐため、こちらでバッジを更新する
             if (data.gc_date || data.dc_date) {
-                updateTrendBadge(data.gc_date, data.dc_date);
+                updateCrossInfo(data.gc_date, data.dc_date);
             }
             return data.rows || [];
         } catch (e) {
@@ -1648,22 +1637,28 @@
     }
 
     // トレンド方向バッジ更新
-    function updateTrendBadge(gcDate, dcDate) {
-        const badge = document.getElementById('trendBadge');
-        if (!badge) return;
-        if (!gcDate && !dcDate) { badge.style.display = 'none'; return; }
-        let label, cls;
-        if (gcDate && !dcDate) { label = '↗ 上昇トレンド'; cls = 'up'; }
-        else if (!gcDate && dcDate) { label = '↘ 下降トレンド'; cls = 'down'; }
-        else {
-            const gc = new Date(gcDate), dc = new Date(dcDate);
-            if (gc > dc) { label = '↗ 上昇トレンド'; cls = 'up'; }
-            else if (dc > gc) { label = '↘ 下降トレンド'; cls = 'down'; }
-            else { badge.style.display = 'none'; return; }
-        }
-        badge.textContent = label;
-        badge.className = `trend-badge ${cls}`;
-        badge.style.display = 'inline-block';
+    // 直近のゴールデンクロス／デッドクロスの発生日を並べる。
+    // ここから「上昇トレンド」等を導かないのは、5日/25日線が相場の揉み合いで
+    // 何度も交差し（半年で中央値6回反転）、トレンドと呼べる安定性が無いため。
+    // 事実（いつ交差したか）だけ出して、判断はチャートを見た人に委ねる。
+    function updateCrossInfo(gcDate, dcDate) {
+        const el = document.getElementById('crossInfo');
+        if (!el) return;
+        if (!gcDate && !dcDate) { el.style.display = 'none'; return; }
+
+        const fmt = (d) => {
+            if (!d) return null;
+            const dt = new Date(d);
+            return isNaN(dt) ? null : `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+        };
+        const parts = [];
+        if (fmt(gcDate)) parts.push(`GC <b>${fmt(gcDate)}</b>`);
+        if (fmt(dcDate)) parts.push(`DC <b>${fmt(dcDate)}</b>`);
+        if (!parts.length) { el.style.display = 'none'; return; }
+
+        el.innerHTML = parts.join(' ／ ');
+        el.title = '5日移動平均と25日移動平均が直近で交差した日';
+        el.style.display = 'inline-block';
     }
 
     function toNumberSafe(v) {
@@ -2273,7 +2268,7 @@
         if (codeEl) codeEl.textContent = `銘柄コード: ${data.company_code || STOCK_CODE} | 業種: ${data.sector || '---'}`;
 
         // トレンド方向バッジ
-        updateTrendBadge(data.gc_date, data.dc_date);
+        updateCrossInfo(data.gc_date, data.dc_date);
 
         // 指標更新（業種情報を渡して評価テキスト生成）
         const cachedSector = data.sector || '';
@@ -2397,7 +2392,7 @@
         }
 
         // トレンド方向バッジ
-        updateTrendBadge(data.gc_date, data.dc_date);
+        updateCrossInfo(data.gc_date, data.dc_date);
 
         const equityRatio = data.equity_ratio_pct ?? data.equity_ratio ?? (Array.isArray(data.equity_ratio_list) && data.equity_ratio_list.length > 0 ? [...data.equity_ratio_list].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.value : null);
         const industryForPER = data.industry_jp || data.industry || '';

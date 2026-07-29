@@ -974,11 +974,11 @@
                         <input type="number" id="techFilterDivMax" placeholder="以下" step="0.1">
                     </div>
                     <div class="filter-item">
-                        <label>方向</label>
+                        <label>直近のクロス</label>
                         <select id="techFilterTrend" style="padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
                             <option value="">すべて</option>
-                            <option value="gc">GC（上昇）</option>
-                            <option value="dc">DC（下降）</option>
+                            <option value="gc">GCが新しい</option>
+                            <option value="dc">DCが新しい</option>
                         </select>
                     </div>
                     <button class="filter-reset-btn" onclick="resetTechFilters()">リセット</button>
@@ -1426,7 +1426,6 @@
                         <th class="sortable" onclick="sortWatchlist('payout_ratio')">配当性向${sortIcon('payout_ratio')}</th>
                         <th>GC</th>
                         <th>DC</th>
-                        <th>方向</th>
                         ${IS_ADMIN ? '<th>操作</th>' : ''}
                     </tr>
                 </thead>
@@ -1447,7 +1446,7 @@
             const matchRateClass = getMatchRateClass(item.match_rate);
             const gcDate = formatScrapedDate(item.gc_date);
             const dcDate = formatScrapedDate(item.dc_date);
-            const trend = getTrendDirection(item.gc_date, item.dc_date);
+            const trend = getLatestCross(item.gc_date, item.dc_date);
 
             html += `
                 <tr class="clickable-row ${trend.cls ? 'row-' + trend.cls : ''}" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">
@@ -1463,7 +1462,6 @@
                     <td>${payoutRatio}</td>
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
-                    <td class="${trend.cls}">${trend.label}</td>
                     ${IS_ADMIN ? `<td><button class="delete-btn" onclick="event.stopPropagation(); removeFromWatchlist('${code}')">削除</button></td>` : ''}
                 </tr>
             `;
@@ -2425,7 +2423,6 @@
                         <th>PBR</th>
                         <th>配当利回り</th>
                         <th>GC形成日</th>
-                        <th>方向</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -2449,7 +2446,7 @@
             const pbr = item.pbr !== null && item.pbr !== undefined ? `${Number(item.pbr).toFixed(2)}倍` : '---';
             const divYield = item.dividend_yield !== null && item.dividend_yield !== undefined ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const gcDate = formatScrapedDate(item.gc_date);
-            const trend = getTrendDirection(item.gc_date, item.dc_date);
+            const trend = getLatestCross(item.gc_date, item.dc_date);
 
             html += `
                 <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
@@ -2463,7 +2460,6 @@
                     <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
                     <td>${divYield}</td>
                     <td>${gcDate}</td>
-                    <td class="${trend.cls}">${trend.label}</td>
                 </tr>
             `;
         });
@@ -2587,16 +2583,20 @@
         return `${y}/${m}/${day}`;
     }
 
-    // トレンド方向判定（GC/DC日付比較）
-    function getTrendDirection(gcDate, dcDate) {
-        if (!gcDate && !dcDate) return { label: '---', cls: '' };
-        if (gcDate && !dcDate) return { label: '↗', cls: 'trend-up' };
-        if (!gcDate && dcDate) return { label: '↘', cls: 'trend-down' };
+    // 直近のクロスがGCとDCのどちらかを返す。
+    // 「上昇トレンド／下降トレンド」という言い切りはしない。クロスは事実だが、
+    // そこから先の方向づけは解釈であり、5日/25日線は相場が揉むと何度も交差する
+    // （半年で中央値6回反転）ため、トレンドと呼べるだけの安定性が無い。
+    // 行の色分けだけ残して、どちらのクロスが新しいかを見やすくしている。
+    function getLatestCross(gcDate, dcDate) {
+        if (!gcDate && !dcDate) return { type: null, cls: '' };
+        if (gcDate && !dcDate) return { type: 'gc', cls: 'trend-up' };
+        if (!gcDate && dcDate) return { type: 'dc', cls: 'trend-down' };
         const gc = new Date(gcDate);
         const dc = new Date(dcDate);
-        if (gc > dc) return { label: '↗', cls: 'trend-up' };
-        if (dc > gc) return { label: '↘', cls: 'trend-down' };
-        return { label: '---', cls: '' };
+        if (gc > dc) return { type: 'gc', cls: 'trend-up' };
+        if (dc > gc) return { type: 'dc', cls: 'trend-down' };
+        return { type: null, cls: '' };
     }
 
     // ========================================
@@ -2679,7 +2679,6 @@
                         <th>PER</th>
                         <th>PBR</th>
                         <th>DC形成日</th>
-                        <th>方向</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -2700,7 +2699,7 @@
             const per = item.per !== null && item.per !== undefined ? `${Number(item.per).toFixed(1)}倍` : '---';
             const pbr = item.pbr !== null && item.pbr !== undefined ? `${Number(item.pbr).toFixed(2)}倍` : '---';
             const formedDate = formatScrapedDate(item.dc_date);
-            const trend = getTrendDirection(item.gc_date, item.dc_date);
+            const trend = getLatestCross(item.gc_date, item.dc_date);
 
             html += `
                 <tr class="${trend.cls ? 'row-' + trend.cls : ''}">
@@ -2711,7 +2710,6 @@
                     <td>${per}</td>
                     <td>${pbr}</td>
                     <td>${formedDate}</td>
-                    <td class="${trend.cls}">${trend.label}</td>
                 </tr>
             `;
         });
@@ -2790,16 +2788,8 @@
         if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
         if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
 
-        if (trendFilter === 'gc') {
-            list = list.filter(i => {
-                const t = getTrendDirection(i.gc_date, i.dc_date);
-                return t.cls === 'gc-trend';
-            });
-        } else if (trendFilter === 'dc') {
-            list = list.filter(i => {
-                const t = getTrendDirection(i.gc_date, i.dc_date);
-                return t.cls === 'dc-trend';
-            });
+        if (trendFilter === 'gc' || trendFilter === 'dc') {
+            list = list.filter(i => getLatestCross(i.gc_date, i.dc_date).type === trendFilter);
         }
 
         // ソート
@@ -2872,7 +2862,6 @@
                         <th class="sortable" onclick="sortTechColumn('dividend_yield')">配当利回り${techSortIcon('dividend_yield')}</th>
                         <th class="sortable" onclick="sortTechColumn('gc_date')">GC発生日${techSortIcon('gc_date')}</th>
                         <th class="sortable" onclick="sortTechColumn('dc_date')">DC発生日${techSortIcon('dc_date')}</th>
-                        <th>方向</th>
                         <th>取得</th>
                     </tr>
                 </thead>
@@ -2899,7 +2888,7 @@
             const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const gcDate = formatScrapedDate(item.gc_date);
             const dcDate = formatScrapedDate(item.dc_date);
-            const trend = getTrendDirection(item.gc_date, item.dc_date);
+            const trend = getLatestCross(item.gc_date, item.dc_date);
 
             html += `
                 <tr id="tech-row-${code}" class="${trend.cls ? 'row-' + trend.cls : ''}">
@@ -2914,7 +2903,6 @@
                     <td>${divYield}</td>
                     <td>${gcDate}${daysAgo(item.gc_date)}</td>
                     <td>${dcDate}${daysAgo(item.dc_date)}</td>
-                    <td class="${trend.cls}">${trend.label}</td>
                     <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>
                 </tr>
             `;
