@@ -304,11 +304,19 @@ def stock_detail(code):
     except Exception as e:
         print(f'テーマの取得エラー {normalized}: {e}')
 
+    # ETF・REIT等は検索やスクリーナーからは辿れないが、URLを直接叩けば開ける。
+    # 何も言わずに空のページを見せると「壊れている」と受け取られるので、
+    # 事業会社ではないこと（＝このアプリの見方が当てはまらないこと）を明示する。
+    from security_filter import EXCLUDED_CODES, is_non_operating_name
+    is_fund = (normalized in EXCLUDED_CODES
+               or is_non_operating_name(company.get('company_name')))
+
     return render_template(
         'stock_detail.html',
         stock_code=code,
         company=company,
         tags=tags,
+        is_fund=is_fund,
         is_logged_in=bool(session.get('user_id')),
     )
 

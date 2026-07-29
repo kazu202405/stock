@@ -744,6 +744,23 @@
 </style>
 
 <div class="detail-page-container">
+    {# ETF・REIT等はこのアプリの見方（事業・経営・財務を読む）が当てはまらない。
+       検索やスクリーナーからは辿れないが、URLを直接開くことはできるので、
+       黙って空のページを見せず「そもそも会社ではない」と先に伝える。 #}
+    {% if is_fund %}
+    <div style="margin-bottom:16px; padding:12px 16px; background:#fffaf0; border:1px solid #f0d9a8; border-left:3px solid #d99a2b; border-radius:8px;">
+        <div style="font-size:0.9rem; font-weight:600; color:#7a5c14; margin-bottom:4px;">
+            <i class="fas fa-info-circle" style="margin-right:6px;"></i>これは会社ではなく、ETF・REIT などの上場ファンドです
+        </div>
+        <div style="font-size:0.82rem; color:#6b5a35; line-height:1.7;">
+            指数や不動産などにまとめて投資する商品で、事業や経営者がありません。
+            そのため <strong>Company Note のスコア（会社を見る12項目）は当てはまらず</strong>、
+            財務の項目もほとんど表示されません。
+            会社を見る練習には、事業を持つ企業のページをご覧ください。
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ヘッダー -->
     <div class="detail-page-header">
         <div style="display: flex; align-items: center; gap: 16px;">
