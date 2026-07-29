@@ -477,6 +477,18 @@
         opacity: 0.85;
     }
 
+    /* 一括取得の進捗バー。
+       ボタンが押せないだけでは「動いているのか固まったのか」が分からないので、
+       進み具合を必ず目に見える形で出す。ボタンの直後に1本だけ挿す。 */
+    .analyze-progress {
+        height: 3px; background: #e5e5e5; border-radius: 2px;
+        margin-top: 6px; overflow: hidden;
+    }
+    .analyze-progress > span {
+        display: block; height: 100%; width: 0;
+        background: #1b4332; transition: width .3s ease;
+    }
+
     .gc-fetch-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
@@ -1552,6 +1564,51 @@
     // ウォッチリスト一括分析機能
     // ========================================
 
+    // ========================================
+    // 一括取得の「進行中」表示（4つのボタンで共通）
+    // ========================================
+    // 以前はボタンを disabled にするだけで、最初のポーリング(2〜3秒後)まで
+    // 見た目が何も変わらなかった。押した直後こそ「効いたのか」が不安なので、
+    // ①押した瞬間にラベルを変える ②スピナーを回す ③進捗バーを出す の3点で見せる。
+
+    function setAnalyzeProgress(btnId, done, total) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        let bar = document.getElementById(btnId + '-progress');
+        if (done === null || total === null || !total) {
+            if (bar) bar.remove();
+            return;
+        }
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = btnId + '-progress';
+            bar.className = 'analyze-progress';
+            bar.innerHTML = '<span></span>';
+            btn.insertAdjacentElement('afterend', bar);
+        }
+        bar.firstElementChild.style.width = Math.min(100, Math.round(done * 100 / total)) + '%';
+    }
+
+    function setAnalyzeBusy(btnId, opts) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const o = opts || {};
+        const done = (o.done === undefined) ? null : o.done;
+        const total = (o.total === undefined) ? null : o.total;
+        btn.disabled = true;
+        const text = (done !== null && total) ? `${done}/${total}件 取得中...` : (o.label || '準備中...');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + text;
+        setAnalyzeProgress(btnId, done, total);
+    }
+
+    function setAnalyzeIdle(btnId, label) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.disabled = false;
+        btn.textContent = label;
+        setAnalyzeProgress(btnId, null, null);
+    }
+
     let wlAnalyzePolling = null;
 
     function getWlBtnLabel() {
@@ -1561,7 +1618,7 @@
     async function analyzeWlStocks(force = false, silent = false) {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
-        btn.disabled = true;
+        setAnalyzeBusy('wlAnalyzeBtn');
         stopBtn.style.display = 'inline-block';
 
         try {
@@ -1638,8 +1695,7 @@
     function finishWlAnalyzeUI() {
         const btn = document.getElementById('wlAnalyzeBtn');
         const stopBtn = document.getElementById('wlStopBtn');
-        btn.disabled = false;
-        btn.textContent = getWlBtnLabel();
+        setAnalyzeIdle('wlAnalyzeBtn', getWlBtnLabel());
         stopBtn.style.display = 'none';
         stopBtn.disabled = false;
         stopBtn.textContent = '停止';
@@ -1653,7 +1709,7 @@
                 const statusRes = await fetch('/api/watchlist/analyze/status');
                 const status = await statusRes.json();
 
-                document.getElementById('wlAnalyzeBtn').textContent = `分析中 ${status.done}/${status.total}`;
+                setAnalyzeBusy('wlAnalyzeBtn', { done: status.done, total: status.total });
 
                 loadWatchlist();
 
@@ -2260,8 +2316,7 @@
     async function analyzeDivStocks(force = false) {
         const btn = document.getElementById('divAnalyzeBtn');
         const stopBtn = document.getElementById('divStopBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 開始中...';
+        setAnalyzeBusy('divAnalyzeBtn', { label: '開始中...' });
         stopBtn.style.display = 'inline-block';
 
         try {
@@ -2274,8 +2329,7 @@
 
             if (response.ok) {
                 if (data.status && data.status.total === 0) {
-                    btn.disabled = false;
-                    btn.textContent = `${dividendCache.length}件 詳細取得`;
+                    setAnalyzeIdle('divAnalyzeBtn', `${dividendCache.length}件 詳細取得`);
                     stopBtn.style.display = 'none';
                     if (!force) {
                         const ok = await showConfirmModal('本日解析済ですが再度解析しますか？');
@@ -2287,15 +2341,13 @@
                 }
             } else {
                 showErrorModal('分析を開始できませんでした。しばらくしてからもう一度お試しください。');
-                btn.disabled = false;
-                btn.textContent = `${dividendCache.length}件 詳細取得`;
+                setAnalyzeIdle('divAnalyzeBtn', `${dividendCache.length}件 詳細取得`);
                 stopBtn.style.display = 'none';
             }
         } catch (error) {
             console.error('通信エラー:', error);
             showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
-            btn.disabled = false;
-            btn.textContent = `${dividendCache.length}件 詳細取得`;
+            setAnalyzeIdle('divAnalyzeBtn', `${dividendCache.length}件 詳細取得`);
             stopBtn.style.display = 'none';
         }
     }
@@ -2307,7 +2359,7 @@
 
             const btn = document.getElementById('divAnalyzeBtn');
             const stopBtn = document.getElementById('divStopBtn');
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${status.done}/${status.total}件 分析中...`;
+            setAnalyzeBusy('divAnalyzeBtn', { done: status.done, total: status.total });
 
             // 順次表示: 分析中もデータをリロード
             dividendLoaded = false;
@@ -2317,8 +2369,7 @@
                 clearInterval(divAnalyzePolling);
                 divAnalyzePolling = null;
                 div_analyze_status_running = false;
-                btn.disabled = false;
-                btn.textContent = `${dividendCache.length}件 詳細取得`;
+                setAnalyzeIdle('divAnalyzeBtn', `${dividendCache.length}件 詳細取得`);
                 stopBtn.style.display = 'none';
 
                 const errMsg = status.errors > 0 ? `（${status.errors}件エラー）` : '';
@@ -2477,7 +2528,7 @@
 
         const btn = document.getElementById('gcAnalyzeBtn');
         const stopBtn = document.getElementById('gcStopBtn');
-        btn.disabled = true;
+        setAnalyzeBusy('gcAnalyzeBtn');
         stopBtn.style.display = 'inline-block';
 
         try {
@@ -2486,8 +2537,7 @@
 
             if (response.ok) {
                 if (data.status && data.status.total === 0) {
-                    btn.disabled = false;
-                    btn.textContent = '詳細取得';
+                    setAnalyzeIdle('gcAnalyzeBtn', '詳細取得');
                     stopBtn.style.display = 'none';
                     showSuccessModal('全銘柄の分析が完了済みです');
                 } else {
@@ -2499,16 +2549,14 @@
                 } else {
                     console.error('GC分析エラー:', data.error);
                     document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">分析を開始できませんでした。しばらくしてからもう一度お試しください。</div>';
-                    btn.disabled = false;
-                    btn.textContent = '詳細取得';
+                    setAnalyzeIdle('gcAnalyzeBtn', '詳細取得');
                     stopBtn.style.display = 'none';
                 }
             }
         } catch (error) {
             console.error('GC通信エラー:', error);
             document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">接続がうまくいきませんでした。ページを再読み込みしてお試しください。</div>';
-            btn.disabled = false;
-            btn.textContent = '詳細取得';
+            setAnalyzeIdle('gcAnalyzeBtn', '詳細取得');
             stopBtn.style.display = 'none';
         }
     }
@@ -2526,8 +2574,7 @@
     function finishGcAnalyzeUI() {
         const btn = document.getElementById('gcAnalyzeBtn');
         const stopBtn = document.getElementById('gcStopBtn');
-        btn.disabled = false;
-        btn.textContent = '詳細取得';
+        setAnalyzeIdle('gcAnalyzeBtn', '詳細取得');
         stopBtn.style.display = 'none';
         stopBtn.disabled = false;
         stopBtn.textContent = '停止';
@@ -2541,7 +2588,7 @@
                 const statusRes = await fetch('/api/gc-stocks/analyze/status');
                 const status = await statusRes.json();
 
-                document.getElementById('gcAnalyzeBtn').textContent = `分析中 ${status.done}/${status.total}`;
+                setAnalyzeBusy('gcAnalyzeBtn', { done: status.done, total: status.total });
 
                 const dataRes = await fetch('/api/gc-stocks');
                 const data = await dataRes.json();
@@ -3106,8 +3153,7 @@
         } else if (willRun > 20) {
             if (!confirm(`${willRun}件を分析します（約${mins}分）。実行しますか？`)) return;
         }
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 開始中...';
+        setAnalyzeBusy('techAnalyzeBtn', { label: '開始中...' });
         stopBtn.style.display = 'inline-block';
 
         try {
@@ -3120,8 +3166,7 @@
 
             if (response.ok) {
                 if (data.status && data.status.total === 0) {
-                    btn.disabled = false;
-                    btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                    setAnalyzeIdle('techAnalyzeBtn', `${technicalStocksCache.length}件 詳細取得`);
                     stopBtn.style.display = 'none';
                     showSuccessModal('全銘柄の分析が完了済みです');
                 } else {
@@ -3130,15 +3175,13 @@
                 }
             } else {
                 showErrorModal('分析を開始できませんでした。しばらくしてからもう一度お試しください。');
-                btn.disabled = false;
-                btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                setAnalyzeIdle('techAnalyzeBtn', `${technicalStocksCache.length}件 詳細取得`);
                 stopBtn.style.display = 'none';
             }
         } catch (error) {
             console.error('通信エラー:', error);
             showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
-            btn.disabled = false;
-            btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+            setAnalyzeIdle('techAnalyzeBtn', `${technicalStocksCache.length}件 詳細取得`);
             stopBtn.style.display = 'none';
         }
     }
@@ -3150,7 +3193,7 @@
 
             const btn = document.getElementById('techAnalyzeBtn');
             const stopBtn = document.getElementById('techStopBtn');
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${status.done}/${status.total}件 分析中...`;
+            setAnalyzeBusy('techAnalyzeBtn', { done: status.done, total: status.total });
 
             // 順次表示: 分析中もデータをリロード
             await loadTechnicalStocks();
@@ -3159,8 +3202,7 @@
                 clearInterval(techAnalyzePolling);
                 techAnalyzePolling = null;
                 tech_analyze_status_running = false;
-                btn.disabled = false;
-                btn.textContent = `${technicalStocksCache.length}件 詳細取得`;
+                setAnalyzeIdle('techAnalyzeBtn', `${technicalStocksCache.length}件 詳細取得`);
                 stopBtn.style.display = 'none';
 
                 const errMsg = status.errors > 0 ? `（${status.errors}件エラー）` : '';
