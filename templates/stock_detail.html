@@ -736,9 +736,78 @@
         to { transform: rotate(360deg); }
     }
 
+    /* 財務・CF・健全性の3カラム。以前はインラインstyleで書いていたため
+       メディアクエリで潰せず、スマホでも3カラムのまま横にはみ出していた。 */
+    .detail-grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 2fr 2fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    /* グリッドの子は既定 min-width:auto で中身より小さくなれない。
+       中の財務テーブルが min-width:800px を持つため、これが無いと
+       親ごと800pxに広がり overflow-x:auto が効かない（＝ページ全体が横スクロール）。 */
+    .detail-grid-3 > *,
+    .content-grid > * {
+        min-width: 0;
+    }
+
     @media (max-width: 1200px) {
         .content-grid {
             grid-template-columns: 1fr;
+        }
+    }
+
+    /* タブレット以下では3カラムを畳む */
+    @media (max-width: 900px) {
+        .detail-grid-3 {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ヘッダーのボタン列。左（戻る・ノート・お気に入り）と
+       右（レポート・更新・購入・売却）。どちらも折り返せるようにする */
+    .detail-header-nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .detail-header-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    /* スマホ。横スクロールを絶対に発生させない。
+       広い表は「表の中だけ」を横スクロールさせる（overflow-x:auto の親が
+       縮めるようになって初めて機能する）。 */
+    @media (max-width: 768px) {
+        .detail-page-container {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        .detail-page-header {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        /* フレックス項目は中身の幅（max-content）で確定するため、
+           親を折り返せるようにしただけでは中のボタンが折り返さず切れる。
+           幅を親いっぱいに固定して、初めて自分の中で折り返せるようになる。 */
+        .detail-header-nav,
+        .detail-header-actions {
+            width: 100%;
+            min-width: 0;
+        }
+        .detail-content {
+            max-width: 100%;
+        }
+        .chart-card,
+        .summary-card,
+        .score-card,
+        .detail-card {
+            padding: 14px;
         }
     }
 </style>
@@ -763,7 +832,8 @@
 
     <!-- ヘッダー -->
     <div class="detail-page-header">
-        <div style="display: flex; align-items: center; gap: 16px;">
+        {# ここもインラインstyleだと折り返せず、スマホでお気に入りボタンが切れる #}
+        <div class="detail-header-nav">
             <a href="/dashboard/admin" class="back-link">← 一覧に戻る</a>
             <button onclick="openNotesModal()" style="padding: 6px 14px; background: white; color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
                 <i class="fas fa-comments" style="margin-right: 4px;"></i>みんなのノート
@@ -772,7 +842,8 @@
                 <span id="favoriteBtnText">★ お気に入りに登録</span>
             </button>
         </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
+        {# インラインstyleだと折り返せず、スマホでボタン列がはみ出す。クラスにする #}
+        <div class="detail-header-actions">
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
             {# レポートへの主導線はここに置く。銘柄を特定したあとに見るものなので、
                別途「企業を選ぶ」画面を用意するより自然で、検索UIの重複も避けられる。 #}
@@ -1064,7 +1135,9 @@
     </div>
 
     <!-- 詳細情報セクション -->
-    <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 20px; margin-bottom: 20px;">
+    {# インラインstyleだとメディアクエリで潰せず、スマホで3カラムのまま残る。
+       クラスにしてCSS側で面倒を見る #}
+    <div class="detail-grid-3">
         <!-- 財務健全性 -->
         <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
             <div class="detail-header">財務健全性</div>
