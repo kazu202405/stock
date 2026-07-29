@@ -231,29 +231,71 @@ def evaluate_score_criteria(data: dict) -> list:
     revenue_growth = growth(revenue_last, revenue_prev)
     op_growth = growth(op_last, op_prev)
 
-    def item(key, value, ok):
-        """value が None なら判定不能。そうでなければ ok(bool) で合否。"""
+    def item(key, element, value, ok, fmt=None):
+        """value が None なら判定不能。そうでなければ ok(bool) で合否。
+
+        element は画面側のDOM id。ここで持たせておくと、ブラウザ側に
+        「キー → 要素」の対応表を二重に持たなくて済む。
+        """
         judged = value is not None
-        return {'key': key, 'judged': judged, 'passed': bool(judged and ok)}
+        return {
+            'key': key,
+            'element': element,
+            'judged': judged,
+            'passed': bool(judged and ok),
+            'display': (fmt(value) if (judged and fmt) else None),
+        }
+
+    pct = lambda v: f'{v:.1f}%'
+    oku = lambda v: f'{v:.1f}億'
+    bai = lambda v: f'{v:.1f}倍'
 
     return [
-        item('market_cap', market_cap, market_cap is not None and market_cap <= 700),
-        item('equity_ratio', equity_ratio, equity_ratio is not None and equity_ratio >= 30),
-        item('revenue_growth', revenue_growth, revenue_growth is not None and revenue_growth > 0),
-        item('revenue_forecast', revenue_forecast_growth,
-             revenue_forecast_growth is not None and revenue_forecast_growth > 0),
-        item('operating_margin', operating_margin,
-             operating_margin is not None and operating_margin >= 10),
-        item('op_growth', op_growth, op_growth is not None and op_growth > 0),
-        item('op_forecast', op_forecast_growth,
-             op_forecast_growth is not None and op_forecast_growth > 0),
-        item('operating_cf', operating_cf, operating_cf is not None and operating_cf > 0),
-        item('free_cf', free_cf, free_cf is not None and free_cf > 0),
-        item('roa', roa, roa is not None and roa > 4.5),
+        item('market_cap', 'score-market-cap', market_cap,
+             market_cap is not None and market_cap <= 700, lambda v: f'{round(v)}億'),
+        item('equity_ratio', 'score-equity-ratio', equity_ratio,
+             equity_ratio is not None and equity_ratio >= 30, pct),
+        item('revenue_growth', 'score-revenue-growth', revenue_growth,
+             revenue_growth is not None and revenue_growth > 0, pct),
+        item('revenue_forecast', 'score-revenue-forecast', revenue_forecast_growth,
+             revenue_forecast_growth is not None and revenue_forecast_growth > 0, pct),
+        item('operating_margin', 'score-op-margin', operating_margin,
+             operating_margin is not None and operating_margin >= 10, pct),
+        item('op_growth', 'score-op-growth', op_growth,
+             op_growth is not None and op_growth > 0, pct),
+        item('op_forecast', 'score-op-forecast', op_forecast_growth,
+             op_forecast_growth is not None and op_forecast_growth > 0, pct),
+        item('operating_cf', 'score-op-cf', operating_cf,
+             operating_cf is not None and operating_cf > 0, oku),
+        item('free_cf', 'score-free-cf', free_cf,
+             free_cf is not None and free_cf > 0, oku),
+        item('roa', 'score-roa', roa, roa is not None and roa > 4.5, pct),
         # PER・PBRが0以下＝赤字や算出不能。従来どおり「不合格」扱い（判定不能にはしない）
-        item('per_forward', per, per is not None and 0 < per < 40),
-        item('pbr', pbr, pbr is not None and 0 < pbr < 10),
+        item('per_forward', 'score-per', per,
+             per is not None and 0 < per < 40, bai),
+        item('pbr', 'score-pbr', pbr,
+             pbr is not None and 0 < pbr < 10, lambda v: f'{v:.2f}倍'),
     ]
+
+
+def score_breakdown(data: dict) -> dict:
+    """スコアと12項目の内訳をまとめて返す。**画面に出す値はここが唯一の正**。
+
+    以前はPython（保存用）とJavaScript（表示用）でスコアを別々に計算していた。
+    条件を揃えて書いてはいたが、片方だけ直せば必ずズレる作りだった。
+    ブラウザはこの戻り値を描画するだけにする。
+    """
+    items = evaluate_score_criteria(data)
+    judged = [c for c in items if c['judged']]
+    enough = len(judged) >= MIN_JUDGED_CRITERIA
+    return {
+        'score': (round(sum(1 for c in judged if c['passed']) * 100 / len(judged))
+                  if enough else None),
+        'judged': len(judged),
+        'total': SCORE_CRITERIA_TOTAL,
+        'min_judged': MIN_JUDGED_CRITERIA,
+        'items': items,
+    }
 
 
 def calculate_match_rate(data: dict):
@@ -262,13 +304,10 @@ def calculate_match_rate(data: dict):
 
     **判定できた項目だけを分母にする。** 値が無い項目は減点しない。
     判定できた項目が MIN_JUDGED_CRITERIA 未満のときは None（スコアなし）。
+
+    中身は score_breakdown() と同じ。計算をここに二重に書かないこと。
     """
-    criteria = evaluate_score_criteria(data)
-    judged = [c for c in criteria if c['judged']]
-    if len(judged) < MIN_JUDGED_CRITERIA:
-        return None
-    passed = sum(1 for c in judged if c['passed'])
-    return round(passed * 100 / len(judged))
+    return score_breakdown(data)['score']
 
 
 def upsert_screened_data_with_match_rate(data: dict) -> dict:

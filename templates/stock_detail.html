@@ -2153,113 +2153,41 @@
         }
     }
 
-    function updateScoreCard(data) {
+    function updateScoreCard(breakdown) {
         // 非会員はスコアセクションをサーバー側で描画していない（要素が無い）。
-        // 判定の入力値もAPIから返らないので、ここは丸ごとスキップする。
         if (!document.getElementById('score-details')) return;
+        // 判定はサーバーが作る（supabase_client.score_breakdown）。
+        // 会員以外にはAPIが返さないので、無ければ何も描かない。
+        if (!breakdown || !breakdown.items) return;
 
-        // 「まだ調べていない」と「基準を満たさない」は別物（2026-07-29 変更）。
-        // 以前は値が無い項目も0点＝不合格として12項目固定の分母で割っていたため、
-        // キャッシュに今期予想やCFが無い銘柄は不当に低く出て、更新した瞬間に
-        // スコアが跳ね上がっていた（83→100 など）。
-        // 値が無い項目は判定不能として分母から外す。ルールはサーバー側の
-        // supabase_client.evaluate_score_criteria() と一致させること。
-        let judged = 0, passed = 0;
+        breakdown.items.forEach(function (it) {
+            // judged=false（値が無い）なら updateScoreItem 側で「--」になる
+            updateScoreItem(it.element, it.passed, it.judged ? it.display : null);
+        });
 
-        function mark(elementId, value, ok, text) {
-            const has = value !== null && value !== undefined;
-            if (has) { judged++; if (ok) passed++; }
-            updateScoreItem(elementId, !!ok, has ? text : null);
-        }
-        function latestTwo(rows) {
-            if (!rows || !rows.length) return [null, null];
-            const s = [...rows].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            return [s[0] ? (s[0].value ?? null) : null, s[1] ? (s[1].value ?? null) : null];
-        }
-        function growth(cur, prev) {
-            if (cur === null || cur === undefined || prev === null || prev <= 0) return null;
-            return ((cur - prev) / prev) * 100;
-        }
-
-        const financialHistory = parseJsonField(data.financial_history) || {};
-        const cfHist = parseJsonField(data.cf_history) || {};
-        const [revLast, revPrev] = latestTwo(financialHistory.revenue);
-        const [opLast, opPrev] = latestTwo(financialHistory.op_income);
-
-        let operatingCf = data.operating_cf ?? null;
-        let investingCf = null;
-        if (operatingCf === null) {
-            const [v] = latestTwo(cfHist.operating_cf);
-            if (v !== null) operatingCf = v / 1e8;
-        }
-        { const [v] = latestTwo(cfHist.investing_cf); if (v !== null) investingCf = v / 1e8; }
-        let freeCf = data.free_cf ?? null;
-        if (freeCf === null && operatingCf !== null && investingCf !== null) freeCf = operatingCf + investingCf;
-        let roa = data.roa ?? null;
-        if (roa === null) { const [v] = latestTwo(cfHist.roa); if (v !== null) roa = v; }
-
-        const marketCap = data.market_cap ?? null;
-        const equityRatio = data.equity_ratio ?? null;
-        const opMargin = data.operating_margin ?? null;
-        const per = data.per_forward ?? null;
-        const pbr = data.pbr ?? null;
-
-        const revGrowth = growth(revLast, revPrev);
-        const opGrowth = growth(opLast, opPrev);
-        // 予想値は億円、履歴は円なので単位を揃えてから比較する
-        const revForecast = growth(data.forecast_revenue ? data.forecast_revenue * 1e8 : null, revLast);
-        const opForecast = growth(data.forecast_op_income ? data.forecast_op_income * 1e8 : null, opLast);
-
-        mark('score-market-cap', marketCap, marketCap !== null && marketCap <= 700,
-             marketCap !== null ? `${Math.round(marketCap)}億` : null);
-        mark('score-equity-ratio', equityRatio, equityRatio !== null && equityRatio >= 30,
-             equityRatio !== null ? `${equityRatio.toFixed(1)}%` : null);
-        mark('score-revenue-growth', revGrowth, revGrowth !== null && revGrowth > 0,
-             revGrowth !== null ? `${revGrowth.toFixed(1)}%` : null);
-        mark('score-revenue-forecast', revForecast, revForecast !== null && revForecast > 0,
-             revForecast !== null ? `${revForecast.toFixed(1)}%` : null);
-        mark('score-op-margin', opMargin, opMargin !== null && opMargin >= 10,
-             opMargin !== null ? `${opMargin.toFixed(1)}%` : null);
-        mark('score-op-growth', opGrowth, opGrowth !== null && opGrowth > 0,
-             opGrowth !== null ? `${opGrowth.toFixed(1)}%` : null);
-        mark('score-op-forecast', opForecast, opForecast !== null && opForecast > 0,
-             opForecast !== null ? `${opForecast.toFixed(1)}%` : null);
-        mark('score-op-cf', operatingCf, operatingCf !== null && operatingCf > 0,
-             operatingCf !== null ? `${operatingCf.toFixed(1)}億` : null);
-        mark('score-free-cf', freeCf, freeCf !== null && freeCf > 0,
-             freeCf !== null ? `${freeCf.toFixed(1)}億` : null);
-        mark('score-roa', roa, roa !== null && roa > 4.5,
-             roa !== null ? `${roa.toFixed(1)}%` : null);
-        // PER・PBRが0以下＝赤字や算出不能。判定不能ではなく「不合格」扱い（サーバーと同じ）
-        mark('score-per', per, per !== null && per > 0 && per < 40,
-             per !== null ? `${per.toFixed(1)}倍` : null);
-        mark('score-pbr', pbr, pbr !== null && pbr > 0 && pbr < 10,
-             pbr !== null ? `${pbr.toFixed(2)}倍` : null);
-
-        // サーバー側 MIN_JUDGED_CRITERIA と同じ。判定できた項目が半分未満なら
-        // スコアを出さない（ETF等は判定できる項目が1〜2個しかなく、たまたま
-        // 合格すると100点になってしまうため）
-        const MIN_JUDGED = 6;
         const scoreValue = document.getElementById('score-value');
         const noteEl = document.getElementById('score-judged-note');
-        if (judged < MIN_JUDGED) {
+        const judged = breakdown.judged;
+        const total = breakdown.total;
+
+        if (breakdown.score === null || breakdown.score === undefined) {
             scoreValue.textContent = '--';
             scoreValue.className = 'score-value';
             if (noteEl) noteEl.textContent = judged === 0
                 ? 'データがまだありません'
-                : `判定できたのは12項目中 ${judged}項目。スコアは出しません`;
+                : `判定できたのは${total}項目中 ${judged}項目。スコアは出しません`;
             return;
         }
-        const normalizedScore = Math.round(passed * 100 / judged);
-        scoreValue.textContent = normalizedScore;
+
+        scoreValue.textContent = breakdown.score;
         scoreValue.className = 'score-value';
-        if (normalizedScore >= 58) scoreValue.classList.add('high');
-        else if (normalizedScore >= 33) scoreValue.classList.add('medium');
+        if (breakdown.score >= 58) scoreValue.classList.add('high');
+        else if (breakdown.score >= 33) scoreValue.classList.add('medium');
         else scoreValue.classList.add('low');
         if (noteEl) {
-            noteEl.textContent = judged === 12
-                ? '12項目すべてで判定'
-                : `12項目中 ${judged}項目で判定（残りはデータ未取得）`;
+            noteEl.textContent = (judged === total)
+                ? `${total}項目すべてで判定`
+                : `${total}項目中 ${judged}項目で判定（残りはデータ未取得）`;
         }
     }
 
@@ -2370,8 +2298,8 @@
             document.getElementById('company-officers-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
         }
 
-        // スコアカード
-        updateScoreCard(data);
+        // スコアカード（サーバーが計算した内訳を描くだけ）
+        updateScoreCard(data.score_breakdown);
 
         // データステータス
         const statusEl = document.getElementById('dataStatus');
@@ -2445,72 +2373,14 @@
                 `株価推移（現在値: ${currencySymbol(window.currentCurrency)}${formatNumber(data.last_price)}）`;
         }
 
-        // スコアカード（分析データから算出）
-        const scoreData = convertToScoreFormat(data);
-        updateScoreCard(scoreData);
+        // スコアカード（サーバーが計算した内訳を描くだけ）
+        updateScoreCard(data.score_breakdown);
 
         const statusEl = document.getElementById('dataStatus');
         if (statusEl) statusEl.textContent = `最新データ取得済み`;
     }
 
-    // 分析データをスコアカード用に変換
-    function convertToScoreFormat(data) {
-        function getLatestValue(arr) {
-            if (!arr || !Array.isArray(arr) || arr.length === 0) return null;
-            const sorted = [...arr].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            return sorted[0]?.value ?? null;
-        }
-        const marketCapOku = data.market_cap ? data.market_cap / 1e8 : null;
-        const opCfRaw = getLatestValue(data.operating_cf);
-        const operatingCf = opCfRaw ? opCfRaw / 1e8 : null;
-        const invCfRaw = getLatestValue(data.investing_cf);
-        const investingCf = invCfRaw ? invCfRaw / 1e8 : null;
-        const freeCf = (operatingCf !== null && investingCf !== null) ? operatingCf + investingCf : null;
-        const roa = getLatestValue(data.roa);
-        const equityRatio = data.equity_ratio_pct ?? data.equity_ratio ?? getLatestValue(data.equity_ratio_list);
-        const operatingMargin = data.op_margin_pct ?? data.operating_margin;
-        const per = data.per;
-        const pbr = data.pbr;
-        const revenueList = data.revenue || [];
-        const opIncomeList = data.op_income || [];
 
-        let score = 0;
-        if (marketCapOku !== null && marketCapOku <= 700) score += 10;
-        if (equityRatio !== null && equityRatio >= 30) score += 10;
-        if (revenueList.length >= 2) {
-            const sorted = [...revenueList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            if (sorted[0]?.value && sorted[1]?.value && sorted[1].value > 0 && ((sorted[0].value - sorted[1].value) / sorted[1].value) > 0) score += 10;
-        }
-        if (data.forecast_revenue && revenueList.length >= 1) {
-            const sorted = [...revenueList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            const lastRevenue = sorted[0]?.value ? sorted[0].value / 1e8 : null;
-            if (lastRevenue && lastRevenue > 0 && ((data.forecast_revenue - lastRevenue) / lastRevenue) > 0) score += 10;
-        }
-        if (operatingMargin !== null && operatingMargin >= 10) score += 10;
-        if (opIncomeList.length >= 2) {
-            const sorted = [...opIncomeList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            if (sorted[0]?.value && sorted[1]?.value && sorted[1].value > 0 && ((sorted[0].value - sorted[1].value) / sorted[1].value) > 0) score += 10;
-        }
-        if (data.forecast_op_income && opIncomeList.length >= 1) {
-            const sorted = [...opIncomeList].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            const lastOp = sorted[0]?.value ? sorted[0].value / 1e8 : null;
-            if (lastOp && lastOp > 0 && ((data.forecast_op_income - lastOp) / lastOp) > 0) score += 10;
-        }
-        if (operatingCf !== null && operatingCf > 0) score += 10;
-        if (freeCf !== null && freeCf > 0) score += 10;
-        if (roa !== null && roa > 4.5) score += 10;
-        if (per !== null && per > 0 && per < 40) score += 10;
-        if (pbr !== null && pbr > 0 && pbr < 10) score += 10;
-
-        return {
-            match_rate: Math.round(score * 100 / 120), market_cap: marketCapOku, equity_ratio: equityRatio,
-            operating_margin: operatingMargin, operating_cf: operatingCf, free_cf: freeCf,
-            roa: roa, per_forward: per, pbr: pbr,
-            forecast_revenue: data.forecast_revenue, forecast_op_income: data.forecast_op_income,
-            financial_history: { revenue: revenueList, op_income: opIncomeList },
-            cf_history: { roa: data.roa || [] }
-        };
-    }
 
     // 「更新」ボタン
     async function refreshAnalysis() {

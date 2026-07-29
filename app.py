@@ -887,6 +887,13 @@ def analyze_stock():
                     saved_dc = saved_dc or s.get('dc_date')
             result['gc_date'] = saved_gc
             result['dc_date'] = saved_dc
+
+            # スコアと12項目の判定は、保存後のDBの値からサーバーで作って返す。
+            # ブラウザ側で計算し直さないための唯一の入口
+            # （画面表示用の再計算をJSに持たせると、片方を直すたびにズレる）。
+            if screened and session.get('user_id'):
+                from supabase_client import score_breakdown
+                result['score_breakdown'] = score_breakdown(screened)
         except:
             pass
 
@@ -3223,8 +3230,14 @@ def api_get_screened_stock(company_code):
                     data['gc_date'] = data.get('gc_date') or s.get('gc_date')
                     data['dc_date'] = data.get('dc_date') or s.get('dc_date')
 
-            # 未ログインには無料フィールドのみ。会員限定はサーバー側で落とす
-            if not session.get('user_id'):
+            # スコアと12項目の判定はサーバーで作って渡す。
+            # 以前はブラウザ側でも同じ計算をしていて、片方を直すと必ずズレた。
+            # 会員限定なので未ログインには含めない（閾値と判定の作り方が価値の中心）。
+            if session.get('user_id'):
+                from supabase_client import score_breakdown
+                data['score_breakdown'] = score_breakdown(data)
+            else:
+                # 未ログインには無料フィールドのみ。会員限定はサーバー側で落とす
                 data = {k: v for k, v in data.items() if k in FREE_SCREENED_FIELDS}
 
             return jsonify(data), 200
