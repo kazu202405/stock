@@ -273,6 +273,10 @@ def calculate_match_rate(data: dict):
 
 def upsert_screened_data_with_match_rate(data: dict) -> dict:
     """screened_latestにデータを登録/更新（合致度を自動計算、is_dividendフラグ保持）"""
+    # ETF・REIT等もそのまま保存する。除外は「読み取り時」に行う方針
+    # （security_filter の判定はコード側にあるので、消さなくても表示から外せる。
+    #   DBから消すと元に戻せないが、読み取り時フィルタなら判定を外すだけで戻せる）
+    #
     # 既存データとマージして合致度を計算（新データにないフィールドも考慮）
     company_code = data.get('company_code')
     if company_code:

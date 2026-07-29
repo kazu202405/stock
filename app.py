@@ -2925,6 +2925,11 @@ def api_screen_stocks():
         # 社名が無い行は分析が成立していないので除外する
         query = query.not_.is_('company_name', 'null')
 
+        # ETF・REIT等は事業会社でないのでスクリーナーに出さない。
+        # DBの行は消していない（security_filter.EXCLUDED_CODES から外せば戻る）
+        from security_filter import exclude_non_operating
+        query = exclude_non_operating(query)
+
         # 数値の絞り込み
         for param, (column, op) in SCREEN_FILTERS.items():
             raw = request.args.get(param)

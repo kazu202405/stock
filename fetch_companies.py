@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 import os
 
+from security_filter import is_non_operating_segment
+
 # JPX上場企業一覧（Excel）
 URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
 
@@ -23,13 +25,23 @@ def fetch_and_save():
     print(f"取得件数: {len(df)}")
     print(f"カラム: {list(df.columns)}")
 
-    # 銘柄コードと会社名を抽出
+    # 銘柄コードと会社名を抽出。
+    # ETF・ETN・REIT等は事業会社ではないので、この時点で落とす。
+    # ここで落とせば検索サジェスト・分析対象・スクリーナーの全部から一度に消える。
+    # 判定はJPXの「市場・商品区分」を使う（銘柄名からの推測より正確）。
     companies = []
+    skipped = 0
     for _, row in df.iterrows():
         code = str(row.get("コード", "")).strip()
         name = str(row.get("銘柄名", "")).strip()
-        if code and name and code != "nan" and name != "nan":
-            companies.append({"c": code, "n": name})
+        segment = str(row.get("市場・商品区分", "")).strip()
+        if not (code and name and code != "nan" and name != "nan"):
+            continue
+        if is_non_operating_segment(segment):
+            skipped += 1
+            continue
+        companies.append({"c": code, "n": name})
+    print(f"除外（ETF・ETN・REIT等）: {skipped}件")
 
     # 銘柄コード順にソート
     companies.sort(key=lambda x: x["c"])

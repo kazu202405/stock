@@ -39,13 +39,12 @@ PAUSE_SECONDS = 90
 CONSECUTIVE_FAIL_ABORT = 40
 
 
-# ETF・REIT・投信の判定用キーワード（銘柄名に含まれるもの）
-# これらは事業会社ではないため財務データが存在せず、分析しても中身が空になる
-ETF_KEYWORDS = (
-    'ETF', 'ＥＴＦ', 'ETN', 'ＥＴＮ', '上場投信', '投資信託', 'インデックス',
-    '連動型', 'リート', 'REIT', 'ＲＥＩＴ', '投資法人', 'ブル', 'ベア',
-    'ダブル・インバース', 'レバレッジ', 'インバース',
-)
+# ETF・REIT等の判定は security_filter に集約した。
+# 以前ここに置いていたキーワードには 'ブル' 'ベア' 'リート' 'インデックス' が含まれており、
+# ブルボン・ミネベアミツミ・旭コンクリート工業（コンク"リート"）まで巻き込んでいた。
+# なお companies.json 自体が生成時にJPXの市場・商品区分でETF等を除外済みなので、
+# skip_etf は保険（古いjsonを使う場合のため）として残してある。
+from security_filter import is_non_operating_name
 
 
 def load_companies(skip_etf=False):
@@ -53,8 +52,7 @@ def load_companies(skip_etf=False):
         data = json.load(f)
     rows = [c for c in data if c.get('c')]
     if skip_etf:
-        rows = [c for c in rows
-                if not any(k in (c.get('n') or '') for k in ETF_KEYWORDS)]
+        rows = [c for c in rows if not is_non_operating_name(c.get('n'))]
     return [c['c'] for c in rows]
 
 

@@ -480,12 +480,14 @@ def sitemap_xml():
         for t in tags:
             urls.append((f'{base}/theme/{quote(t["name"], safe="")}', '0.9'))
 
+        from security_filter import exclude_non_operating
+
         page = 0
         while page < 60:   # 上限を設けて暴走を防ぐ
-            res = (client.table('screened_latest')
-                   .select('company_code, analyzed_at')
-                   .range(page * 1000, page * 1000 + 999)
-                   .execute())
+            # ETF・REIT等はsitemapに載せない（中身が無いページをGoogleに申告しない）
+            q = exclude_non_operating(
+                client.table('screened_latest').select('company_code, analyzed_at'))
+            res = q.range(page * 1000, page * 1000 + 999).execute()
             rows = res.data or []
             for r in rows:
                 code = r.get('company_code')
