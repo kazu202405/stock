@@ -136,182 +136,139 @@ def get_watchlist_with_details() -> list:
 # 「投資基準にどれだけ合致しているか」という中身は変わらない。
 # =============================================
 
-def calculate_match_rate(data: dict) -> int:
-    """
-    財務指標の投資基準への合致度を計算（0-100点）＝画面上の「スコア」
+SCORE_CRITERIA_TOTAL = 12
 
-    yomu.md基準（12項目、100点満点）:
-    1. 時価総額 <= 700億円
-    2. 自己資本比率 >= 30%
-    3. 売上高増減率(2期前→前期) > 0%
-    4. 売上高増減率(前期→今期予) > 0%  ★NEW
-    5. 売上高営業利益率 >= 10%
-    6. 営業利益増減率(2期前→前期) > 0%
-    7. 営業利益増減率(前期→今期予) > 0%  ★NEW
-    8. 営業CF前期 > 0億円
-    9. フリーCF前期 > 0億円
-    10. ROA(前期) > 4.5%
-    11. PER(来期) < 40倍
-    12. PBR < 10倍
+# スコアを出すために最低限必要な「判定できた項目数」。
+# ETFなど財務データをほぼ持たない銘柄は判定できる項目が1〜2個しかなく、
+# それがたまたま合格すると100点になってしまう（/screener は match_rate 順なので
+# 中身の無い銘柄が上位に来る）。半分すら判定できないならスコアを出さない。
+MIN_JUDGED_CRITERIA = 6
+
+
+def evaluate_score_criteria(data: dict) -> list:
+    """
+    12項目それぞれを {key, judged, passed} で返す。
+
+    重要（2026-07-29 変更）:
+    以前は「値が無い項目」も 0点＝不合格 として扱っていた。そのため
+    キャッシュに今期予想やCFが入っていない銘柄は不当に低いスコアになり、
+    更新して値が埋まった瞬間にスコアが跳ね上がっていた（83→100 など）。
+    **「まだ調べていない」と「基準を満たさない」は別物**なので、
+    値が無い項目は judged=False とし、分母から外す。
+
+    yomu.md基準（12項目）:
+    1. 時価総額 <= 700億円      2. 自己資本比率 >= 30%
+    3. 売上高増減率(2期前→前期) > 0%   4. 売上高増減率(前期→今期予) > 0%
+    5. 売上高営業利益率 >= 10%   6. 営業利益増減率(2期前→前期) > 0%
+    7. 営業利益増減率(前期→今期予) > 0%  8. 営業CF前期 > 0億円
+    9. フリーCF前期 > 0億円      10. ROA(前期) > 4.5%
+    11. PER(来期) < 40倍         12. PBR < 10倍
     """
     import json
 
-    score = 0
-
-    # 1. 時価総額 <= 700億円（10点）
-    market_cap = data.get('market_cap')
-    if market_cap is not None:
-        if market_cap <= 700:
-            score += 10
-
-    # 2. 自己資本比率 >= 30%（10点）
-    equity_ratio = data.get('equity_ratio')
-    if equity_ratio is not None:
-        if equity_ratio >= 30:
-            score += 10
-
-    # 3. 売上高増減率(2期前→前期) > 0%（10点）
-    # 4. 売上高営業利益率 >= 10%（10点）
-    # 5. 営業利益増減率(2期前→前期) > 0%（10点）
-    financial_history = data.get('financial_history')
-    if financial_history:
-        if isinstance(financial_history, str):
+    def as_dict(v):
+        if isinstance(v, str):
             try:
-                financial_history = json.loads(financial_history)
-            except:
-                financial_history = {}
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v or {}
 
-        # 売上高増減率(2期前→前期) > 0%
-        revenue_list = financial_history.get('revenue', [])
-        if len(revenue_list) >= 2:
-            sorted_revenue = sorted(revenue_list, key=lambda x: x.get('date', ''), reverse=True)
-            if len(sorted_revenue) >= 2:
-                # sorted_revenue[0] = 前期, sorted_revenue[1] = 2期前
-                current = sorted_revenue[0].get('value')
-                previous = sorted_revenue[1].get('value')
-                if current and previous and previous > 0:
-                    growth_rate = ((current - previous) / previous) * 100
-                    if growth_rate > 0:
-                        score += 10
+    def latest_two(rows):
+        """[{date, value}] を新しい順に並べて先頭2件の値を返す（無ければNone）"""
+        if not rows:
+            return None, None
+        s = sorted(rows, key=lambda x: x.get('date', ''), reverse=True)
+        first = s[0].get('value') if len(s) >= 1 else None
+        second = s[1].get('value') if len(s) >= 2 else None
+        return first, second
 
-        # 営業利益増減率(2期前→前期) > 0%
-        op_income_list = financial_history.get('op_income', [])
-        if len(op_income_list) >= 2:
-            sorted_op = sorted(op_income_list, key=lambda x: x.get('date', ''), reverse=True)
-            if len(sorted_op) >= 2:
-                current = sorted_op[0].get('value')
-                previous = sorted_op[1].get('value')
-                if current and previous and previous > 0:
-                    growth_rate = ((current - previous) / previous) * 100
-                    if growth_rate > 0:
-                        score += 10
+    def growth(current, previous):
+        """増減率(%)。分母が正でなければ判定不能としてNone"""
+        if current is None or previous is None or previous <= 0:
+            return None
+        return ((current - previous) / previous) * 100
 
-    # 4. 売上高増減率(前期→今期予) > 0%（10点）★NEW
-    forecast_revenue = data.get('forecast_revenue')
-    if forecast_revenue and financial_history:
-        revenue_list = financial_history.get('revenue', [])
-        if revenue_list:
-            sorted_rev = sorted(revenue_list, key=lambda x: x.get('date', ''), reverse=True)
-            if sorted_rev:
-                last_revenue = sorted_rev[0].get('value')
-                if last_revenue and last_revenue > 0:
-                    # forecast_revenueは億円単位、last_revenueは円単位なので変換
-                    forecast_rev_yen = forecast_revenue * 1e8
-                    growth_rate = ((forecast_rev_yen - last_revenue) / last_revenue) * 100
-                    if growth_rate > 0:
-                        score += 10
+    financial_history = as_dict(data.get('financial_history'))
+    cf_history = as_dict(data.get('cf_history'))
 
-    # 7. 営業利益増減率(前期→今期予) > 0%（10点）★NEW
-    forecast_op_income = data.get('forecast_op_income')
-    if forecast_op_income and financial_history:
-        op_income_list = financial_history.get('op_income', [])
-        if op_income_list:
-            sorted_op = sorted(op_income_list, key=lambda x: x.get('date', ''), reverse=True)
-            if sorted_op:
-                last_op_income = sorted_op[0].get('value')
-                if last_op_income and last_op_income > 0:
-                    # forecast_op_incomeは億円単位、last_op_incomeは円単位なので変換
-                    forecast_op_yen = forecast_op_income * 1e8
-                    growth_rate = ((forecast_op_yen - last_op_income) / last_op_income) * 100
-                    if growth_rate > 0:
-                        score += 10
+    revenue_last, revenue_prev = latest_two(financial_history.get('revenue', []))
+    op_last, op_prev = latest_two(financial_history.get('op_income', []))
 
-    # 5. 売上高営業利益率 >= 10%（10点）
-    operating_margin = data.get('operating_margin')
-    if operating_margin is not None:
-        if operating_margin >= 10:
-            score += 10
-
-    # 8. 営業CF前期 > 0億円（10点）
+    # 営業CF・投資CF（トップレベル→cf_history の順にフォールバック）
     operating_cf = data.get('operating_cf')
     investing_cf = None
-    # トップレベル値がない場合はcf_historyからフォールバック
     if operating_cf is None:
-        cf_history_cf = data.get('cf_history')
-        if cf_history_cf:
-            if isinstance(cf_history_cf, str):
-                try:
-                    cf_history_cf = json.loads(cf_history_cf)
-                except:
-                    cf_history_cf = {}
-            op_cf_list = cf_history_cf.get('operating_cf', [])
-            if op_cf_list and len(op_cf_list) > 0:
-                sorted_cf = sorted(op_cf_list, key=lambda x: x.get('date', ''), reverse=True)
-                val = sorted_cf[0].get('value')
-                if val is not None:
-                    operating_cf = val / 1e8
-            inv_cf_list = cf_history_cf.get('investing_cf', [])
-            if inv_cf_list and len(inv_cf_list) > 0:
-                sorted_inv = sorted(inv_cf_list, key=lambda x: x.get('date', ''), reverse=True)
-                val = sorted_inv[0].get('value')
-                if val is not None:
-                    investing_cf = val / 1e8
-    if operating_cf is not None:
-        if operating_cf > 0:
-            score += 10
+        v, _ = latest_two(cf_history.get('operating_cf', []))
+        if v is not None:
+            operating_cf = v / 1e8
+    v, _ = latest_two(cf_history.get('investing_cf', []))
+    if v is not None:
+        investing_cf = v / 1e8
 
-    # 9. フリーCF前期 > 0億円（10点）
     free_cf = data.get('free_cf')
-    # トップレベル値がない場合はoperating_cf + investing_cfから算出
     if free_cf is None and operating_cf is not None and investing_cf is not None:
         free_cf = operating_cf + investing_cf
-    if free_cf is not None:
-        if free_cf > 0:
-            score += 10
 
-    # 10. ROA(前期) > 4.5%（10点）
-    # roaはcf_historyに格納されている場合がある
     roa = data.get('roa')
     if roa is None:
-        cf_history = data.get('cf_history')
-        if cf_history:
-            if isinstance(cf_history, str):
-                try:
-                    cf_history = json.loads(cf_history)
-                except:
-                    cf_history = {}
-            roa_list = cf_history.get('roa', [])
-            if roa_list and len(roa_list) > 0:
-                sorted_roa = sorted(roa_list, key=lambda x: x.get('date', ''), reverse=True)
-                roa = sorted_roa[0].get('value')
-    if roa is not None:
-        if roa > 4.5:
-            score += 10
+        roa, _ = latest_two(cf_history.get('roa', []))
 
-    # 11. PER(来期) < 40倍（10点）
+    # 今期予想との比較（予想値は億円、履歴は円）
+    forecast_revenue = data.get('forecast_revenue')
+    revenue_forecast_growth = growth(
+        forecast_revenue * 1e8 if forecast_revenue else None, revenue_last)
+    forecast_op_income = data.get('forecast_op_income')
+    op_forecast_growth = growth(
+        forecast_op_income * 1e8 if forecast_op_income else None, op_last)
+
+    market_cap = data.get('market_cap')
+    equity_ratio = data.get('equity_ratio')
+    operating_margin = data.get('operating_margin')
     per = data.get('per_forward')
-    if per is not None and per > 0:
-        if per < 40:
-            score += 10
-
-    # 12. PBR < 10倍（10点）
     pbr = data.get('pbr')
-    if pbr is not None and pbr > 0:
-        if pbr < 10:
-            score += 10
 
-    # 12項目×10点=120点を100点満点に正規化
-    return round(score * 100 / 120)
+    revenue_growth = growth(revenue_last, revenue_prev)
+    op_growth = growth(op_last, op_prev)
+
+    def item(key, value, ok):
+        """value が None なら判定不能。そうでなければ ok(bool) で合否。"""
+        judged = value is not None
+        return {'key': key, 'judged': judged, 'passed': bool(judged and ok)}
+
+    return [
+        item('market_cap', market_cap, market_cap is not None and market_cap <= 700),
+        item('equity_ratio', equity_ratio, equity_ratio is not None and equity_ratio >= 30),
+        item('revenue_growth', revenue_growth, revenue_growth is not None and revenue_growth > 0),
+        item('revenue_forecast', revenue_forecast_growth,
+             revenue_forecast_growth is not None and revenue_forecast_growth > 0),
+        item('operating_margin', operating_margin,
+             operating_margin is not None and operating_margin >= 10),
+        item('op_growth', op_growth, op_growth is not None and op_growth > 0),
+        item('op_forecast', op_forecast_growth,
+             op_forecast_growth is not None and op_forecast_growth > 0),
+        item('operating_cf', operating_cf, operating_cf is not None and operating_cf > 0),
+        item('free_cf', free_cf, free_cf is not None and free_cf > 0),
+        item('roa', roa, roa is not None and roa > 4.5),
+        # PER・PBRが0以下＝赤字や算出不能。従来どおり「不合格」扱い（判定不能にはしない）
+        item('per_forward', per, per is not None and 0 < per < 40),
+        item('pbr', pbr, pbr is not None and 0 < pbr < 10),
+    ]
+
+
+def calculate_match_rate(data: dict):
+    """
+    投資基準への合致度＝画面上の「スコア」（0-100）。
+
+    **判定できた項目だけを分母にする。** 値が無い項目は減点しない。
+    判定できた項目が MIN_JUDGED_CRITERIA 未満のときは None（スコアなし）。
+    """
+    criteria = evaluate_score_criteria(data)
+    judged = [c for c in criteria if c['judged']]
+    if len(judged) < MIN_JUDGED_CRITERIA:
+        return None
+    passed = sum(1 for c in judged if c['passed'])
+    return round(passed * 100 / len(judged))
 
 
 def upsert_screened_data_with_match_rate(data: dict) -> dict:
