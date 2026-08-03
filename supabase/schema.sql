@@ -145,7 +145,8 @@ CREATE TABLE IF NOT EXISTS screened_latest (
   analyzed_at         TIMESTAMPTZ,
   price_updated_at    TIMESTAMPTZ,
   data_status         VARCHAR(20) DEFAULT 'fresh',
-  data_source         VARCHAR(50) DEFAULT 'yfinance'
+  data_source         VARCHAR(50) DEFAULT 'yfinance',
+  source_status       JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS idx_screened_sector     ON screened_latest(sector);
 CREATE INDEX IF NOT EXISTS idx_screened_market_cap ON screened_latest(market_cap);

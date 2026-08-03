@@ -68,12 +68,28 @@ def fetch(url, timeout=15):
     ブレーカーが落ちている場合はリクエストせず None を返す。
     取得できなかった場合も None を返す（呼び出し側は None を許容すること）。
     """
+    return fetch_result(url, timeout=timeout).get('html')
+
+
+def fetch_result(url, timeout=15):
+    """取得結果と失敗理由を返す。
+
+    status は success / no_data / rate_limited / source_error / timeout /
+    network_error / disabled / circuit_open のいずれか。従来の fetch() は互換性の
+    ためHTMLだけを返す。
+    """
     if not is_available():
         if not _state['notified']:
             if _force_disabled():
                 print('[YahooJP] SKIP_YAHOO_JP=true のためスキップします')
             _state['notified'] = True
-        return None
+        return {
+            'html': None,
+            'status': 'disabled' if _force_disabled() else 'circuit_open',
+            'http_status': None,
+            'error': None,
+            'url': url,
+        }
 
     try:
         response = requests.get(url, headers=HEADERS, timeout=timeout)
@@ -85,12 +101,26 @@ def fetch(url, timeout=15):
             # ETF・新規上場銘柄などで普通に起きるため、ブレーカーの判定には含めない。
             if status in (403, 429) or status >= 500:
                 record_failure()
-            return None
+            if status == 404:
+                reason = 'no_data'
+            elif status in (403, 429):
+                reason = 'rate_limited'
+            else:
+                reason = 'source_error'
+            return {'html': None, 'status': reason, 'http_status': status,
+                    'error': None, 'url': url}
 
         response.encoding = 'utf-8'
         record_success()
-        return response.text
+        return {'html': response.text, 'status': 'success', 'http_status': 200,
+                'error': None, 'url': url}
+    except requests.exceptions.Timeout as e:
+        print(f'[YahooJP] タイムアウト {url}: {e}')
+        record_failure()
+        return {'html': None, 'status': 'timeout', 'http_status': None,
+                'error': str(e), 'url': url}
     except Exception as e:
         print(f'[YahooJP] 取得エラー {url}: {e}')
         record_failure()
-        return None
+        return {'html': None, 'status': 'network_error', 'http_status': None,
+                'error': str(e), 'url': url}

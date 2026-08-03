@@ -15,6 +15,9 @@ from models.user import *
 from models.chatbot import *
 from models.business_plan_preparation import *
 from stock_analyzer import StockAnalyzer, batch_analyze
+from analysis_quality import (
+    analysis_data_status, history_json_or_none, normalize_analysis_symbol,
+)
 from supabase_client import (
     get_supabase_client,
     add_to_watchlist, remove_from_watchlist, get_watchlist,
@@ -696,6 +699,12 @@ def api_add_to_watchlist():
                 # 事業概要
                 'business_summary': stock_data.get('business_summary'),
                 'business_summary_jp': stock_data.get('business_summary_jp'),
+                'established': stock_data.get('established'),
+                'listing_date': stock_data.get('listing_date'),
+                'ceo_name': stock_data.get('ceo_name_jp'),
+                'headquarters': stock_data.get('headquarters_jp'),
+                'industry_jp': stock_data.get('industry_jp'),
+                'market': stock_data.get('market_jp'),
 
                 # 株主・役員情報（JSON）
                 'major_holders': json.dumps(stock_data.get('major_holders', []), ensure_ascii=False) if stock_data.get('major_holders') else None,
@@ -704,11 +713,14 @@ def api_add_to_watchlist():
                 'major_shareholders_jp': json.dumps(stock_data.get('major_shareholders_jp', []), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
 
                 # 財務履歴（JSON）
-                'financial_history': json.dumps(financial_history, ensure_ascii=False),
-                'cf_history': json.dumps(cf_history, ensure_ascii=False),
+                # yfinanceが一時的に空を返した場合はNoneにして更新対象から外す。
+                # 既存の正常な履歴を空JSONで消さないことが最優先。
+                'financial_history': history_json_or_none(financial_history),
+                'cf_history': history_json_or_none(cf_history),
 
                 'data_source': 'yfinance',
-                'data_status': 'fresh'
+                'source_status': stock_data.get('source_status'),
+                'data_status': analysis_data_status(financial_history, cf_history)
             }
 
             # Noneのフィールドを除外（既存データを保護）、ただしcompany_codeは必須
@@ -827,7 +839,7 @@ def analyze_stock():
         if not data or 'symbol' not in data:
             return jsonify({"error": "銘柄コードが指定されていません"}), 400
 
-        symbol = data['symbol']
+        symbol = normalize_analysis_symbol(data['symbol'])
         period = data.get('period', '1y')
 
         # 銘柄コードの簡易バリデーション
@@ -894,6 +906,8 @@ def analyze_stock():
             if screened and session.get('user_id'):
                 from supabase_client import score_breakdown
                 result['score_breakdown'] = score_breakdown(screened)
+            if screened:
+                result['data_status'] = screened.get('data_status')
         except:
             pass
 
@@ -1174,15 +1188,22 @@ def _save_analysis_to_screened(symbol, stock_data):
         'forecast_year': _convert_timestamps(stock_data.get('forecast_year')),
         'business_summary': stock_data.get('business_summary'),
         'business_summary_jp': stock_data.get('business_summary_jp'),
+        'established': stock_data.get('established'),
+        'listing_date': stock_data.get('listing_date'),
+        'ceo_name': stock_data.get('ceo_name_jp'),
+        'headquarters': stock_data.get('headquarters_jp'),
+        'industry_jp': stock_data.get('industry_jp'),
+        'market': stock_data.get('market_jp'),
         'major_holders': json.dumps(_convert_timestamps(stock_data.get('major_holders', [])), ensure_ascii=False) if stock_data.get('major_holders') else None,
         'institutional_holders': json.dumps(_convert_timestamps(stock_data.get('institutional_holders', [])), ensure_ascii=False) if stock_data.get('institutional_holders') else None,
         'company_officers': json.dumps(_convert_timestamps(stock_data.get('company_officers', [])), ensure_ascii=False) if stock_data.get('company_officers') else None,
         'major_shareholders_jp': json.dumps(_convert_timestamps(stock_data.get('major_shareholders_jp', [])), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
-        'financial_history': json.dumps(_convert_timestamps(financial_history), ensure_ascii=False),
-        'cf_history': json.dumps(_convert_timestamps(cf_history), ensure_ascii=False),
+        'financial_history': history_json_or_none(financial_history, _convert_timestamps),
+        'cf_history': history_json_or_none(cf_history, _convert_timestamps),
         'analyzed_at': now,
         'data_source': 'yfinance',
-        'data_status': 'fresh'
+        'source_status': stock_data.get('source_status'),
+        'data_status': analysis_data_status(financial_history, cf_history)
     }
 
     # Noneのフィールドを除外（既存データを保護）
@@ -1285,10 +1306,25 @@ def _analyze_stock_and_save(analyzer, company_code):
         'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),
         'forecast_net_income': stock_data.get('forecast_net_income'),
         'forecast_year': stock_data.get('forecast_year'),
-        'financial_history': json.dumps(financial_history, ensure_ascii=False),
-        'cf_history': json.dumps(cf_history, ensure_ascii=False),
+        'business_summary': stock_data.get('business_summary'),
+        'business_summary_jp': stock_data.get('business_summary_jp'),
+        'established': stock_data.get('established'),
+        'listing_date': stock_data.get('listing_date'),
+        'ceo_name': stock_data.get('ceo_name_jp'),
+        'headquarters': stock_data.get('headquarters_jp'),
+        'industry_jp': stock_data.get('industry_jp'),
+        'market': stock_data.get('market_jp'),
+        'company_officers': json.dumps(
+            _convert_timestamps(stock_data.get('company_officers', [])),
+            ensure_ascii=False) if stock_data.get('company_officers') else None,
+        'major_shareholders_jp': json.dumps(
+            _convert_timestamps(stock_data.get('major_shareholders_jp', [])),
+            ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
+        'financial_history': history_json_or_none(financial_history),
+        'cf_history': history_json_or_none(cf_history),
         'data_source': 'yfinance',
-        'data_status': 'fresh'
+        'source_status': stock_data.get('source_status'),
+        'data_status': analysis_data_status(financial_history, cf_history)
     }
 
     # デバッグログ: 配当性向データの確認
@@ -3201,6 +3237,8 @@ FREE_SCREENED_FIELDS = {
     'stock_price', 'market_cap', 'per_forward', 'pbr', 'equity_ratio',
     'operating_margin', 'dividend_yield',
     'business_summary', 'business_summary_jp',
+    'established', 'listing_date', 'ceo_name', 'headquarters', 'market',
+    'data_status', 'data_source', 'source_status',
     'gc_date', 'dc_date', 'analyzed_at',
     # 主要株主・役員は公開情報の整理なので無料側
     'major_holders', 'institutional_holders', 'company_officers',

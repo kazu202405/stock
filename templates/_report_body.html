@@ -5,8 +5,7 @@
   データ源（上場企業 / 将来の自社決算）を知らないので、
   builder を足せばこの描画をそのまま使い回せる。
 
-  値が無いセクションは丸ごと出さない。空欄だらけのレポートは
-  「壊れている」ように見えるため。
+  値が無いセクションには未取得と表示する。推測で埋めず、短い理由を明示する。
 #}
 {% set c = report.company %}
 {% set n = report.narrative %}
@@ -25,6 +24,21 @@
     <div class="rp-head-note">公開情報ベース / 学び目的の分析</div>
   </div>
 
+  {% if report.data_quality and report.data_quality.is_limited %}
+  <div class="rp-data-notice">
+    <i class="fas fa-circle-info"></i>
+    <div>
+      <strong>取得済みデータだけで作成した暫定レポートです。</strong>
+      判定データ充足度 {{ report.data_quality.score_coverage }}%
+      （{{ report.data_quality.score_judged }}/{{ report.data_quality.score_total }}項目）。
+      {% if report.data_quality.missing_sections %}
+      未取得：{{ report.data_quality.missing_sections|join('、') }}。
+      {% endif %}
+      未取得項目は推測で補っていません。
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ===== 上段: 左(1,3,4) / 右(2,5) ===== -->
   <div class="rp-main">
 
@@ -41,7 +55,15 @@
       {# 文章生成前は事業概要をそのまま出す #}
       <section class="rp-card">
         <div class="rp-banner"><i class="fas fa-comment-dots"></i>1. 事業内容</div>
+        {% if report.data_quality and report.data_quality.summary_language == 'en' %}
+        <div class="rp-source-note">日本語概要を取得できなかったため、Yahoo Finance由来の英語原文を表示しています。</div>
+        {% endif %}
         <p class="rp-lead">{{ report.business_summary|safe }}</p>
+      </section>
+      {% else %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-comment-dots"></i>1. 事業内容</div>
+        <p class="rp-missing">事業概要を取得できていないため表示できません。</p>
       </section>
       {% endif %}
 
@@ -94,6 +116,11 @@
         <div class="rp-foot-note">代表者：{{ c.ceo_name }}</div>
         {% endif %}
       </section>
+      {% else %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-user-friends"></i>4. 株主構成</div>
+        <p class="rp-missing">主要株主・代表者データを取得できていません。</p>
+      </section>
       {% endif %}
     </div>
 
@@ -107,16 +134,16 @@
         <div class="rp-stat-grid">
           {% for item in report.snapshot %}
           {# 業種は幅を広げない。広げると通常タイルとの列がずれて2行目以降がガタつく。
-             長い業種名は rp-num-sm（下の分岐）で小さく折り返す。設立・従業員数は
+             長い業種名は rp-num-sm（下の分岐）で小さく折り返す。設立・上場日は
              サンプル同様に末尾で1.5倍幅にして行末をそろえる。 #}
-          <div class="rp-stat{% if item.label in ('設立', '従業員数') %} rp-stat-wide{% endif %}">
+          <div class="rp-stat{% if item.label in ('設立', '上場日') %} rp-stat-wide{% endif %}">
             <div class="rp-stat-label">{{ item.label }}</div>
             <div class="rp-stat-value">
               {% set ic = {
                 '株価': 'fa-chart-line', '業種': 'fa-server', '時価総額': 'fa-coins',
                 '自己資本比率': 'fa-shield-alt', '営業利益率': 'fa-chart-bar',
                 '信用倍率': 'fa-balance-scale', '設立': 'fa-calendar-alt',
-                '従業員数': 'fa-users'
+                '上場日': 'fa-calendar-check'
               } %}
               {% if item.label in ('PER', 'PBR', '配当利回り') %}
                 <span class="rp-badge-ic">{{ {'PER': 'P/E', 'PBR': 'P/B', '配当利回り': '¥'}[item.label] }}</span>
@@ -125,7 +152,7 @@
               {% endif %}
               {# 業種は数値でなく分類名なので常に小さめ。大きいフォントのままだと
                  通常幅のタイルに収まらず折り返して崩れる（例:「情報・通信業」）。 #}
-              <span class="rp-num{% if item.label == '業種' or (item.value is string and item.value|length > 8) %} rp-num-sm{% elif item.label in ('設立', '従業員数') %} rp-num-md{% endif %}">
+              <span class="rp-num{% if item.label == '業種' or (item.value is string and item.value|length > 8) %} rp-num-sm{% elif item.label in ('設立', '上場日') %} rp-num-md{% endif %}">
                 {% if item.label == '株価' %}¥{{ '{:,}'.format(item.value|int) }}{% else %}{{ item.value }}{% endif %}{% if item.unit %}<small>{{ item.unit }}</small>{% endif %}
               </span>
             </div>
@@ -165,6 +192,11 @@
           {% endfor %}
         </div>
         {% endif %}
+      </section>
+      {% else %}
+      <section class="rp-card">
+        <div class="rp-banner"><i class="fas fa-chart-bar"></i>5. 業績の推移</div>
+        <p class="rp-missing">財務履歴を取得できていないため、推移グラフを作成できません。</p>
       </section>
       {% endif %}
     </div>

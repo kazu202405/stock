@@ -13,7 +13,7 @@ HEADERS = {
 }
 
 
-def get_officers_from_jlic(stock_code: str) -> list:
+def get_officers_from_jlic(stock_code: str, with_status: bool = False):
     """
     j-lic.comから役員情報を取得
 
@@ -25,17 +25,22 @@ def get_officers_from_jlic(stock_code: str) -> list:
     """
     code = stock_code.replace('.T', '').strip()
     officers = []
+    status = {'status': 'no_data', 'source': 'j-lic.com', 'http_status': None}
 
     try:
         url = f'https://j-lic.com/companies/{code}/directors'
         print(f'役員データ取得中: {url}')
 
         response = requests.get(url, headers=HEADERS, timeout=15)
+        status['http_status'] = response.status_code
         response.encoding = 'utf-8'
 
         if response.status_code != 200:
             print(f'役員データ取得失敗: HTTP {response.status_code}')
-            return officers
+            status['status'] = ('rate_limited' if response.status_code in (403, 429)
+                                else 'no_data' if response.status_code == 404
+                                else 'source_error')
+            return (officers, status) if with_status else officers
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -77,16 +82,20 @@ def get_officers_from_jlic(stock_code: str) -> list:
                         continue
 
         print(f'役員データ取得成功: {len(officers)}名')
+        status['status'] = 'success' if officers else 'no_data'
 
     except requests.exceptions.Timeout:
         print('役員データ取得タイムアウト')
+        status['status'] = 'timeout'
     except Exception as e:
         print(f'役員データ取得エラー: {str(e)}')
+        status['status'] = 'parse_error'
+        status['error'] = str(e)
 
-    return officers
+    return (officers, status) if with_status else officers
 
 
-def get_shareholders_from_strainer(stock_code: str) -> list:
+def get_shareholders_from_strainer(stock_code: str, with_status: bool = False):
     """
     strainer.jpから大株主情報を取得
 
@@ -98,17 +107,22 @@ def get_shareholders_from_strainer(stock_code: str) -> list:
     """
     code = stock_code.replace('.T', '').strip()
     shareholders = []
+    status = {'status': 'no_data', 'source': 'strainer.jp', 'http_status': None}
 
     try:
         url = f'https://strainer.jp/companies/JP-{code}/ownership'
         print(f'大株主データ取得中: {url}')
 
         response = requests.get(url, headers=HEADERS, timeout=15)
+        status['http_status'] = response.status_code
         response.encoding = 'utf-8'
 
         if response.status_code != 200:
             print(f'大株主データ取得失敗: HTTP {response.status_code}')
-            return shareholders
+            status['status'] = ('rate_limited' if response.status_code in (403, 429)
+                                else 'no_data' if response.status_code == 404
+                                else 'source_error')
+            return (shareholders, status) if with_status else shareholders
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -191,13 +205,17 @@ def get_shareholders_from_strainer(stock_code: str) -> list:
                     continue
 
         print(f'大株主データ取得成功: {len(shareholders)}名')
+        status['status'] = 'success' if shareholders else 'no_data'
 
     except requests.exceptions.Timeout:
         print('大株主データ取得タイムアウト')
+        status['status'] = 'timeout'
     except Exception as e:
         print(f'大株主データ取得エラー: {str(e)}')
+        status['status'] = 'parse_error'
+        status['error'] = str(e)
 
-    return shareholders
+    return (shareholders, status) if with_status else shareholders
 
 
 def get_yahoo_japan_profile(stock_code: str) -> dict:
@@ -219,21 +237,30 @@ def get_yahoo_japan_profile(stock_code: str) -> dict:
         'average_age': None,
         'average_salary': None,
         'summary_missing': False,
-        'error': None
+        'error': None,
+        '_source_status': None,
     }
 
     try:
         url = f'https://finance.yahoo.co.jp/quote/{symbol}/profile'
         print(f'Yahoo Japan データ取得中: {url}')
 
-        response = requests.get(url, headers=HEADERS, timeout=15)
-        response.encoding = 'utf-8'
-
-        if response.status_code != 200:
-            result['error'] = f'HTTP {response.status_code}'
+        # Yahoo日本版は概要バックフィル時に403/429/500が続いた実績があるため、
+        # 直接requests.getせず、全経路で同じサーキットブレーカーを通す。
+        from yahoo_jp_guard import fetch_result
+        fetched = fetch_result(url, timeout=15)
+        result['_source_status'] = {
+            'status': fetched.get('status'),
+            'source': 'Yahoo!ファイナンス日本版 /profile',
+            'http_status': fetched.get('http_status'),
+            'error': fetched.get('error'),
+        }
+        if not fetched.get('html'):
+            if fetched.get('status') not in ('no_data', 'disabled', 'circuit_open'):
+                result['error'] = fetched.get('error') or fetched.get('status')
             return result
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(fetched['html'], 'html.parser')
 
         for table in soup.find_all('table'):
             for tr in table.find_all('tr'):
@@ -295,12 +322,18 @@ def get_yahoo_japan_profile(stock_code: str) -> dict:
         # ここに入れると呼び出し側で本社所在地・代表者名なども巻き添えで捨てられるため。
         if not result['business_summary_jp']:
             result['summary_missing'] = True
+            # HTTP 200でも目的項目が無い場合はブロックではなく未収録/構造変更。
+            result['_source_status']['status'] = 'no_data'
             print('Yahoo Japan 警告: 特色（事業概要）を抽出できませんでした。ページ構造変更の可能性があります')
         else:
             print(f'Yahoo Japan データ取得成功: 特色 {len(result["business_summary_jp"])} 文字')
 
     except Exception as e:
         result['error'] = str(e)
+        result['_source_status'] = {
+            'status': 'parse_error', 'source': 'Yahoo!ファイナンス日本版 /profile',
+            'http_status': None, 'error': str(e),
+        }
         print(f'Yahoo Japan データ取得エラー: {str(e)}')
 
     return result
@@ -331,12 +364,15 @@ def get_all_jp_company_data(stock_code: str) -> dict:
         'average_salary_jp': None,
         'officers_jp': [],
         'major_shareholders_jp': [],
-        'error': None
+        'error': None,
+        'source_status': {},
     }
 
     try:
         # 1. Yahoo Japanから基本情報を取得
         yahoo_data = get_yahoo_japan_profile(code)
+        if yahoo_data.get('_source_status'):
+            result['source_status']['yahoo_jp_profile'] = yahoo_data['_source_status']
         if not yahoo_data.get('error'):
             result['business_summary_jp'] = yahoo_data.get('business_summary_jp')
             result['business_segments'] = yahoo_data.get('business_segments')
@@ -351,14 +387,16 @@ def get_all_jp_company_data(stock_code: str) -> dict:
         time.sleep(0.5)  # サーバー負荷軽減
 
         # 2. j-lic.comから役員情報を取得
-        officers = get_officers_from_jlic(code)
+        officers, officers_status = get_officers_from_jlic(code, with_status=True)
+        result['source_status']['jlic_officers'] = officers_status
         if officers:
             result['officers_jp'] = officers
 
         time.sleep(0.5)
 
         # 3. strainer.jpから大株主情報を取得
-        shareholders = get_shareholders_from_strainer(code)
+        shareholders, shareholders_status = get_shareholders_from_strainer(code, with_status=True)
+        result['source_status']['strainer_shareholders'] = shareholders_status
         if shareholders:
             result['major_shareholders_jp'] = shareholders
 

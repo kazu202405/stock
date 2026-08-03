@@ -14,6 +14,13 @@ SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 _client: Client = None
 
+
+def _is_missing_source_status_column(error) -> bool:
+    """DB移行前の環境だけ、診断列を外して従来保存を続行する。"""
+    text = str(error).lower()
+    return ('source_status' in text
+            and ('column' in text or 'schema cache' in text or 'pgrst204' in text))
+
 def get_supabase_client() -> Client:
     """Supabaseクライアントを取得（シングルトン）"""
     global _client
@@ -79,16 +86,30 @@ def upsert_screened_data(data: dict) -> dict:
         existing = get_screened_data(data['company_code'])
         if existing and existing.get('is_dividend'):
             data['is_dividend'] = True
-    result = client.table('screened_latest').upsert(data).execute()
+    try:
+        result = client.table('screened_latest').upsert(data).execute()
+    except Exception as e:
+        if 'source_status' not in data or not _is_missing_source_status_column(e):
+            raise
+        fallback = {k: v for k, v in data.items() if k != 'source_status'}
+        result = client.table('screened_latest').upsert(fallback).execute()
     return result.data
 
 
 def update_screened_data(company_code: str, data: dict) -> dict:
     """screened_latestの指定フィールドを更新"""
     client = get_supabase_client()
-    result = client.table('screened_latest').update(data).eq(
-        'company_code', company_code
-    ).execute()
+    try:
+        result = client.table('screened_latest').update(data).eq(
+            'company_code', company_code
+        ).execute()
+    except Exception as e:
+        if 'source_status' not in data or not _is_missing_source_status_column(e):
+            raise
+        fallback = {k: v for k, v in data.items() if k != 'source_status'}
+        result = client.table('screened_latest').update(fallback).eq(
+            'company_code', company_code
+        ).execute()
     return result.data
 
 
@@ -288,12 +309,27 @@ def score_breakdown(data: dict) -> dict:
     items = evaluate_score_criteria(data)
     judged = [c for c in items if c['judged']]
     enough = len(judged) >= MIN_JUDGED_CRITERIA
+    judged_count = len(judged)
+    coverage = round(judged_count * 100 / SCORE_CRITERIA_TOTAL)
+    missing_keys = [c['key'] for c in items if not c['judged']]
+
+    # score は「判定できた項目内での適合度」。coverage は「全12項目の充足度」。
+    # 両者を分けることで、8項目すべて合格した銘柄を100点とは計算しつつ、
+    # 12項目揃った100点と同じ確度には見せない。
+    status = ('insufficient' if not enough else
+              'complete' if judged_count == SCORE_CRITERIA_TOTAL else
+              'provisional')
     return {
         'score': (round(sum(1 for c in judged if c['passed']) * 100 / len(judged))
                   if enough else None),
-        'judged': len(judged),
+        'judged': judged_count,
         'total': SCORE_CRITERIA_TOTAL,
         'min_judged': MIN_JUDGED_CRITERIA,
+        'coverage': coverage,
+        'missing': SCORE_CRITERIA_TOTAL - judged_count,
+        'missing_keys': missing_keys,
+        'status': status,
+        'is_complete': status == 'complete',
         'items': items,
     }
 
@@ -329,7 +365,13 @@ def upsert_screened_data_with_match_rate(data: dict) -> dict:
         data['match_rate'] = calculate_match_rate(data)
 
     client = get_supabase_client()
-    result = client.table('screened_latest').upsert(data).execute()
+    try:
+        result = client.table('screened_latest').upsert(data).execute()
+    except Exception as e:
+        if 'source_status' not in data or not _is_missing_source_status_column(e):
+            raise
+        fallback = {k: v for k, v in data.items() if k != 'source_status'}
+        result = client.table('screened_latest').upsert(fallback).execute()
     return result.data
 
 

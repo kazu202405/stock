@@ -2053,63 +2053,10 @@
             return;
         }
 
-        // 4桁数字なら日本株として.Tを付ける
-        const symbol = /^\d{4}$/.test(stockCode) ? `${stockCode}.T` : stockCode;
-
-        // ローディング表示
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('resultsArea').classList.remove('active');
-
-        // 登録ボタンを一旦非表示
-        const registerBtn = document.getElementById('registerBtn');
-        registerBtn.style.display = 'none';
-
-        try {
-            const response = await fetch('/api/stock/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol: symbol })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // 分析データを保持
-                currentStockData = data;
-                currentSymbol = symbol;
-
-                // 結果を表示
-                updateResults(data);
-                document.getElementById('resultsArea').classList.add('active');
-
-                // 登録状態をチェックしてボタンを表示
-                const isRegistered = await checkRegistrationStatus(symbol);
-                registerBtn.style.display = 'inline-block';
-                if (isRegistered) {
-                    registerBtn.textContent = 'データ更新';
-                    registerBtn.classList.add('registered');
-                    registerBtn.disabled = false;
-                } else {
-                    registerBtn.textContent = '登録';
-                    registerBtn.classList.remove('registered');
-                    registerBtn.disabled = false;
-                }
-            } else {
-                if (data.timeout || response.status === 504) {
-                    showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');
-                } else {
-                    showErrorModal('データを取得できませんでした。\n銘柄コードをご確認のうえ、もう一度お試しください。');
-                }
-            }
-        } catch (error) {
-            if (error.name === 'AbortError' || error.message.includes('timeout')) {
-                showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');
-            } else {
-                showErrorModal('接続がうまくいきませんでした。\nページを再読み込みしてお試しください。');
-            }
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
+        // 検索画面でYahooへ再分析を掛けると、一時欠損の生レスポンスで表示が
+        // 「---」になる。保存済みの正規ページを唯一の表示先にする。
+        const code = stockCode.endsWith('.T') ? stockCode.slice(0, -2) : stockCode;
+        window.location.assign(`/stock/${encodeURIComponent(code)}`);
     }
 
     // 結果を更新する関数

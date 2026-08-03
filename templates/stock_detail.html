@@ -277,6 +277,22 @@
     .score-value.high { color: var(--success-color); }
     .score-value.medium { color: var(--warning-color); }
     .score-value.low { color: var(--danger-color); }
+    .score-value.provisional { color: var(--warning-color); }
+
+    .score-coverage-note {
+        text-align: center;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin: 6px 0 8px;
+        line-height: 1.55;
+    }
+    .score-coverage-note.provisional {
+        color: #8a5a00;
+        background: #fff8e6;
+        border: 1px solid #ffe0a3;
+        border-radius: 7px;
+        padding: 6px 8px;
+    }
 
     .score-label {
         font-size: 0.85rem;
@@ -916,7 +932,7 @@
 
         <!-- 中央: スコア -->
         <div class="score-card">
-            <div class="score-header">スコア</div>
+            <div class="score-header">基準適合度</div>
             {% if not is_logged_in %}
             {#
               非会員にはスコアの中身を一切描画しない。
@@ -944,7 +960,7 @@
             {# 何項目で判定したかを必ず出す。データ未取得の項目を減点扱いにしないため、
                分母は「判定できた項目数」になる。ここを出さないと、同じ100点でも
                12項目で取れた100点と、8項目しか見ていない100点の区別がつかない。 #}
-            <div id="score-judged-note" style="text-align:center; font-size:10px; color:#737373; margin-top:6px;"></div>
+            <div id="score-judged-note" class="score-coverage-note"></div>
             <p style="font-size:10px; color:#a3a3a3; margin:8px 0 4px; line-height:1.5;">一般的な成長株の特徴にどの程度当てはまるかを示す参考値です。スコアが低い＝悪い企業ではありません。</p>
             <div class="score-details" id="score-details">
                 <div class="score-item">
@@ -1817,6 +1833,10 @@
                     }
                 }
                 const subElem = elem.querySelector('.metric-sub');
+                // 直前のキャッシュ表示で付いた評価文を必ず消してから再評価する。
+                // 更新レスポンスの値が欠けているときに「--- / 良好」のような
+                // 矛盾した表示を残さない。
+                if (subElem) subElem.textContent = '';
                 elem.classList.remove('good', 'warning', 'danger');
                 const isBankOrRE = industryInfo && /銀行|不動産|bank|real estate|reit/i.test(industryInfo);
                 if (label === '自己資本比率' && value != null) {
@@ -1937,12 +1957,27 @@
             }
         }
 
-        const sortedYears = Array.from(yearDataMap.keys()).sort((a, b) => a - b).slice(-5);
+        // EPS・配当だけが取れた年度を「財務5年」の1年として採用すると、
+        // 売上〜純利益がすべて --- の行ができる。主要な損益項目が1つでも
+        // ある年度だけを財務テーブルに出す。
+        const financialDataTypes = ['revenue', 'op_income', 'ordinary_income', 'net_income'];
+        const financialYears = Array.from(yearDataMap.keys())
+            .filter(year => {
+                const yd = yearDataMap.get(year) || {};
+                return financialDataTypes.some(type => yd[type] !== undefined && yd[type] !== null);
+            })
+            .sort((a, b) => a - b)
+            .slice(-5);
 
         // 財務データテーブル
         const tbody1 = document.getElementById('financial-data-tbody');
         if (tbody1) {
-            sortedYears.forEach((year, index) => {
+            // 実データの件数だけ表示し、余った固定行は隠す。
+            for (let i = 1; i <= 5; i++) {
+                const row = tbody1.querySelector(`tr[data-year="${i}"]`);
+                if (row) row.style.display = i <= financialYears.length ? '' : 'none';
+            }
+            financialYears.forEach((year, index) => {
                 const row = tbody1.querySelector(`tr[data-year="${index + 1}"]`);
                 if (!row) return;
                 const yearLabel = row.querySelector('.year-label');
@@ -2156,14 +2191,14 @@
             hasData = true;
         }
 
-        content.innerHTML = hasData ? html : '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
+        content.innerHTML = hasData ? html : '<div style="color:#666;text-align:center;padding:20px;">主要株主データを取得できていません</div>';
     }
 
     function updateCompanyOfficers(data) {
         const content = document.getElementById('company-officers-content');
         if (!content) return;
         if (!data.company_officers || data.company_officers.length === 0) {
-            content.innerHTML = '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
+            content.innerHTML = '<div style="color:#666;text-align:center;padding:20px;">役員データを取得できていません</div>';
             return;
         }
         const importantOfficers = [];
@@ -2246,25 +2281,76 @@
         const noteEl = document.getElementById('score-judged-note');
         const judged = breakdown.judged;
         const total = breakdown.total;
+        const coverage = (breakdown.coverage !== null && breakdown.coverage !== undefined)
+            ? breakdown.coverage
+            : Math.round(judged * 100 / total);
+        const status = breakdown.status || (judged === total ? 'complete' : 'provisional');
+
+        if (noteEl) noteEl.className = 'score-coverage-note';
 
         if (breakdown.score === null || breakdown.score === undefined) {
             scoreValue.textContent = '--';
             scoreValue.className = 'score-value';
-            if (noteEl) noteEl.textContent = judged === 0
-                ? 'データがまだありません'
-                : `判定できたのは${total}項目中 ${judged}項目。スコアは出しません`;
+            if (noteEl) {
+                noteEl.classList.add('provisional');
+                noteEl.textContent = judged === 0
+                    ? '判定データがまだありません'
+                    : `データ充足度 ${coverage}%（${judged}/${total}項目）。判定材料が足りないため適合度は出しません`;
+            }
             return;
         }
 
         scoreValue.textContent = breakdown.score;
         scoreValue.className = 'score-value';
-        if (breakdown.score >= 58) scoreValue.classList.add('high');
+        if (status === 'provisional') scoreValue.classList.add('provisional');
+        else if (breakdown.score >= 58) scoreValue.classList.add('high');
         else if (breakdown.score >= 33) scoreValue.classList.add('medium');
         else scoreValue.classList.add('low');
         if (noteEl) {
-            noteEl.textContent = (judged === total)
-                ? `${total}項目すべてで判定`
-                : `${total}項目中 ${judged}項目で判定（残りはデータ未取得）`;
+            if (status === 'complete') {
+                noteEl.textContent = `データ充足度 100%（${total}/${total}項目）`;
+            } else {
+                noteEl.classList.add('provisional');
+                noteEl.textContent = `暫定評価：データ充足度 ${coverage}%（${judged}/${total}項目）。未取得項目は適合度の計算から除外しています`;
+            }
+        }
+    }
+
+    function applySourceDiagnostics(statusEl, data) {
+        if (!statusEl) return;
+        let diagnostic = data.source_status || null;
+        if (!diagnostic && data.data_source && typeof data.data_source === 'string') {
+            try { diagnostic = JSON.parse(data.data_source).sources || null; }
+            catch (_) { diagnostic = null; }
+        }
+        if (!diagnostic) return;
+
+        const labels = {
+            yahoo_jp_profile: '日本語概要', jlic_officers: '役員',
+            strainer_shareholders: '主要株主', financials: '財務',
+            business_summary: '事業概要', holders_officers: '株主・役員'
+        };
+        const reasons = {
+            no_data: '取得元に掲載なし', rate_limited: 'レート制限',
+            timeout: 'タイムアウト', source_error: '取得元エラー',
+            parse_error: 'ページ構造変更', network_error: '通信エラー',
+            disabled: '取得停止中', circuit_open: '連続失敗により停止',
+            skipped: '高速処理のため未実行', error: '取得エラー'
+        };
+        const officialFilled = diagnostic.official_profile?.filled || [];
+        const resolvedByOfficial = key => (
+            (key === 'yahoo_jp_profile' && officialFilled.includes('business_summary_jp')) ||
+            (key === 'jlic_officers' && officialFilled.includes('company_officers')) ||
+            (key === 'strainer_shareholders' && officialFilled.includes('major_shareholders_jp'))
+        );
+        const failures = Object.entries(diagnostic)
+            .filter(([key, value]) => value && value.status !== 'success' && !resolvedByOfficial(key))
+            .map(([key, value]) => `${labels[key] || key}: ${reasons[value.status] || value.status}`);
+        if (failures.length) {
+            statusEl.title = `取得状況\n${failures.join('\n')}`;
+            statusEl.textContent += '（一部データ未取得）';
+        } else {
+            statusEl.title = '主要データの取得に成功しました';
         }
     }
 
@@ -2288,13 +2374,14 @@
 
         // 銘柄コードと業種
         const codeEl = document.getElementById('companyCodeInfo');
-        if (codeEl) codeEl.textContent = `銘柄コード: ${data.company_code || STOCK_CODE} | 業種: ${data.sector || '---'}`;
+        const cachedIndustry = data.industry_jp || data.sector || '';
+        if (codeEl) codeEl.textContent = `銘柄コード: ${data.company_code || STOCK_CODE} | 業種: ${cachedIndustry || '---'}`;
 
         // トレンド方向バッジ
         updateCrossInfo(data.gc_date, data.dc_date);
 
         // 指標更新（業種情報を渡して評価テキスト生成）
-        const cachedSector = data.sector || '';
+        const cachedSector = cachedIndustry;
         updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率', cachedSector);
         updateMetric('op-margin', data.operating_margin, '%', '営業利益率', cachedSector);
         updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
@@ -2369,12 +2456,12 @@
         if (holders || shareholdersJp) {
             updateMajorHolders({ major_holders: holders || [], major_shareholders_jp: shareholdersJp || [] });
         } else {
-            document.getElementById('major-holders-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
+            document.getElementById('major-holders-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">主要株主データを取得できていません</div>';
         }
         if (officers && officers.length > 0) {
             updateCompanyOfficers({ company_officers: officers });
         } else {
-            document.getElementById('company-officers-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">データなし</div>';
+            document.getElementById('company-officers-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">役員データを取得できていません</div>';
         }
 
         // スコアカード（サーバーが計算した内訳を描くだけ）
@@ -2384,7 +2471,9 @@
         const statusEl = document.getElementById('dataStatus');
         if (statusEl && data.analyzed_at) {
             const d = new Date(data.analyzed_at);
-            statusEl.textContent = `最終更新: ${d.toLocaleDateString('ja-JP')} ${d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})}`;
+            const suffix = data.data_status === 'stale' ? '（財務履歴の一部が未取得）' : '';
+            statusEl.textContent = `最終更新: ${d.toLocaleDateString('ja-JP')} ${d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})}${suffix}`;
+            applySourceDiagnostics(statusEl, data);
         }
     }
 
@@ -2456,7 +2545,10 @@
         updateScoreCard(data.score_breakdown);
 
         const statusEl = document.getElementById('dataStatus');
-        if (statusEl) statusEl.textContent = `最新データ取得済み`;
+        if (statusEl) statusEl.textContent = data.data_status === 'stale'
+            ? '更新しました（財務履歴の一部は未取得）'
+            : '最新データ取得済み';
+        applySourceDiagnostics(statusEl, data);
     }
 
 
@@ -2469,7 +2561,8 @@
         document.getElementById('loadingOverlay').classList.add('active');
 
         try {
-            const symbol = /^\d{4}$/.test(STOCK_CODE) ? `${STOCK_CODE}.T` : STOCK_CODE;
+            const isJapaneseCode = /^[0-9A-Z]{4}$/i.test(STOCK_CODE) && /\d/.test(STOCK_CODE);
+            const symbol = isJapaneseCode ? `${STOCK_CODE}.T` : STOCK_CODE;
             const response = await fetch('/api/stock/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2478,6 +2571,18 @@
             const data = await response.json();
             if (response.ok) {
                 displayFullAnalysis(data);
+
+                // 分析レスポンスは今回取得できた生データであり、Yahoo側の一時的な
+                // 欠損を含むことがある。保存処理では既存DB値とマージしているため、
+                // 最後にその確定値を取り直して画面全体を同じデータ源にそろえる。
+                try {
+                    const savedResponse = await fetch(`/api/stock/screened/${STOCK_CODE}`);
+                    if (savedResponse.ok) {
+                        displayCachedData(await savedResponse.json());
+                    }
+                } catch (cacheError) {
+                    console.error('保存済みデータの再取得エラー:', cacheError);
+                }
             } else {
                 if (data.timeout || response.status === 504) {
                     showErrorModal('データ取得の応答に時間がかかりすぎたため、中断しました。\n再度お試しください。');

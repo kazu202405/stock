@@ -214,7 +214,7 @@ def build_from_screened(row):
         item('配当利回り', row.get('dividend_yield'), '%', 2),
         item('信用倍率', row.get('margin_trading_ratio'), '倍', 2),
         item('設立', row.get('established')),
-        item('従業員数', row.get('employees')),
+        item('上場日', row.get('listing_date')),
     ]
     snapshot = [x for x in snapshot if x]
 
@@ -296,6 +296,7 @@ def build_from_screened(row):
             'industry': row.get('industry_jp'),
             'ceo_name': ceo,
             'established': row.get('established'),
+            'listing_date': row.get('listing_date'),
             'headquarters': row.get('headquarters'),
             'as_of': row.get('analyzed_at'),
         },
@@ -332,6 +333,31 @@ def build_from_screened(row):
         'health': bool(health),
         'shareholders': bool(report['shareholders']),
         'narrative_possible': bool(report['business_summary']),
+    }
+
+    # レポートが短い理由を利用者に明示するため、取得できていない主要セクションを
+    # 構造化して渡す。欠損を推測で埋めず、「無いこと」自体を表示材料にする。
+    missing_sections = []
+    if not report['business_summary']:
+        missing_sections.append('事業概要')
+    if not revenue_op:
+        missing_sections.append('売上高・営業利益の推移')
+    if not equity_roa:
+        missing_sections.append('自己資本比率・ROAの推移')
+    if not report['shareholders'] and not ceo:
+        missing_sections.append('主要株主・代表者')
+
+    from supabase_client import score_breakdown
+    score_info = score_breakdown(row)
+    report['data_quality'] = {
+        'status': score_info['status'],
+        'score_coverage': score_info['coverage'],
+        'score_judged': score_info['judged'],
+        'score_total': score_info['total'],
+        'missing_sections': missing_sections,
+        'is_limited': bool(missing_sections) or not score_info['is_complete'],
+        'summary_language': ('ja' if row.get('business_summary_jp') else
+                             'en' if row.get('business_summary') else None),
     }
     return report
 

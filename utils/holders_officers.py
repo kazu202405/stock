@@ -103,7 +103,8 @@ def get_holders_and_officers(symbol: str):
         "fund_ownership": None,
         "major_holders_breakdown": None,
         "source": "yfinance/yahooquery",
-        "fallback_needed": False
+        "fallback_needed": False,
+        "source_status": {}
     }
     
     try:
@@ -115,16 +116,24 @@ def get_holders_and_officers(symbol: str):
             major = ticker.major_holders
             if isinstance(major, pd.DataFrame) and not major.empty:
                 result["major_holders"] = major.to_dict('records')
-        except:
-            pass
+            result["source_status"]["yfinance_major_holders"] = {
+                "status": "success" if result["major_holders"] else "no_data",
+                "source": "yfinance",
+            }
+        except Exception as e:
+            result["source_status"]["yfinance_major_holders"] = {
+                "status": "error", "source": "yfinance", "error": str(e),
+            }
         
         # institutional_holders
         try:
             inst = ticker.institutional_holders
             if isinstance(inst, pd.DataFrame) and not inst.empty:
                 result["institutional_holders"] = inst.to_dict('records')
-        except:
-            pass
+        except Exception as e:
+            result["source_status"]["yfinance_institutional_holders"] = {
+                "status": "error", "source": "yfinance", "error": str(e),
+            }
         
         time.sleep(0.3)  # 礼儀
         
@@ -137,8 +146,14 @@ def get_holders_and_officers(symbol: str):
             officers = ap.get('companyOfficers') or []
             if officers:
                 result["company_officers"] = officers
-        except:
-            pass
+            result["source_status"]["yahooquery_officers"] = {
+                "status": "success" if officers else "no_data",
+                "source": "yahooquery",
+            }
+        except Exception as e:
+            result["source_status"]["yahooquery_officers"] = {
+                "status": "error", "source": "yahooquery", "error": str(e),
+            }
         
         # institution_ownership
         try:
@@ -177,6 +192,9 @@ def get_holders_and_officers(symbol: str):
         
     except Exception as e:
         result["error"] = str(e)
+        result["source_status"]["holders_pipeline"] = {
+            "status": "error", "source": "yfinance/yahooquery", "error": str(e),
+        }
     
     return result
 

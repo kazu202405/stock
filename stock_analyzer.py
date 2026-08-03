@@ -61,6 +61,18 @@ def _lookup_jpx_name(symbol: str) -> Optional[str]:
     return _load_jpx_name_map().get(code)
 
 
+def _classify_source_error(error) -> str:
+    """外部取得ライブラリの例外文字列を画面用の共通理由に寄せる。"""
+    text = str(error).lower()
+    if '429' in text or 'too many requests' in text or 'rate limit' in text:
+        return 'rate_limited'
+    if 'timeout' in text or 'timed out' in text:
+        return 'timeout'
+    if '403' in text or 'forbidden' in text:
+        return 'rate_limited'
+    return 'error'
+
+
 class StockAnalyzer:
     """株式データ分析クラス"""
     
@@ -129,10 +141,16 @@ class StockAnalyzer:
             "business_summary": None,  # 事業概要（英語）
             "business_summary_jp": None,  # 事業概要（日本語）
             "major_shareholders_jp": [],  # 大株主（日本語）
+            "established": None,
+            "listing_date": None,
+            "headquarters_jp": None,
+            "ceo_name_jp": None,
+            "market_jp": None,
             "price_history": [],  # 株価履歴（OHLC）
             "trend": None,
             "chart_png": None,
             "source": "Yahoo Finance (yfinance/yahooquery)",
+            "source_status": {},
             "timestamp": datetime.now().isoformat()
         }
         
@@ -180,6 +198,43 @@ class StockAnalyzer:
                 # 信用倍率取得（日本株のみ）
                 if symbol.endswith('.T'):
                     self._get_margin_trading_data(symbol, result)
+
+            # 外部サイトが未収録・遮断中でも、確認済みの公式開示キャッシュは
+            # ローカル参照なので安全に補完できる。バッチのskip_extras時にも適用する。
+            if symbol.endswith('.T'):
+                from official_company_profiles import apply_official_profile_fallback
+                official_filled = apply_official_profile_fallback(symbol, result)
+                if 'business_summary_jp' in official_filled:
+                    result['source_status']['business_summary'] = {
+                        'status': 'success',
+                        'source': 'JPX/会社公式開示（確認済みキャッシュ）',
+                        'language': 'ja',
+                    }
+                if ('major_shareholders_jp' in official_filled
+                        or 'company_officers' in official_filled):
+                    result['source_status']['holders_officers'] = {
+                        'status': 'success',
+                        'source': '会社公式開示（確認済みキャッシュ）',
+                    }
+
+            has_financials = bool(result.get('revenue') or result.get('op_income'))
+            result['source_status'].setdefault('financials', {
+                'status': 'success' if has_financials else 'no_data',
+                'source': 'Yahoo Finance (yfinance)',
+            })
+            if skip_extras:
+                result['source_status'].setdefault('business_summary', {
+                    'status': ('success' if result.get('business_summary_jp')
+                               or result.get('business_summary') else 'skipped'),
+                    'source': '事業概要取得',
+                    'reason': '高速バッチのskip_extras',
+                })
+                result['source_status'].setdefault('holders_officers', {
+                    'status': ('success' if result.get('major_shareholders_jp')
+                               or result.get('company_officers') else 'skipped'),
+                    'source': '主要株主・役員取得',
+                    'reason': '高速バッチのskip_extras',
+                })
 
             # JSON保存
             output_file = os.path.join(self.output_dir, f"snapshot_{symbol.replace('.', '_')}.json")
@@ -255,6 +310,16 @@ class StockAnalyzer:
             # 追加情報
             result["current_liabilities"] = info.get('totalCurrentLiabilities')
             result["cash_and_equivalents"] = info.get('totalCash')
+
+            # firstTradeDateEpochUtc は会社の設立日ではなく取引開始日。
+            # JPX由来の上場日が無いときのフォールバックとしてのみ使う。
+            first_trade = info.get('firstTradeDateEpochUtc')
+            if first_trade and not result.get('listing_date'):
+                try:
+                    result['listing_date'] = datetime.fromtimestamp(
+                        int(first_trade)).date().isoformat()
+                except (TypeError, ValueError, OSError):
+                    pass
 
         except:
             pass
@@ -386,6 +451,7 @@ class StockAnalyzer:
             
     def _get_five_year_financial_data(self, ticker: yf.Ticker, result: Dict[str, Any]):
         """5年分の詳細財務データを取得"""
+        errors = []
         try:
             # 損益計算書（年次）- 最大5年分
             financials = ticker.financials
@@ -459,6 +525,7 @@ class StockAnalyzer:
                 
         except Exception as e:
             print(f"損益計算書データ取得エラー: {str(e)}")
+            errors.append(e)
             
         try:
             # キャッシュフロー計算書（年次）
@@ -508,6 +575,7 @@ class StockAnalyzer:
                                 
         except Exception as e:
             print(f"キャッシュフローデータ取得エラー: {str(e)}")
+            errors.append(e)
             
         try:
             # 貸借対照表（年次）
@@ -623,6 +691,7 @@ class StockAnalyzer:
                         
         except Exception as e:
             print(f"貸借対照表データ取得エラー: {str(e)}")
+            errors.append(e)
             
         try:
             # 配当データ（DPS）と配当性向計算
@@ -675,6 +744,22 @@ class StockAnalyzer:
 
         except Exception as e:
             print(f"配当データ取得エラー: {str(e)}")
+            errors.append(e)
+
+        has_financials = bool(result.get('revenue') or result.get('op_income'))
+        if has_financials:
+            status = 'success'
+        elif errors:
+            statuses = [_classify_source_error(e) for e in errors]
+            status = ('rate_limited' if 'rate_limited' in statuses else
+                      'timeout' if 'timeout' in statuses else 'error')
+        else:
+            status = 'no_data'
+        result.setdefault('source_status', {})['financials'] = {
+            'status': status,
+            'source': 'Yahoo Finance (yfinance)',
+            'errors': [str(e) for e in errors[:3]],
+        }
             
     def _calculate_roe_roa(self, ticker: yf.Ticker, result: Dict[str, Any]):
         """ROE/ROA計算（平均自己資本・総資産使用）"""
@@ -1023,6 +1108,8 @@ class StockAnalyzer:
             # メタデータ
             result["holders_source"] = holders_data.get("source", "yfinance/yahooquery")
             result["holders_fallback_needed"] = holders_data.get("fallback_needed", False)
+            result.setdefault('source_status', {}).update(
+                holders_data.get('source_status') or {})
             
             if holders_data.get("error"):
                 print(f"主要株主・役員取得エラー: {holders_data['error']}")
@@ -1295,6 +1382,9 @@ class StockAnalyzer:
                     from jp_company_scraper import get_all_jp_company_data
                     jp_data = get_all_jp_company_data(symbol)
 
+                    result.setdefault('source_status', {}).update(
+                        jp_data.get('source_status') or {})
+
                     if not jp_data.get('error'):
                         # 事業概要（特色）
                         if jp_data.get('business_summary_jp'):
@@ -1418,9 +1508,22 @@ class StockAnalyzer:
                         
                 except Exception as e:
                     print(f"四季報事業概要取得エラー: {str(e)}")
+
+            result.setdefault('source_status', {})['business_summary'] = {
+                'status': ('success' if result.get('business_summary_jp')
+                           or result.get('business_summary') else 'no_data'),
+                'source': ('日本語プロフィール/公式フォールバック'
+                           if result.get('business_summary_jp') else
+                           'Yahoo Finance (yfinance/yahooquery)'),
+                'language': 'ja' if result.get('business_summary_jp') else 'en',
+            }
                     
         except Exception as e:
             print(f"事業概要取得エラー: {str(e)}")
+            result.setdefault('source_status', {})['business_summary'] = {
+                'status': _classify_source_error(e),
+                'source': '事業概要取得', 'error': str(e),
+            }
 
 
 def batch_analyze(symbols: List[str], sleep_time: float = 0.35, skip_chart: bool = False, skip_extras: bool = False):
