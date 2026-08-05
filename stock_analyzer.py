@@ -73,6 +73,79 @@ def _classify_source_error(error) -> str:
     return 'error'
 
 
+def _forecast_number(value) -> Optional[float]:
+    """Yahoo埋め込みJSONの数値を安全にfloatへ寄せる。0や負数も有効値。"""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        text = str(value).strip().replace(',', '')
+        return float(text) if text else None
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_yahoo_forecast_data(page_html: str) -> Dict[str, Any]:
+    """Yahoo JapanのHTMLから会社予想を抽出し、非開示も区別する。
+
+    Yahooは会社が予想を開示していない場合でも、forecastオブジェクトに
+    決算期と更新日だけを入れる。そのケースを取得失敗として扱わない。
+    """
+    import html as html_module
+
+    normalized = html_module.unescape(page_html or '').replace('\\"', '"')
+    matches = re.finditer(r'"forecast"\s*:\s*\{[^}]*\}', normalized)
+    period_hint = None
+
+    field_map = {
+        'forecast_revenue': 'netSales',
+        'forecast_op_income': 'operatingIncome',
+        'forecast_ordinary_income': 'ordinaryIncome',
+        'forecast_net_income': 'netProfit',
+    }
+
+    for match in matches:
+        fragment = match.group(0)
+        try:
+            forecast = json.loads('{' + fragment + '}').get('forecast', {})
+        except json.JSONDecodeError:
+            # 構造が少し崩れていてもforecast断片の外（実績値）を誤取得しない。
+            forecast = {}
+            for source in field_map.values():
+                number_match = re.search(
+                    rf'"{source}"\s*:\s*"?(-?[\d,]+(?:\.\d+)?)"?', fragment)
+                if number_match:
+                    forecast[source] = number_match.group(1)
+            year_match = re.search(r'"yearEndDate"\s*:\s*"([^"]+)"', fragment)
+            if year_match:
+                forecast['yearEndDate'] = year_match.group(1)
+
+        period_hint = forecast.get('yearEndDate') or period_hint
+        parsed = {}
+        for target, source in field_map.items():
+            number = _forecast_number(forecast.get(source))
+            if number is not None:
+                parsed[target] = number / 1e8
+
+        if parsed:
+            if forecast.get('yearEndDate'):
+                parsed['forecast_year'] = str(forecast['yearEndDate'])
+            parsed['_forecast_status'] = 'success'
+            return parsed
+
+    if period_hint:
+        return {
+            '_forecast_status': 'not_disclosed',
+            '_forecast_period': str(period_hint),
+            '_forecast_reason': '会社が数値予想を開示していません',
+        }
+    return {
+        '_forecast_status': 'no_data',
+        '_forecast_reason': '業績予想データがページ内にありません',
+    }
+
+
 class StockAnalyzer:
     """株式データ分析クラス"""
     
@@ -1294,9 +1367,6 @@ class StockAnalyzer:
             result: 結果を格納する辞書
         """
         try:
-            import json as json_module
-            import re
-
             # .Tを除去して4桁コードを取得
             code = symbol.replace('.T', '')
 
@@ -1315,100 +1385,34 @@ class StockAnalyzer:
                     'url': url,
                 }
                 return result
-            response = type('R', (), {'status_code': 200, 'text': _html})()
+            parsed = extract_yahoo_forecast_data(_html)
+            for key in ('forecast_revenue', 'forecast_op_income',
+                        'forecast_ordinary_income', 'forecast_net_income',
+                        'forecast_year'):
+                if key in parsed:
+                    result[key] = parsed[key]
 
-            if response.status_code == 200:
-                html = response.text
+            status = parsed.get('_forecast_status', 'no_data')
+            source_status = {
+                'status': status,
+                'source': 'Yahoo!ファイナンス日本版 /performance',
+                'http_status': 200,
+                'url': url,
+            }
+            if parsed.get('_forecast_reason'):
+                source_status['reason'] = parsed['_forecast_reason']
+            if parsed.get('_forecast_period'):
+                source_status['forecast_period'] = parsed['_forecast_period']
+            result.setdefault('source_status', {})['forecast'] = source_status
 
-                # エスケープ引用符を正規化（HTML内のJSON文字列対応）
-                normalized_html = html.replace('\\"', '"')
-
-                # JSONデータを抽出（ReactのpropsやstateとしてHTMLに埋め込まれている）
-                # "forecast":{"yearEndDate":"2025-12-31","netSales":35000000000,...}
-                forecast_pattern = r'"forecast"\s*:\s*\{[^}]+\}'
-                forecast_match = re.search(forecast_pattern, normalized_html)
-
-                if forecast_match:
-                    forecast_str = forecast_match.group(0)
-                    # "forecast": を除去してJSONパース可能な形に
-                    json_str = '{' + forecast_str + '}'
-
-                    try:
-                        data = json_module.loads(json_str)
-                        forecast = data.get('forecast', {})
-
-                        # 決算期
-                        year_end = forecast.get('yearEndDate')
-                        if year_end:
-                            result["forecast_year"] = year_end
-
-                        # 売上高（円→億円に変換）
-                        net_sales = forecast.get('netSales')
-                        if net_sales and isinstance(net_sales, (int, float)):
-                            result["forecast_revenue"] = net_sales / 1e8
-
-                        # 営業利益（円→億円に変換）
-                        op_income = forecast.get('operatingIncome')
-                        if op_income and isinstance(op_income, (int, float)):
-                            result["forecast_op_income"] = op_income / 1e8
-
-                        # 経常利益（円→億円に変換）
-                        ordinary_income = forecast.get('ordinaryIncome')
-                        if ordinary_income and isinstance(ordinary_income, (int, float)):
-                            result["forecast_ordinary_income"] = ordinary_income / 1e8
-
-                        # 純利益（円→億円に変換）
-                        net_profit = forecast.get('netProfit')
-                        if net_profit and isinstance(net_profit, (int, float)):
-                            result["forecast_net_income"] = net_profit / 1e8
-
-                        print(f"業績予想データ取得成功: 期={result.get('forecast_year')}, "
-                              f"売上={result.get('forecast_revenue')}億, "
-                              f"営利={result.get('forecast_op_income')}億")
-
-                    except json_module.JSONDecodeError as e:
-                        # シンプルな正規表現でフォールバック
-                        print(f"JSONパース失敗、正規表現でフォールバック: {e}")
-
-                        # netSales
-                        sales_match = re.search(r'"netSales"\s*:\s*(\d+)', normalized_html)
-                        if sales_match:
-                            result["forecast_revenue"] = int(sales_match.group(1)) / 1e8
-
-                        # operatingIncome
-                        op_match = re.search(r'"operatingIncome"\s*:\s*(\d+)', normalized_html)
-                        if op_match:
-                            result["forecast_op_income"] = int(op_match.group(1)) / 1e8
-
-                        # ordinaryIncome
-                        ordinary_match = re.search(r'"ordinaryIncome"\s*:\s*(\d+)', normalized_html)
-                        if ordinary_match:
-                            result["forecast_ordinary_income"] = int(ordinary_match.group(1)) / 1e8
-
-                        # netProfit
-                        profit_match = re.search(r'"netProfit"\s*:\s*(\d+)', normalized_html)
-                        if profit_match:
-                            result["forecast_net_income"] = int(profit_match.group(1)) / 1e8
-
-                        # yearEndDate
-                        year_match = re.search(r'"yearEndDate"\s*:\s*"([^"]+)"', normalized_html)
-                        if year_match:
-                            result["forecast_year"] = year_match.group(1)
-
-                        print(f"業績予想データ取得成功（フォールバック）: 売上={result.get('forecast_revenue')}億")
-
-                else:
-                    print("業績予想データが見つかりませんでした")
-
-                has_forecast = any(result.get(key) is not None for key in (
-                    'forecast_revenue', 'forecast_op_income',
-                    'forecast_ordinary_income', 'forecast_net_income'))
-                result.setdefault('source_status', {})['forecast'] = {
-                    'status': 'success' if has_forecast else 'no_data',
-                    'source': 'Yahoo!ファイナンス日本版 /performance',
-                    'http_status': 200,
-                    'url': url,
-                }
+            if status == 'success':
+                print(f"業績予想データ取得成功: 期={result.get('forecast_year')}, "
+                      f"売上={result.get('forecast_revenue')}億, "
+                      f"営利={result.get('forecast_op_income')}億")
+            elif status == 'not_disclosed':
+                print(f"業績予想は会社非開示: 期={parsed.get('_forecast_period')}")
+            else:
+                print("業績予想データが見つかりませんでした")
 
         except Exception as e:
             print(f"業績予想データ取得エラー: {str(e)}")

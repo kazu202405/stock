@@ -181,6 +181,7 @@
 
         <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.6;">
             ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
+            ※ <span style="color:#b45309; font-weight:700;">オレンジ色のスコア</span>は、データ充足度100%未満の暫定評価です。<br>
             ※ ROE順で並べ替える際は、自己資本比率5%未満の企業を除外しています（分母が小さいとROEが極端な値になり比較できないため）。
         </p>
 
@@ -203,9 +204,10 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         <template x-for="row in rows" :key="row.company_code">
                             <tr class="hover:bg-gray-50 transition-colors scr-row"
-                                @click="location.href = '/stock/' + row.company_code">
+                                @click="openStockDetail(row.company_code)">
                                 <td class="px-4 py-3">
-                                    <a :href="'/stock/' + row.company_code" class="scr-name-link">
+                                    <a :href="'/stock/' + row.company_code" class="scr-name-link"
+                                       target="_blank" rel="noopener noreferrer" @click.stop>
                                         <span x-text="row.company_name || '---'"></span>
                                     </a>
                                     <div style="font-size:11px; color:#a3a3a3;">
@@ -216,7 +218,8 @@
                                          x-text="row.business_summary_jp"></div>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="scr-match" :class="matchClass(row.match_rate)"
+                                    <span class="scr-match" :class="matchClass(row)"
+                                          :title="matchTitle(row)"
                                           x-text="row.match_rate != null ? row.match_rate : '---'"></span>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
@@ -296,7 +299,10 @@
             </div>
         </div>
 
-        <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.5;">※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。</p>
+        <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.5;">
+            ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
+            ※ <span style="color:#b45309; font-weight:700;">オレンジ色のスコア</span>は、データ充足度100%未満の暫定評価です。
+        </p>
 
         <div id="tableContainer" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
@@ -517,6 +523,7 @@
     .match-high { color: #15803d; }
     .match-medium { color: #a16207; }
     .match-low { color: #9ca3af; }
+    .match-provisional { color: #b45309; }
 
     /* ゴールデンクロス。移動平均が上抜けした事実と日付を示すだけで、
        売買を促す表現は付けない。直近がGC状態なら緑、DCが来ていれば灰色。 */
@@ -547,6 +554,10 @@
 </style>
 
 <script>
+    function openStockDetail(code) {
+        window.open(`/stock/${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
+    }
+
     // ===== タブ切替 =====
     function switchScreenerTab(panel, btn) {
         document.getElementById('panel-screen').style.display = panel === 'screen' ? '' : 'none';
@@ -732,9 +743,22 @@
                 if (p.length < 3) return d;
                 return `${p[0].slice(2)}/${parseInt(p[1])}/${parseInt(p[2])}`;
             },
-            matchClass(v) {
+            matchClass(row) {
+                const v = row.match_rate;
                 if (v == null) return 'match-low';
+                if (row.score_status === 'provisional' ||
+                        (row.score_coverage != null && row.score_coverage < 100)) {
+                    return 'match-provisional';
+                }
                 return v >= 70 ? 'match-high' : v >= 40 ? 'match-medium' : 'match-low';
+            },
+            matchTitle(row) {
+                if (row.match_rate == null) return '判定データが不足しています';
+                if (row.score_status === 'provisional' ||
+                        (row.score_coverage != null && row.score_coverage < 100)) {
+                    return `暫定評価：データ充足度 ${row.score_coverage}%（${row.score_judged}/${row.score_total}項目）`;
+                }
+                return `データ充足度 100%（${row.score_total}/${row.score_total}項目）`;
             },
             pillClass(v, good, mid) {
                 if (v == null) return 'pill-none';
@@ -786,11 +810,25 @@
     function formatWatchlistPrice(num) {
         return num == null ? '---' : `¥${Math.round(num).toLocaleString()}`;
     }
-    function getMatchRateClass(value) {
+    function getMatchRateClass(item) {
+        const value = item.match_rate;
         if (value == null) return '';
+        if (item.score_status === 'provisional' ||
+                (item.score_coverage != null && item.score_coverage < 100)) {
+            return 'match-provisional';
+        }
         if (value >= 70) return 'match-high';
         if (value >= 40) return 'match-medium';
         return 'match-low';
+    }
+
+    function getMatchRateTitle(item) {
+        if (item.match_rate == null) return '判定データが不足しています';
+        if (item.score_status === 'provisional' ||
+                (item.score_coverage != null && item.score_coverage < 100)) {
+            return `暫定評価：データ充足度 ${item.score_coverage}%（${item.score_judged}/${item.score_total}項目）`;
+        }
+        return `データ充足度 100%（${item.score_total}/${item.score_total}項目）`;
     }
 
     function renderFavorites() {
@@ -819,12 +857,13 @@
 
             html += `
                 <tr class="hover:bg-gray-50 transition-colors scr-row"
-                    onclick="location.href='/stock/${item.company_code}'">
+                    onclick="openStockDetail('${item.company_code}')">
                     <td class="px-4 py-3 whitespace-nowrap">
-                        <a href="/stock/${item.company_code}" class="scr-name-link">${item.company_name || '---'}</a>
+                        <a href="/stock/${item.company_code}" class="scr-name-link" target="_blank"
+                           rel="noopener noreferrer" onclick="event.stopPropagation()">${item.company_name || '---'}</a>
                         <div style="font-size:11px; color:#a3a3a3;">${item.company_code}</div>
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-match ${getMatchRateClass(item.match_rate)}">${matchRate}</span></td>
+                    <td class="px-4 py-3 whitespace-nowrap"><span class="scr-match ${getMatchRateClass(item)}" title="${getMatchRateTitle(item)}">${matchRate}</span></td>
                     <td class="px-4 py-3 whitespace-nowrap"><span class="scr-badge">${item.industry_jp || item.sector || '---'}</span></td>
                     <td class="scr-td-num">${formatMarketCapOku(item.market_cap)}</td>
                     <td class="scr-td-num">${formatWatchlistPrice(item.stock_price)}</td>

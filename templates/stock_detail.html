@@ -204,20 +204,35 @@
         margin-bottom: 4px;
     }
 
-    .company-code {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        margin-bottom: 16px;
+    /* 会社属性は値の途中で改行せず、項目単位で2列に収める。 */
+    .company-facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px 12px;
+        margin: 8px 0 16px;
+        min-width: 0;
     }
-
-    /* 移動平均のクロス日。事実だけを淡く置く。
-       「上昇トレンド」のような方向づけはしない（解釈になるため） */
-    .cross-info {
-        font-size: 0.7rem;
-        color: #a3a3a3;
+    .company-fact {
+        min-width: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 5px;
         white-space: nowrap;
+        font-size: 0.72rem;
+        line-height: 1.4;
     }
-    .cross-info b { font-weight: 600; color: #737373; }
+    .company-fact-label {
+        color: #a3a3a3;
+        flex: 0 0 auto;
+    }
+    .company-fact-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #525252;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
 
     .key-metrics {
         display: grid;
@@ -235,6 +250,13 @@
     .metric-item.good { border-top-color: var(--success-color); }
     .metric-item.warning { border-top-color: var(--warning-color); }
     .metric-item.danger { border-top-color: var(--danger-color); }
+    .metric-item.cross-gc { border-top-color: #16a34a; }
+    .metric-item.cross-dc { border-top-color: #94a3b8; }
+    .metric-item.cross-metric .metric-value {
+        font-size: 0.95rem;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
 
     .metric-label {
         font-size: 0.75rem;
@@ -863,7 +885,8 @@
             <span id="dataStatus" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
             {# レポートへの主導線はここに置く。銘柄を特定したあとに見るものなので、
                別途「企業を選ぶ」画面を用意するより自然で、検索UIの重複も避けられる。 #}
-            <a href="/report/listed/{{ stock_code }}" class="report-link-btn">
+            <a href="/report/listed/{{ stock_code }}" class="report-link-btn"
+               target="_blank" rel="noopener noreferrer">
                 <i class="fas fa-file-invoice"></i>レポートを見る
             </a>
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
@@ -896,9 +919,23 @@
         <div class="summary-card">
             <div class="company-name" id="companyName">---</div>
             <div class="stock-price-display" id="stockPriceDisplay">---</div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="company-code" id="companyCodeInfo">---</div>
-                <span id="crossInfo" class="cross-info" style="display: none;"></span>
+            <div class="company-facts" aria-label="会社基本情報">
+                <div class="company-fact">
+                    <span class="company-fact-label">銘柄コード</span>
+                    <span class="company-fact-value" id="companyCodeInfo">---</span>
+                </div>
+                <div class="company-fact">
+                    <span class="company-fact-label">設立日</span>
+                    <span class="company-fact-value" id="establishedInfo">---</span>
+                </div>
+                <div class="company-fact">
+                    <span class="company-fact-label">業種</span>
+                    <span class="company-fact-value" id="companyIndustryInfo">---</span>
+                </div>
+                <div class="company-fact">
+                    <span class="company-fact-label">上場日</span>
+                    <span class="company-fact-value" id="listingDateInfo">---</span>
+                </div>
             </div>
 
             <div class="key-metrics">
@@ -931,6 +968,16 @@
                     <div class="metric-label">時価総額</div>
                     <div class="metric-value">---</div>
                     <div class="metric-sub"></div>
+                </div>
+                <div class="metric-item cross-metric cross-gc">
+                    <div class="metric-label">ゴールデンクロス</div>
+                    <div class="metric-value" id="gcDateValue">---</div>
+                    <div class="metric-sub">5日・25日移動平均</div>
+                </div>
+                <div class="metric-item cross-metric cross-dc">
+                    <div class="metric-label">デッドクロス</div>
+                    <div class="metric-value" id="dcDateValue">---</div>
+                    <div class="metric-sub">5日・25日移動平均</div>
                 </div>
             </div>
         </div>
@@ -1767,29 +1814,26 @@
         return num;
     }
 
-    // トレンド方向バッジ更新
-    // 直近のゴールデンクロス／デッドクロスの発生日を並べる。
+    // 直近のゴールデンクロス／デッドクロス発生日をそれぞれのカードへ表示する。
     // ここから「上昇トレンド」等を導かないのは、5日/25日線が相場の揉み合いで
     // 何度も交差し（半年で中央値6回反転）、トレンドと呼べる安定性が無いため。
     // 事実（いつ交差したか）だけ出して、判断はチャートを見た人に委ねる。
     function updateCrossInfo(gcDate, dcDate) {
-        const el = document.getElementById('crossInfo');
-        if (!el) return;
-        if (!gcDate && !dcDate) { el.style.display = 'none'; return; }
-
         const fmt = (d) => {
             if (!d) return null;
             const dt = new Date(d);
             return isNaN(dt) ? null : `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
         };
-        const parts = [];
-        if (fmt(gcDate)) parts.push(`GC <b>${fmt(gcDate)}</b>`);
-        if (fmt(dcDate)) parts.push(`DC <b>${fmt(dcDate)}</b>`);
-        if (!parts.length) { el.style.display = 'none'; return; }
-
-        el.innerHTML = parts.join(' ／ ');
-        el.title = '5日移動平均と25日移動平均が直近で交差した日';
-        el.style.display = 'inline-block';
+        const gcEl = document.getElementById('gcDateValue');
+        const dcEl = document.getElementById('dcDateValue');
+        if (gcEl) {
+            gcEl.textContent = fmt(gcDate) || '---';
+            gcEl.title = '5日移動平均が25日移動平均を直近で上抜けした日';
+        }
+        if (dcEl) {
+            dcEl.textContent = fmt(dcDate) || '---';
+            dcEl.title = '5日移動平均が25日移動平均を直近で下抜けした日';
+        }
     }
 
     function toNumberSafe(v) {
@@ -2258,11 +2302,11 @@
         try { return JSON.parse(field); } catch { return null; }
     }
 
-    function updateScoreItem(elementId, pass, value) {
+    function updateScoreItem(elementId, pass, value, judged = true) {
         const element = document.getElementById(elementId);
         if (!element) return;
-        if (value === null) {
-            element.textContent = '--';
+        if (!judged) {
+            element.textContent = value || '--';
             element.className = 'score-item-status';
         } else {
             element.textContent = pass ? `✓ ${value}` : `− ${value}`;
@@ -2278,8 +2322,8 @@
         if (!breakdown || !breakdown.items) return;
 
         breakdown.items.forEach(function (it) {
-            // judged=false（値が無い）なら updateScoreItem 側で「--」になる
-            updateScoreItem(it.element, it.passed, it.judged ? it.display : null);
+            // 非開示と単純な未取得を区別しつつ、どちらもスコア計算から除外する。
+            updateScoreItem(it.element, it.passed, it.display, it.judged);
         });
 
         const scoreValue = document.getElementById('score-value');
@@ -2368,6 +2412,54 @@
         }
     }
 
+    function formatCompanyDate(value) {
+        if (value === null || value === undefined || String(value).trim() === '') return '---';
+        const text = String(value).trim().slice(0, 10);
+        let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (match) return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`;
+        match = String(value).trim().match(/^(\d{4})-(\d{1,2})$/);
+        if (match) return `${Number(match[1])}年${Number(match[2])}月`;
+        return String(value).trim();
+    }
+
+    function updateCompanyDates(data) {
+        const established = document.getElementById('establishedInfo');
+        const listed = document.getElementById('listingDateInfo');
+        if (established) {
+            established.textContent = formatCompanyDate(data.established);
+            established.title = established.textContent;
+        }
+        if (listed) {
+            listed.textContent = formatCompanyDate(data.listing_date);
+            listed.title = listed.textContent;
+        }
+    }
+
+    function latestSeriesValue(value) {
+        if (!Array.isArray(value) || value.length === 0) return null;
+        const rows = [...value].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+        return rows[0] && rows[0].value !== undefined ? rows[0].value : null;
+    }
+
+    function resolvedDividendYield(data) {
+        if (data.dividend_yield !== null && data.dividend_yield !== undefined) {
+            return data.dividend_yield;
+        }
+        // 利回りが欠損でもDPS=0を取得できているなら、取得失敗ではなく無配と分かる。
+        let dps = data.dps;
+        if (Array.isArray(dps)) dps = latestSeriesValue(dps);
+        if ((dps === null || dps === undefined) && data.financial_history) {
+            try {
+                const history = typeof data.financial_history === 'string'
+                    ? JSON.parse(data.financial_history) : data.financial_history;
+                dps = latestSeriesValue(history && history.dps);
+            } catch (e) {
+                dps = null;
+            }
+        }
+        return Number(dps) === 0 ? 0 : null;
+    }
+
     // キャッシュデータ表示
     function displayCachedData(data) {
         // screened_latest は通貨を持っていないので、銘柄コードから決める
@@ -2388,8 +2480,13 @@
 
         // 銘柄コードと業種
         const codeEl = document.getElementById('companyCodeInfo');
+        const industryEl = document.getElementById('companyIndustryInfo');
         const cachedIndustry = data.industry_jp || data.sector || '';
-        if (codeEl) codeEl.textContent = `銘柄コード: ${data.company_code || STOCK_CODE} | 業種: ${cachedIndustry || '---'}`;
+        if (codeEl) codeEl.textContent = data.company_code || STOCK_CODE;
+        if (industryEl) {
+            industryEl.textContent = cachedIndustry || '---';
+            industryEl.title = industryEl.textContent;
+        }
 
         // トレンド方向バッジ
         updateCrossInfo(data.gc_date, data.dc_date);
@@ -2400,10 +2497,11 @@
         updateMetric('op-margin', data.operating_margin, '%', '営業利益率', cachedSector);
         updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
         updateMetric('pbr', data.pbr, '倍', 'PBR', cachedSector);
-        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', cachedSector);
+        updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', cachedSector);
         if (data.market_cap) {
             updateMetric('market-cap', data.market_cap * 1e8, 'JPY', '時価総額', cachedSector);
         }
+        updateCompanyDates(data);
 
         // 事業概要
         updateBusinessSummary(data);
@@ -2520,6 +2618,7 @@
         }
 
         const codeEl = document.getElementById('companyCodeInfo');
+        const industryEl = document.getElementById('companyIndustryInfo');
         if (codeEl) {
             const industryJa = data.industry_jp || null;
             const sectorJa = data.sector_jp || null;
@@ -2528,7 +2627,11 @@
             if (industryJa) industryLine = industryJa + (sectorJa ? `（${sectorJa}）` : '');
             else if (industryEn) industryLine = industryEn;
             else industryLine = '---';
-            codeEl.textContent = `銘柄コード: ${data.symbol}` + (industryLine !== '---' ? ` | 業種: ${industryLine}` : '');
+            codeEl.textContent = (data.symbol || STOCK_CODE).replace(/\.T$/, '');
+            if (industryEl) {
+                industryEl.textContent = industryLine;
+                industryEl.title = industryLine;
+            }
         }
 
         // トレンド方向バッジ
@@ -2540,8 +2643,9 @@
         updateMetric('op-margin', data.op_margin_pct, '%', '営業利益率', industryForPER);
         updateMetric('per', data.per, '倍', 'PER', industryForPER);
         updateMetric('pbr', data.pbr, '倍', 'PBR', industryForPER);
-        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', industryForPER);
+        updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', industryForPER);
         updateMetric('market-cap', data.market_cap, window.currentCurrency, '時価総額', industryForPER);
+        updateCompanyDates(data);
 
         updateFinancialYearTable(data);
         updateBusinessSummary(data);

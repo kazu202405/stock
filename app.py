@@ -23,7 +23,7 @@ from supabase_client import (
     add_to_watchlist, remove_from_watchlist, get_watchlist,
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
     update_screened_data, upsert_screened_data_with_match_rate,
-    calculate_match_rate, get_screened_data,
+    calculate_match_rate, attach_score_quality, get_screened_data,
     get_technical_stocks,
     get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
     get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
@@ -564,6 +564,7 @@ def api_get_watchlist():
             sig = signal_map.get(code, {})
             item['gc_date'] = item.get('gc_date') or sig.get('gc_date')
             item['dc_date'] = item.get('dc_date') or sig.get('dc_date')
+            attach_score_quality(item)
 
         return jsonify({"watchlist": data}), 200
     except Exception as e:
@@ -2491,7 +2492,9 @@ SCREEN_COLUMNS = (
     'company_code, company_name, sector, industry_jp, market_segment, '
     'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
-    'dividend_yield, match_rate, analyzed_at, gc_date, dc_date'
+    'dividend_yield, match_rate, operating_cf, free_cf, '
+    'forecast_revenue, forecast_op_income, financial_history, cf_history, '
+    'analyzed_at, gc_date, dc_date'
 )
 
 # ROEランキングで採用する自己資本比率の下限(%)。
@@ -3090,6 +3093,11 @@ def api_screen_stocks():
 
         rows = res.data or []
         _attach_gc(rows)
+        for row in rows:
+            attach_score_quality(row)
+            # 判定にだけ使う履歴はレスポンスから外し、一覧APIを軽く保つ。
+            row.pop('financial_history', None)
+            row.pop('cf_history', None)
 
         total = res.count or 0
         return jsonify({

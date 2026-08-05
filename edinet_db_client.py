@@ -503,11 +503,19 @@ def _apply_earnings(result: Dict[str, Any], payload: Any) -> List[str]:
 
 
 def apply_edinet_db_fallback(symbol: str, result: Dict[str, Any],
-                             client: Optional[EdinetDbClient] = None) -> List[str]:
-    """日本株の欠損項目だけをEDINET DBで補完し、埋めたキー一覧を返す。"""
+                             client: Optional[EdinetDbClient] = None,
+                             categories: Optional[Iterable[str]] = None) -> List[str]:
+    """日本株の欠損項目だけをEDINET DBで補完し、埋めたキー一覧を返す。
+
+    categoriesを指定すると必要なエンドポイントだけを呼ぶ。業績予想の穴埋めでは
+    {'earnings'} を渡し、プロフィール・財務・株主・役員の枠を消費しない。
+    """
     if not symbol.endswith(".T"):
         return []
     client = client or get_edinet_db_client()
+    allowed = set(categories or {
+        "profile", "financials", "major_shareholders", "directors", "earnings"
+    })
     status_root = result.setdefault("source_status", {})
     fetched_at = datetime.now(timezone.utc).isoformat()
     if not client.enabled:
@@ -517,15 +525,16 @@ def apply_edinet_db_fallback(symbol: str, result: Dict[str, Any],
         }
         return []
 
-    need_profile = any(_empty(result.get(key)) for key in (
+    need_profile = "profile" in allowed and any(_empty(result.get(key)) for key in (
         "business_summary_jp", "established", "headquarters_jp", "ceo_name_jp"))
-    need_financials = any(_empty(result.get(key)) for key in (
+    need_financials = "financials" in allowed and any(_empty(result.get(key)) for key in (
         "revenue", "op_income", "net_income", "operating_cf"))
-    need_shareholders = _empty(result.get("major_shareholders_jp"))
-    need_directors = _empty(result.get("company_officers"))
+    need_shareholders = ("major_shareholders" in allowed
+                         and _empty(result.get("major_shareholders_jp")))
+    need_directors = "directors" in allowed and _empty(result.get("company_officers"))
     # Yahooが一部の予想値だけ返す場合もあるため、全欠損時に限らず、
     # 欠けた項目が一つでもあればEDINET DB側で不足分だけ補完する。
-    need_earnings = any(_empty(result.get(key)) for key in (
+    need_earnings = "earnings" in allowed and any(_empty(result.get(key)) for key in (
         "forecast_revenue", "forecast_op_income", "forecast_ordinary_income",
         "forecast_net_income"))
     if not any((need_profile, need_financials, need_shareholders,

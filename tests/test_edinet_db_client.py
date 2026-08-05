@@ -203,6 +203,27 @@ class EdinetDbClientTests(unittest.TestCase):
         self.assertEqual(2, len(client.calls))
         self.assertIn("/earnings", client.calls[1][0])
 
+    def test_earnings_only_mode_does_not_spend_requests_on_other_categories(self):
+        client = StubEdinetClient({
+            "/companies/E00001/earnings": {"data": [{
+                "forecast_fiscal_year_end": "2027-03-31",
+                "forecast_revenue": 10000000000,
+                "forecast_operating_income": 900000000,
+            }]},
+        })
+        result = {"source_status": {}}
+
+        filled = apply_edinet_db_fallback(
+            "7203.T", result, client=client, categories={"earnings"})
+
+        self.assertIn("forecast_revenue", filled)
+        self.assertEqual(100.0, result["forecast_revenue"])
+        self.assertEqual(9.0, result["forecast_op_income"])
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("/earnings", client.calls[1][0])
+        self.assertNotIn("profile", str(client.calls))
+        self.assertNotIn("financials", str(client.calls))
+
     def test_summary_only_fallback_calls_profile_only(self):
         client = StubEdinetClient({
             "/companies/E00001/profile": {

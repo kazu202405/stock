@@ -29,6 +29,7 @@ Yahoo!ファイナンス日本版由来の項目だけを埋める穴埋めパ�
 import os
 import time
 import argparse
+import json
 from datetime import datetime, timezone
 
 os.environ['ENABLE_SCHEDULER'] = 'false'
@@ -51,7 +52,9 @@ def load_targets(only_missing=True):
     page = 0
     while True:
         res = (client.table('screened_latest')
-               .select('company_code, business_summary_jp, forecast_year, profile_updated_at')
+               .select('company_code, business_summary_jp, forecast_year, '
+                       'forecast_revenue, forecast_op_income, profile_updated_at, '
+                       'source_status')
                .range(page * 1000, page * 1000 + 999)
                .execute())
         rows = res.data or []
@@ -61,9 +64,23 @@ def load_targets(only_missing=True):
             if not only_missing:
                 targets.append(r['company_code'])
                 continue
-            # どれか欠けていれば対象
+            source_status = r.get('source_status') or {}
+            if isinstance(source_status, str):
+                try:
+                    source_status = json.loads(source_status)
+                except (TypeError, ValueError):
+                    source_status = {}
+            forecast_not_disclosed = (
+                (source_status.get('forecast') or {}).get('status') == 'not_disclosed'
+            )
+            forecast_ready = forecast_not_disclosed or (
+                bool(r.get('forecast_year'))
+                and r.get('forecast_revenue') is not None
+                and r.get('forecast_op_income') is not None
+            )
+            # どれか欠けていれば対象。会社予想非開示は再取得を繰り返さない。
             if (not r.get('business_summary_jp')
-                    or not r.get('forecast_year')
+                    or not forecast_ready
                     or not r.get('profile_updated_at')):
                 targets.append(r['company_code'])
         if len(rows) < 1000:
@@ -72,16 +89,19 @@ def load_targets(only_missing=True):
     return targets
 
 
-def fill_one(code, analyzer):
+def fill_one(code, analyzer, use_edinet_forecasts=False):
     """1銘柄のYahoo由来項目を取得して保存する。保存した項目数を返す。"""
     # 対象は screened_latest から抽出した既存行なので UPDATE を使う。
     # upsert は INSERT ... ON CONFLICT として実行されるため、
     # 部分的な項目だけを渡すと INSERT 側でNOT NULL制約に引っかかる（23502）。
     from jp_company_scraper import get_yahoo_japan_profile
-    from supabase_client import update_screened_data
+    from supabase_client import (
+        get_screened_data, merge_source_status, update_screened_data,
+    )
 
     symbol = code if code.endswith('.T') else f'{code}.T'
     data = {'company_code': code}
+    existing = get_screened_data(code) or {}
 
     # 1) /profile 由来（事業概要・代表者名・設立・業種・従業員・本社・市場）
     profile = get_yahoo_japan_profile(code)
@@ -113,6 +133,29 @@ def fill_one(code, analyzer):
                 'forecast_net_income', 'forecast_year'):
         if forecast.get(key) is not None:
             data[key] = forecast[key]
+    if forecast.get('source_status'):
+        data['source_status'] = merge_source_status(
+            existing.get('source_status'), forecast['source_status'])
+
+    # Yahooが遮断・構造変更で空のときだけ、予想エンドポイントに限定してEDINET DBを使う。
+    # 「会社予想非開示」は取得元を変えても数値が存在しないため、枠を消費しない。
+    forecast_status = (forecast.get('source_status', {}).get('forecast', {}).get('status'))
+    if (use_edinet_forecasts
+            and forecast_status != 'not_disclosed'
+            and (data.get('forecast_revenue') is None
+                 or data.get('forecast_op_income') is None)):
+        from edinet_db_client import apply_edinet_db_fallback
+        seed = {
+            key: data.get(key, existing.get(key))
+            for key in ('forecast_revenue', 'forecast_op_income',
+                        'forecast_ordinary_income', 'forecast_net_income', 'forecast_year')
+        }
+        seed['source_status'] = forecast.get('source_status', {})
+        apply_edinet_db_fallback(symbol, seed, categories={'earnings'})
+        for key in ('forecast_revenue', 'forecast_op_income', 'forecast_ordinary_income',
+                    'forecast_net_income', 'forecast_year', 'source_status'):
+            if seed.get(key) is not None:
+                data[key] = seed[key]
 
     if len(data) <= 1:
         return 0
@@ -134,6 +177,9 @@ def main():
     parser.add_argument('--all', action='store_true',
                         help='欠けているものだけでなく全銘柄を対象にする')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--edinet-forecasts', action='store_true',
+                        help='Yahooで取得できない業績予想だけEDINET DBで補完する。'
+                             '会社予想非開示では呼ばない')
     args = parser.parse_args()
 
     print('=' * 60)
@@ -187,7 +233,7 @@ def main():
     try:
         for i, code in enumerate(targets, 1):
             try:
-                filled = fill_one(code, analyzer)
+                filled = fill_one(code, analyzer, use_edinet_forecasts=args.edinet_forecasts)
                 if filled > 0:
                     ok += 1
                     consecutive_fail = 0

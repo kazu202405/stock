@@ -15,11 +15,35 @@ from analysis_quality import (
 )
 from official_company_profiles import apply_official_profile_fallback
 from report_builder import build_from_screened
-from stock_analyzer import StockAnalyzer
-from supabase_client import merge_source_status, score_breakdown
+from stock_analyzer import StockAnalyzer, extract_yahoo_forecast_data
+from supabase_client import attach_score_quality, merge_source_status, score_breakdown
 
 
 class AnalysisQualityTest(unittest.TestCase):
+    def test_yahoo_forecast_parser_accepts_strings_zero_and_negative_values(self):
+        parsed = extract_yahoo_forecast_data(
+            '&quot;forecast&quot;:{&quot;yearEndDate&quot;:&quot;2027-03-31&quot;,'
+            '&quot;netSales&quot;:&quot;12,300,000,000&quot;,'
+            '&quot;operatingIncome&quot;:-50000000,'
+            '&quot;ordinaryIncome&quot;:0}'
+        )
+
+        self.assertEqual('success', parsed['_forecast_status'])
+        self.assertEqual(123.0, parsed['forecast_revenue'])
+        self.assertEqual(-0.5, parsed['forecast_op_income'])
+        self.assertEqual(0.0, parsed['forecast_ordinary_income'])
+        self.assertEqual('2027-03-31', parsed['forecast_year'])
+
+    def test_yahoo_forecast_parser_distinguishes_company_non_disclosure(self):
+        parsed = extract_yahoo_forecast_data(
+            '"forecast":{"yearEndDate":"2026-11-30",'
+            '"accountingStandard":"JAPAN_GAAP","updatedDate":"2026-06-30"}'
+        )
+
+        self.assertEqual('not_disclosed', parsed['_forecast_status'])
+        self.assertEqual('2026-11-30', parsed['_forecast_period'])
+        self.assertNotIn('forecast_year', parsed)
+
     def test_empty_history_is_not_serialized(self):
         history = {'revenue': [], 'op_income': []}
         self.assertFalse(history_has_values(history))
@@ -171,6 +195,43 @@ class AnalysisQualityTest(unittest.TestCase):
             'revenue_growth', 'revenue_forecast', 'op_growth', 'op_forecast',
         ])
 
+    def test_screener_quality_fields_mark_sparse_score_provisional(self):
+        row = {
+            'match_rate': 100,
+            'market_cap': 26,
+            'equity_ratio': 32.1,
+            'operating_margin': 12.5,
+            'operating_cf': 9.8,
+            'free_cf': 7.8,
+            'roa': 9.9,
+            'per_forward': 9.5,
+            'pbr': 1.47,
+            'financial_history': {'revenue': [], 'op_income': []},
+            'cf_history': {},
+        }
+
+        attach_score_quality(row)
+
+        self.assertEqual(100, row['match_rate'])
+        self.assertEqual('provisional', row['score_status'])
+        self.assertEqual(67, row['score_coverage'])
+        self.assertEqual(8, row['score_judged'])
+        self.assertEqual(12, row['score_total'])
+
+    def test_score_explains_company_forecast_non_disclosure(self):
+        result = score_breakdown({
+            'financial_history': {
+                'revenue': [{'date': '2025-12-31', 'value': 100}],
+                'op_income': [{'date': '2025-12-31', 'value': 10}],
+            },
+            'source_status': {'forecast': {'status': 'not_disclosed'}},
+        })
+        by_key = {item['key']: item for item in result['items']}
+
+        self.assertFalse(by_key['revenue_forecast']['judged'])
+        self.assertEqual('会社予想非開示', by_key['revenue_forecast']['display'])
+        self.assertEqual('会社予想非開示', by_key['op_forecast']['display'])
+
     def test_sparse_report_explains_which_sections_are_missing(self):
         report = build_from_screened({
             'company_code': '164A',
@@ -207,6 +268,18 @@ class AnalysisQualityTest(unittest.TestCase):
         env.get_template('report_view.html')
         env.get_template('_report_body.html')
         env.get_template('stock_detail.html')
+        env.get_template('screener.html')
+
+        layout = Path('templates/layout.html').read_text(encoding='utf-8')
+        detail = Path('templates/stock_detail.html').read_text(encoding='utf-8')
+        screener = Path('templates/screener.html').read_text(encoding='utf-8')
+        self.assertIn('site-header', layout)
+        self.assertIn('target="_blank" rel="noopener noreferrer"', detail)
+        self.assertIn('id="establishedInfo"', detail)
+        self.assertIn('id="listingDateInfo"', detail)
+        self.assertIn('id="gcDateValue"', detail)
+        self.assertIn('id="dcDateValue"', detail)
+        self.assertIn('openStockDetail(row.company_code)', screener)
 
     def test_changed_python_files_compile(self):
         for name in ('analysis_quality.py', 'official_company_profiles.py',

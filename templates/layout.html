@@ -24,6 +24,12 @@
         font-weight: 600;
         border-bottom-color: #1b4332;
     }
+    /* 長い財務表を見ていても主要導線を失わないよう、共通ヘッダーを上端に固定する。 */
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
     /* ヘッダーのドロップダウン */
     .nav-dropdown-wrap { position: relative; }
     .nav-link-btn {
@@ -182,7 +188,7 @@
 
 <body class="min-h-screen" style="background: #f7f7f5;">
     <!-- ナビゲーション -->
-    <nav class="bg-white" style="border-bottom: 1px solid #ebebeb;">
+    <nav class="bg-white site-header" style="border-bottom: 1px solid #ebebeb;">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-14">
                 <!-- ロゴ・ブランド -->

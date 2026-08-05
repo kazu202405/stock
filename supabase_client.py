@@ -250,6 +250,13 @@ def evaluate_score_criteria(data: dict) -> list:
 
     financial_history = as_dict(data.get('financial_history'))
     cf_history = as_dict(data.get('cf_history'))
+    source_status = as_dict(data.get('source_status'))
+    forecast_source_status = as_dict(source_status.get('forecast'))
+    forecast_unavailable = (
+        '会社予想非開示'
+        if forecast_source_status.get('status') == 'not_disclosed'
+        else None
+    )
 
     revenue_last, revenue_prev = latest_two(financial_history.get('revenue', []))
     op_last, op_prev = latest_two(financial_history.get('op_income', []))
@@ -290,7 +297,7 @@ def evaluate_score_criteria(data: dict) -> list:
     revenue_growth = growth(revenue_last, revenue_prev)
     op_growth = growth(op_last, op_prev)
 
-    def item(key, element, value, ok, fmt=None):
+    def item(key, element, value, ok, fmt=None, unavailable_display=None):
         """value が None なら判定不能。そうでなければ ok(bool) で合否。
 
         element は画面側のDOM id。ここで持たせておくと、ブラウザ側に
@@ -302,7 +309,7 @@ def evaluate_score_criteria(data: dict) -> list:
             'element': element,
             'judged': judged,
             'passed': bool(judged and ok),
-            'display': (fmt(value) if (judged and fmt) else None),
+            'display': (fmt(value) if (judged and fmt) else unavailable_display),
         }
 
     pct = lambda v: f'{v:.1f}%'
@@ -317,13 +324,15 @@ def evaluate_score_criteria(data: dict) -> list:
         item('revenue_growth', 'score-revenue-growth', revenue_growth,
              revenue_growth is not None and revenue_growth > 0, pct),
         item('revenue_forecast', 'score-revenue-forecast', revenue_forecast_growth,
-             revenue_forecast_growth is not None and revenue_forecast_growth > 0, pct),
+             revenue_forecast_growth is not None and revenue_forecast_growth > 0, pct,
+             forecast_unavailable),
         item('operating_margin', 'score-op-margin', operating_margin,
              operating_margin is not None and operating_margin >= 10, pct),
         item('op_growth', 'score-op-growth', op_growth,
              op_growth is not None and op_growth > 0, pct),
         item('op_forecast', 'score-op-forecast', op_forecast_growth,
-             op_forecast_growth is not None and op_forecast_growth > 0, pct),
+             op_forecast_growth is not None and op_forecast_growth > 0, pct,
+             forecast_unavailable),
         item('operating_cf', 'score-op-cf', operating_cf,
              operating_cf is not None and operating_cf > 0, oku),
         item('free_cf', 'score-free-cf', free_cf,
@@ -370,6 +379,20 @@ def score_breakdown(data: dict) -> dict:
         'is_complete': status == 'complete',
         'items': items,
     }
+
+
+def attach_score_quality(data: dict) -> dict:
+    """一覧表示用に、詳細画面と同じ判定からスコアの確度を付与する。
+
+    match_rate自体はDBの保存値を維持する。ここでは色分けと説明に必要な
+    充足度・判定数・状態だけを追加し、ブラウザ側で別計算しない。
+    """
+    breakdown = score_breakdown(data)
+    data['score_status'] = breakdown['status']
+    data['score_coverage'] = breakdown['coverage']
+    data['score_judged'] = breakdown['judged']
+    data['score_total'] = breakdown['total']
+    return data
 
 
 def calculate_match_rate(data: dict):
