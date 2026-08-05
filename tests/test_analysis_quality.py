@@ -20,6 +20,34 @@ from supabase_client import attach_score_quality, merge_source_status, score_bre
 
 
 class AnalysisQualityTest(unittest.TestCase):
+    def test_safe_sources_mode_skips_limited_and_html_sources(self):
+        analyzer = StockAnalyzer()
+        with patch('stock_analyzer.yf.Ticker', return_value=Mock()), \
+                patch.object(analyzer, '_get_basic_metrics'), \
+                patch.object(analyzer, '_get_financial_data'), \
+                patch.object(analyzer, '_get_five_year_financial_data'), \
+                patch.object(analyzer, '_calculate_roe_roa'), \
+                patch.object(analyzer, '_get_industry_sector') as industry, \
+                patch.object(analyzer, '_get_jp_labels') as labels, \
+                patch.object(analyzer, '_get_forecast_data') as forecast, \
+                patch.object(analyzer, '_get_holders_and_officers') as holders, \
+                patch.object(analyzer, '_get_business_summary') as summary, \
+                patch.object(analyzer, '_get_margin_trading_data') as margin:
+            result = analyzer.analyze(
+                '7089.T', skip_chart=True, safe_sources_only=True)
+
+        self.assertNotIn('error', result)
+        industry.assert_called_once()
+        self.assertFalse(industry.call_args.kwargs['allow_yahoo_jp'])
+        labels.assert_called_once()
+        self.assertFalse(labels.call_args.kwargs['allow_yahoo_jp'])
+        forecast.assert_not_called()
+        holders.assert_not_called()
+        summary.assert_not_called()
+        margin.assert_not_called()
+        self.assertEqual('skipped', result['source_status']['forecast']['status'])
+        self.assertIn('EDINET DB', result['source_status']['acquisition_mode']['excluded'])
+
     def test_yahoo_forecast_parser_accepts_strings_zero_and_negative_values(self):
         parsed = extract_yahoo_forecast_data(
             '&quot;forecast&quot;:{&quot;yearEndDate&quot;:&quot;2027-03-31&quot;,'
@@ -279,6 +307,7 @@ class AnalysisQualityTest(unittest.TestCase):
         self.assertIn('id="listingDateInfo"', detail)
         self.assertIn('id="gcDateValue"', detail)
         self.assertIn('id="dcDateValue"', detail)
+        self.assertIn('id="safeRefreshBtn"', detail)
         self.assertIn('openStockDetail(row.company_code)', screener)
 
     def test_changed_python_files_compile(self):

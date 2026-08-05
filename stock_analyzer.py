@@ -19,7 +19,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import rcParams
-import requests
 
 
 # 日本語フォント設定
@@ -160,13 +159,16 @@ class StockAnalyzer:
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.charts_dir, exist_ok=True)
         
-    def analyze(self, symbol: str, period: str = "1y", skip_chart: bool = False, skip_extras: bool = False) -> Dict[str, Any]:
+    def analyze(self, symbol: str, period: str = "1y", skip_chart: bool = False,
+                skip_extras: bool = False, safe_sources_only: bool = False) -> Dict[str, Any]:
         """
         株式データを分析してJSONとチャートを生成
         
         Args:
             symbol: 銘柄コード（例: "7203.T", "AAPL"）
             period: 期間（例: "1d", "5d", "1mo", "3mo", "1y", "5y"）
+            safe_sources_only: 管理画面の無料・低負荷更新用。Yahoo日本版HTML、
+                EDINET DB、GPT、外部HTMLスクレイピングを呼ばない
             
         Returns:
             分析結果の辞書
@@ -226,6 +228,17 @@ class StockAnalyzer:
             "source_status": {},
             "timestamp": datetime.now().isoformat()
         }
+
+        # safe_sources_only は呼び出し側が skip_extras を付け忘れても、
+        # 株主・役員・概要・GPT・EDINET DBへ進まないことを保証する。
+        if safe_sources_only:
+            skip_extras = True
+            result["source_status"]["acquisition_mode"] = {
+                "status": "success",
+                "source": "無料・低負荷更新",
+                "included": ["Yahoo Financeグローバル (yfinance/yahooquery)", "JPXローカル企業一覧", "確認済み公式キャッシュ"],
+                "excluded": ["Yahoo日本版HTML", "EDINET DB", "OpenAI", "株探", "Strainer", "J-LiC"],
+            }
         
         try:
             # yfinanceのTickerオブジェクト作成
@@ -233,10 +246,6 @@ class StockAnalyzer:
             
             # 基本的な株価・指標データ取得
             self._get_basic_metrics(ticker, result)
-
-            # kabutanから正確なPBRを取得（日本株のみ、常時実行）
-            if symbol.endswith('.T'):
-                self._get_kabutan_metrics(symbol, result)
 
             # 財務データ取得
             self._get_financial_data(ticker, result)
@@ -248,18 +257,27 @@ class StockAnalyzer:
             self._calculate_roe_roa(ticker, result)
             
             # 業種・セクター情報取得
-            self._get_industry_sector(symbol, ticker, result)
+            self._get_industry_sector(
+                symbol, ticker, result, allow_yahoo_jp=not safe_sources_only)
             
             # トレンド分析とチャート作成
             if not skip_chart:
                 self._analyze_trend_and_create_chart(ticker, symbol, result, period)
             
             # 日本語会社名・業種取得
-            self._get_jp_labels(symbol, result)
+            self._get_jp_labels(
+                symbol, result, allow_yahoo_jp=not safe_sources_only)
 
             # 業績予想データ取得（日本株、バッチでも常に取得）
             if symbol.endswith('.T'):
-                self._get_forecast_data(symbol, result)
+                if safe_sources_only:
+                    result['source_status']['forecast'] = {
+                        'status': 'skipped',
+                        'source': '業績予想取得',
+                        'reason': '無料・低負荷更新ではYahoo日本版HTMLとEDINET DBを使用しません',
+                    }
+                else:
+                    self._get_forecast_data(symbol, result)
 
             if not skip_extras:
                 # 主要株主・役員情報取得
@@ -976,7 +994,8 @@ class StockAnalyzer:
             result["roe"] = []
             result["roa"] = []
             
-    def _get_industry_sector(self, symbol: str, ticker: yf.Ticker, result: Dict[str, Any]):
+    def _get_industry_sector(self, symbol: str, ticker: yf.Ticker,
+                             result: Dict[str, Any], allow_yahoo_jp: bool = True):
         """業種・セクター情報を取得（3段階フォールバック）"""
         
         # 1. yahooquery優先
@@ -1011,7 +1030,8 @@ class StockAnalyzer:
             pass
             
         # 3. 最終手段：Yahoo Finance JPからスクレイピング（日本株のみ）
-        if symbol.endswith('.T') and (not result["industry"] or not result["sector"]):
+        if (allow_yahoo_jp and symbol.endswith('.T')
+                and (not result["industry"] or not result["sector"])):
             try:
                 from yahoo_jp_guard import fetch as yahoo_fetch
                 url = f"https://finance.yahoo.co.jp/quote/{symbol}/profile"
@@ -1164,14 +1184,17 @@ class StockAnalyzer:
         except Exception as e:
             print(f"チャート作成エラー: {str(e)}")
             
-    def _get_jp_labels(self, symbol: str, result: Dict[str, Any]):
+    def _get_jp_labels(self, symbol: str, result: Dict[str, Any],
+                       allow_yahoo_jp: bool = True):
         """日本語会社名・業種取得（.T銘柄のみ）"""
         try:
             from utils.jp_labels import fetch_jp_labels
             from utils.en2ja_taxonomy import SECTOR_JA, INDUSTRY_JA_EXAMPLES
             
-            # Yahoo!ファイナンス日本版から取得
-            name_jp, industry_jp = fetch_jp_labels(symbol)
+            # 無料・低負荷更新ではYahoo日本版HTMLを読まず、下のJPXローカル一覧と
+            # 英語分類の変換だけを使う。
+            name_jp, industry_jp = ((None, None) if not allow_yahoo_jp
+                                    else fetch_jp_labels(symbol))
             result["name_jp"] = name_jp or None
             result["industry_jp"] = industry_jp or None
 
@@ -1226,48 +1249,6 @@ class StockAnalyzer:
             result["company_officers"] = None
             result["holders_source"] = "error"
     
-    def _get_kabutan_metrics(self, symbol: str, result: Dict[str, Any]):
-        """kabutanから正確なPBR/PERを取得して上書き（日本株のみ）"""
-        try:
-            from bs4 import BeautifulSoup
-
-            code = symbol.replace('.T', '')
-            url = f'https://kabutan.jp/stock/?code={code}'
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            response = requests.get(url, headers=headers, timeout=15)
-            response.encoding = 'utf-8'
-
-            if response.status_code != 200:
-                return
-
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            abbr = soup.find('abbr', title='Price Book-value Ratio')
-            if not abbr:
-                return
-            table = abbr.find_parent('table')
-            if not table:
-                return
-            rows = table.find_all('tr')
-            if len(rows) < 2:
-                return
-            cells = rows[1].find_all('td')
-            if len(cells) >= 2:
-                # PBR = cells[1]
-                pbr_text = cells[1].get_text(strip=True).replace('倍', '')
-                try:
-                    pbr_val = float(pbr_text)
-                    old_pbr = result.get('pbr')
-                    result['pbr'] = pbr_val
-                    print(f"PBR上書き（kabutan）: {old_pbr} → {pbr_val}")
-                except ValueError:
-                    pass
-
-        except Exception as e:
-            print(f"kabutan PBR取得エラー: {str(e)}")
-
     def _get_margin_trading_data(self, symbol: str, result: Dict[str, Any]):
         """
         Yahoo!ファイナンス日本版、次にJPX週次残高から信用倍率を取得

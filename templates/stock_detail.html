@@ -889,6 +889,13 @@
                target="_blank" rel="noopener noreferrer">
                 <i class="fas fa-file-invoice"></i>レポートを見る
             </a>
+            {% if is_admin %}
+            <button class="refresh-button" id="safeRefreshBtn" onclick="safeRefreshAnalysis()"
+                    style="background:#2f855a;"
+                    title="yfinance・JPXローカル情報・確認済み公式キャッシュだけを使用。Yahoo日本版HTML、EDINET DB、GPT、外部スクレイピングは使いません。">
+                無料・低負荷更新
+            </button>
+            {% endif %}
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
             <button class="demo-trade-btn" id="demoBuyBtn" onclick="openDetailBuyModal()">
                 <i class="fas fa-plus" style="font-size: 10px;"></i>購入
@@ -2684,6 +2691,36 @@
 
 
     // 「更新」ボタン
+    async function safeRefreshAnalysis() {
+        const btn = document.getElementById('safeRefreshBtn');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.textContent = '低負荷取得中...';
+        document.getElementById('loadingOverlay').classList.add('active');
+
+        try {
+            const isJapaneseCode = /^[0-9A-Z]{4}$/i.test(STOCK_CODE) && /\d/.test(STOCK_CODE);
+            const symbol = isJapaneseCode ? `${STOCK_CODE}.T` : STOCK_CODE;
+            const response = await fetch('/api/admin/stock/safe-refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: symbol })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || '更新できませんでした');
+
+            const savedResponse = await fetch(`/api/stock/screened/${STOCK_CODE}`);
+            if (savedResponse.ok) displayCachedData(await savedResponse.json());
+            showSuccessModal(data.message || '無料・低負荷更新が完了しました');
+        } catch (error) {
+            showErrorModal(error.message || '無料・低負荷更新に失敗しました');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '無料・低負荷更新';
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+    }
+
     async function refreshAnalysis() {
         const btn = document.getElementById('refreshBtn');
         btn.disabled = true;

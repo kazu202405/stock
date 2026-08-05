@@ -17,6 +17,8 @@ Yahoo!ファイナンス日本版由来の項目だけを埋める穴埋めパ�
   - 中断・再開可能なので、数日に分けて流してよい
 
 使い方:
+    python backfill_yahoo_fields.py --code 7089      # 1銘柄だけ再取得
+    python backfill_yahoo_fields.py --code 7089 --code 164A
     python backfill_yahoo_fields.py --limit 20      # まず20銘柄で試す
     python backfill_yahoo_fields.py                 # 未取得を全部
     python backfill_yahoo_fields.py --sleep 2.0     # さらに安全側
@@ -35,6 +37,24 @@ from datetime import datetime, timezone
 os.environ['ENABLE_SCHEDULER'] = 'false'
 
 CONSECUTIVE_FAIL_ABORT = 15
+
+
+def normalize_target_codes(values):
+    """--code の値をDBで使う銘柄コードへ正規化し、入力順で重複除去する。"""
+    codes = []
+    seen = set()
+    for value in values or []:
+        for raw in str(value).split(','):
+            code = raw.strip().upper()
+            if code.endswith('.T'):
+                code = code[:-2]
+            if not code or code in seen:
+                continue
+            if len(code) != 4 or not code.isalnum():
+                raise ValueError(f'銘柄コードの形式が不正です: {raw}')
+            seen.add(code)
+            codes.append(code)
+    return codes
 
 
 def fmt_duration(seconds):
@@ -168,6 +188,8 @@ def fill_one(code, analyzer, use_edinet_forecasts=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Yahoo!JP由来項目の穴埋め')
+    parser.add_argument('--code', action='append', default=[],
+                        help='指定銘柄だけ再取得する。複数回指定またはカンマ区切り可')
     parser.add_argument('--limit', type=int, default=0)
     parser.add_argument('--sleep', type=float, default=5.0,
                         help='銘柄間の待機秒数。1銘柄あたりYahooに2回リクエストするため、'
@@ -194,7 +216,11 @@ def main():
 
     print('対象を抽出中...')
     try:
-        targets = load_targets(only_missing=not args.all)
+        targets = (normalize_target_codes(args.code) if args.code
+                   else load_targets(only_missing=not args.all))
+    except ValueError as e:
+        print(f'[エラー] {e}')
+        return
     except Exception as e:
         print(f'[エラー] 対象の抽出に失敗しました: {e}')
         print('  migration_company_profile_fields.sql を適用済みか確認してください')

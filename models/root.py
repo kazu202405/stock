@@ -318,6 +318,7 @@ def stock_detail(code):
         tags=tags,
         is_fund=is_fund,
         is_logged_in=bool(session.get('user_id')),
+        is_admin=session.get('user_role') == 'admin',
     )
 
 

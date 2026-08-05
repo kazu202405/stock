@@ -927,6 +927,40 @@ def analyze_stock():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/admin/stock/safe-refresh', methods=['POST'])
+def admin_safe_refresh_stock():
+    """有料枠・日本版Yahoo HTML・外部HTMLスクレイピングを使わず1銘柄を更新する。"""
+    if not session.get('user_id') or session.get('user_role') != 'admin':
+        return jsonify({"error": "管理者権限が必要です"}), 403
+
+    data = request.get_json(silent=True) or {}
+    symbol = normalize_analysis_symbol(data.get('symbol'))
+    if not symbol:
+        return jsonify({"error": "銘柄コードが指定されていません"}), 400
+
+    try:
+        analyzer = StockAnalyzer()
+        result = analyzer.analyze(
+            symbol,
+            period=data.get('period', '1y'),
+            skip_chart=True,
+            skip_extras=True,
+            safe_sources_only=True,
+        )
+        if result.get('error'):
+            return jsonify({"error": result['error']}), 502
+
+        _save_analysis_to_screened(symbol, result)
+        return jsonify({
+            "success": True,
+            "company_code": normalize_code(symbol),
+            "message": "無料・低負荷更新が完了しました。業績予想・概要・株主・役員は既存値を保持しています。",
+            "source_status": result.get('source_status', {}),
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/stock/batch', methods=['POST'])
 def analyze_stocks_batch():
     """
