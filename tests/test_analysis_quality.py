@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -14,7 +15,8 @@ from analysis_quality import (
 )
 from official_company_profiles import apply_official_profile_fallback
 from report_builder import build_from_screened
-from supabase_client import score_breakdown
+from stock_analyzer import StockAnalyzer
+from supabase_client import merge_source_status, score_breakdown
 
 
 class AnalysisQualityTest(unittest.TestCase):
@@ -46,6 +48,96 @@ class AnalysisQualityTest(unittest.TestCase):
         encoded = serialize_data_source(source)
         self.assertEqual(parse_data_source(encoded)['sources'], source)
         self.assertEqual(parse_data_source('yfinance')['primary'], 'yfinance')
+
+    def test_successful_source_is_preserved_when_later_batch_skips_it(self):
+        old = {'edinet_db': {'status': 'success', 'filled': ['revenue']}}
+        new = {'edinet_db': {'status': 'budget_reserved'},
+               'financials': {'status': 'success'}}
+
+        merged = merge_source_status(old, new)
+
+        self.assertEqual('success', merged['edinet_db']['status'])
+        self.assertEqual('budget_reserved', merged['edinet_db']['last_attempt']['status'])
+        self.assertEqual('success', merged['financials']['status'])
+
+    @patch('jp_company_scraper.get_all_jp_company_data')
+    def test_japanese_summary_skips_english_yahoo_lookup(self, get_jp_data):
+        get_jp_data.return_value = {
+            'business_summary_jp': '日本語の概要',
+            'source_status': {},
+        }
+        analyzer = StockAnalyzer()
+        analyzer._get_english_business_summary = Mock()
+        result = {'business_summary': None, 'business_summary_jp': None,
+                  'source_status': {}}
+
+        analyzer._get_business_summary('7203.T', Mock(), result)
+
+        self.assertEqual('日本語の概要', result['business_summary_jp'])
+        analyzer._get_english_business_summary.assert_not_called()
+
+    @patch('jp_company_scraper.get_all_jp_company_data')
+    def test_missing_japanese_summary_tries_english_yahoo_lookup(self, get_jp_data):
+        get_jp_data.return_value = {'business_summary_jp': None, 'source_status': {}}
+        analyzer = StockAnalyzer()
+        analyzer._get_english_business_summary = Mock(
+            side_effect=lambda symbol, ticker, result: result.update(
+                {'business_summary': 'English summary'}))
+        result = {'business_summary': None, 'business_summary_jp': None,
+                  'source_status': {}}
+
+        analyzer._get_business_summary('7203.T', Mock(), result)
+
+        analyzer._get_english_business_summary.assert_called_once()
+        self.assertEqual('English summary', result['business_summary'])
+
+    @patch('jp_company_scraper.get_all_jp_company_data')
+    def test_successful_free_source_data_is_used_even_if_another_source_failed(
+            self, get_jp_data):
+        get_jp_data.return_value = {
+            'error': 'Yahoo Japan failed',
+            'business_summary_jp': None,
+            'officers_jp': [{'name': '役員 太郎', 'title': '代表取締役'}],
+            'major_shareholders_jp': [
+                {'name': '大株主株式会社', 'shares': 100, 'ratio': 10.0},
+            ],
+            'source_status': {
+                'yahoo_jp_profile': {'status': 'error'},
+                'jlic_officers': {'status': 'success'},
+                'strainer_shareholders': {'status': 'success'},
+            },
+        }
+        analyzer = StockAnalyzer()
+        analyzer._get_english_business_summary = Mock()
+        result = {'business_summary': None, 'business_summary_jp': None,
+                  'company_officers': [], 'major_shareholders_jp': [],
+                  'source_status': {}}
+
+        analyzer._get_business_summary('7203.T', Mock(), result)
+
+        self.assertEqual('役員 太郎', result['company_officers'][0]['name'])
+        self.assertEqual('大株主株式会社', result['major_shareholders_jp'][0]['name'])
+        analyzer._get_english_business_summary.assert_called_once()
+
+    @patch('jp_company_scraper.time.sleep')
+    @patch('jp_company_scraper.get_shareholders_from_strainer')
+    @patch('jp_company_scraper.get_officers_from_jlic')
+    @patch('jp_company_scraper.get_yahoo_japan_profile')
+    def test_jp_sources_continue_after_yahoo_exception(
+            self, get_yahoo, get_officers, get_shareholders, _sleep):
+        from jp_company_scraper import get_all_jp_company_data
+
+        get_yahoo.side_effect = RuntimeError('Yahoo blocked')
+        get_officers.return_value = (
+            [{'name': '役員 花子', 'title': '取締役'}], {'status': 'success'})
+        get_shareholders.return_value = (
+            [{'name': '株主A', 'shares': 50, 'ratio': 5.0}], {'status': 'success'})
+
+        result = get_all_jp_company_data('7203')
+
+        self.assertEqual('役員 花子', result['officers_jp'][0]['name'])
+        self.assertEqual('株主A', result['major_shareholders_jp'][0]['name'])
+        self.assertEqual('error', result['source_status']['yahoo_jp_profile']['status'])
 
     def test_official_profile_fills_only_missing_values(self):
         row = {'business_summary_jp': '既存の説明', 'listing_date': None}

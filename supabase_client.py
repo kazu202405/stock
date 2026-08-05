@@ -1,4 +1,5 @@
 # Supabase接続クライアント
+import json
 import os
 import string
 import random
@@ -20,6 +21,36 @@ def _is_missing_source_status_column(error) -> bool:
     text = str(error).lower()
     return ('source_status' in text
             and ('column' in text or 'schema cache' in text or 'pgrst204' in text))
+
+
+def _source_status_object(value) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
+
+
+def merge_source_status(existing, incoming) -> dict:
+    """成功済みの取得元を、一時失敗・バッチ省略の診断で消さずにマージする。"""
+    old = _source_status_object(existing)
+    new = _source_status_object(incoming)
+    merged = dict(old)
+    for key, value in new.items():
+        old_value = old.get(key)
+        if (isinstance(old_value, dict) and old_value.get('status') == 'success'
+                and isinstance(value, dict)
+                and value.get('status') not in ('success', None)):
+            kept = dict(old_value)
+            kept['last_attempt'] = value
+            merged[key] = kept
+        else:
+            merged[key] = value
+    return merged
 
 def get_supabase_client() -> Client:
     """Supabaseクライアントを取得（シングルトン）"""
@@ -81,9 +112,16 @@ def get_screened_data(company_code: str) -> dict:
 def upsert_screened_data(data: dict) -> dict:
     """screened_latestにデータを登録/更新（is_dividendフラグを保持）"""
     client = get_supabase_client()
+    existing = get_screened_data(data['company_code']) if data.get('company_code') else None
+    if existing:
+        if 'source_status' in data or existing.get('source_status'):
+            data['source_status'] = merge_source_status(
+                existing.get('source_status'), data.get('source_status'))
+        if ('edinet_db' in str(existing.get('data_source') or '')
+                and data.get('data_source') == 'yfinance'):
+            data['data_source'] = existing['data_source']
     # 既存のis_dividendフラグを保持
-    if 'is_dividend' not in data and data.get('company_code'):
-        existing = get_screened_data(data['company_code'])
+    if 'is_dividend' not in data and existing:
         if existing and existing.get('is_dividend'):
             data['is_dividend'] = True
     try:
@@ -356,6 +394,12 @@ def upsert_screened_data_with_match_rate(data: dict) -> dict:
     company_code = data.get('company_code')
     if company_code:
         existing = get_screened_data(company_code) or {}
+        if 'source_status' in data or existing.get('source_status'):
+            data['source_status'] = merge_source_status(
+                existing.get('source_status'), data.get('source_status'))
+        if ('edinet_db' in str(existing.get('data_source') or '')
+                and data.get('data_source') == 'yfinance'):
+            data['data_source'] = existing['data_source']
         merged = {**existing, **data}
         data['match_rate'] = calculate_match_rate(merged)
         # 既存のis_dividendフラグを保持

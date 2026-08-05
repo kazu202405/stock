@@ -368,6 +368,8 @@ def get_all_jp_company_data(stock_code: str) -> dict:
         'source_status': {},
     }
 
+    # 各取得先は独立している。Yahoo Japanが想定外の例外で失敗しても、
+    # 無料のJ-LiC・Strainerを試し切ってから上位処理のEDINET DBへ進ませる。
     try:
         # 1. Yahoo Japanから基本情報を取得
         yahoo_data = get_yahoo_japan_profile(code)
@@ -384,24 +386,45 @@ def get_all_jp_company_data(stock_code: str) -> dict:
             result['employees_jp'] = yahoo_data.get('employees')
             result['average_salary_jp'] = yahoo_data.get('average_salary')
 
-        time.sleep(0.5)  # サーバー負荷軽減
+    except Exception as e:
+        result['source_status']['yahoo_jp_profile'] = {
+            'status': 'error',
+            'source': 'Yahoo!ファイナンス日本版 /profile',
+            'error': str(e),
+        }
+        result['error'] = str(e)
 
+    time.sleep(0.5)  # サーバー負荷軽減
+
+    try:
         # 2. j-lic.comから役員情報を取得
         officers, officers_status = get_officers_from_jlic(code, with_status=True)
         result['source_status']['jlic_officers'] = officers_status
         if officers:
             result['officers_jp'] = officers
+    except Exception as e:
+        result['source_status']['jlic_officers'] = {
+            'status': 'error',
+            'source': 'J-LiC',
+            'error': str(e),
+        }
+        result['error'] = result['error'] or str(e)
 
-        time.sleep(0.5)
+    time.sleep(0.5)
 
+    try:
         # 3. strainer.jpから大株主情報を取得
         shareholders, shareholders_status = get_shareholders_from_strainer(code, with_status=True)
         result['source_status']['strainer_shareholders'] = shareholders_status
         if shareholders:
             result['major_shareholders_jp'] = shareholders
-
     except Exception as e:
-        result['error'] = str(e)
+        result['source_status']['strainer_shareholders'] = {
+            'status': 'error',
+            'source': 'Strainer',
+            'error': str(e),
+        }
+        result['error'] = result['error'] or str(e)
 
     return result
 

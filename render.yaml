@@ -32,6 +32,16 @@ services:
       # OpenAI
       - key: OPENAI_API_KEY
         sync: false
+      # EDINET DB（第三者の構造化API。Freeプランは100 requests/day）
+      - key: EDINETDB_API_KEY
+        sync: false
+      - key: EDINETDB_DAILY_LIMIT
+        value: "100"
+      # 上限直前で止め、手動確認やプロセス再起動分を残す
+      - key: EDINETDB_DAILY_RESERVE
+        value: "10"
+      - key: EDINETDB_CACHE_HOURS
+        value: "24"
       # DIFY (オプション)
       - key: DIFY_API_KEY
         sync: false

@@ -532,6 +532,14 @@ def to_oku(val):
     return val / 1e8
 
 
+def analysis_data_source_name(stock_data):
+    """実際に値を補完した取得元をDBの短い識別子にも残す。"""
+    edinet = (stock_data.get('source_status') or {}).get('edinet_db') or {}
+    if edinet.get('status') == 'success' and edinet.get('filled'):
+        return 'yfinance+edinet_db'
+    return 'yfinance'
+
+
 # ウォッチリストAPI
 @app.route('/api/watchlist', methods=['GET'])
 def api_get_watchlist():
@@ -718,7 +726,7 @@ def api_add_to_watchlist():
                 'financial_history': history_json_or_none(financial_history),
                 'cf_history': history_json_or_none(cf_history),
 
-                'data_source': 'yfinance',
+                'data_source': analysis_data_source_name(stock_data),
                 'source_status': stock_data.get('source_status'),
                 'data_status': analysis_data_status(financial_history, cf_history)
             }
@@ -1201,7 +1209,7 @@ def _save_analysis_to_screened(symbol, stock_data):
         'financial_history': history_json_or_none(financial_history, _convert_timestamps),
         'cf_history': history_json_or_none(cf_history, _convert_timestamps),
         'analyzed_at': now,
-        'data_source': 'yfinance',
+        'data_source': analysis_data_source_name(stock_data),
         'source_status': stock_data.get('source_status'),
         'data_status': analysis_data_status(financial_history, cf_history)
     }
@@ -1322,7 +1330,7 @@ def _analyze_stock_and_save(analyzer, company_code):
             ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
         'financial_history': history_json_or_none(financial_history),
         'cf_history': history_json_or_none(cf_history),
-        'data_source': 'yfinance',
+        'data_source': analysis_data_source_name(stock_data),
         'source_status': stock_data.get('source_status'),
         'data_status': analysis_data_status(financial_history, cf_history)
     }
@@ -1982,51 +1990,75 @@ def api_get_technical_stocks():
 
 
 def _translate_summary_to_jp(english_text):
-    """英語の事業概要をLLMで日本語要約する（スクレイピング失敗時の最終フォールバック）。
-    成功時は日本語テキスト、失敗時は None を返す。"""
-    import llm
-    if not english_text or not llm.is_available():
-        return None
-    try:
-        prompt = (
-            "以下は海外データベースに載っている企業の事業内容の説明文です。"
-            "これを日本語で、事実だけを簡潔に要約してください。\n"
-            "条件:\n"
-            "- 200文字以内の平易な日本語\n"
-            "- 何で稼いでいる会社かが分かるように書く\n"
-            "- 投資判断（買い時・推奨など）は一切書かない\n"
-            "- 要約文のみを出力し、前置きや見出しは付けない\n\n"
-            f"{english_text[:3000]}"
-        )
-        text = llm.chat(prompt, model='gpt-4o-mini', temperature=0.2, timeout=30)
-        return (text or '').strip() or None
-    except Exception as e:
-        print(f"事業概要のLLM翻訳エラー: {e}")
-        return None
+    """旧呼び出し箇所との互換用。実装は共通モジュールに置く。"""
+    from summary_translation import translate_summary_to_jp
+    return translate_summary_to_jp(english_text)
 
 
 @app.route('/api/stock/summary-jp/<company_code>', methods=['POST'])
 def api_retry_summary_jp(company_code):
-    """日本語事業概要を再取得"""
+    """日本語事業概要を無料ソース優先で再取得し、最後にEDINET DBで補完する。"""
     try:
         from jp_company_scraper import get_yahoo_japan_profile
+        from supabase_client import merge_source_status
         code = company_code.replace('.T', '').strip()
+        existing = get_screened_data(code) or {}
+        source_updates = {}
         yahoo_data = get_yahoo_japan_profile(code)
+        if yahoo_data.get('_source_status'):
+            source_updates['yahoo_jp_profile'] = yahoo_data['_source_status']
         summary_jp = yahoo_data.get('business_summary_jp')
         segments = yahoo_data.get('business_segments')
         if summary_jp and segments:
             summary_jp += f"<br>【連結事業】{segments}"
         elif segments:
             summary_jp = f"【連結事業】{segments}"
+        if summary_jp:
+            source_updates['business_summary'] = {
+                'status': 'success', 'source': 'Yahoo Finance Japan', 'language': 'ja',
+            }
 
-        # スクレイピングで取れない場合は、保存済みの英語概要をLLMで日本語化する。
-        # 外部サイトの構造変更で英語のまま残り続けるのを防ぐための最終フォールバック。
+        # Yahoo Japanで取れない場合、保存済みの英語概要を先に日本語化する。
+        # EDINET DB Free枠（100回/日）は英語もGPTも使えない銘柄へ温存する。
         translated = False
         if not summary_jp:
-            existing = get_screened_data(code) or {}
             english = existing.get('business_summary')
             summary_jp = _translate_summary_to_jp(english)
             translated = bool(summary_jp)
+            if translated:
+                source_updates['business_summary'] = {
+                    'status': 'success',
+                    'source': 'Yahoo Finance英語概要 + OpenAI日本語要約',
+                    'language': 'ja', 'translated_from': 'en',
+                }
+
+        # IPO/TOKYO PRO Market等の確認済み公式キャッシュはローカル参照なので、
+        # EDINET DBの無料枠を消費する前に使う。
+        if not summary_jp:
+            from official_company_profiles import apply_official_profile_fallback
+            official_result = {'business_summary_jp': None, 'source_status': {}}
+            apply_official_profile_fallback(f'{code}.T', official_result)
+            summary_jp = official_result.get('business_summary_jp')
+            source_updates.update(official_result.get('source_status') or {})
+            if summary_jp:
+                source_updates['business_summary'] = {
+                    'status': 'success',
+                    'source': 'JPX/会社公式開示（確認済みキャッシュ）',
+                    'language': 'ja',
+                }
+
+        # 無料ソースと確認済み公式キャッシュでも空の場合だけEDINET DBを使う。
+        if not summary_jp:
+            from edinet_db_client import fetch_edinet_db_business_summary
+            summary_jp, edinet_status = fetch_edinet_db_business_summary(f'{code}.T')
+            source_updates['edinet_db'] = edinet_status
+            if summary_jp:
+                source_updates['business_summary'] = {
+                    'status': 'success', 'source': 'EDINET DB API (gBizINFO/EDINET)',
+                    'language': 'ja',
+                }
+
+        merged_status = merge_source_status(existing.get('source_status'), source_updates)
 
         if summary_jp:
             # 既存行があればUPDATE、無ければINSERT相当のupsert。
@@ -2034,14 +2066,23 @@ def api_retry_summary_jp(company_code):
             # 渡すとNOT NULL制約に引っかかる（23502）。まずUPDATEを試すのが安全。
             try:
                 if get_screened_data(code):
-                    update_screened_data(code, {'business_summary_jp': summary_jp})
+                    update_screened_data(code, {
+                        'business_summary_jp': summary_jp,
+                        'source_status': merged_status,
+                    })
                 else:
-                    upsert_screened_data({'company_code': code, 'business_summary_jp': summary_jp})
+                    upsert_screened_data({
+                        'company_code': code,
+                        'business_summary_jp': summary_jp,
+                        'source_status': merged_status,
+                    })
                 print(f"日本語事業概要を保存しました: {code}（LLM翻訳: {translated}）")
             except Exception as e:
                 print(f"日本語事業概要の保存エラー: {e}")
             return jsonify({"business_summary_jp": summary_jp, "translated": translated}), 200
         else:
+            if existing and source_updates:
+                update_screened_data(code, {'source_status': merged_status})
             return jsonify({"error": "日本語の事業概要を取得できませんでした"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -195,12 +195,27 @@ class StockAnalyzer:
                 # 会社概要・事業説明取得
                 self._get_business_summary(symbol, ticker, result)
 
+                # Yahoo Japanで日本語概要が取れず、英語概要だけ取れた場合は
+                # EDINET DBを消費する前にGPTで日本語化する。
+                if (symbol.endswith('.T') and not result.get('business_summary_jp')
+                        and result.get('business_summary')):
+                    from summary_translation import translate_summary_to_jp
+                    translated = translate_summary_to_jp(result['business_summary'])
+                    if translated:
+                        result['business_summary_jp'] = translated
+                        result.setdefault('source_status', {})['business_summary'] = {
+                            'status': 'success',
+                            'source': 'Yahoo Finance英語概要 + OpenAI日本語要約',
+                            'language': 'ja',
+                            'translated_from': 'en',
+                        }
+
                 # 信用倍率取得（日本株のみ）
                 if symbol.endswith('.T'):
                     self._get_margin_trading_data(symbol, result)
 
             # 外部サイトが未収録・遮断中でも、確認済みの公式開示キャッシュは
-            # ローカル参照なので安全に補完できる。バッチのskip_extras時にも適用する。
+            # ローカル参照なのでEDINET DBより先に補完する。バッチのskip_extras時にも適用する。
             if symbol.endswith('.T'):
                 from official_company_profiles import apply_official_profile_fallback
                 official_filled = apply_official_profile_fallback(symbol, result)
@@ -215,6 +230,23 @@ class StockAnalyzer:
                     result['source_status']['holders_officers'] = {
                         'status': 'success',
                         'source': '会社公式開示（確認済みキャッシュ）',
+                    }
+
+            # Yahoo系・無料補助ソース・確認済み公式キャッシュを試した後も
+            # 欠けている項目だけをEDINET DBで補完する。
+            # Free枠は100回/日のため、高速バッチ(skip_extras=True)では呼ばない。
+            if symbol.endswith('.T') and not skip_extras:
+                try:
+                    from edinet_db_client import apply_edinet_db_fallback
+                    edinet_filled = apply_edinet_db_fallback(symbol, result)
+                    if edinet_filled:
+                        print(f"EDINET DB補完成功: {', '.join(edinet_filled)}")
+                except Exception as e:
+                    print(f"EDINET DB補完エラー: {e}")
+                    result.setdefault('source_status', {})['edinet_db'] = {
+                        'status': _classify_source_error(e),
+                        'source': 'EDINET DB API',
+                        'error': str(e),
                     }
 
             has_financials = bool(result.get('revenue') or result.get('op_income'))
@@ -1350,33 +1382,7 @@ class StockAnalyzer:
             result: 結果を格納する辞書
         """
         try:
-            # 1. yahooquery優先で取得
-            try:
-                yq_ticker = yq.Ticker(symbol, formatted=False)
-                asset_profile = yq_ticker.asset_profile
-                
-                if isinstance(asset_profile, dict) and symbol in asset_profile:
-                    profile = asset_profile[symbol]
-                    if isinstance(profile, dict):
-                        summary = profile.get('longBusinessSummary')
-                        if summary:
-                            result["business_summary"] = summary
-                            print(f"事業概要取得成功 (yahooquery): {len(summary)} 文字")
-            except Exception as e:
-                print(f"yahooquery事業概要取得エラー: {str(e)}")
-            
-            # 2. yfinanceでフォールバック
-            if not result["business_summary"]:
-                try:
-                    info = ticker.info
-                    summary = info.get('longBusinessSummary')
-                    if summary:
-                        result["business_summary"] = summary
-                        print(f"事業概要取得成功 (yfinance): {len(summary)} 文字")
-                except Exception as e:
-                    print(f"yfinance事業概要取得エラー: {str(e)}")
-            
-            # 3. 日本株の場合、各種サイトから日本語データを取得
+            # 1. 日本株はYahoo Japanの日本語概要を最初に試す。
             if symbol.endswith('.T'):
                 try:
                     from jp_company_scraper import get_all_jp_company_data
@@ -1385,7 +1391,9 @@ class StockAnalyzer:
                     result.setdefault('source_status', {}).update(
                         jp_data.get('source_status') or {})
 
-                    if not jp_data.get('error'):
+                    # 取得先ごとに独立して扱う。どれか1つが失敗していても、
+                    # J-LiC・Strainerなど他の成功データは取り込む。
+                    if jp_data:
                         # 事業概要（特色）
                         if jp_data.get('business_summary_jp'):
                             result["business_summary_jp"] = jp_data['business_summary_jp']
@@ -1440,74 +1448,9 @@ class StockAnalyzer:
                 except Exception as e:
                     print(f"日本語データ取得エラー: {str(e)}")
 
-            # 4. フォールバック: 日本株の場合、四季報オンラインから日本語説明を取得
-            if symbol.endswith('.T') and not result.get("business_summary_jp"):
-                try:
-                    code = symbol.replace('.T', '')
-
-                    # 四季報オンラインのURL
-                    shikiho_url = f"https://shikiho.toyokeizai.net/stocks/{code}"
-                    
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                    }
-                    
-                    response = requests.get(shikiho_url, headers=headers, timeout=10)
-                    
-                    if response.status_code == 200:
-                        import re
-                        import html
-                        
-                        # class="shimen-articles__table"のテーブルから情報を取得
-                        # パターン1: class属性を使った検索
-                        table_pattern = r'<table[^>]*class="shimen-articles__table"[^>]*>(.*?)</table>'
-                        table_match = re.search(table_pattern, response.text, re.DOTALL)
-                        
-                        if table_match:
-                            table_content = table_match.group(1)
-                            
-                            # テーブル内のth/tdペアを抽出
-                            row_pattern = r'<tr[^>]*>.*?<th[^>]*>(.*?)</th>.*?<td[^>]*>(.*?)</td>.*?</tr>'
-                            rows = re.findall(row_pattern, table_content, re.DOTALL)
-                            
-                            if rows:
-                                # 各行の内容を結合
-                                summary_parts = []
-                                for th, td in rows:
-                                    # HTMLタグを除去
-                                    th_clean = re.sub(r'<[^>]+>', '', th).strip()
-                                    td_clean = re.sub(r'<[^>]+>', '', td).strip()
-                                    # HTMLエンティティのデコード
-                                    th_clean = html.unescape(th_clean)
-                                    td_clean = html.unescape(td_clean)
-                                    
-                                    if th_clean and td_clean:
-                                        summary_parts.append(f"{th_clean}: {td_clean}")
-                                
-                                if summary_parts:
-                                    result["business_summary_jp"] = " ".join(summary_parts)
-                                    print(f"四季報事業概要取得成功: {len(result['business_summary_jp'])} 文字")
-                        
-                        # フォールバック: より一般的なパターンで検索
-                        if not result["business_summary_jp"]:
-                            # 【伸長】【積極採用】などのパターンを直接検索
-                            general_pattern = r'【([^】]+)】</th>.*?<td[^>]*>(.*?)</td>'
-                            general_matches = re.findall(general_pattern, response.text, re.DOTALL)
-                            
-                            if general_matches:
-                                summary_parts = []
-                                for title, content in general_matches:
-                                    content_clean = re.sub(r'<[^>]+>', '', content).strip()
-                                    content_clean = html.unescape(content_clean)
-                                    if title and content_clean:
-                                        summary_parts.append(f"【{title}】{content_clean}")
-                                
-                                if summary_parts:
-                                    result["business_summary_jp"] = " ".join(summary_parts)
-                                    print(f"四季報事業概要取得成功（一般パターン）: {len(result['business_summary_jp'])} 文字")
-                        
-                except Exception as e:
-                    print(f"四季報事業概要取得エラー: {str(e)}")
+            # 2. 日本語概要が無いときだけ、Yahooグローバル側の英語概要を取得する。
+            if not result.get('business_summary_jp'):
+                self._get_english_business_summary(symbol, ticker, result)
 
             result.setdefault('source_status', {})['business_summary'] = {
                 'status': ('success' if result.get('business_summary_jp')
@@ -1524,6 +1467,32 @@ class StockAnalyzer:
                 'status': _classify_source_error(e),
                 'source': '事業概要取得', 'error': str(e),
             }
+
+    def _get_english_business_summary(self, symbol: str, ticker: yf.Ticker,
+                                      result: Dict[str, Any]):
+        """yahooquery、次にyfinanceから英語の事業概要を取得する。"""
+        try:
+            yq_ticker = yq.Ticker(symbol, formatted=False)
+            asset_profile = yq_ticker.asset_profile
+            if isinstance(asset_profile, dict) and symbol in asset_profile:
+                profile = asset_profile[symbol]
+                if isinstance(profile, dict):
+                    summary = profile.get('longBusinessSummary')
+                    if summary:
+                        result['business_summary'] = summary
+                        print(f"事業概要取得成功 (yahooquery): {len(summary)} 文字")
+        except Exception as e:
+            print(f"yahooquery事業概要取得エラー: {e}")
+
+        if not result.get('business_summary'):
+            try:
+                info = ticker.info
+                summary = info.get('longBusinessSummary')
+                if summary:
+                    result['business_summary'] = summary
+                    print(f"事業概要取得成功 (yfinance): {len(summary)} 文字")
+            except Exception as e:
+                print(f"yfinance事業概要取得エラー: {e}")
 
 
 def batch_analyze(symbols: List[str], sleep_time: float = 0.35, skip_chart: bool = False, skip_extras: bool = False):

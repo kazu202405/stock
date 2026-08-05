@@ -142,6 +142,8 @@ def build_from_screened(row):
     """screened_latest の1行から共通のレポート構造を作る"""
     financial = _as_obj(row.get('financial_history')) or {}
     cf = _as_obj(row.get('cf_history')) or {}
+    source_status = _as_obj(row.get('source_status')) or {}
+    edinet_status = source_status.get('edinet_db') or {}
 
     revenue = _series(financial, 'revenue')
     op_income = _series(financial, 'op_income')
@@ -316,6 +318,11 @@ def build_from_screened(row):
             for s in shareholders if isinstance(s, dict)
         ][:5],
         'officers': [o for o in officers if isinstance(o, dict)][:5],
+        'uses_edinet_db': bool(
+            isinstance(edinet_status, dict)
+            and edinet_status.get('status') == 'success'
+            and edinet_status.get('filled')
+        ),
         'narrative': None,
     }
 

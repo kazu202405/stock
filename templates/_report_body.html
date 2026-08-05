@@ -276,5 +276,6 @@
   <p class="rp-disclaimer">
     ※ 本レポートは投資助言ではなく、公開情報をもとに企業のビジネスモデル・財務・成長要因を学ぶための分析コンテンツです。
     {% if c.as_of %}<br>※ データ取得日：{{ c.as_of[:10] }}{% endif %}
+    {% if report.uses_edinet_db %}<br>※ 一部データは <a href="https://edinetdb.jp" target="_blank" rel="noopener noreferrer">Powered by EDINET DB</a>。重要な判断ではEDINET原本・企業IRも確認してください。{% endif %}
   </p>
 </div>

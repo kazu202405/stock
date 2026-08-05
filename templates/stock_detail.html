@@ -876,6 +876,11 @@
         </div>
     </div>
 
+    <div id="edinetDbAttribution" style="display:none; margin:-4px 0 12px; font-size:10.5px; color:#737373; line-height:1.6;">
+        <a href="https://edinetdb.jp" target="_blank" rel="noopener noreferrer" style="color:#525252; text-decoration:underline;">Powered by EDINET DB</a>
+        <span>｜公開情報を機械処理した補完データです。投資助言ではなく、重要な判断ではEDINET原本・企業IRも確認してください。</span>
+    </div>
+
     <!-- ローディング -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
@@ -2328,21 +2333,30 @@
         const labels = {
             yahoo_jp_profile: '日本語概要', jlic_officers: '役員',
             strainer_shareholders: '主要株主', financials: '財務',
-            business_summary: '事業概要', holders_officers: '株主・役員'
+            business_summary: '事業概要', holders_officers: '株主・役員',
+            edinet_db: 'EDINET DB補完'
         };
         const reasons = {
             no_data: '取得元に掲載なし', rate_limited: 'レート制限',
             timeout: 'タイムアウト', source_error: '取得元エラー',
             parse_error: 'ページ構造変更', network_error: '通信エラー',
             disabled: '取得停止中', circuit_open: '連続失敗により停止',
-            skipped: '高速処理のため未実行', error: '取得エラー'
+            skipped: '高速処理のため未実行', budget_reserved: '日次枠の安全余力を確保',
+            auth_error: 'APIキー認証エラー', error: '取得エラー'
         };
         const officialFilled = diagnostic.official_profile?.filled || [];
         const resolvedByOfficial = key => (
             (key === 'yahoo_jp_profile' && officialFilled.includes('business_summary_jp')) ||
             (key === 'jlic_officers' && officialFilled.includes('company_officers')) ||
-            (key === 'strainer_shareholders' && officialFilled.includes('major_shareholders_jp'))
+            (key === 'strainer_shareholders' && officialFilled.includes('major_shareholders_jp')) ||
+            (key === 'edinet_db' && officialFilled.length > 0)
         );
+        const edinet = diagnostic.edinet_db;
+        const attribution = document.getElementById('edinetDbAttribution');
+        if (attribution && edinet && edinet.status === 'success' &&
+                Array.isArray(edinet.filled) && edinet.filled.length > 0) {
+            attribution.style.display = 'block';
+        }
         const failures = Object.entries(diagnostic)
             .filter(([key, value]) => value && value.status !== 'success' && !resolvedByOfficial(key))
             .map(([key, value]) => `${labels[key] || key}: ${reasons[value.status] || value.status}`);
