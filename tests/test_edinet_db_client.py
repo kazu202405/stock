@@ -170,6 +170,39 @@ class EdinetDbClientTests(unittest.TestCase):
         self.assertEqual("no_data", result["source_status"]["edinet_db"]["status"])
         self.assertEqual(1, len(client.calls))
 
+    def test_partial_forecast_is_completed_without_overwriting_existing_value(self):
+        client = StubEdinetClient({
+            "/companies/E00001/earnings": {"data": [{
+                "disclosure_date": "2026-08-01",
+                "forecast_fiscal_year_end": "2027-03-31",
+                "forecast_revenue": 20000000000,
+                "forecast_operating_income": 3000000000,
+                "forecast_ordinary_income": 2800000000,
+                "forecast_net_income": 1800000000,
+            }]},
+        })
+        result = {
+            "business_summary_jp": "概要", "established": "2000-01-01",
+            "headquarters_jp": "東京都", "ceo_name_jp": "代表者",
+            "revenue": [1], "op_income": [1], "net_income": [1],
+            "operating_cf": [1], "major_shareholders_jp": [1],
+            "company_officers": [1],
+            "forecast_revenue": 123.0, "forecast_op_income": None,
+            "forecast_ordinary_income": 20.0, "forecast_net_income": None,
+            "forecast_year": None, "source_status": {},
+        }
+
+        filled = apply_edinet_db_fallback("7203.T", result, client=client)
+
+        self.assertEqual(123.0, result["forecast_revenue"])
+        self.assertEqual(30.0, result["forecast_op_income"])
+        self.assertEqual(18.0, result["forecast_net_income"])
+        self.assertEqual("2027-03-31", result["forecast_year"])
+        self.assertEqual("success", result["source_status"]["forecast"]["status"])
+        self.assertIn("forecast_op_income", filled)
+        self.assertEqual(2, len(client.calls))
+        self.assertIn("/earnings", client.calls[1][0])
+
     def test_summary_only_fallback_calls_profile_only(self):
         client = StubEdinetClient({
             "/companies/E00001/profile": {

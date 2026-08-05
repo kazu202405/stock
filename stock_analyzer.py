@@ -1197,70 +1197,93 @@ class StockAnalyzer:
 
     def _get_margin_trading_data(self, symbol: str, result: Dict[str, Any]):
         """
-        Yahoo!ファイナンス日本版から信用倍率データを取得
+        Yahoo!ファイナンス日本版、次にJPX週次残高から信用倍率を取得
 
         Args:
             symbol: 銘柄コード（例: "7203.T"）
             result: 結果を格納する辞書
         """
-        try:
-            from bs4 import BeautifulSoup
+        from bs4 import BeautifulSoup
+        from yahoo_jp_guard import fetch_result as yahoo_fetch_result
 
-            # .Tを除去して4桁コードを取得
-            code = symbol.replace('.T', '')
+        status_root = result.setdefault('source_status', {})
+        code = symbol.replace('.T', '')
+        url = f"https://finance.yahoo.co.jp/quote/{code}.T"
+        yahoo_status = yahoo_fetch_result(url, timeout=10)
+        html = yahoo_status.get('html')
 
-            # Yahoo!ファイナンス日本版のURL
-            url = f"https://finance.yahoo.co.jp/quote/{code}.T"
-
-            from yahoo_jp_guard import fetch as yahoo_fetch
-            _html = yahoo_fetch(url, timeout=10)
-            if not _html:
-                return result
-            response = type('R', (), {'status_code': 200, 'text': _html})()
-
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-
-                # dl/dt/dd構造から信用取引データを取得
+        if html:
+            try:
+                soup = BeautifulSoup(html, 'html.parser')
                 for dl in soup.find_all('dl'):
                     for dt in dl.find_all('dt'):
                         dt_text = dt.get_text(strip=True)
                         dd = dt.find_next_sibling('dd')
-                        if dd:
-                            dd_text = dd.get_text(strip=True)
+                        if not dd:
+                            continue
+                        nums = re.findall(r'[\d,]+\.?\d*', dd.get_text(strip=True))
+                        if not nums:
+                            continue
+                        value = nums[0].replace(',', '')
+                        try:
+                            if '信用買残' in dt_text:
+                                result['margin_trading_buy'] = int(value)
+                            elif '信用売残' in dt_text:
+                                result['margin_trading_sell'] = int(value)
+                            elif '信用倍率' in dt_text:
+                                result['margin_trading_ratio'] = float(value)
+                        except (TypeError, ValueError):
+                            continue
+            except Exception as exc:
+                yahoo_status.update({'status': 'parse_error', 'error': str(exc)})
 
-                            # 数値を抽出（カンマ区切りの数値）
-                            nums = re.findall(r'[\d,]+\.?\d*', dd_text)
+        if result.get('margin_trading_ratio') is None:
+            buy = result.get('margin_trading_buy')
+            sell = result.get('margin_trading_sell')
+            if buy is not None and sell and sell > 0:
+                result['margin_trading_ratio'] = round(buy / sell, 2)
 
-                            if '信用買残' in dt_text and nums:
-                                try:
-                                    result["margin_trading_buy"] = int(nums[0].replace(',', ''))
-                                except:
-                                    pass
-                            elif '信用売残' in dt_text and nums:
-                                try:
-                                    result["margin_trading_sell"] = int(nums[0].replace(',', ''))
-                                except:
-                                    pass
-                            elif '信用倍率' in dt_text and nums:
-                                try:
-                                    result["margin_trading_ratio"] = float(nums[0].replace(',', ''))
-                                except:
-                                    pass
+        if any(result.get(key) is not None for key in (
+                'margin_trading_buy', 'margin_trading_sell', 'margin_trading_ratio')):
+            status_root['margin_trading'] = {
+                'status': 'success',
+                'source': 'Yahoo!ファイナンス日本版',
+                'fetched_at': datetime.now().astimezone().isoformat(),
+                'url': url,
+            }
+            print(f"信用倍率データ取得成功 (Yahoo): 倍率={result.get('margin_trading_ratio')}, "
+                  f"買残={result.get('margin_trading_buy')}, 売残={result.get('margin_trading_sell')}")
+            return
 
-                # 倍率がない場合、買残/売残から計算
-                if result["margin_trading_ratio"] is None:
-                    if result["margin_trading_buy"] and result["margin_trading_sell"]:
-                        if result["margin_trading_sell"] > 0:
-                            result["margin_trading_ratio"] = round(
-                                result["margin_trading_buy"] / result["margin_trading_sell"], 2
-                            )
-
-                print(f"信用倍率データ取得成功: 倍率={result.get('margin_trading_ratio')}, "
-                      f"買残={result.get('margin_trading_buy')}, 売残={result.get('margin_trading_sell')}")
-
-        except Exception as e:
-            print(f"信用倍率データ取得エラー: {str(e)}")
+        # Yahooが遮断・未収録・構造変更の場合は、JPX公式の週次残高で補完する。
+        try:
+            from jpx_margin import get_margin_balance
+            jpx_data, jpx_status = get_margin_balance(code)
+            jpx_status['yahoo_attempt'] = {
+                key: yahoo_status.get(key)
+                for key in ('status', 'http_status', 'error', 'url')
+            }
+            status_root['margin_trading'] = jpx_status
+            if jpx_data:
+                for key in ('margin_trading_buy', 'margin_trading_sell',
+                            'margin_trading_ratio'):
+                    if result.get(key) is None:
+                        result[key] = jpx_data.get(key)
+                result['margin_trading_as_of'] = jpx_data.get('as_of')
+                print(f"信用倍率データ取得成功 (JPX週次): "
+                      f"倍率={result.get('margin_trading_ratio')}, "
+                      f"基準日={result.get('margin_trading_as_of')}")
+        except Exception as exc:
+            status_root['margin_trading'] = {
+                'status': 'error',
+                'source': 'JPX 銘柄別信用取引週末残高',
+                'error': str(exc),
+                'yahoo_attempt': {
+                    key: yahoo_status.get(key)
+                    for key in ('status', 'http_status', 'error', 'url')
+                },
+            }
+            print(f"信用倍率データ取得エラー: {exc}")
 
     def _get_forecast_data(self, symbol: str, result: Dict[str, Any]):
         """
@@ -1280,9 +1303,17 @@ class StockAnalyzer:
             # Yahoo!ファイナンス日本版の業績ページURL
             url = f"https://finance.yahoo.co.jp/quote/{code}.T/performance"
 
-            from yahoo_jp_guard import fetch as yahoo_fetch
-            _html = yahoo_fetch(url, timeout=10)
+            from yahoo_jp_guard import fetch_result as yahoo_fetch_result
+            yahoo_status = yahoo_fetch_result(url, timeout=10)
+            _html = yahoo_status.get('html')
             if not _html:
+                result.setdefault('source_status', {})['forecast'] = {
+                    'status': yahoo_status.get('status') or 'no_data',
+                    'source': 'Yahoo!ファイナンス日本版 /performance',
+                    'http_status': yahoo_status.get('http_status'),
+                    'error': yahoo_status.get('error'),
+                    'url': url,
+                }
                 return result
             response = type('R', (), {'status_code': 200, 'text': _html})()
 
@@ -1369,8 +1400,23 @@ class StockAnalyzer:
                 else:
                     print("業績予想データが見つかりませんでした")
 
+                has_forecast = any(result.get(key) is not None for key in (
+                    'forecast_revenue', 'forecast_op_income',
+                    'forecast_ordinary_income', 'forecast_net_income'))
+                result.setdefault('source_status', {})['forecast'] = {
+                    'status': 'success' if has_forecast else 'no_data',
+                    'source': 'Yahoo!ファイナンス日本版 /performance',
+                    'http_status': 200,
+                    'url': url,
+                }
+
         except Exception as e:
             print(f"業績予想データ取得エラー: {str(e)}")
+            result.setdefault('source_status', {})['forecast'] = {
+                'status': 'parse_error',
+                'source': 'Yahoo!ファイナンス日本版 /performance',
+                'error': str(e),
+            }
 
     def _get_business_summary(self, symbol: str, ticker: yf.Ticker, result: Dict[str, Any]):
         """

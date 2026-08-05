@@ -2452,7 +2452,19 @@
         const payoutDisplay = document.getElementById('payout-ratio-display');
         if (payoutDisplay && data.payout_ratio) payoutDisplay.textContent = `${data.payout_ratio.toFixed(1)}%`;
         const marginRatioDisplay = document.getElementById('margin-ratio-display');
-        if (marginRatioDisplay && data.margin_trading_ratio) marginRatioDisplay.textContent = `${data.margin_trading_ratio.toFixed(2)}倍`;
+        if (marginRatioDisplay && data.margin_trading_ratio) {
+            let marginText = `${data.margin_trading_ratio.toFixed(2)}倍`;
+            let diagnostics = data.source_status || null;
+            if (typeof diagnostics === 'string') {
+                try { diagnostics = JSON.parse(diagnostics); } catch (_) { diagnostics = null; }
+            }
+            const marginSource = diagnostics && diagnostics.margin_trading;
+            if (marginSource && String(marginSource.source || '').includes('JPX')) {
+                const asOf = marginSource.as_of ? String(marginSource.as_of).replace(/^\d{4}-/, '').replace('-', '/') : '';
+                marginText += `（JPX週次${asOf ? ` ${asOf}` : ''}）`;
+            }
+            marginRatioDisplay.textContent = marginText;
+        }
         const cashNew = document.getElementById('cash-new');
         if (cashNew && data.cash) cashNew.textContent = formatAmount(data.cash * 1e8, 'JPY');
 

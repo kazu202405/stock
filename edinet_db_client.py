@@ -523,8 +523,11 @@ def apply_edinet_db_fallback(symbol: str, result: Dict[str, Any],
         "revenue", "op_income", "net_income", "operating_cf"))
     need_shareholders = _empty(result.get("major_shareholders_jp"))
     need_directors = _empty(result.get("company_officers"))
-    need_earnings = all(_empty(result.get(key)) for key in (
-        "forecast_revenue", "forecast_op_income", "forecast_net_income"))
+    # Yahooが一部の予想値だけ返す場合もあるため、全欠損時に限らず、
+    # 欠けた項目が一つでもあればEDINET DB側で不足分だけ補完する。
+    need_earnings = any(_empty(result.get(key)) for key in (
+        "forecast_revenue", "forecast_op_income", "forecast_ordinary_income",
+        "forecast_net_income"))
     if not any((need_profile, need_financials, need_shareholders,
                 need_directors, need_earnings)):
         return []
@@ -595,6 +598,15 @@ def apply_edinet_db_fallback(symbol: str, result: Dict[str, Any],
     if "major_shareholders_jp" in unique_filled or "company_officers" in unique_filled:
         status_root["holders_officers"] = {
             "status": "success", "source": "EDINET DB API (有価証券報告書)",
+            "fetched_at": fetched_at,
+        }
+    if any(key in unique_filled for key in (
+            "forecast_revenue", "forecast_op_income", "forecast_ordinary_income",
+            "forecast_net_income", "forecast_year")):
+        status_root["forecast"] = {
+            "status": "success",
+            "source": "EDINET DB API (決算短信・業績予想)",
+            "fallback": "EDINET DB API",
             "fetched_at": fetched_at,
         }
     return unique_filled
