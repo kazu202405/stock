@@ -253,7 +253,11 @@ class StockAnalyzer:
             
             # 5年分の詳細財務データ取得
             self._get_five_year_financial_data(ticker, result)
-            
+
+            # EPS・BPSが揃った後にPER/PBRを補う。
+            # Yahooのinfoが返さなかった銘柄でも、割り算で出せる場合がある。
+            self._fill_missing_multiples(result)
+
             # ROE/ROA計算（正確な計算）
             self._calculate_roe_roa(ticker, result)
             
@@ -646,6 +650,47 @@ class StockAnalyzer:
             'reason': 'Yahooが該当決算期のBasic/Diluted EPSを返さなかったため',
             'derived_periods': filled,
         }
+
+    def _fill_missing_multiples(self, result: Dict[str, Any]):
+        """PER・PBRが取れなかった銘柄を、株価÷EPS / 株価÷BPS で補う。
+
+        PER/PBRは `ticker.info` からしか取れていない（FastInfoにこの2つは無い）。
+        infoは重くレート制限にも当たりやすく、返ってこない銘柄もある。
+        しかしEPS・BPSは財務諸表から作っており、株価も別経路で取れているので、
+        定義どおりの割り算で出せる。実測で84銘柄がこれに該当した。
+
+        赤字（EPSがマイナス）ならPERは存在しないので補完しない。
+        """
+        price = result.get('last_price')
+        if not price or price <= 0:
+            return
+
+        def _latest(series):
+            rows = [r for r in (result.get(series) or [])
+                    if isinstance(r, dict) and r.get('value') is not None]
+            return max(rows, key=lambda r: r['date']) if rows else None
+
+        derived = {}
+        for key, series, limit in (('per', 'eps', 300.0), ('pbr', 'bps', 50.0)):
+            if result.get(key) is not None:
+                continue
+            row = _latest(series)
+            if not row or row['value'] <= 0:
+                continue
+            value = price / row['value']
+            if value > limit:
+                # 分母がほぼゼロの銘柄で数千倍が出る。指標として使えないので採らない。
+                continue
+            result[key] = round(value, 4)
+            derived[key] = {'from': series, 'fiscal_end': row['date']}
+
+        if derived:
+            result.setdefault('source_status', {})['multiples'] = {
+                'status': 'derived',
+                'source': '株価÷EPS / 株価÷BPS（アプリ側で算出）',
+                'reason': 'Yahooのinfoが該当指標を返さなかったため',
+                'derived': derived,
+            }
 
     def _build_bps_series(self, ticker: yf.Ticker, result: Dict[str, Any]):
         """決算期ごとの1株純資産(BPS)を貸借対照表から作る。

@@ -200,6 +200,75 @@ class ReportOmissionTest(unittest.TestCase):
         self.assertEqual(entry['status'], 'no_data')
 
 
+class DerivedMultiplesTest(unittest.TestCase):
+    """PER/PBRはinfoが返さなくても、株価÷EPS・株価÷BPSで出せる。
+
+    FastInfoにこの2つは無く、取得元は重い `ticker.info` だけだった。
+    """
+
+    def setUp(self):
+        from stock_analyzer import StockAnalyzer
+        self.analyzer = StockAnalyzer()
+
+    def test_derives_per_and_pbr_from_price_and_financials(self):
+        result = {
+            'last_price': 1000.0, 'per': None, 'pbr': None,
+            'eps': [{'date': '2025-03-31', 'value': 50.0},
+                    {'date': '2026-03-31', 'value': 100.0}],
+            'bps': [{'date': '2026-03-31', 'value': 500.0}],
+            'source_status': {},
+        }
+        self.analyzer._fill_missing_multiples(result)
+        self.assertEqual(result['per'], 10.0)
+        self.assertEqual(result['pbr'], 2.0)
+        self.assertEqual(result['source_status']['multiples']['status'], 'derived')
+
+    def test_does_not_overwrite_values_from_yahoo(self):
+        result = {'last_price': 1000.0, 'per': 12.34, 'pbr': 1.5,
+                  'eps': [{'date': '2026-03-31', 'value': 100.0}],
+                  'bps': [{'date': '2026-03-31', 'value': 500.0}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertEqual(result['per'], 12.34)
+        self.assertEqual(result['pbr'], 1.5)
+        self.assertNotIn('multiples', result['source_status'])
+
+    def test_loss_making_company_gets_no_per(self):
+        """赤字にPERは存在しない。マイナスの倍率を作らない。"""
+        result = {'last_price': 1000.0, 'per': None, 'pbr': None,
+                  'eps': [{'date': '2026-03-31', 'value': -20.0}],
+                  'bps': [{'date': '2026-03-31', 'value': 500.0}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertIsNone(result['per'])
+        self.assertEqual(result['pbr'], 2.0)
+
+    def test_absurd_multiples_are_not_stored(self):
+        result = {'last_price': 10000.0, 'per': None, 'pbr': None,
+                  'eps': [{'date': '2026-03-31', 'value': 0.01}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertIsNone(result['per'])
+
+    def test_without_price_nothing_is_derived(self):
+        result = {'last_price': None, 'per': None, 'pbr': None,
+                  'eps': [{'date': '2026-03-31', 'value': 100.0}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertIsNone(result['per'])
+
+    def test_uses_the_latest_fiscal_period(self):
+        result = {'last_price': 1000.0, 'per': None, 'pbr': None,
+                  'eps': [{'date': '2026-03-31', 'value': 100.0},
+                          {'date': '2024-03-31', 'value': 25.0}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertEqual(result['per'], 10.0)
+        self.assertEqual(
+            result['source_status']['multiples']['derived']['per']['fiscal_end'],
+            '2026-03-31')
+
+
 class ValuationCardTemplateTest(unittest.TestCase):
     def setUp(self):
         self.detail = Path('templates/stock_detail.html').read_text(encoding='utf-8')
