@@ -25,7 +25,6 @@ import argparse
 import json
 import os
 import sys
-import time
 
 os.environ.setdefault('ENABLE_SCHEDULER', 'false')
 
@@ -37,9 +36,11 @@ import yfinance as yf
 
 from stock_analyzer import StockAnalyzer
 from supabase_client import get_supabase_client
+from yfinance_guard import RateLimitExhausted, RateLimitGuard
 
 PAGE_SIZE = 500
-# 連続でこの回数失敗したらレート制限を疑って止まる
+# レート制限以外の理由で連続失敗したら止まる。
+# 制限そのものは RateLimitGuard が待って再試行するので、ここには来ない。
 CONSECUTIVE_FAIL_ABORT = 15
 
 
@@ -127,25 +128,34 @@ def main():
     updated = eps_filled = bps_filled = failed = 0
     consecutive_fail = 0
 
+    def _notify_wait(seconds, attempt):
+        print(f'  レート制限を検知。{seconds / 60:.1f}分待って再試行します'
+              f'（{attempt}回目）')
+
+    guard = RateLimitGuard(base_sleep=args.sleep, on_wait=_notify_wait)
+
+    def _fetch(code, history):
+        """1銘柄分の取得。レート制限時はguardがここごと再実行する。"""
+        ticker = yf.Ticker(f'{code}.T')
+        result = {
+            'eps': [dict(d) for d in (history.get('eps') or [])],
+            'bps': [],
+            'net_income': [dict(d) for d in (history.get('net_income') or [])],
+            'source_status': {},
+        }
+        financials = ticker.financials
+        before_eps = len(result['eps'])
+        if not financials.empty:
+            analyzer._fill_missing_eps(ticker, financials, result)
+        analyzer._build_bps_series(ticker, result)
+        return result, before_eps
+
     for i, row in enumerate(targets, 1):
         code = row['company_code']
         history = _as_obj(row.get('financial_history'))
         try:
-            ticker = yf.Ticker(f'{code}.T')
-            result = {
-                'eps': [dict(d) for d in (history.get('eps') or [])],
-                'bps': [],
-                'net_income': [dict(d) for d in (history.get('net_income') or [])],
-                'source_status': {},
-            }
-            financials = ticker.financials
+            result, before_eps = guard.run(lambda: _fetch(code, history))
 
-            before_eps = len(result['eps'])
-            if not financials.empty:
-                analyzer._fill_missing_eps(ticker, financials, result)
-            analyzer._build_bps_series(ticker, result)
-
-            update = {}
             if len(result['eps']) > before_eps:
                 history['eps'] = result['eps']
                 eps_filled += 1
@@ -156,27 +166,32 @@ def main():
                 consecutive_fail = 0
                 continue
 
-            update['financial_history'] = json.dumps(history, ensure_ascii=False)
-            client.table('screened_latest').update(update).eq(
-                'company_code', code).execute()
+            client.table('screened_latest').update(
+                {'financial_history': json.dumps(history, ensure_ascii=False)}
+            ).eq('company_code', code).execute()
             updated += 1
             consecutive_fail = 0
+        except RateLimitExhausted as e:
+            print(f'\n{e}。ここで中断します。'
+                  '再実行すれば未処理の銘柄から続きを拾います。')
+            break
         except Exception as e:
             failed += 1
             consecutive_fail += 1
             print(f'  {code} 失敗: {e}')
             if consecutive_fail >= CONSECUTIVE_FAIL_ABORT:
                 print(f'\n連続{CONSECUTIVE_FAIL_ABORT}件失敗したため中断します。'
-                      'レート制限の可能性があります。時間を置いて再実行してください。')
+                      'レート制限以外の原因を確認してください。')
                 break
 
         if i % 50 == 0:
             print(f'  {i}/{len(targets)} 更新{updated} EPS補完{eps_filled} '
-                  f'BPS作成{bps_filled} 失敗{failed}')
-        time.sleep(args.sleep)
+                  f'BPS作成{bps_filled} 失敗{failed} | {guard.summary()}')
+        guard.pause()
 
     print(f'\n更新 {updated}件 / EPS補完 {eps_filled}件 / BPS作成 {bps_filled}件 '
           f'/ 失敗 {failed}件')
+    print(guard.summary())
     print('途中で止まっても、再実行すればBPSが無い銘柄から続きを処理します。')
     return 0
 
