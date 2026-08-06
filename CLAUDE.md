@@ -80,6 +80,7 @@ stock/
 | `/stock/<code>` | stock_detail.html | 不要 | 本番 | 個別銘柄詳細 |
 | `/search` | search.html | 不要 | 本番 | 銘柄検索 |
 | `/screener` | screener.html | 不要 | 本番 | 好調企業ランキング |
+| `/earnings` | earnings.html | 要ログイン | 本番 | 決算情報（決算月ごとの銘柄一覧）|
 | `/mypage` | mypage.html | 不要 | フロントのみ | マイページ（バックエンド未接続） |
 | `/learning` | learning.html | 不要 | 静的コンテンツ | 学習ノート |
 | `/community` | community.html | 不要 | フロントのみ | コミュニティ |

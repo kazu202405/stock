@@ -80,6 +80,43 @@ def market():
     return render_template('market.html', indexes=md.INDEXES)
 
 
+@app.route('/earnings')
+def earnings():
+    """決算情報（決算月ごとの銘柄一覧）
+
+    扱うのは決算"期"の月であって、決算"発表予定日"ではない。
+    発表予定日は全銘柄を無料で取れる取得元が未整理のため、ここには出さない。
+    """
+    guard = _require_login()
+    if guard: return guard
+
+    client = get_supabase_client()
+    counts = {m: 0 for m in range(1, 13)}
+    total = 0
+    migration_ready = True
+
+    if client is not None:
+        try:
+            # 全件を引いてJS側で数えると1000行上限に切られるため、
+            # 件数はDB側のcountで月ごとに取る（headのみで行本体は転送しない）。
+            for month in range(1, 13):
+                result = (client.table('screened_latest')
+                          .select('company_code', count='exact')
+                          .eq('fiscal_month', month).limit(1).execute())
+                counts[month] = result.count or 0
+                total += counts[month]
+        except Exception as e:
+            if 'fiscal_month' in str(e):
+                migration_ready = False
+            else:
+                raise
+
+    return render_template('earnings.html',
+                           counts=counts,
+                           total=total,
+                           migration_ready=migration_ready)
+
+
 @app.route('/report')
 def report_select():
     """レポートを見る企業を選ぶ入口"""

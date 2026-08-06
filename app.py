@@ -16,7 +16,8 @@ from models.chatbot import *
 from models.business_plan_preparation import *
 from stock_analyzer import StockAnalyzer, batch_analyze
 from analysis_quality import (
-    analysis_data_status, history_json_or_none, normalize_analysis_symbol,
+    analysis_data_status, derive_fiscal_month, history_json_or_none,
+    normalize_analysis_symbol,
 )
 from supabase_client import (
     get_supabase_client,
@@ -24,7 +25,7 @@ from supabase_client import (
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
     update_screened_data, upsert_screened_data_with_match_rate,
     calculate_match_rate, attach_score_quality, get_screened_data,
-    get_technical_stocks,
+    get_technical_stocks, merge_source_status,
     get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
     get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
     add_favorite_stock, remove_favorite_stock, get_favorite_stocks, is_favorite_stock,
@@ -1172,6 +1173,7 @@ def _save_analysis_to_screened(symbol, stock_data):
         'ordinary_income': stock_data.get('ordinary_income', []),
         'net_income': stock_data.get('net_income', []),
         'eps': stock_data.get('eps', []),
+        'bps': stock_data.get('bps', []),
         'dps': stock_data.get('dps', []),
         'payout_ratio': stock_data.get('payout_ratio', [])
     }
@@ -1309,6 +1311,7 @@ def _analyze_stock_and_save(analyzer, company_code):
         'ordinary_income': stock_data.get('ordinary_income', []),
         'net_income': stock_data.get('net_income', []),
         'eps': stock_data.get('eps', []),
+        'bps': stock_data.get('bps', []),
         'dps': stock_data.get('dps', []),
         'payout_ratio': stock_data.get('payout_ratio', [])
     }
@@ -1325,6 +1328,17 @@ def _analyze_stock_and_save(analyzer, company_code):
         'roa': stock_data.get('roa', [])
     }
 
+    # 財務健全性カード用のスカラー列。
+    # 以前はcf_historyにしか入れていなかったため、この保存パスだけを通った銘柄
+    # （＝全銘柄バックフィル対象のほぼ全部）でcash / current_liabilities /
+    # current_ratio / total_assets / equity が永久に空のままだった。
+    latest_cash = get_latest_value(stock_data.get('cash'))
+    latest_current_liab = get_latest_value(stock_data.get('current_liabilities_list'))
+    latest_current_assets = get_latest_value(stock_data.get('current_assets_list'))
+    current_ratio = None
+    if latest_current_assets and latest_current_liab:
+        current_ratio = round((latest_current_assets / latest_current_liab) * 100, 4)
+
     screened_data_full = {
         'company_code': code,
         'company_name': stock_data.get('name_jp') or stock_data.get('name', ''),
@@ -1335,6 +1349,11 @@ def _analyze_stock_and_save(analyzer, company_code):
         'operating_margin': get_latest_value(stock_data.get('op_margin_pct')),
         'operating_cf': to_oku(operating_cf) if operating_cf else None,
         'free_cf': to_oku(operating_cf + investing_cf) if operating_cf and investing_cf else None,
+        'cash': to_oku(latest_cash) if latest_cash else None,
+        'current_liabilities': to_oku(latest_current_liab) if latest_current_liab else None,
+        'current_assets': to_oku(latest_current_assets) if latest_current_assets else None,
+        'current_ratio': current_ratio,
+        'net_income': to_oku(get_latest_value(stock_data.get('net_income'))) if get_latest_value(stock_data.get('net_income')) else None,
         'roa': get_latest_value(stock_data.get('roa')),
         'per_forward': stock_data.get('per'),
         'pbr': stock_data.get('pbr'),
@@ -1365,6 +1384,7 @@ def _analyze_stock_and_save(analyzer, company_code):
             ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
         'financial_history': history_json_or_none(financial_history),
         'cf_history': history_json_or_none(cf_history),
+        'fiscal_month': derive_fiscal_month(financial_history, cf_history),
         'data_source': analysis_data_source_name(stock_data),
         'source_status': stock_data.get('source_status'),
         'data_status': analysis_data_status(financial_history, cf_history)
@@ -1378,8 +1398,38 @@ def _analyze_stock_and_save(analyzer, company_code):
     # Noneのフィールドを除外（フル分析で保存済みのデータを上書きしない）
     screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
 
-    upsert_screened_data_with_match_rate(screened_data)
+    _save_screened_tolerating_new_columns(screened_data)
     return {**screened_data, 'raw': stock_data}
+
+
+# migrationを適用する前でも分析・保存が止まらないようにするための、
+# 「まだ無い列」の一覧。列が来たら自動でまた書き始める。
+_MIGRATION_PENDING_COLUMNS = {'fiscal_month'}
+_missing_columns = set()
+
+
+def _save_screened_tolerating_new_columns(screened_data):
+    """新しい列がまだ本番に無くても保存を落とさない。
+
+    migrationは運用側で手で適用するため、コードが先行する期間がある。
+    その間、新列のせいで全銘柄の分析結果が保存できなくなる事故を避ける。
+    """
+    payload = {k: v for k, v in screened_data.items() if k not in _missing_columns}
+    try:
+        upsert_screened_data_with_match_rate(payload)
+        return
+    except Exception as e:
+        message = str(e)
+        dropped = {c for c in _MIGRATION_PENDING_COLUMNS
+                   if c in payload and c in message}
+        if not dropped:
+            raise
+        _missing_columns.update(dropped)
+        print(f'[migration未適用] {", ".join(sorted(dropped))} 列が無いため'
+              f'除外して保存します。supabase/migration_fiscal_month.sql を適用してください。')
+
+    upsert_screened_data_with_match_rate(
+        {k: v for k, v in payload.items() if k not in _missing_columns})
 
 
 def _analyze_gc_background(codes):
@@ -3327,6 +3377,256 @@ FREE_SCREENED_FIELDS = {
     'major_holders', 'institutional_holders', 'company_officers',
     'major_shareholders_jp',
 }
+
+
+# 同じ銘柄で取得に失敗し続けても、閲覧のたびに外部を叩かないための間隔。
+# 株主・役員は年1回しか変わらないので、短くする理由がない。
+HOLDERS_RETRY_HOURS = 24 * 7
+# 未収録（そもそも取得元にデータが無い）銘柄はさらに間隔を空ける。
+HOLDERS_NO_DATA_RETRY_HOURS = 24 * 30
+
+
+def _holders_retry_allowed(source_status):
+    """前回の取得結果を見て、いま再取得してよいかを判定する"""
+    from datetime import datetime, timezone, timedelta
+
+    if isinstance(source_status, str):
+        try:
+            source_status = json.loads(source_status)
+        except (TypeError, ValueError):
+            source_status = {}
+    entry = (source_status or {}).get('holders_officers') or {}
+
+    # 高速バッチでスキップされただけなら、待たずに取りに行ってよい
+    if entry.get('status') == 'skipped':
+        return True
+
+    fetched_at = entry.get('fetched_at')
+    if not fetched_at:
+        return True
+    try:
+        last = datetime.fromisoformat(str(fetched_at).replace('Z', '+00:00'))
+    except ValueError:
+        return True
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+
+    hours = (HOLDERS_NO_DATA_RETRY_HOURS if entry.get('status') == 'no_data'
+             else HOLDERS_RETRY_HOURS)
+    return datetime.now(timezone.utc) - last >= timedelta(hours=hours)
+
+
+@app.route('/api/stock/holders-officers/<company_code>', methods=['POST'])
+def api_fetch_holders_officers(company_code):
+    """主要株主・役員を、その銘柄が実際に見られたときだけ取りに行く。
+
+    全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
+    3,879銘柄中25件しか埋まっていなかった。EDINET DBのFree枠は100回/日で
+    全銘柄を埋めるには到底足りないので、閲覧された銘柄に枠を使う。
+
+    画面はキャッシュで先に描画され、この呼び出しは後追いで走る。
+    """
+    from datetime import datetime, timezone
+
+    code = normalize_code(company_code)
+    symbol = normalize_analysis_symbol(code)
+    if not symbol.endswith('.T'):
+        return jsonify({"status": "skipped", "reason": "日本株のみ対応"}), 200
+
+    existing = get_screened_data(code) or {}
+
+    def _has(key):
+        value = existing.get(key)
+        if isinstance(value, str):
+            value = value.strip()
+            return bool(value) and value not in ('[]', 'null')
+        return bool(value)
+
+    if _has('major_shareholders_jp') and _has('company_officers'):
+        return jsonify({"status": "cached"}), 200
+
+    if not _holders_retry_allowed(existing.get('source_status')):
+        return jsonify({
+            "status": "cooldown",
+            "reason": "前回の取得から間隔を空けています",
+        }), 200
+
+    result = {'source_status': {}}
+    analyzer = StockAnalyzer()
+    sources = []
+    try:
+        # 無料ソース → 確認済み公式キャッシュ → EDINET DB の順。
+        # 概要・財務・業績予想の枠は消費しない。
+        analyzer._get_holders_and_officers(symbol, result)
+        if result.get('major_shareholders_jp') or result.get('company_officers'):
+            sources.append(result.get('holders_source') or 'yfinance/yahooquery')
+
+        from official_company_profiles import apply_official_profile_fallback
+        if apply_official_profile_fallback(symbol, result):
+            sources.append('会社公式開示（確認済みキャッシュ）')
+
+        # 片方だけ取れた場合も、欠けている方はEDINET DBで補う。
+        # apply_edinet_db_fallback は欠損しているカテゴリだけ呼ぶので、
+        # 揃っている項目のために無料枠を使うことはない。
+        if not (result.get('major_shareholders_jp') and result.get('company_officers')):
+            from edinet_db_client import apply_edinet_db_fallback
+            if apply_edinet_db_fallback(
+                    symbol, result, categories={'major_shareholders', 'directors'}):
+                sources.append('EDINET DB')
+    except Exception as e:
+        print(f'株主・役員のオンデマンド取得エラー {code}: {e}')
+
+    shareholders = result.get('major_shareholders_jp')
+    officers = result.get('company_officers')
+    got_any = bool(shareholders or officers)
+
+    # 「両方取れた」「片方だけ」「どちらも未収録」を区別して残す。
+    # 片方だけの銘柄を success にすると、欠けている側が再取得されなくなる。
+    filled = ([k for k, v in (('major_shareholders_jp', shareholders),
+                              ('company_officers', officers)) if v])
+    if len(filled) == 2:
+        status = 'success'
+    elif filled:
+        status = 'partial'
+    else:
+        status = 'no_data'
+
+    # 取得できた項目だけ書く。空で既存の正常値を消さない。
+    update = {
+        'source_status': merge_source_status(
+            existing.get('source_status'),
+            {**result.get('source_status', {}),
+             'holders_officers': {
+                 'status': status,
+                 'source': ' + '.join(sources) if sources else '主要株主・役員取得',
+                 'filled': filled,
+                 'reason': None if got_any else '無料ソース・公式キャッシュ・EDINET DBのいずれにも未収録',
+                 'fetched_at': datetime.now(timezone.utc).isoformat(),
+             }}),
+    }
+    if shareholders:
+        update['major_shareholders_jp'] = json.dumps(
+            _convert_timestamps(shareholders), ensure_ascii=False)
+    if officers:
+        update['company_officers'] = json.dumps(
+            _convert_timestamps(officers), ensure_ascii=False)
+
+    try:
+        update_screened_data(code, update)
+    except Exception as e:
+        print(f'株主・役員の保存エラー {code}: {e}')
+        return jsonify({"status": "error", "reason": "保存に失敗しました"}), 500
+
+    return jsonify({
+        "status": "fetched" if got_any else "no_data",
+        "major_shareholders_jp": shareholders or [],
+        "company_officers": _convert_timestamps(officers) if officers else [],
+        "source": ' + '.join(sources) if sources else None,
+    }), 200
+
+
+@app.route('/api/stock/valuation-history/<company_code>', methods=['GET'])
+def api_valuation_history(company_code):
+    """PER・PBRの推移を、手元のデータだけで組み立てて返す。
+
+    PER/PBRは現在値の1点しか保存していないため、株価履歴と決算期ごとの
+    EPS/BPSを突き合わせて履歴を再現する。外部サイトへは取りに行かない。
+    """
+    import price_history
+    from valuation_history import build_valuation_history, summarize
+
+    code = normalize_code(company_code)
+    range_key = request.args.get('range', '1y')
+
+    row = get_screened_data(code) or {}
+    financial = row.get('financial_history')
+    if isinstance(financial, str):
+        try:
+            financial = json.loads(financial)
+        except (TypeError, ValueError):
+            financial = {}
+    financial = financial or {}
+
+    try:
+        if range_key == '1y':
+            points = price_history.get_daily(code)
+        else:
+            granularity = price_history.granularity_for_range(range_key)
+            points = price_history.get_long_term(code, granularity)
+    except Exception as e:
+        print(f'株価履歴の取得エラー {code}: {e}')
+        points = []
+
+    history = build_valuation_history(
+        points, financial.get('eps'), financial.get('bps'))
+
+    # PBRが出せない理由を握り潰さない。bpsは再分析で入る。
+    notes = {}
+    if not history['has_per']:
+        notes['per'] = ('EPSの履歴がありません' if not financial.get('eps')
+                        else '対象期間に黒字のEPSがありません')
+    if not history['has_pbr']:
+        notes['pbr'] = ('BPSの履歴がありません（再分析すると入ります）'
+                        if not financial.get('bps') else 'BPSが0以下の期間です')
+
+    return jsonify({
+        "company_code": code,
+        "range": range_key,
+        "disclosure_lag_days": history['disclosure_lag_days'],
+        "has_per": history['has_per'],
+        "has_pbr": history['has_pbr'],
+        "summary": summarize(history),
+        "points": history['points'],
+        "notes": notes,
+    }), 200
+
+
+@app.route('/api/earnings/month/<int:month>', methods=['GET'])
+def api_earnings_by_month(month):
+    """指定した決算月の銘柄一覧を返す（ページング付き）。
+
+    全件を一度に返すとSupabaseの1000行上限で黙って切れるため、
+    必ずrange指定で取り、総件数はcountで別途返す。
+    """
+    if month < 1 or month > 12:
+        return jsonify({"error": "決算月は1〜12で指定してください"}), 400
+
+    page = max(1, request.args.get('page', 1, type=int))
+    per_page = min(100, max(10, request.args.get('per_page', 50, type=int)))
+    offset = (page - 1) * per_page
+
+    client = get_supabase_client()
+    if client is None:
+        return jsonify({"error": "データベースに接続できません"}), 503
+
+    try:
+        result = (client.table('screened_latest')
+                  .select('company_code, company_name, sector, industry_jp, '
+                          'market_segment, market_cap, per_forward, pbr, roe, '
+                          'equity_ratio, match_rate, fiscal_month',
+                          count='exact')
+                  .eq('fiscal_month', month)
+                  .order('company_code')
+                  .range(offset, offset + per_page - 1)
+                  .execute())
+    except Exception as e:
+        if 'fiscal_month' in str(e):
+            return jsonify({
+                "error": "fiscal_month列がまだありません。"
+                         "supabase/migration_fiscal_month.sql を適用してください。",
+                "migration_required": True,
+            }), 503
+        raise
+
+    total = result.count or 0
+    return jsonify({
+        "month": month,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page if total else 0,
+        "stocks": result.data or [],
+    }), 200
 
 
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])

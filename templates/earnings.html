@@ -1,0 +1,312 @@
+{% extends "layout.html" %}
+
+{% block title %}決算情報 - Company Note{% endblock %}
+
+{% block content %}
+{#
+  決算情報ページ。
+
+  扱うのは決算「期」の月であって、決算「発表予定日」ではない。
+  発表予定日は全銘柄を無料で取得できる取得元がまだ整理できていないため、
+  取れたふりをせずページにも明記する。
+
+  決算月は financial_history の決算日から導出して fiscal_month 列に持たせている。
+  外部サイトへのアクセスは発生しない。
+#}
+<div class="min-h-screen" style="background:#f7f7f5;">
+
+  <div class="text-white" style="background: linear-gradient(135deg, #1b4332, #2d6a4f, #1b4332);">
+    <div class="max-w-none mx-auto px-6 py-8">
+      <h1 class="text-3xl font-bold tracking-tight mb-2">
+        <i class="fas fa-calendar-alt mr-2" style="color:#95d5b2;"></i>決算情報
+      </h1>
+      <p class="text-slate-300 text-lg">どの会社が何月に決算を締めるかを、まとめて眺めます</p>
+    </div>
+  </div>
+
+  <div style="max-width:1100px; margin:0 auto; padding:28px 20px 60px;"
+       x-data="earningsPage()" x-init="init()">
+
+    {% if not migration_ready %}
+    <div class="en-notice en-notice-warn">
+      <i class="fas fa-database"></i>
+      <div>
+        <strong>決算月のデータがまだありません。</strong>
+        <div style="margin-top:4px;">
+          <code>supabase/migration_fiscal_month.sql</code> を適用したあと、
+          <code>python backfill_fiscal_month.py</code> を実行してください。
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 決算月の分布 -->
+    <div class="en-card">
+      <div class="en-label">決算月の分布</div>
+      <p class="en-lead">
+        日本の会社は3月期に集中しています。決算期がずれている会社は、
+        同業他社と比べるときに「どの期どうしを並べているか」に注意が要ります。
+      </p>
+
+      <div class="en-months">
+        {% for month in range(1, 13) %}
+        {% set count = counts[month] %}
+        {% set share = (count * 100 / total) if total else 0 %}
+        <button type="button"
+                class="en-month"
+                :class="selectedMonth === {{ month }} ? 'en-month-active' : ''"
+                @click="selectMonth({{ month }})"
+                {% if count == 0 %}disabled{% endif %}>
+          <div class="en-month-name">{{ month }}月期</div>
+          <div class="en-month-bar-wrap">
+            <div class="en-month-bar" style="width: {{ (share / 60 * 100) | round(1) }}%;"></div>
+          </div>
+          <div class="en-month-count">
+            {{ count }}<span class="en-month-unit">社</span>
+            <span class="en-month-share">{{ '%.1f' | format(share) }}%</span>
+          </div>
+        </button>
+        {% endfor %}
+      </div>
+
+      <p class="en-note">
+        集計対象 {{ total }}社。決算月は各社の財務データの決算日から判定しています。
+        財務データが無い銘柄（ETF等）は集計に含みません。
+      </p>
+    </div>
+
+    <!-- 銘柄一覧 -->
+    <div class="en-card" x-show="selectedMonth" x-cloak>
+      <div class="en-list-head">
+        <div class="en-label" style="margin:0;">
+          <span x-text="selectedMonth + '月期の銘柄'"></span>
+        </div>
+        <div class="en-list-count" x-show="!loading">
+          <span x-text="total.toLocaleString()"></span>社
+        </div>
+      </div>
+
+      <div x-show="loading" class="en-state">
+        <i class="fas fa-circle-notch fa-spin"></i> 読み込み中…
+      </div>
+
+      <div x-show="error" x-cloak class="en-notice en-notice-warn">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div x-text="error"></div>
+      </div>
+
+      <template x-if="!loading && !error && stocks.length">
+        <div>
+          <div class="en-table-wrap">
+            <table class="en-table">
+              <thead>
+                <tr>
+                  <th>コード</th>
+                  <th>会社名</th>
+                  <th>業種</th>
+                  <th class="en-num">時価総額</th>
+                  <th class="en-num">PER</th>
+                  <th class="en-num">PBR</th>
+                  <th class="en-num">ROE</th>
+                  <th class="en-num">自己資本比率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="s in stocks" :key="s.company_code">
+                  <tr @click="openStock(s.company_code)">
+                    <td class="en-code" x-text="s.company_code"></td>
+                    <td class="en-name" x-text="s.company_name || '---'"></td>
+                    <td class="en-sector" x-text="s.industry_jp || s.sector || '---'"></td>
+                    <td class="en-num" x-text="fmtOku(s.market_cap)"></td>
+                    <td class="en-num" x-text="fmtNum(s.per_forward, '倍')"></td>
+                    <td class="en-num" x-text="fmtNum(s.pbr, '倍')"></td>
+                    <td class="en-num" x-text="fmtNum(s.roe, '%')"></td>
+                    <td class="en-num" x-text="fmtNum(s.equity_ratio, '%')"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="en-pager" x-show="totalPages > 1">
+            <button type="button" class="en-pager-btn"
+                    :disabled="page <= 1" @click="goPage(page - 1)">
+              <i class="fas fa-chevron-left"></i> 前へ
+            </button>
+            <span class="en-pager-info">
+              <span x-text="page"></span> / <span x-text="totalPages"></span>
+            </span>
+            <button type="button" class="en-pager-btn"
+                    :disabled="page >= totalPages" @click="goPage(page + 1)">
+              次へ <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!loading && !error && !stocks.length" x-cloak class="en-state">
+        この決算月の銘柄はありません。
+      </div>
+    </div>
+
+    <!-- 決算発表予定日について -->
+    <div class="en-card en-card-muted">
+      <div class="en-label">決算発表の「予定日」について</div>
+      <p class="en-lead" style="margin-bottom:0;">
+        このページに出しているのは決算<strong>期</strong>（何月締めの会社か）です。
+        個別の決算発表<strong>予定日</strong>は、全銘柄を無料で取得できる取得元が
+        まだ確保できていないため掲載していません。取得元を整理でき次第、
+        このページに追加します。
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .en-card {
+    background:#fff; border:1px solid #ebebeb; border-radius:12px;
+    padding:24px; margin-bottom:20px;
+  }
+  .en-card-muted { background:#fafaf8; }
+  .en-label {
+    font-size:0.8rem; font-weight:700; color:#1b4332; letter-spacing:.04em;
+    border-left:3px solid #1b4332; padding-left:10px; margin-bottom:14px;
+  }
+  .en-lead { font-size:0.9rem; color:#525252; line-height:1.8; margin-bottom:18px; }
+  .en-note { font-size:0.78rem; color:#a3a3a3; margin-top:16px; line-height:1.7; }
+
+  .en-notice {
+    display:flex; gap:10px; align-items:flex-start; padding:14px 16px;
+    border-radius:10px; font-size:0.85rem; line-height:1.7; margin-bottom:20px;
+  }
+  .en-notice-warn { background:#fef9e7; border-left:3px solid #f0c040; color:#7a6c2a; }
+  .en-notice code {
+    background:rgba(0,0,0,.06); padding:1px 5px; border-radius:4px; font-size:0.82em;
+  }
+
+  /* 決算月グリッド */
+  .en-months {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;
+  }
+  .en-month {
+    text-align:left; background:#fff; border:1px solid #ebebeb; border-radius:10px;
+    padding:12px 14px; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .en-month:hover:not(:disabled) { border-color:#2d6a4f; background:#f0fdf4; }
+  .en-month:disabled { opacity:.45; cursor:default; }
+  .en-month-active { border-color:#1b4332; background:#f0fdf4; }
+  .en-month-name { font-size:0.85rem; font-weight:700; color:#1a1a1a; margin-bottom:8px; }
+  .en-month-bar-wrap {
+    height:5px; background:#f1f1ef; border-radius:3px; overflow:hidden; margin-bottom:8px;
+  }
+  .en-month-bar { height:100%; background:#2d6a4f; border-radius:3px; }
+  .en-month-count { font-size:1.05rem; font-weight:700; color:#1b4332; }
+  .en-month-unit { font-size:0.72rem; font-weight:500; color:#737373; margin-left:2px; }
+  .en-month-share { font-size:0.72rem; font-weight:500; color:#a3a3a3; margin-left:8px; }
+
+  /* 銘柄一覧 */
+  .en-list-head {
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;
+  }
+  .en-list-count { font-size:0.82rem; color:#737373; }
+  .en-state { padding:28px 0; text-align:center; color:#a3a3a3; font-size:0.85rem; }
+
+  .en-table-wrap { overflow-x:auto; }
+  .en-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+  .en-table th {
+    text-align:left; font-size:0.72rem; font-weight:600; color:#737373;
+    padding:8px 10px; border-bottom:1px solid #ebebeb; white-space:nowrap;
+  }
+  .en-table td {
+    padding:10px; border-bottom:1px solid #f4f4f2; color:#525252; white-space:nowrap;
+  }
+  .en-table tbody tr { cursor:pointer; }
+  .en-table tbody tr:hover { background:#f0fdf4; }
+  .en-num { text-align:right; }
+  .en-code { font-weight:600; color:#1b4332; }
+  .en-name { color:#1a1a1a; white-space:normal; min-width:180px; }
+  .en-sector { color:#737373; font-size:0.8rem; }
+
+  .en-pager {
+    display:flex; align-items:center; justify-content:center; gap:16px; margin-top:18px;
+  }
+  .en-pager-btn {
+    border:1px solid #ebebeb; background:#fff; border-radius:8px; padding:6px 14px;
+    font-size:0.82rem; color:#525252; cursor:pointer;
+  }
+  .en-pager-btn:hover:not(:disabled) { border-color:#2d6a4f; color:#1b4332; }
+  .en-pager-btn:disabled { opacity:.4; cursor:default; }
+  .en-pager-info { font-size:0.82rem; color:#737373; }
+</style>
+
+<script>
+function earningsPage() {
+  return {
+    selectedMonth: null,
+    stocks: [],
+    total: 0,
+    page: 1,
+    totalPages: 0,
+    loading: false,
+    error: '',
+
+    init() {
+      // URLに ?month=3 があればその月を開く（リンク共有用）
+      const month = parseInt(new URLSearchParams(location.search).get('month'), 10);
+      if (month >= 1 && month <= 12) this.selectMonth(month);
+    },
+
+    selectMonth(month) {
+      this.selectedMonth = month;
+      this.page = 1;
+      this.load();
+    },
+
+    goPage(page) {
+      if (page < 1 || page > this.totalPages) return;
+      this.page = page;
+      this.load();
+    },
+
+    async load() {
+      this.loading = true;
+      this.error = '';
+      try {
+        const res = await fetch(
+          `/api/earnings/month/${this.selectedMonth}?page=${this.page}&per_page=50`);
+        const data = await res.json();
+        if (!res.ok) {
+          this.error = data.error || '銘柄一覧を取得できませんでした';
+          this.stocks = [];
+          return;
+        }
+        this.stocks = data.stocks || [];
+        this.total = data.total || 0;
+        this.totalPages = data.total_pages || 0;
+      } catch (e) {
+        this.error = '銘柄一覧を取得できませんでした';
+        this.stocks = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    openStock(code) {
+      window.open(`/stock/${code}`, '_blank', 'noopener,noreferrer');
+    },
+
+    fmtOku(value) {
+      if (value === null || value === undefined) return '---';
+      if (value >= 10000) return `${(value / 10000).toFixed(1)}兆円`;
+      return `${Math.round(value).toLocaleString()}億円`;
+    },
+
+    fmtNum(value, unit) {
+      if (value === null || value === undefined) return '---';
+      return `${value.toFixed(1)}${unit}`;
+    },
+  };
+}
+</script>
+{% endblock %}

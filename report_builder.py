@@ -35,6 +35,78 @@ def _as_obj(value):
     return value
 
 
+# レポートに出せなかった項目が「制度上そもそも無い」のか「取りに行って失敗した」のか
+# 「まだ一度も取りに行っていない」のかを区別する。画面には出さないが、
+# 後から追えないと『取れていない』の一言で全部同じに見えてしまう。
+_OMISSION_LABELS = {
+    'not_applicable': '制度上対象外',
+    'no_data': '取得元に未収録',
+    'not_disclosed': '会社が非開示',
+    'fetch_failed': '取得失敗',
+    'skipped': '処理を省略',
+    'not_attempted': '未取得（一度も取得を試みていない）',
+}
+
+_FETCH_FAILED_STATUSES = {
+    'rate_limited', 'timeout', 'error', 'source_error',
+    'network_error', 'parse_error', 'circuit_open',
+}
+
+# レポート項目 → source_status のどのキーを見るか
+_ITEM_SOURCE_KEYS = {
+    '株価': 'financials', '時価総額': 'financials',
+    'PER': 'financials', 'PBR': 'financials',
+    '配当利回り': 'financials', '配当性向': 'financials',
+    '自己資本比率': 'financials', '営業利益率': 'financials',
+    '現預金': 'financials', '流動負債': 'financials',
+    '流動比率': 'financials', '営業CF': 'financials',
+    '信用倍率': 'margin_trading',
+    '業種': 'yahoo_jp_profile',
+    '設立': 'company_profile_dates', '上場日': 'company_profile_dates',
+}
+
+
+def _is_pro_market(row):
+    """TOKYO PRO Market銘柄か。信用取引の対象外なので信用倍率が構造的に存在しない。"""
+    market = (row.get('market') or '') + (row.get('market_segment') or '')
+    return 'PRO' in market.upper()
+
+
+def _omission_reason(label, row, source_status):
+    """値が無い項目について、その理由をできる範囲で特定する"""
+    # 制度上そもそも存在しない数字は、取得元を疑っても仕方がない
+    if label == '信用倍率' and _is_pro_market(row):
+        return {
+            'label': label, 'status': 'not_applicable',
+            'reason': _OMISSION_LABELS['not_applicable'],
+            'detail': 'TOKYO PRO Marketは信用取引の対象外',
+        }
+
+    entry = (source_status or {}).get(_ITEM_SOURCE_KEYS.get(label) or '') or {}
+    status = entry.get('status')
+
+    if not entry:
+        key = 'not_attempted'
+    elif status in ('no_data',):
+        key = 'no_data'
+    elif status in ('not_disclosed',):
+        key = 'not_disclosed'
+    elif status in ('skipped', 'disabled'):
+        key = 'skipped'
+    elif status in _FETCH_FAILED_STATUSES:
+        key = 'fetch_failed'
+    else:
+        # success なのに値が無い＝その取得元にこの項目だけ無かった
+        key = 'no_data'
+
+    return {
+        'label': label, 'status': key, 'reason': _OMISSION_LABELS[key],
+        'detail': entry.get('reason') or entry.get('error'),
+        'source': entry.get('source'),
+        'fetched_at': entry.get('fetched_at'),
+    }
+
+
 def _series(history, key):
     """financial_history / cf_history から [{date, value}] を取り出す"""
     if not isinstance(history, dict):
@@ -195,8 +267,14 @@ def build_from_screened(row):
         equity_roa = {'labels': labels, 'equity_ratio': eq_values, 'roa': roa_values, 'unit': '%'}
 
     # --- スナップショット（値がある項目だけ並べる） ---
+    # 落とした項目は omitted に理由つきで残す。画面には出さないが、
+    # 「該当なし」と「取得失敗」を後から区別できないと運用で困る。
+    omitted = []
+
     def item(label, value, unit='', digits=None):
         if value is None or value == '':
+            if not any(o['label'] == label for o in omitted):
+                omitted.append(_omission_reason(label, row, source_status))
             return None
         if digits is not None:
             try:
@@ -247,13 +325,15 @@ def build_from_screened(row):
         if ca and latest['value']:
             current_ratio_val = ca / latest['value'] * 100
 
+    # 信用倍率はここに置かない。
+    # 会社の財務健全性ではなく市況・需給データであり、同じ数字を「2. 会社スナップショット」と
+    # 二重に出す意味もない。市況側の指標としてスナップショットにのみ載せる。
     health = [
         item('現預金', cash_val, '億円', 1),
         item('流動負債', current_liab_val, '億円', 1),
         item('流動比率', current_ratio_val, '%', 1),
         item('営業CF', row.get('operating_cf'), '億円', 1),
         item('配当性向', row.get('payout_ratio'), '%', 1),
-        item('信用倍率', row.get('margin_trading_ratio'), '倍', 2),
     ]
     health = [x for x in health if x]
 
@@ -362,6 +442,8 @@ def build_from_screened(row):
         'score_judged': score_info['judged'],
         'score_total': score_info['total'],
         'missing_sections': missing_sections,
+        # 項目ごとの欠損理由。表示はしないが、運用で追えるように必ず残す。
+        'omitted_items': omitted,
         'is_limited': bool(missing_sections) or not score_info['is_complete'],
         'summary_language': ('ja' if row.get('business_summary_jp') else
                              'en' if row.get('business_summary') else None),

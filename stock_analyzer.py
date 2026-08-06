@@ -194,6 +194,7 @@ class StockAnalyzer:
             "ordinary_income": [],  # 経常利益
             "net_income": [],  # 純利益
             "eps": [],  # 1株益
+            "bps": [],  # 1株純資産（PBRの推移を自前計算するのに使う）
             "dps": [],  # 1株配
             "operating_cf": [],  # 営業CF
             "investing_cf": [],  # 投資CF
@@ -572,6 +573,128 @@ class StockAnalyzer:
         except:
             pass
             
+    def _fill_missing_eps(self, ticker: yf.Ticker, financials, result: Dict[str, Any]):
+        """EPSが欠けている決算期を、純利益÷株数で補完する。
+
+        Yahoo（yfinance）は最新決算期のBasic EPS / Diluted EPSをNaNで返すことがある。
+        売上・純利益は入っているためテーブルの他の列は埋まり、一株益だけが --- になる。
+        400銘柄のサンプルでは133銘柄（約35%）が該当した。
+
+        補完に使う株数は「純利益と同じ決算期」のものだけ。期ズレした株数で割ると
+        別物の数字になるため、期が一致しない場合は補完しない（推測しない）。
+        取得値ではなく算出値であることを、各値の derived と source_status に残す。
+        """
+        eps_dates = {d['date'] for d in result.get('eps', [])}
+        missing = [d for d in result.get('net_income', []) if d['date'] not in eps_dates]
+        if not missing:
+            return
+
+        # 株数の取得元。いずれも「その決算期の列」から取る。
+        balance_sheet = None
+        try:
+            balance_sheet = ticker.balance_sheet
+        except Exception as e:
+            print(f"EPS補完用の貸借対照表取得エラー: {e}")
+
+        def _shares_for(date_str):
+            # 1) 損益計算書の期中平均株数（EPSの本来の分母に最も近い）
+            for key in ['Basic Average Shares', 'Diluted Average Shares']:
+                if financials is not None and key in financials.index:
+                    for col in financials.columns:
+                        if col.strftime('%Y-%m-%d') == date_str:
+                            value = financials.loc[key, col]
+                            if pd.notna(value) and float(value) > 0:
+                                return float(value), key
+            # 2) 貸借対照表の期末株数（自己株式控除後）
+            if balance_sheet is not None and not balance_sheet.empty:
+                for key in ['Ordinary Shares Number']:
+                    if key in balance_sheet.index:
+                        for col in balance_sheet.columns:
+                            if col.strftime('%Y-%m-%d') == date_str:
+                                value = balance_sheet.loc[key, col]
+                                if pd.notna(value) and float(value) > 0:
+                                    return float(value), key
+            return None, None
+
+        filled = []
+        for item in missing:
+            shares, shares_key = _shares_for(item['date'])
+            if not shares:
+                continue
+            eps_value = float(item['value']) / shares
+            result['eps'].append({
+                'date': item['date'],
+                'value': round(eps_value, 2),
+                'derived': True,
+            })
+            filled.append({'date': item['date'], 'shares_source': shares_key})
+
+        if not filled:
+            # 株数が取れず補完できなかった場合も、黙って欠損にしない。
+            result.setdefault('source_status', {})['eps'] = {
+                'status': 'no_data',
+                'source': 'Yahoo Finance (yfinance)',
+                'reason': 'EPSが欠けているが同一決算期の株数も取得できず補完不可',
+                'missing_periods': [d['date'] for d in missing],
+            }
+            return
+
+        result['eps'].sort(key=lambda x: x['date'])
+        result.setdefault('source_status', {})['eps'] = {
+            'status': 'derived',
+            'source': '純利益÷株数（アプリ側で算出）',
+            'reason': 'Yahooが該当決算期のBasic/Diluted EPSを返さなかったため',
+            'derived_periods': filled,
+        }
+
+    def _build_bps_series(self, ticker: yf.Ticker, result: Dict[str, Any]):
+        """決算期ごとの1株純資産(BPS)を貸借対照表から作る。
+
+        PBR = 株価 ÷ BPS。BPSを決算期ごとに持っておけば、株価履歴と突き合わせて
+        PBRの推移を外部取得なしで再現できる。
+
+        純資産と株数は同じ列（＝同じ決算期）から取る。少数株主持分を含まない
+        Stockholders Equity を使い、株数は自己株式控除後の Ordinary Shares Number
+        を使う。どちらかが欠ける決算期は作らない（推測しない）。
+        """
+        try:
+            balance_sheet = ticker.balance_sheet
+        except Exception as e:
+            print(f"BPS算出用の貸借対照表取得エラー: {e}")
+            return
+        if balance_sheet is None or balance_sheet.empty:
+            return
+
+        equity_keys = ['Stockholders Equity', 'Total Stockholder Equity',
+                       'Total Stockholders Equity', 'Total Equity']
+        shares_keys = ['Ordinary Shares Number', 'Share Issued']
+
+        def _value(keys, col):
+            for key in keys:
+                if key in balance_sheet.index:
+                    value = balance_sheet.loc[key, col]
+                    if pd.notna(value):
+                        return float(value)
+            return None
+
+        for col in balance_sheet.columns:
+            equity = _value(equity_keys, col)
+            shares = _value(shares_keys, col)
+            if not equity or not shares or shares <= 0:
+                continue
+            result['bps'].append({
+                'date': col.strftime('%Y-%m-%d'),
+                'value': round(equity / shares, 2),
+            })
+
+        result['bps'].sort(key=lambda x: x['date'])
+        if result['bps']:
+            result.setdefault('source_status', {})['bps'] = {
+                'status': 'derived',
+                'source': '純資産÷株数（アプリ側で算出）',
+                'periods': len(result['bps']),
+            }
+
     def _get_five_year_financial_data(self, ticker: yf.Ticker, result: Dict[str, Any]):
         """5年分の詳細財務データを取得"""
         errors = []
@@ -645,7 +768,17 @@ class StockAnalyzer:
                                     "value": float(value)
                                 })
                                 break
-                
+
+                # Yahooは最新決算期のBasic/Diluted EPSを空で返すことがある。
+                # 売上・純利益は入っているのにEPSだけ欠ける形なので、画面では
+                # 「最新年度の一株益だけ ---」になる。純利益と同じ決算期の株数が
+                # 取れる場合に限り、純利益÷株数で補完する。
+                self._fill_missing_eps(ticker, financials, result)
+
+                # PBRの推移を自前計算するために、決算期ごとの1株純資産を持つ。
+                # PBRは点の値しか保存しておらず、履歴を出す材料が無かった。
+                self._build_bps_series(ticker, result)
+
         except Exception as e:
             print(f"損益計算書データ取得エラー: {str(e)}")
             errors.append(e)
