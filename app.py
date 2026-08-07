@@ -3365,6 +3365,15 @@ def api_get_current_price(company_code):
 # APIのNetworkタブ・curl で中身が丸見えだった。会員限定は必ずサーバー側で
 # 落とす。合致度の判定はブラウザでこれらの値から計算しているため、
 # 入力値を渡さなければ非会員は判定を再現できない。
+# 欠損理由を添えて返す項目。値がある項目は omissions に載らない。
+OMISSION_FIELDS = (
+    'per', 'pbr', 'dividend_yield', 'equity_ratio', 'operating_margin',
+    'market_cap', 'cash', 'current_liabilities', 'current_ratio',
+    'payout_ratio', 'margin_trading_ratio',
+    'major_shareholders_jp', 'company_officers',
+    'established', 'listing_date',
+)
+
 FREE_SCREENED_FIELDS = {
     'company_code', 'company_name', 'sector', 'industry_jp', 'market_segment',
     'stock_price', 'market_cap', 'per_forward', 'pbr', 'equity_ratio',
@@ -3657,9 +3666,19 @@ def api_get_screened_stock(company_code):
             if session.get('user_id'):
                 from supabase_client import score_breakdown
                 data['score_breakdown'] = score_breakdown(data)
-            else:
+
+            # 値が無い項目は「なぜ無いか」を添える。
+            # 赤字でPERが存在しないのと、取得に失敗したのは別物なので、
+            # 画面で一律に --- とだけ出さない。
+            from data_gaps import classify_missing_fields
+            omissions = classify_missing_fields(data, OMISSION_FIELDS)
+
+            if not session.get('user_id'):
                 # 未ログインには無料フィールドのみ。会員限定はサーバー側で落とす
                 data = {k: v for k, v in data.items() if k in FREE_SCREENED_FIELDS}
+                omissions = {k: v for k, v in omissions.items()
+                             if k in FREE_SCREENED_FIELDS}
+            data['omissions'] = omissions
 
             return jsonify(data), 200
         return jsonify({"error": "not found"}), 404

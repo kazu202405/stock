@@ -304,6 +304,18 @@
         margin-top: 2px;
     }
 
+    /* 値が無いときの理由。数値ではないので控えめに、折り返しを許す */
+    .metric-sub-reason {
+        font-size: 0.65rem;
+        color: #a3a3a3;
+        line-height: 1.4;
+        white-space: normal;
+    }
+    .metric-value-absent {
+        color: #c4c4c4;
+        font-weight: 500;
+    }
+
     /* スコアカード */
     .score-header {
         font-size: 0.85rem;
@@ -1924,6 +1936,20 @@
     }
 
     // 指標更新（閲覧専用版）
+    // 値が無い項目に添える理由。サーバーが分類したものをそのまま出す。
+    // 「赤字だからPERが存在しない」と「取得に失敗した」を同じ --- で
+    // 済ませない。欠損の大半は取得の問題ではないため。
+    let metricOmissions = {};
+    const METRIC_FIELD = {
+        'PER': 'per', 'PBR': 'pbr', '配当利回り': 'dividend_yield',
+        '自己資本比率': 'equity_ratio', '営業利益率': 'operating_margin',
+        '時価総額': 'market_cap',
+    };
+
+    function omissionFor(field) {
+        return field ? metricOmissions[field] : null;
+    }
+
     function updateMetric(className, value, suffix, label, industryInfo = null) {
         const elements = document.querySelectorAll('.metric-item');
         for (const elem of elements) {
@@ -1937,8 +1963,13 @@
                         } else {
                             valueElem.textContent = `${formatNumber(value)}${suffix}`;
                         }
+                        valueElem.title = '';
+                        valueElem.classList.remove('metric-value-absent');
                     } else {
-                        valueElem.textContent = '---';
+                        const reason = omissionFor(METRIC_FIELD[label]);
+                        valueElem.textContent = reason ? '—' : '---';
+                        valueElem.title = reason ? reason.message : '';
+                        valueElem.classList.toggle('metric-value-absent', !!reason);
                     }
                 }
                 const subElem = elem.querySelector('.metric-sub');
@@ -1947,6 +1978,19 @@
                 // 矛盾した表示を残さない。
                 if (subElem) subElem.textContent = '';
                 elem.classList.remove('good', 'warning', 'danger');
+                // 値が無いときは、その理由をここに出す。
+                // 評価文（健全/標準/注意）は値がある時しか入らないので競合しない。
+                if (subElem && (value === null || value === undefined)) {
+                    const reason = omissionFor(METRIC_FIELD[label]);
+                    if (reason) {
+                        subElem.textContent = reason.message;
+                        subElem.classList.add('metric-sub-reason');
+                    } else {
+                        subElem.classList.remove('metric-sub-reason');
+                    }
+                } else if (subElem) {
+                    subElem.classList.remove('metric-sub-reason');
+                }
                 const isBankOrRE = industryInfo && /銀行|不動産|bank|real estate|reit/i.test(industryInfo);
                 if (label === '自己資本比率' && value != null) {
                     if (isBankOrRE) {
@@ -2718,6 +2762,9 @@
         const cachedSector = cachedIndustry;
         updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率', cachedSector);
         updateMetric('op-margin', data.operating_margin, '%', '営業利益率', cachedSector);
+        // 欠損理由はサーバーが分類済み。指標カードより先に受け取っておく。
+        metricOmissions = data.omissions || {};
+
         updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
         updateMetric('pbr', data.pbr, '倍', 'PBR', cachedSector);
         updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', cachedSector);
@@ -2803,6 +2850,21 @@
         }
         const payoutDisplay = document.getElementById('payout-ratio-display');
         if (payoutDisplay && data.payout_ratio) payoutDisplay.textContent = `${data.payout_ratio.toFixed(1)}%`;
+
+        // 財務健全性の各行も、値が無い理由を出す（--- のままにしない）
+        [['cash-display', 'cash'], ['current-liab-display', 'current_liabilities'],
+         ['current-ratio-display', 'current_ratio'], ['payout-ratio-display', 'payout_ratio'],
+         ['margin-ratio-display', 'margin_trading_ratio']].forEach(([id, field]) => {
+            const el = document.getElementById(id);
+            if (!el || (el.textContent && el.textContent !== '---')) return;
+            const reason = (data.omissions || {})[field];
+            if (!reason) return;
+            el.textContent = reason.message;
+            el.style.color = '#a3a3a3';
+            el.style.fontSize = '0.72rem';
+            el.style.fontWeight = '400';
+        });
+
         const marginRatioDisplay = document.getElementById('margin-ratio-display');
         if (marginRatioDisplay && data.margin_trading_ratio) {
             let marginText = `${data.margin_trading_ratio.toFixed(2)}倍`;
@@ -2839,15 +2901,24 @@
             if (data.major_shareholders_jp) shareholdersJp = typeof data.major_shareholders_jp === 'string' ? JSON.parse(data.major_shareholders_jp) : data.major_shareholders_jp;
         } catch (e) { console.error('株主データパースエラー:', e); }
 
+        // 株主・役員も理由を出す。後追い取得が走る場合はそちらが上書きする。
+        const absent = (field, fallback) => {
+            const reason = (data.omissions || {})[field];
+            return `<div style="color:#a3a3a3;text-align:center;padding:20px;font-size:0.82rem;">`
+                + `${reason ? reason.message : fallback}</div>`;
+        };
+
         if (holders || shareholdersJp) {
             updateMajorHolders({ major_holders: holders || [], major_shareholders_jp: shareholdersJp || [] });
         } else {
-            document.getElementById('major-holders-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">主要株主データを取得できていません</div>';
+            document.getElementById('major-holders-content').innerHTML =
+                absent('major_shareholders_jp', '主要株主データを取得できていません');
         }
         if (officers && officers.length > 0) {
             updateCompanyOfficers({ company_officers: officers });
         } else {
-            document.getElementById('company-officers-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">役員データを取得できていません</div>';
+            document.getElementById('company-officers-content').innerHTML =
+                absent('company_officers', '役員データを取得できていません');
         }
 
         // 全銘柄バックフィルは株主・役員を取らないため、ほとんどの銘柄で空になる。

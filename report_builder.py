@@ -35,75 +35,36 @@ def _as_obj(value):
     return value
 
 
-# レポートに出せなかった項目が「制度上そもそも無い」のか「取りに行って失敗した」のか
-# 「まだ一度も取りに行っていない」のかを区別する。画面には出さないが、
-# 後から追えないと『取れていない』の一言で全部同じに見えてしまう。
-_OMISSION_LABELS = {
-    'not_applicable': '制度上対象外',
-    'no_data': '取得元に未収録',
-    'not_disclosed': '会社が非開示',
-    'fetch_failed': '取得失敗',
-    'skipped': '処理を省略',
-    'not_attempted': '未取得（一度も取得を試みていない）',
-}
-
-_FETCH_FAILED_STATUSES = {
-    'rate_limited', 'timeout', 'error', 'source_error',
-    'network_error', 'parse_error', 'circuit_open',
-}
-
-# レポート項目 → source_status のどのキーを見るか
-_ITEM_SOURCE_KEYS = {
-    '株価': 'financials', '時価総額': 'financials',
-    'PER': 'financials', 'PBR': 'financials',
-    '配当利回り': 'financials', '配当性向': 'financials',
-    '自己資本比率': 'financials', '営業利益率': 'financials',
-    '現預金': 'financials', '流動負債': 'financials',
-    '流動比率': 'financials', '営業CF': 'financials',
-    '信用倍率': 'margin_trading',
-    '業種': 'yahoo_jp_profile',
-    '設立': 'company_profile_dates', '上場日': 'company_profile_dates',
+# レポート項目のラベル → data_gaps が扱うフィールド名
+# 欠損理由の分類は data_gaps に集約する（銘柄詳細と同じ判定を使う）。
+_LABEL_TO_FIELD = {
+    '株価': 'stock_price', '時価総額': 'market_cap',
+    'PER': 'per', 'PBR': 'pbr',
+    '配当利回り': 'dividend_yield', '配当性向': 'payout_ratio',
+    '自己資本比率': 'equity_ratio', '営業利益率': 'operating_margin',
+    '現預金': 'cash', '流動負債': 'current_liabilities',
+    '流動比率': 'current_ratio', '営業CF': 'operating_cf',
+    '信用倍率': 'margin_trading_ratio',
+    '業種': 'industry_jp',
+    '設立': 'established', '上場日': 'listing_date',
 }
 
 
-def _is_pro_market(row):
-    """TOKYO PRO Market銘柄か。信用取引の対象外なので信用倍率が構造的に存在しない。"""
-    market = (row.get('market') or '') + (row.get('market_segment') or '')
-    return 'PRO' in market.upper()
-
-
-def _omission_reason(label, row, source_status):
+def _omission_reason(label, row, source_status, financial_history=None):
     """値が無い項目について、その理由をできる範囲で特定する"""
-    # 制度上そもそも存在しない数字は、取得元を疑っても仕方がない
-    if label == '信用倍率' and _is_pro_market(row):
-        return {
-            'label': label, 'status': 'not_applicable',
-            'reason': _OMISSION_LABELS['not_applicable'],
-            'detail': 'TOKYO PRO Marketは信用取引の対象外',
-        }
+    from data_gaps import classify
 
-    entry = (source_status or {}).get(_ITEM_SOURCE_KEYS.get(label) or '') or {}
-    status = entry.get('status')
+    field = _LABEL_TO_FIELD.get(label)
+    if not field:
+        return {'label': label, 'status': 'unknown', 'reason': '値がありません'}
 
-    if not entry:
-        key = 'not_attempted'
-    elif status in ('no_data',):
-        key = 'no_data'
-    elif status in ('not_disclosed',):
-        key = 'not_disclosed'
-    elif status in ('skipped', 'disabled'):
-        key = 'skipped'
-    elif status in _FETCH_FAILED_STATUSES:
-        key = 'fetch_failed'
-    else:
-        # success なのに値が無い＝その取得元にこの項目だけ無かった
-        key = 'no_data'
-
+    info = classify(field, row, financial_history, source_status)
     return {
-        'label': label, 'status': key, 'reason': _OMISSION_LABELS[key],
-        'detail': entry.get('reason') or entry.get('error'),
-        'source': entry.get('source'),
-        'fetched_at': entry.get('fetched_at'),
+        'label': label,
+        'status': info['status'],
+        'reason': info['message'],
+        'detail': info.get('detail'),
+        'source': info.get('source'),
     }
 
 
@@ -274,7 +235,8 @@ def build_from_screened(row):
     def item(label, value, unit='', digits=None):
         if value is None or value == '':
             if not any(o['label'] == label for o in omitted):
-                omitted.append(_omission_reason(label, row, source_status))
+                omitted.append(
+                    _omission_reason(label, row, source_status, financial))
             return None
         if digits is not None:
             try:
