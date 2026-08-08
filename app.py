@@ -33,10 +33,10 @@ from supabase_client import (
     add_favorite_stock, remove_favorite_stock, get_favorite_stocks, is_favorite_stock,
     create_note, get_user_notes, get_public_notes,
     get_notes_by_company, update_note, delete_note,
-    create_user as create_app_user, authenticate_user, get_user_by_id,
+    get_user_by_id,
     get_user_by_referral_code, get_direct_referrals, get_referral_tree,
     get_referral_chain, get_all_users, update_user_role, update_display_name,
-    migrate_guest_notes, update_user_email, update_user_password,
+    migrate_guest_notes, update_gia_credential, ensure_app_user,
     create_question, get_public_questions, get_questions_by_company,
     get_question_by_id, delete_question,
     create_answer, get_answers_for_question, delete_answer, set_best_answer,
@@ -269,9 +269,19 @@ def api_login():
         if not email or not password:
             return jsonify({"error": "メールアドレスとパスワードを入力してください"}), 400
 
-        user = authenticate_user(email, password)
-        if not user:
+        # 画面側のログインと同じ経路（GIAのSupabase Auth）を通す。
+        # ここだけ旧認証を残すと、片方でしかログインできない状態になる。
+        import gia_identity
+        try:
+            account = gia_identity.sign_in(email, password)
+        except gia_identity.GiaIdentityUnavailable as e:
+            print(f'GIA接続の設定不備: {e}')
+            return jsonify({"error": "ログイン機能の設定が完了していません"}), 503
+
+        if not account:
             return jsonify({"error": "メールアドレスまたはパスワードが正しくありません"}), 401
+
+        user = ensure_app_user(account['id'], account['email'])
 
         # ゲストノートの引き継ぎ
         guest_id = session.get('guest_user_id')
@@ -280,20 +290,22 @@ def api_login():
             migrated = migrate_guest_notes(guest_id, user['id'])
             session.pop('guest_user_id', None)
 
-        # セッションにログイン状態を保存
+        role = ('admin' if gia_identity.is_admin_email(account['email'])
+                else (user.get('role') or 'user'))
         session['user_id'] = user['id']
-        session['user_name'] = user['name']
-        session['user_role'] = user['role']
+        session['user_name'] = user.get('name') or ''
+        session['user_email'] = account['email']
+        session['user_role'] = role
         session.permanent = True
 
         return jsonify({
             "success": True,
             "user": {
                 "id": user['id'],
-                "name": user['name'],
-                "email": user['email'],
-                "role": user['role'],
-                "referral_code": user['referral_code'],
+                "name": user.get('name'),
+                "email": account['email'],
+                "role": role,
+                "referral_code": user.get('referral_code'),
             },
             "migrated_notes": migrated
         }), 200
@@ -365,7 +377,7 @@ def api_update_email():
         if not current_password:
             return jsonify({"error": "現在のパスワードを入力してください"}), 400
 
-        result = update_user_email(user_id, new_email, current_password)
+        result = update_gia_credential(user_id, current_password, new_email=new_email)
         if result:
             return jsonify({"success": True, "email": result.get('email', '')}), 200
         return jsonify({"error": "更新に失敗しました"}), 500
@@ -396,7 +408,7 @@ def api_update_password():
         if new_password != new_password_confirm:
             return jsonify({"error": "新しいパスワードが一致しません"}), 400
 
-        result = update_user_password(user_id, current_password, new_password)
+        result = update_gia_credential(user_id, current_password, new_password=new_password)
         if result:
             return jsonify({"success": True}), 200
         return jsonify({"error": "更新に失敗しました"}), 500

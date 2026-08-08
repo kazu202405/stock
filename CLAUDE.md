@@ -129,7 +129,8 @@ stock/
 - **ノート**: `notes`（`/api/notes` 系6本）
 - **コミュニティQ&A**: `community_questions` / `community_answers` / `community_likes`（API 8本）
 - **デモ売買**: `demo_account` / `demo_portfolio` / `demo_trades`（`/api/demo/*`）
-- **認証・ユーザー管理・紹介ツリー**: `app_users`（`authenticate_user` で実認証）
+- **認証**: GIA（キャンパス）の Supabase Auth。株アプリは自前でパスワードを持たない
+- **紹介ツリー・表示名**: `app_users`（主キーは auth.users.id と同じUUID）
 
 ### 一部だけ静的
 - **学習ノート**: 指標の解説文は `learning.html` にハードコード（1,300行超）。
@@ -162,7 +163,7 @@ stock/
 | `watched_tickers` | ウォッチリスト | 32件 |
 | `favorite_stocks` | お気に入り銘柄 | 2件 |
 | `signal_stocks` / `gc_stocks` / `dc_stocks` | GC/DC銘柄（テクニカルシグナル） | — |
-| `app_users` | ユーザー（認証・ロール・紹介コード） | 7件 |
+| `app_users` | 表示名・紹介コード・紹介ツリー・マーケット所感（**認証は持たない**） | 5件 |
 | `notes` | ノート | 2件 |
 | `community_questions` / `community_answers` / `community_likes` | Q&Aコミュニティ | 1 / 0 / 0件 |
 | `demo_account` / `demo_portfolio` / `demo_trades` | デモ売買 | 3 / 5 / 8件 |
@@ -174,6 +175,29 @@ DB migration は `supabase/` 配下に既存ファイルの続きとして追加
 **適用は運用側（五島さん）が手で行う。** コードが先行する期間があるため、
 新しい列に依存する保存処理は列が無くても落ちないようにする
 （`app._save_screened_tolerating_new_columns` を参照）。
+
+### 認証はGIA（キャンパス）側にある（2026-08-08 統一）
+
+株アプリは**2つのSupabaseプロジェクトに接続する**。
+
+```
+GIAプロジェクト   auth.users（ログイン） / applicants（会員・課金状態）
+株アプリのDB      銘柄データ＋ app_users・ノート・デモ売買など
+```
+
+理由: 課金は gia-next の Stripe に一本化した。認証が別だと、キャンパスで課金しても
+株アプリは会員だと分からず、同じ人が2アカウントを持つことになる。
+
+- 実装は `gia_identity.py`。`GIA_SUPABASE_URL` / `GIA_SUPABASE_ANON_KEY` /
+  `GIA_SUPABASE_SERVICE_ROLE_KEY` が必要（Renderにも設定すること）
+- **管理者は `GIA_ADMIN_EMAILS`**（既定 `global.information.academy@gmail.com`。
+  gia-next の `is_admin()` と同じアドレス）。gia-next 側はSQL関数に直書きなので、
+  変更するときは両方そろえる
+- 会員情報は `gia_identity.get_membership()` で読める。
+  **2026-08-08時点で課金による機能差は無いため、ゲートは実装していない。**
+  将来リアル会限定の機能を出すときにここで判定する
+- パスワードはハッシュ方式が違うため移行できない。既存ユーザーは再設定した
+- 移行スクリプトは `migrate_users_to_gia.py`（`--dry-run` が既定）
 
 ### SQLAlchemy（PostgreSQL）— 旧BizFlo由来。Company Noteでは未使用
 
