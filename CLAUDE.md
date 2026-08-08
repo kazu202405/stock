@@ -39,31 +39,48 @@ python app.py
 ## ディレクトリ構成
 ```
 stock/
-├── app.py                    # メインFlaskアプリ（ルート定義・API）
+├── app.py                    # メインFlaskアプリ（ルート定義・API 103本）
 ├── config.py                 # 設定・DB接続・APIキー・カテゴリマッピング
 ├── supabase_client.py        # Supabase DBクライアント
 ├── stock_analyzer.py         # Yahoo Finance株分析モジュール
+├── analysis_quality.py       # 品質判定・決算月の導出
+├── data_gaps.py              # 欠損理由の分類（レポートと銘柄詳細で共用）
+├── valuation_history.py      # PER/PBRの推移を株価履歴×EPS/BPSで算出
+├── report_builder.py         # 企業分析レポートの組み立て
+├── price_history.py          # 株価履歴の取得・間引き・保存
+├── yfinance_guard.py         # レート制限に当たったら待って再開する
+├── yahoo_jp_guard.py         # Yahoo日本版HTMLのサーキットブレーカー
+├── edinet_db_client.py       # EDINET DB API（Free枠100回/日）
+├── official_company_profiles.py # 人が確認した公式開示のキャッシュ
+├── jpx_margin.py             # JPX週次信用残高（信用倍率のフォールバック）
 ├── gc_scraper.py             # GC/DC銘柄スクレイパー
+├── earnings_scraper.py       # 決算発表銘柄の検知
+├── backfill_*.py             # 各種バックフィル（全銘柄/決算月/PER・PBR/EPS・BPS）
 ├── models/
-│   ├── model.py              # SQLAlchemyモデル（User, Settlement, LoginAttempt, Message）
-│   ├── root.py               # ページルート（/, /dashboard, /search, /stock/<code>）
+│   ├── root.py               # ページルート（Company Noteの画面はここ）
 │   ├── common.py             # ユーティリティ（パスワードハッシュ, AWS S3, LINE API）
-│   ├── login.py              # 認証（ログイン/ログアウト）※現在無効化
-│   ├── user.py               # ユーザー管理CRUD
-│   ├── financial_analysis.py # 財務指標計算
 │   ├── chatbot.py            # Dify AIチャットボット
-│   └── business_plan_preparation.py
+│   └── model.py, login.py, user.py, financial_analysis.py 他
+│                             # ※旧BizFlo由来。Company Noteでは未使用
 ├── templates/                # Jinja2テンプレート（layout.htmlがベース）
-│   ├── layout.html           # 共通レイアウト（ナビ, モーダル, Alpine.js読込）
+│   ├── layout.html           # 共通レイアウト（ナビ, スライドメニュー, Alpine.js読込）
 │   ├── lp.html               # ランディングページ /
-│   ├── stock.html            # ダッシュボード /dashboard
+│   ├── stock.html            # ダッシュボード /dashboard, /dashboard/admin
 │   ├── stock_detail.html     # 銘柄詳細 /stock/<code>
 │   ├── search.html           # 銘柄検索 /search
 │   ├── screener.html         # スクリーナー /screener
+│   ├── earnings.html         # 決算情報 /earnings
+│   ├── market.html           # マーケット /market
+│   ├── themes.html, theme_detail.html # テーマ・業種
+│   ├── report_select.html, report_view.html, _report_body.html # レポート
 │   ├── mypage.html           # マイページ /mypage
 │   ├── learning.html         # 学習ノート /learning
 │   ├── community.html        # コミュニティ /community
+│   ├── admin_users.html, admin_themes.html # 管理画面
 │   └── chatbot.html          # AIチャット /chatbot
+├── supabase/                 # DB migration（適用は運用側が手で行う）
+├── tests/                    # `py -3 -m unittest discover -s tests`
+├── claudedocs/DATA_ACQUISITION.md # 取得元・欠損対策の正本
 ├── utils/                    # ユーティリティ（日英翻訳, 日本語ラベル, 株主情報）
 ├── static/companies.json     # 企業データキャッシュ
 └── tools/基準値.xlsx          # 業界ベンチマーク基準値
@@ -71,72 +88,93 @@ stock/
 
 ## URLルーティングマップ
 
+最終確認: 2026-08-08（`app.url_map` と `models/root.py` のガードを実コードから照合）
+
+認証欄は `_require_login()` / `_require_admin()` の有無。公開ページはSEOのため意図的に開けている。
+
 | URL | テンプレート | 認証 | 状態 | 説明 |
 |-----|-------------|------|------|------|
 | `/` | lp.html | 不要 | 本番 | ランディングページ |
-| `/login` | login.html | 不要 | 仮実装（何でも通る） | ログイン |
-| `/dashboard` | stock.html | 不要 | 本番 | 分析ダッシュボード（閲覧専用） |
-| `/dashboard/admin` | stock.html | 不要 | 本番 | 管理画面（編集可能、is_admin=True） |
-| `/stock/<code>` | stock_detail.html | 不要 | 本番 | 個別銘柄詳細 |
-| `/search` | search.html | 不要 | 本番 | 銘柄検索 |
-| `/screener` | screener.html | 不要 | 本番 | 好調企業ランキング |
-| `/earnings` | earnings.html | 要ログイン | 本番 | 決算情報（決算月ごとの銘柄一覧）|
-| `/mypage` | mypage.html | 不要 | フロントのみ | マイページ（バックエンド未接続） |
-| `/learning` | learning.html | 不要 | 静的コンテンツ | 学習ノート |
-| `/community` | community.html | 不要 | フロントのみ | コミュニティ |
+| `/login` `/register` | login.html / register.html | 不要 | 本番 | 認証（`app_users`で実認証。仮実装ではない） |
+| `/stock/<code>` | stock_detail.html | 不要 | 本番 | 個別銘柄詳細（公開。会員限定値はサーバー側で除去） |
+| `/themes` `/theme/<name>` | themes.html / theme_detail.html | 不要 | 本番 | テーマ・業種一覧（公開） |
+| `/dashboard` | stock.html | 要ログイン | 本番 | 分析ダッシュボード（閲覧専用） |
+| `/search` | search.html | 要ログイン | 本番 | 銘柄検索 |
+| `/screener` | screener.html | 要ログイン | 本番 | 好調企業ランキング |
+| `/earnings` | earnings.html | 要ログイン | 本番 | 決算情報（決算月ごとの銘柄一覧） |
+| `/market` | market.html | 要ログイン | 本番 | 指数チャート・日米PER |
+| `/report` `/report/<source>/<key>` | report_select / report_view | 要ログイン | 本番 | 企業分析レポート |
+| `/mypage` | mypage.html | 要ログイン | 本番 | マイページ（ノート・デモ売買・紹介） |
+| `/learning` | learning.html | 要ログイン | 本番 | 学習ノート（解説は静的、セクター集計は実データ） |
+| `/community` | community.html | 要ログイン | 本番 | Q&Aコミュニティ |
+| `/dashboard/admin` | stock.html | **admin** | 本番 | 管理画面（is_admin=True） |
+| `/admin/users` | admin_users.html | **admin** | 本番 | ユーザー管理・紹介ツリー |
+| `/admin/themes` | admin_themes.html | **admin** | 本番 | テーマ運用 |
 | `/chatbot` | chatbot.html | — | Dify API連携 | AIチャット |
+| `/settlements` `/user` `/financial_analysis` 他 | — | — | **旧BizFlo由来の残置** | Company Noteでは未使用 |
 
 ## 実装ステータス
 
+最終確認: 2026-08-08（本番Supabaseのテーブル実在と件数を直接確認）
+
 ### 本番稼働中
-- 株分析（単一・一括）: yfinance → screened_latestに自動保存
-- ウォッチリスト: Supabase CRUD完全動作
-- GC/DC銘柄スクレイピング・分析: kabutan.jp → signal_stocks
+- 株分析（単一・一括）: yfinance → `screened_latest` に自動保存
+- ウォッチリスト: `watched_tickers`
+- お気に入り: `favorite_stocks`
+- GC/DC銘柄スクレイピング・分析: kabutan.jp → `signal_stocks` / `gc_stocks` / `dc_stocks`
 - スクリーニング: 基準値.xlsxとの合致度計算
 - 銘柄検索: companies.jsonによるサジェスト
+- 決算月ページ: `screened_latest.fiscal_month`
+- PER/PBRの推移: `stock_price_history` × `financial_history` から算出（保存なし）
+- **ノート**: `notes`（`/api/notes` 系6本）
+- **コミュニティQ&A**: `community_questions` / `community_answers` / `community_likes`（API 8本）
+- **デモ売買**: `demo_account` / `demo_portfolio` / `demo_trades`（`/api/demo/*`）
+- **認証・ユーザー管理・紹介ツリー**: `app_users`（`authenticate_user` で実認証）
 
-### フロントのみ（バックエンド未接続）
-- **マイページ**: ノート・研究対象企業・学習記録すべてモックデータ
-- **コミュニティ**: UI表示のみ
-- **学習ノート**: 静的HTMLコンテンツ（DB連携なし）
+### 一部だけ静的
+- **学習ノート**: 指標の解説文は `learning.html` にハードコード（1,300行超）。
+  ユーザーごとに変わらない内容なのでDB化していない。
+  セクター別集計だけ `/api/sector/summary` が `screened_latest` から実データを返す。
+  なお**学習の進捗記録は未実装**（`learning_progress` 等のテーブルは無い）。
 
-### 無効化中
-- **ログイン認証**: `models/login.py`のimportがコメントアウト。現在は何を入力してもログイン成功する仮実装（root.py）
-- **ユーザー管理**: モデルは定義済みだがログイン機能が無効のため実質未使用
+### 注意（この節は実測に基づく。過去の記述は誤りだった）
+2026-08-08以前のこのファイルには「マイページ・コミュニティはフロントのみ、
+学習ノートはDB連携なし」と書かれていたが、**いずれも誤り**だった。
+実際には上記のとおりテーブルもAPIも存在し、データも入っている。
+同様に「ログイン認証は無効化中、何を入力しても通る仮実装」も誤りで、
+`app_users` に対する実認証が動いている。記述を更新する際は実コードとDBを確認すること。
 
 ## データモデル
 
-### SQLAlchemy（PostgreSQL）
-```
-User（users）
-├── id: UUID（主キー）
-├── company_name / email / password_hash（認証基本情報）
-├── is_system_admin / is_user_admin（権限ロール）
-├── contract_start / contract_end（契約期間）
-└── corporate_number / employee_count / revenue 他（法人詳細情報）
+### Supabase（Company Noteの実体はすべてこちら）
 
-Settlement（settlements）
-├── id: UUID（主キー）
-├── company_id: UUID（→ Userへの参照、FKなし）
-├── year / month（決算期）
-└── sales / operating_income / total_assets 他（BS/PL全項目）
+`supabase_client.py` が実際に触るテーブル。件数は2026-08-08時点の本番実測。
 
-LoginAttempt（login_attempts）
-├── user_id: UUID / ip_address / user_agent
-└── attempt_time / status（成功/失敗）
+| テーブル | 用途 | 実測 |
+|---------|------|---|
+| `screened_latest` | 銘柄の分析結果（財務指標・履歴JSON・合致度・GC/DC日付・決算月） | 3,879件 |
+| `stock_price_history` | 株価履歴（日足1年・週足/月足10年） | 3,879件 |
+| `watched_tickers` | ウォッチリスト | 32件 |
+| `favorite_stocks` | お気に入り銘柄 | 2件 |
+| `signal_stocks` / `gc_stocks` / `dc_stocks` | GC/DC銘柄（テクニカルシグナル） | — |
+| `app_users` | ユーザー（認証・ロール・紹介コード） | 7件 |
+| `notes` | ノート | 2件 |
+| `community_questions` / `community_answers` / `community_likes` | Q&Aコミュニティ | 1 / 0 / 0件 |
+| `demo_account` / `demo_portfolio` / `demo_trades` | デモ売買 | 3 / 5 / 8件 |
+| `earnings_queue` | 決算発表のあった銘柄の処理待ちキュー | — |
+| `stock_reports` | レポートのLLM生成文キャッシュ | — |
 
-Message（messages）
-├── user_id: UUID / user_type（user/bot）
-└── message / timestamp
-```
-※ テーブル間にForeignKey制約は未設定。company_idは論理的な参照のみ。
+DB migration は `supabase/` 配下に既存ファイルの続きとして追加する。
+**適用は運用側（五島さん）が手で行う。** コードが先行する期間があるため、
+新しい列に依存する保存処理は列が無くても落ちないようにする
+（`app._save_screened_tolerating_new_columns` を参照）。
 
-### Supabase（直接API）
-| テーブル | 用途 |
-|---------|------|
-| `watched_tickers` | ウォッチリスト（company_code） |
-| `screened_latest` | 分析結果キャッシュ（財務指標・履歴JSON・合致度・GC/DC日付） |
-| `signal_stocks` | GC/DC銘柄（テクニカルシグナル） |
+### SQLAlchemy（PostgreSQL）— 旧BizFlo由来。Company Noteでは未使用
+
+`models/model.py` に `User` / `Settlement` / `LoginAttempt` / `Message` が定義され、
+`/settlements` `/user` `/financial_analysis` 等のルートも残っているが、
+**Company Noteの機能はこれらを一切使っていない**。認証も `app_users`（Supabase）側。
+触る必要が出るまで手を入れない。
 
 ## 主要APIエンドポイント
 - `POST /api/stock/analyze` — 単一銘柄分析（60秒タイムアウト）
@@ -149,6 +187,17 @@ Message（messages）
 - `GET/POST /api/gc-stocks/*`, `/api/dc-stocks/*` — GC/DC銘柄
 - `POST /api/gc-stocks/analyze` — GC銘柄一括分析（バックグラウンド）
 - `GET /api/technical-stocks` — テクニカル銘柄統合一覧
+- `GET /api/stock/valuation-history/<code>` — PER/PBRの推移（DB内のデータだけで算出）
+- `POST /api/stock/holders-officers/<code>` — 主要株主・役員を閲覧時に後追い取得
+- `GET /api/earnings/month/<month>` — 決算月ごとの銘柄一覧（ページング）
+- `GET/POST/PUT/DELETE /api/notes/*` — ノート
+- `GET/POST /api/community/questions/*` — Q&Aコミュニティ
+- `GET/POST /api/demo/*` — デモ売買（口座・売買・履歴・リセット）
+- `GET /api/referrals/*` — 紹介コード・紹介ツリー
+- `GET /api/sector/summary` — セクター別集計（学習ノートが使用）
+
+全体で103本（2026-08-08時点）。
+`py -3 -c "from app import app; print(app.url_map)"` で一覧できる。
 
 ## UIデザイン方針
 - **背景**: #f7f7f5（ページ全体）、#fafaf8（ヘッダー）
@@ -184,11 +233,38 @@ OKなもの：
 - フロントのインタラクションはAlpine.jsで実装（jQuery不使用）
 
 ## 既知の制約・注意点
-- **yfinance レート制限**: 短時間に大量リクエストするとYahoo Financeからブロックされる。バッチ分析では0.35秒のsleepを挟んでいる
+- **yfinanceには2種類のAPIがあり、コストが桁違い**（レート制限対策の中心）
+  - バッチ系 `yf.download`: 200銘柄まとめて1リクエスト。3,879銘柄でも約20回。ほぼ当たらない
+  - 個別系 `ticker.info` / `.financials` / `.balance_sheet`: 銘柄ごとに1回。**当たるのはこちら**
+  - 株価cron（9:25/11:45/15:20）はバッチ系なので安全。全銘柄ループを常態化させないこと
+  - 制限に当たったら `yfinance_guard.RateLimitGuard` が待って同じ銘柄から再開する
+- **PER/PBRは `ticker.info` からしか取れない**。FastInfoにこの2つは無く、
+  `hasattr(fast_info, 'price_to_book')` は常にFalse。infoが返さない場合は
+  株価÷EPS / 株価÷BPS で算出する（`_fill_missing_multiples`）
+- **`per_forward` 列は forward ではない**。中身は `trailingPE or forwardPE` で trailing 優先
 - **分析タイムアウト**: 単一銘柄分析は60秒でタイムアウト（ANALYZE_TIMEOUT）
 - **バッチ上限**: 一括分析は最大200銘柄
-- **ログイン無効**: `models/login.py`のimportがapp.pyでコメントアウトされている。認証が必要な機能を作る場合は先にこれを有効化する必要がある
-- **ForeignKey未設定**: Settlement.company_idにFK制約がない。データ整合性はアプリ側で担保
-- **Supabase接続**: 環境変数 `SUPABASE_URL` / `SUPABASE_KEY` が必要。未設定だとウォッチリスト・スクリーニング機能が動作しない
+- **全銘柄バックフィルは `skip_extras=True`**。株主・役員・概要・信用倍率を取らない。
+  株主・役員は閲覧時に後追い取得する設計（EDINET DB無料枠100回/日のため）
+- **Supabaseは1リクエスト既定1000行まで**。全件取得は必ず `range()` でページングする。
+  集計は `count='exact'` でDB側に寄せる（全件取ってJS集計はサイレント欠落を起こす）
+- **欠損は「取得失敗」と決めつけない**。赤字にPERは存在せず、ETFに決算は無い。
+  分類は `data_gaps.py` に集約（レポートと銘柄詳細が同じ判定を使う）
+- **Supabase接続**: 環境変数 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` が必要
 - **.env必須**: APIキー・DB接続情報等は.envに格納。絶対にコミットしない
 - **セキュリティ重視**: 不要なファイル作成は避ける
+
+## スマホ表示で繰り返し出た崩れ（2026-08-08）
+
+実機幅375pxで測って直した。同じ形の崩れが再発しやすいので先に確認する。
+
+- **表のセルが1文字ずつ縦積みになる**: `overflow-x: auto` の親があっても、
+  table が `width: 100%` / `min-w-full` だと親に収まってしまいスクロールが起きない。
+  表に `min-width` を与え、`th/td` は `white-space: nowrap` にする
+- **タブが潰れて縦積みになる**: flexの子は既定で縮む。`flex: 0 0 auto` + `nowrap` にし、
+  親を `overflow-x: auto` にして横スクロールさせる
+- **ボタン列がページごと横スクロールさせる**: `flex-wrap: wrap`、狭い幅ではグリッドで縦に積む
+- **全ページで横に少しドラッグできる**: 閉じたスライドメニューが `position: fixed` のまま
+  画面外にあり、文書のスクロール範囲を広げていた。`html`/`body` に `overflow-x: clip` を指定。
+  **`hidden` は使わない**（スクロールコンテナを作り、sticky ヘッダーが効かなくなる）
+- リグレッションは `tests/test_mobile_layout.py`
