@@ -2,6 +2,20 @@
 {% block title %}ユーザー管理 - Company Note{% endblock %}
 
 {% block content %}
+<style>
+    /*
+      スマホで表の見出しが「名/前」「メ/ー/ル」と1文字ずつ縦積みになっていた。
+      overflow-x-auto は付いていたが、table が w-full（幅100%）で親に収まって
+      しまうためスクロールが発生せず、7列が375pxに押し込まれていた。
+      表に最小幅を与えてスクロールさせ、セルは折り返さない。
+    */
+    .admin-table { min-width: 760px; }
+    .admin-table th,
+    .admin-table td { white-space: nowrap; }
+
+    /* 横スクロールできることが分かるように、端に薄い区切りを残す */
+    .admin-table-scroll { -webkit-overflow-scrolling: touch; }
+</style>
 <div x-data="adminUsers()" x-init="init()" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     <!-- ヘッダー -->
@@ -67,8 +81,8 @@
 
         <!-- テーブル -->
         <div class="bg-white rounded-xl overflow-hidden" style="border: 1px solid #ebebeb;">
-            <div class="overflow-x-auto">
-                <table class="w-full">
+            <div class="overflow-x-auto admin-table-scroll">
+                <table class="w-full admin-table">
                     <thead>
                         <tr style="background: #fafaf8; border-bottom: 1px solid #ebebeb;">
                             <th class="text-left px-4 py-3 text-xs font-semibold" style="color: #737373;">名前</th>
