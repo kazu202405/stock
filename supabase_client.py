@@ -639,6 +639,75 @@ def is_favorite_stock(user_id: str, company_code: str) -> bool:
 # ノート（notes）テーブル操作
 # =============================================
 
+# =============================================
+# 学習の進捗
+# =============================================
+
+class LearningProgressUnavailable(Exception):
+    """learning_progressテーブルがまだ無い。
+
+    migrationは運用側が手で適用するため、コードが先行する期間がある。
+    その間に学習ノートが500で開かなくなるのを避けるため、呼び出し側で
+    「記録できない」状態として扱えるようにする。
+    """
+
+
+def _missing_learning_table(error) -> bool:
+    text = str(error)
+    return ('learning_progress' in text
+            and ('does not exist' in text or 'PGRST205' in text
+                 or 'schema cache' in text))
+
+
+def get_learning_progress(user_id: str) -> list:
+    """その人が理解済みにした term_id の一覧を返す"""
+    client = get_supabase_client()
+    try:
+        result = (client.table('learning_progress')
+                  .select('term_id, understood_at')
+                  .eq('user_id', user_id).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+    return result.data or []
+
+
+def mark_learning_understood(user_id: str, term_id: str) -> dict:
+    """理解済みにする。すでに記録済みなら何もしない（日時を更新しない）。
+
+    読み返すたびに日時が動くと「いつ理解したか」が分からなくなるため、
+    upsertではなく存在確認してから挿入する。
+    """
+    client = get_supabase_client()
+    try:
+        existing = (client.table('learning_progress')
+                    .select('term_id, understood_at')
+                    .eq('user_id', user_id).eq('term_id', term_id)
+                    .limit(1).execute())
+        if existing.data:
+            return existing.data[0]
+        result = (client.table('learning_progress')
+                  .insert({'user_id': user_id, 'term_id': term_id}).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+    return result.data[0] if result.data else {}
+
+
+def unmark_learning_understood(user_id: str, term_id: str) -> None:
+    """理解済みを取り消す。履歴は追わないので行ごと消す。"""
+    client = get_supabase_client()
+    try:
+        (client.table('learning_progress').delete()
+         .eq('user_id', user_id).eq('term_id', term_id).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+
+
 def create_note(user_id: str, data: dict) -> dict:
     """ノートを新規作成"""
     client = get_supabase_client()

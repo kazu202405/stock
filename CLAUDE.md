@@ -39,7 +39,7 @@ python app.py
 ## ディレクトリ構成
 ```
 stock/
-├── app.py                    # メインFlaskアプリ（ルート定義・API 103本）
+├── app.py                    # メインFlaskアプリ（ルート定義・API 105パス）
 ├── config.py                 # 設定・DB接続・APIキー・カテゴリマッピング
 ├── supabase_client.py        # Supabase DBクライアント
 ├── stock_analyzer.py         # Yahoo Finance株分析モジュール
@@ -135,7 +135,12 @@ stock/
 - **学習ノート**: 指標の解説文は `learning.html` にハードコード（1,300行超）。
   ユーザーごとに変わらない内容なのでDB化していない。
   セクター別集計だけ `/api/sector/summary` が `screened_latest` から実データを返す。
-  なお**学習の進捗記録は未実装**（`learning_progress` 等のテーブルは無い）。
+- **学習の進捗記録**: `learning_progress` に「誰がどの項目を理解したか」だけを持つ。
+  項目IDの正本は `learning_terms.py`（18項目・8カテゴリ）。解説文とは分けている。
+  進捗APIは実在するIDだけ受け付ける（検証しないと任意の文字列で件数を水増しできる）。
+  `learning.html` の `terms[].id` とズレたら `tests/test_learning_progress.py` が落ちる。
+  **migration `supabase/migration_learning_progress.sql` の適用が必要**。
+  未適用の間は学習ノート自体は開けて、記録UIだけ隠れる。
 
 ### 注意（この節は実測に基づく。過去の記述は誤りだった）
 2026-08-08以前のこのファイルには「マイページ・コミュニティはフロントのみ、
@@ -163,6 +168,7 @@ stock/
 | `demo_account` / `demo_portfolio` / `demo_trades` | デモ売買 | 3 / 5 / 8件 |
 | `earnings_queue` | 決算発表のあった銘柄の処理待ちキュー | — |
 | `stock_reports` | レポートのLLM生成文キャッシュ | — |
+| `learning_progress` | 学習ノートの理解済み記録（要migration適用） | — |
 
 DB migration は `supabase/` 配下に既存ファイルの続きとして追加する。
 **適用は運用側（五島さん）が手で行う。** コードが先行する期間があるため、
@@ -195,9 +201,10 @@ DB migration は `supabase/` 配下に既存ファイルの続きとして追加
 - `GET/POST /api/demo/*` — デモ売買（口座・売買・履歴・リセット）
 - `GET /api/referrals/*` — 紹介コード・紹介ツリー
 - `GET /api/sector/summary` — セクター別集計（学習ノートが使用）
+- `GET /api/learning/progress`, `PUT/DELETE /api/learning/progress/<term_id>` — 学習の進捗
 
-全体で103本（2026-08-08時点）。
-`py -3 -c "from app import app; print(app.url_map)"` で一覧できる。
+APIのユニークパスは105本（2026-08-08時点。同じパスに複数メソッドがあるため
+ルール登録数は112）。`py -3 -c "from app import app; print(app.url_map)"` で一覧できる。
 
 ## UIデザイン方針
 - **背景**: #f7f7f5（ページ全体）、#fafaf8（ヘッダー）

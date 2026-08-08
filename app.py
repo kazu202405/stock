@@ -26,6 +26,8 @@ from supabase_client import (
     update_screened_data, upsert_screened_data_with_match_rate,
     calculate_match_rate, attach_score_quality, get_screened_data,
     get_technical_stocks, merge_source_status,
+    get_learning_progress, mark_learning_understood, unmark_learning_understood,
+    LearningProgressUnavailable,
     get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
     get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
     add_favorite_stock, remove_favorite_stock, get_favorite_stocks, is_favorite_stock,
@@ -4345,6 +4347,66 @@ def _safe_avg(values):
     """None/非数値を除外して平均値を計算"""
     nums = [v for v in values if v is not None and isinstance(v, (int, float))]
     return round(sum(nums) / len(nums), 2) if nums else None
+
+
+@app.route('/api/learning/progress', methods=['GET'])
+def api_learning_progress():
+    """その人が理解済みにした学習項目の一覧を返す。
+
+    どの項目が存在するか（terms）は learning.html が持っている。
+    ここは「誰がどれを理解したか」だけを返し、項目定義には関与しない。
+    """
+    from learning_terms import TERM_IDS, total_terms
+
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "ログインが必要です"}), 401
+    try:
+        rows = get_learning_progress(user_id)
+    except LearningProgressUnavailable:
+        # migration未適用。学習ノート自体は読めるべきなので、記録機能だけ止める。
+        return jsonify({"available": False, "understood": [], "records": [],
+                        "total_terms": total_terms(),
+                        "reason": "supabase/migration_learning_progress.sql が未適用です"}), 200
+
+    # 項目を廃止・改名した場合に、消えたIDが件数に残らないようにする
+    live = [r for r in rows if r.get('term_id') in TERM_IDS]
+    return jsonify({
+        "available": True,
+        "understood": [r['term_id'] for r in live],
+        "records": live,
+        "total_terms": total_terms(),
+    }), 200
+
+
+@app.route('/api/learning/progress/<term_id>', methods=['PUT', 'DELETE'])
+def api_learning_progress_update(term_id):
+    """学習項目を理解済みにする / 取り消す"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "ログインが必要です"}), 401
+
+    # 実在する項目だけ受け付ける。
+    # 検証しないと、任意の文字列を送って理解済み件数を水増しできてしまう。
+    from learning_terms import is_valid_term
+
+    term_id = (term_id or '').strip()
+    if not is_valid_term(term_id):
+        return jsonify({"error": "そのような学習項目はありません"}), 404
+
+    try:
+        if request.method == 'DELETE':
+            unmark_learning_understood(user_id, term_id)
+            return jsonify({"understood": False, "term_id": term_id}), 200
+        record = mark_learning_understood(user_id, term_id)
+        return jsonify({"understood": True, "term_id": term_id,
+                        "understood_at": record.get('understood_at')}), 200
+    except LearningProgressUnavailable:
+        return jsonify({
+            "error": "学習の記録はまだ使えません。"
+                     "supabase/migration_learning_progress.sql を適用してください。",
+            "migration_required": True,
+        }), 503
 
 
 @app.route('/api/sector/summary', methods=['GET'])

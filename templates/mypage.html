@@ -644,6 +644,16 @@
                         <div class="text-lg font-bold" style="color:#1b4332;" x-text="publicCount"></div>
                         <div class="text-xs" style="color:#737373;">公開ノート</div>
                     </div>
+                    {# 学習ノートで理解済みにした項目数。migration未適用なら出さない #}
+                    <a href="/learning" class="text-center" style="text-decoration:none;"
+                       x-show="learningAvailable" x-cloak>
+                        <div class="text-lg font-bold" style="color:#1b4332;">
+                            <span x-text="learningUnderstood"></span><span
+                                class="text-xs font-normal" style="color:#a3a3a3;"
+                                x-text="'/' + learningTotal"></span>
+                        </div>
+                        <div class="text-xs" style="color:#737373;">理解した項目</div>
+                    </a>
                 </div>
             </div>
         </div>
@@ -1668,6 +1678,8 @@ function mypageApp() {
             await this.loadNotes();
             // デモ売買も自動読込
             this.loadDemo();
+            // 学習の進捗（項目定義は学習ノート側が持つので件数だけ見る）
+            this.loadLearningProgress();
             // 紹介コード取得
             this.loadReferral();
         },
@@ -1694,6 +1706,26 @@ function mypageApp() {
                 await new Promise(function(r) { setTimeout(r, (attempt + 1) * 1000); });
             }
             this.loading = false;
+        },
+
+        // 学習ノートで理解済みにした項目数。
+        // 全項目数は learning.html が持っているので、ここでは総数だけAPIから受け取る。
+        learningAvailable: false,
+        learningUnderstood: 0,
+        learningTotal: 0,
+
+        async loadLearningProgress() {
+            try {
+                const res = await fetch('/api/learning/progress');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.available) return;
+                this.learningUnderstood = (data.understood || []).length;
+                this.learningTotal = data.total_terms || 0;
+                this.learningAvailable = this.learningTotal > 0;
+            } catch (e) {
+                console.error('学習の進捗の取得エラー:', e);
+            }
         },
 
         get uniqueCompanies() {
