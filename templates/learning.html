@@ -69,6 +69,97 @@
         flex-shrink: 0;
     }
 
+    /* 学習の進捗 */
+    .lp-summary {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 28px;
+    }
+    .lp-summary-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .lp-summary-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #1b4332;
+        letter-spacing: 0.04em;
+    }
+    .lp-summary-count { font-size: 13px; color: #737373; }
+    .lp-summary-count strong { font-size: 20px; color: #1b4332; }
+    .lp-summary-bar {
+        height: 6px;
+        background: #f1f1ef;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+    .lp-summary-fill {
+        height: 100%;
+        background: #2d6a4f;
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    .lp-summary-cats {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 6px;
+    }
+    .lp-cat {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 11px;
+        color: #737373;
+        padding: 5px 9px;
+        border: 1px solid #f1f1ef;
+        border-radius: 7px;
+    }
+    .lp-cat-done {
+        border-color: #b7e4c7;
+        background: #f0fdf4;
+        color: #1b4332;
+    }
+    .lp-cat-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lp-cat-count { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+    /* 理解チェック */
+    .lp-check-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-top: 4px;
+    }
+    .lp-check-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 14px;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        background: #fff;
+        color: #737373;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .lp-check-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
+    .lp-check-btn:disabled { opacity: 0.6; cursor: default; }
+    .lp-check-done {
+        background: #1b4332;
+        border-color: #1b4332;
+        color: #fff;
+    }
+    .lp-check-done:hover:not(:disabled) { color: #fff; }
+    .lp-check-date { font-size: 11px; color: #a3a3a3; }
+
     /* セクションボックス */
     .content-section {
         border-radius: 12px;
@@ -324,8 +415,33 @@
     </div>
 
     <!-- ===== 用語解説タブ ===== -->
-    <div x-show="activeTab === 'glossary'" x-data="learningApp()">
+    <div x-show="activeTab === 'glossary'" x-data="learningApp()" x-init="loadProgress()">
         <div class="max-w-3xl mx-auto px-6 py-8">
+
+            {#
+              学習の進捗。株の損益ではなく「読み解ける項目が増えたか」を出す。
+              数を煽らず、残りが何個かも書かない（急かす表現にしない）。
+            #}
+            <div class="lp-summary" x-show="progressAvailable" x-cloak>
+                <div class="lp-summary-head">
+                    <span class="lp-summary-label">理解できた項目</span>
+                    <span class="lp-summary-count">
+                        <strong x-text="understoodCount"></strong> / <span x-text="terms.length"></span>
+                    </span>
+                </div>
+                <div class="lp-summary-bar">
+                    <div class="lp-summary-fill" :style="'width:' + overallPercent + '%'"></div>
+                </div>
+                <div class="lp-summary-cats">
+                    <template x-for="cat in categories" :key="cat.id">
+                        <div class="lp-cat" :class="categoryDone(cat.id) ? 'lp-cat-done' : ''">
+                            <span class="lp-cat-name" x-text="cat.name"></span>
+                            <span class="lp-cat-count"
+                                  x-text="categoryUnderstood(cat.id) + '/' + getTermsByCategory(cat.id).length"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
 
             <!-- 全カテゴリを順に表示 -->
             <template x-for="(cat, catIdx) in categories" :key="cat.id">
@@ -403,6 +519,20 @@
                                         <div class="content-section" style="background: #fefcf3; border-left: 3px solid #eab308;">
                                             <p class="section-label" style="color: #a16207;">つまり、ここが大事</p>
                                             <p class="text-sm leading-relaxed" style="color: #374151;" x-text="term.whyItMatters"></p>
+                                        </div>
+
+                                        <!-- 理解チェック。読んだ記録ではなく「分かった」を本人が押す -->
+                                        <div class="lp-check-row" x-show="progressAvailable">
+                                            <button type="button" class="lp-check-btn"
+                                                    :class="isUnderstood(term.id) ? 'lp-check-done' : ''"
+                                                    :disabled="savingTerm === term.id"
+                                                    @click="toggleUnderstood(term.id)">
+                                                <i class="fas" :class="savingTerm === term.id ? 'fa-circle-notch fa-spin'
+                                                    : (isUnderstood(term.id) ? 'fa-check-circle' : 'fa-circle')"></i>
+                                                <span x-text="isUnderstood(term.id) ? '理解した' : '理解したらチェック'"></span>
+                                            </button>
+                                            <span class="lp-check-date" x-show="isUnderstood(term.id)"
+                                                  x-text="understoodDateLabel(term.id)"></span>
                                         </div>
                                     </div>
                                 </div>
@@ -687,6 +817,82 @@
 function learningApp() {
     return {
         openTerms: [],
+
+        // ---- 学習の進捗 ------------------------------------------------
+        // 解説文はユーザーごとに変わらないのでDBに持たない。
+        // 持つのは「誰がどの項目を理解したか」だけ。
+        understood: {},          // { term_id: understood_at }
+        progressAvailable: false, // migration未適用ならfalseにして機能ごと隠す
+        savingTerm: null,
+
+        async loadProgress() {
+            try {
+                const res = await fetch('/api/learning/progress');
+                if (!res.ok) return;
+                const data = await res.json();
+                this.progressAvailable = !!data.available;
+                const map = {};
+                (data.records || []).forEach(r => { map[r.term_id] = r.understood_at; });
+                this.understood = map;
+            } catch (e) {
+                console.error('学習の進捗の取得エラー:', e);
+            }
+        },
+
+        isUnderstood(termId) {
+            return Object.prototype.hasOwnProperty.call(this.understood, termId);
+        },
+
+        async toggleUnderstood(termId) {
+            if (this.savingTerm) return;
+            const wasUnderstood = this.isUnderstood(termId);
+            this.savingTerm = termId;
+            try {
+                const res = await fetch(`/api/learning/progress/${termId}`,
+                                        { method: wasUnderstood ? 'DELETE' : 'PUT' });
+                const data = await res.json();
+                if (!res.ok) {
+                    if (data.migration_required) this.progressAvailable = false;
+                    return;
+                }
+                if (data.understood) {
+                    this.understood = { ...this.understood, [termId]: data.understood_at };
+                } else {
+                    const next = { ...this.understood };
+                    delete next[termId];
+                    this.understood = next;
+                }
+            } catch (e) {
+                console.error('学習の進捗の保存エラー:', e);
+            } finally {
+                this.savingTerm = null;
+            }
+        },
+
+        understoodDateLabel(termId) {
+            const at = this.understood[termId];
+            if (!at) return '';
+            const d = new Date(at);
+            return isNaN(d) ? '' : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+        },
+
+        get understoodCount() {
+            return Object.keys(this.understood).length;
+        },
+
+        get overallPercent() {
+            if (!this.terms.length) return 0;
+            return Math.round(this.understoodCount / this.terms.length * 100);
+        },
+
+        categoryUnderstood(catId) {
+            return this.getTermsByCategory(catId).filter(t => this.isUnderstood(t.id)).length;
+        },
+
+        categoryDone(catId) {
+            const all = this.getTermsByCategory(catId);
+            return all.length > 0 && this.categoryUnderstood(catId) === all.length;
+        },
 
         categories: [
             {

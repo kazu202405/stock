@@ -158,6 +158,34 @@
     .chart-card, .chart-card .chart-header, .chart-card .chart-placeholder {
         min-width: 0;
     }
+    /* PER・PBRの推移カード */
+    .vh-tabs { float: right; display: inline-flex; gap: 4px; }
+    .vh-tab {
+        border: 1px solid #ebebeb; background: #fff; border-radius: 6px;
+        padding: 2px 12px; font-size: 0.72rem; color: #737373; cursor: pointer;
+        font-weight: 600; letter-spacing: .02em;
+    }
+    .vh-tab:hover { border-color: #2d6a4f; color: #1b4332; }
+    .vh-tab-active { background: #1b4332; border-color: #1b4332; color: #fff; }
+    .vh-tab:disabled { opacity: .35; cursor: default; }
+    .vh-tab:disabled:hover { border-color: #ebebeb; color: #737373; }
+    .vh-stats {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+    }
+    .vh-stat {
+        border: 1px solid #ebebeb; border-radius: 8px; padding: 8px 10px; text-align: center;
+    }
+    .vh-stat-label { font-size: 0.68rem; color: #a3a3a3; margin-bottom: 3px; }
+    .vh-stat-value { font-size: 1rem; font-weight: 700; color: #1a1a1a; }
+    .vh-stat-now { border-color: #1b4332; background: #f0fdf4; }
+    .vh-stat-now .vh-stat-value { color: #1b4332; }
+    .vh-chart { height: 220px; width: 100%; }
+    .vh-note { font-size: 0.72rem; color: #a3a3a3; margin-top: 10px; line-height: 1.7; }
+    @media (max-width: 640px) {
+        .vh-stats { grid-template-columns: repeat(2, 1fr); }
+        .vh-chart { height: 180px; }
+    }
+
     /* canvasは幅を持って伸びっぱなしになりやすいので、親を超えさせない */
     .chart-card canvas {
         display: block;
@@ -274,6 +302,18 @@
         font-size: 0.7rem;
         color: var(--text-secondary);
         margin-top: 2px;
+    }
+
+    /* 値が無いときの理由。数値ではないので控えめに、折り返しを許す */
+    .metric-sub-reason {
+        font-size: 0.65rem;
+        color: #a3a3a3;
+        line-height: 1.4;
+        white-space: normal;
+    }
+    .metric-value-absent {
+        color: #c4c4c4;
+        font-weight: 500;
     }
 
     /* スコアカード */
@@ -1209,6 +1249,31 @@
             </div>
     </div>
 
+    <!-- PER・PBRの推移 -->
+    {#
+      PER/PBRは現在値しか保存していないため、株価履歴と決算期ごとのEPS/BPSから
+      その場で組み立てる。外部サイトへは取りに行かない。
+      「いまの倍率が、この会社自身の1年の中でどのあたりか」を見るためのカード。
+      他社との優劣や売買タイミングを示唆する表現は置かない。
+    #}
+    <div style="margin-bottom: 20px;">
+        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
+            <div class="detail-header">
+                PER・PBRの推移
+                <span class="vh-tabs">
+                    <button type="button" class="vh-tab vh-tab-active" data-metric="per">PER</button>
+                    <button type="button" class="vh-tab" data-metric="pbr">PBR</button>
+                </span>
+            </div>
+            <div class="detail-content">
+                <div id="vh-stats" class="vh-stats"></div>
+                <div id="vh-chart" class="vh-chart"></div>
+                <div id="vh-note" class="vh-note"></div>
+            </div>
+            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">PER・PBRの推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+        </div>
+    </div>
+
     <!-- 詳細情報セクション -->
     {# インラインstyleだとメディアクエリで潰せず、スマホで3カラムのまま残る。
        クラスにしてCSS側で面倒を見る #}
@@ -1871,6 +1936,20 @@
     }
 
     // 指標更新（閲覧専用版）
+    // 値が無い項目に添える理由。サーバーが分類したものをそのまま出す。
+    // 「赤字だからPERが存在しない」と「取得に失敗した」を同じ --- で
+    // 済ませない。欠損の大半は取得の問題ではないため。
+    let metricOmissions = {};
+    const METRIC_FIELD = {
+        'PER': 'per', 'PBR': 'pbr', '配当利回り': 'dividend_yield',
+        '自己資本比率': 'equity_ratio', '営業利益率': 'operating_margin',
+        '時価総額': 'market_cap',
+    };
+
+    function omissionFor(field) {
+        return field ? metricOmissions[field] : null;
+    }
+
     function updateMetric(className, value, suffix, label, industryInfo = null) {
         const elements = document.querySelectorAll('.metric-item');
         for (const elem of elements) {
@@ -1884,8 +1963,13 @@
                         } else {
                             valueElem.textContent = `${formatNumber(value)}${suffix}`;
                         }
+                        valueElem.title = '';
+                        valueElem.classList.remove('metric-value-absent');
                     } else {
-                        valueElem.textContent = '---';
+                        const reason = omissionFor(METRIC_FIELD[label]);
+                        valueElem.textContent = reason ? '—' : '---';
+                        valueElem.title = reason ? reason.message : '';
+                        valueElem.classList.toggle('metric-value-absent', !!reason);
                     }
                 }
                 const subElem = elem.querySelector('.metric-sub');
@@ -1894,6 +1978,19 @@
                 // 矛盾した表示を残さない。
                 if (subElem) subElem.textContent = '';
                 elem.classList.remove('good', 'warning', 'danger');
+                // 値が無いときは、その理由をここに出す。
+                // 評価文（健全/標準/注意）は値がある時しか入らないので競合しない。
+                if (subElem && (value === null || value === undefined)) {
+                    const reason = omissionFor(METRIC_FIELD[label]);
+                    if (reason) {
+                        subElem.textContent = reason.message;
+                        subElem.classList.add('metric-sub-reason');
+                    } else {
+                        subElem.classList.remove('metric-sub-reason');
+                    }
+                } else if (subElem) {
+                    subElem.classList.remove('metric-sub-reason');
+                }
                 const isBankOrRE = industryInfo && /銀行|不動産|bank|real estate|reit/i.test(industryInfo);
                 if (label === '自己資本比率' && value != null) {
                     if (isBankOrRE) {
@@ -1990,6 +2087,8 @@
                     const month = d.getMonth() + 1;
                     if (!yearDataMap.has(year)) yearDataMap.set(year, { _month: month, _date: item.date });
                     yearDataMap.get(year)[type] = item.value;
+                    // 取得値ではなくアプリ側の算出値（例: 純利益÷株数のEPS）は印を残す
+                    if (item.derived) yearDataMap.get(year)[type + '_derived'] = true;
                 });
             }
         });
@@ -2050,6 +2149,18 @@
                 updateCellValue(row, 'ordinary_income', yd.ordinary_income);
                 updateCellValue(row, 'net_income', yd.net_income);
                 updateCellValue(row, 'eps', yd.eps, true);
+                // Yahooが該当期のEPSを返さず、純利益÷株数で算出した値には印を付ける
+                const epsCell = row.querySelector('td[data-type="eps"]');
+                if (epsCell) {
+                    if (yd.eps_derived && yd.eps !== undefined && yd.eps !== null) {
+                        epsCell.textContent = `${yd.eps.toFixed(2)}※`;
+                        epsCell.title = '取得元にこの期の一株益が無いため、純利益÷株数で算出した値です';
+                        epsCell.style.color = '#737373';
+                    } else {
+                        epsCell.title = '';
+                        epsCell.style.color = '';
+                    }
+                }
                 updateCellValue(row, 'dps', yd.dps, true);
                 updateCellValue(row, 'payout_ratio', yd.payout_ratio, false, true);
             });
@@ -2199,6 +2310,155 @@
                 btn.innerHTML = '<i class="fas fa-redo" style="margin-right: 4px;"></i>日本語を再取得';
                 showErrorModal('再取得に失敗しました');
             });
+    }
+
+    // ---- PER・PBRの推移 --------------------------------------------------
+    // 保存しているのは現在値の1点だけなので、株価履歴 × 決算期ごとのEPS/BPSで
+    // その場で組み立てる。外部サイトへは取りに行かない。
+    let vhData = null, vhChart = null, vhSeries = null, vhMetric = 'per';
+
+    async function loadValuationHistory(code) {
+        if (!code) return;
+        try {
+            const res = await fetch(`/api/stock/valuation-history/${code}`);
+            if (!res.ok) return;
+            vhData = await res.json();
+        } catch (e) {
+            console.error('PER・PBR推移の取得エラー:', e);
+            return;
+        }
+        // 出せない方のタブは押せなくする（空のグラフを見せない）
+        document.querySelectorAll('.vh-tab').forEach(btn => {
+            const metric = btn.dataset.metric;
+            btn.disabled = !vhData[`has_${metric}`];
+            btn.onclick = () => { vhMetric = metric; renderValuationHistory(); };
+        });
+        if (!vhData.has_per && vhData.has_pbr) vhMetric = 'pbr';
+        renderValuationHistory();
+    }
+
+    function renderValuationHistory() {
+        const statsEl = document.getElementById('vh-stats');
+        const chartEl = document.getElementById('vh-chart');
+        const noteEl = document.getElementById('vh-note');
+        if (!statsEl || !chartEl || !noteEl || !vhData) return;
+
+        document.querySelectorAll('.vh-tab').forEach(btn => {
+            btn.classList.toggle('vh-tab-active', btn.dataset.metric === vhMetric);
+        });
+
+        const label = vhMetric.toUpperCase();
+        const stats = (vhData.summary || {})[vhMetric];
+        if (!stats) {
+            statsEl.innerHTML = '';
+            chartEl.innerHTML = '';
+            noteEl.textContent = (vhData.notes || {})[vhMetric] || `${label}の推移を出せません`;
+            return;
+        }
+
+        const fmt = (v) => vhMetric === 'per' ? `${v.toFixed(1)}倍` : `${v.toFixed(2)}倍`;
+        statsEl.innerHTML = `
+            <div class="vh-stat"><div class="vh-stat-label">1年で最も低い</div><div class="vh-stat-value">${fmt(stats.min)}</div></div>
+            <div class="vh-stat"><div class="vh-stat-label">平均</div><div class="vh-stat-value">${fmt(stats.avg)}</div></div>
+            <div class="vh-stat"><div class="vh-stat-label">1年で最も高い</div><div class="vh-stat-value">${fmt(stats.max)}</div></div>
+            <div class="vh-stat vh-stat-now"><div class="vh-stat-label">現在</div><div class="vh-stat-value">${fmt(stats.latest)}</div></div>`;
+
+        const points = vhData.points
+            .filter(p => p[vhMetric] !== null && p[vhMetric] !== undefined)
+            .map(p => ({ time: p.date, value: p[vhMetric] }));
+
+        if (vhChart) { vhChart.remove(); vhChart = null; vhSeries = null; }
+        chartEl.innerHTML = '';
+        vhChart = LightweightCharts.createChart(chartEl, {
+            width: chartEl.clientWidth,
+            height: chartEl.clientHeight || 220,
+            layout: {
+                background: { type: 'solid', color: '#ffffff' },
+                textColor: '#a3a3a3',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                fontSize: 11,
+            },
+            grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Magnet,
+                vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+            },
+            rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.1 } },
+            timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+            localization: { locale: 'ja-JP', priceFormatter: (v) => `${v.toFixed(2)}倍` },
+        });
+        vhSeries = vhChart.addLineSeries({
+            color: '#1b4332', lineWidth: 2, priceLineVisible: false,
+        });
+        vhSeries.setData(points);
+
+        // 平均線。「この会社自身の平均と比べてどこか」を見るための基準。
+        vhSeries.createPriceLine({
+            price: stats.avg, color: '#a3a3a3', lineWidth: 1,
+            lineStyle: 2, axisLabelVisible: true, title: '平均',
+        });
+        vhChart.timeScale().fitContent();
+
+        noteEl.textContent =
+            `株価の推移と、その時点で公表済みだった決算の${label === 'PER' ? '一株益(EPS)' : '一株純資産(BPS)'}から算出しています。`
+            + `決算は期末から${vhData.disclosure_lag_days}日後に公表されたものとして扱っています（東証の決算短信の開示要請にあわせた目安）。`;
+    }
+
+    window.addEventListener('resize', () => {
+        const chartEl = document.getElementById('vh-chart');
+        if (vhChart && chartEl) vhChart.applyOptions({ width: chartEl.clientWidth });
+    });
+
+    // 株主・役員を後追いで取得する。
+    //
+    // 全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
+    // ほぼ全銘柄で空になっていた。EDINET DBの無料枠は100回/日しかなく
+    // 全銘柄を先回りで埋めるのは不可能なので、実際に見られた銘柄に枠を使う。
+    // 再取得の間隔と枠の管理はサーバー側で持つ。
+    async function fetchHoldersOfficers(code) {
+        if (!code) return;
+        const holdersEl = document.getElementById('major-holders-content');
+        const officersEl = document.getElementById('company-officers-content');
+        const loading = '<div style="color:#a3a3a3;text-align:center;padding:20px;">'
+            + '<i class="fas fa-circle-notch fa-spin"></i> 確認しています…</div>';
+        const emptyHolders = !holdersEl || !holdersEl.querySelector('table');
+        const emptyOfficers = !officersEl || !officersEl.querySelector('table');
+        if (holdersEl && emptyHolders) holdersEl.innerHTML = loading;
+        if (officersEl && emptyOfficers) officersEl.innerHTML = loading;
+
+        const notFound = (label) => `<div style="color:#666;text-align:center;padding:20px;">`
+            + `${label}は取得元に収録されていません</div>`;
+        const failed = (label) => `<div style="color:#666;text-align:center;padding:20px;">`
+            + `${label}データを取得できていません</div>`;
+
+        try {
+            const res = await fetch(`/api/stock/holders-officers/${code}`, { method: 'POST' });
+            const result = await res.json();
+
+            if (result.status === 'fetched') {
+                if (result.major_shareholders_jp && result.major_shareholders_jp.length) {
+                    updateMajorHolders({ major_holders: [], major_shareholders_jp: result.major_shareholders_jp });
+                } else if (holdersEl && emptyHolders) {
+                    holdersEl.innerHTML = notFound('主要株主');
+                }
+                if (result.company_officers && result.company_officers.length) {
+                    updateCompanyOfficers({ company_officers: result.company_officers });
+                } else if (officersEl && emptyOfficers) {
+                    officersEl.innerHTML = notFound('役員構成');
+                }
+                return;
+            }
+
+            // 未収録と取得失敗は区別して出す（AGENTS.mdの方針）
+            const message = result.status === 'no_data' ? notFound : failed;
+            if (holdersEl && emptyHolders) holdersEl.innerHTML = message('主要株主');
+            if (officersEl && emptyOfficers) officersEl.innerHTML = message('役員構成');
+        } catch (e) {
+            console.error('株主・役員の取得エラー:', e);
+            if (holdersEl && emptyHolders) holdersEl.innerHTML = failed('主要株主');
+            if (officersEl && emptyOfficers) officersEl.innerHTML = failed('役員構成');
+        }
     }
 
     // 株主・役員表示
@@ -2502,6 +2762,9 @@
         const cachedSector = cachedIndustry;
         updateMetric('equity-ratio', data.equity_ratio, '%', '自己資本比率', cachedSector);
         updateMetric('op-margin', data.operating_margin, '%', '営業利益率', cachedSector);
+        // 欠損理由はサーバーが分類済み。指標カードより先に受け取っておく。
+        metricOmissions = data.omissions || {};
+
         updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
         updateMetric('pbr', data.pbr, '倍', 'PBR', cachedSector);
         updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', cachedSector);
@@ -2543,19 +2806,65 @@
         }
 
         // 財務健全性（キャッシュ版）
+        //
+        // スカラー列（cash / current_liabilities / current_ratio）は全銘柄バックフィルの
+        // 保存パスが書いておらず、3,879銘柄中25件しか埋まっていない。一方 cf_history には
+        // 同じ値が年度配列として95%の銘柄に入っている。まず cf_history を見て、
+        // 無い場合だけスカラー列にフォールバックする。
+        // 単位に注意: cf_history は円、スカラー列は億円。
+        const latestOf = (arr) => {
+            if (!Array.isArray(arr) || arr.length === 0) return null;
+            const sorted = [...arr]
+                .filter(x => x && x.value !== null && x.value !== undefined)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            return sorted[0] || null;
+        };
+        const cashSeries = (cfHistory && cfHistory.cash) || [];
+        const liabSeries = (cfHistory && cfHistory.current_liabilities) || [];
+        const assetsSeries = (cfHistory && cfHistory.current_assets) || [];
+
+        const latestCash = latestOf(cashSeries);
+        const cashYen = latestCash ? latestCash.value : (data.cash ? data.cash * 1e8 : null);
         const cashDisplay = document.getElementById('cash-display');
-        if (cashDisplay) cashDisplay.textContent = data.cash ? formatAmount(data.cash * 1e8, 'JPY') : '---';
+        if (cashDisplay) cashDisplay.textContent = cashYen !== null ? formatAmount(cashYen, 'JPY') : '---';
+
+        const latestLiab = latestOf(liabSeries);
+        const liabYen = latestLiab ? latestLiab.value : (data.current_liabilities ? data.current_liabilities * 1e8 : null);
         const currentLiabDisplay = document.getElementById('current-liab-display');
-        if (currentLiabDisplay) currentLiabDisplay.textContent = data.current_liabilities ? formatAmount(data.current_liabilities * 1e8, 'JPY') : '---';
+        if (currentLiabDisplay) currentLiabDisplay.textContent = liabYen !== null ? formatAmount(liabYen, 'JPY') : '---';
+
+        // 流動比率は流動資産÷流動負債で算出する。同じ決算期の値どうしでだけ割る。
+        const latestAssets = latestOf(assetsSeries);
+        let currentRatio = null;
+        if (latestAssets && latestLiab && latestAssets.date === latestLiab.date && latestLiab.value > 0) {
+            currentRatio = (latestAssets.value / latestLiab.value) * 100;
+        } else if (data.current_ratio) {
+            currentRatio = data.current_ratio;
+        }
         const currentRatioDisplay = document.getElementById('current-ratio-display');
-        if (currentRatioDisplay && data.current_ratio) {
-            currentRatioDisplay.textContent = `${data.current_ratio.toFixed(1)}%`;
-            if (data.current_ratio >= 150) currentRatioDisplay.style.color = 'var(--success-color)';
-            else if (data.current_ratio >= 100) currentRatioDisplay.style.color = 'var(--warning-color)';
+        if (currentRatioDisplay && currentRatio !== null) {
+            currentRatioDisplay.textContent = `${currentRatio.toFixed(1)}%`;
+            if (currentRatio >= 150) currentRatioDisplay.style.color = 'var(--success-color)';
+            else if (currentRatio >= 100) currentRatioDisplay.style.color = 'var(--warning-color)';
             else currentRatioDisplay.style.color = 'var(--danger-color)';
         }
         const payoutDisplay = document.getElementById('payout-ratio-display');
         if (payoutDisplay && data.payout_ratio) payoutDisplay.textContent = `${data.payout_ratio.toFixed(1)}%`;
+
+        // 財務健全性の各行も、値が無い理由を出す（--- のままにしない）
+        [['cash-display', 'cash'], ['current-liab-display', 'current_liabilities'],
+         ['current-ratio-display', 'current_ratio'], ['payout-ratio-display', 'payout_ratio'],
+         ['margin-ratio-display', 'margin_trading_ratio']].forEach(([id, field]) => {
+            const el = document.getElementById(id);
+            if (!el || (el.textContent && el.textContent !== '---')) return;
+            const reason = (data.omissions || {})[field];
+            if (!reason) return;
+            el.textContent = reason.message;
+            el.style.color = '#a3a3a3';
+            el.style.fontSize = '0.72rem';
+            el.style.fontWeight = '400';
+        });
+
         const marginRatioDisplay = document.getElementById('margin-ratio-display');
         if (marginRatioDisplay && data.margin_trading_ratio) {
             let marginText = `${data.margin_trading_ratio.toFixed(2)}倍`;
@@ -2570,8 +2879,16 @@
             }
             marginRatioDisplay.textContent = marginText;
         }
+        // 現預金推移（最古 → 最新）。cf_historyがあれば推移を出せる。
         const cashNew = document.getElementById('cash-new');
-        if (cashNew && data.cash) cashNew.textContent = formatAmount(data.cash * 1e8, 'JPY');
+        const cashOld = document.getElementById('cash-old');
+        if (cashSeries.length > 1) {
+            const sortedCash = [...cashSeries].sort((a, b) => new Date(b.date) - new Date(a.date));
+            if (cashOld) cashOld.textContent = formatAmount(sortedCash[sortedCash.length - 1].value, 'JPY');
+            if (cashNew) cashNew.textContent = formatAmount(sortedCash[0].value, 'JPY');
+        } else if (cashNew && cashYen !== null) {
+            cashNew.textContent = formatAmount(cashYen, 'JPY');
+        }
 
         // 株主・役員（キャッシュ）
         // institutional_holders(yfinance・英語)はもう画面に出さないので読まない。
@@ -2584,16 +2901,34 @@
             if (data.major_shareholders_jp) shareholdersJp = typeof data.major_shareholders_jp === 'string' ? JSON.parse(data.major_shareholders_jp) : data.major_shareholders_jp;
         } catch (e) { console.error('株主データパースエラー:', e); }
 
+        // 株主・役員も理由を出す。後追い取得が走る場合はそちらが上書きする。
+        const absent = (field, fallback) => {
+            const reason = (data.omissions || {})[field];
+            return `<div style="color:#a3a3a3;text-align:center;padding:20px;font-size:0.82rem;">`
+                + `${reason ? reason.message : fallback}</div>`;
+        };
+
         if (holders || shareholdersJp) {
             updateMajorHolders({ major_holders: holders || [], major_shareholders_jp: shareholdersJp || [] });
         } else {
-            document.getElementById('major-holders-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">主要株主データを取得できていません</div>';
+            document.getElementById('major-holders-content').innerHTML =
+                absent('major_shareholders_jp', '主要株主データを取得できていません');
         }
         if (officers && officers.length > 0) {
             updateCompanyOfficers({ company_officers: officers });
         } else {
-            document.getElementById('company-officers-content').innerHTML = '<div style="color:#666;text-align:center;padding:20px;">役員データを取得できていません</div>';
+            document.getElementById('company-officers-content').innerHTML =
+                absent('company_officers', '役員データを取得できていません');
         }
+
+        // 全銘柄バックフィルは株主・役員を取らないため、ほとんどの銘柄で空になる。
+        // 画面はキャッシュで描き終えたあと、欠けている場合だけ後追いで取りに行く。
+        if (!shareholdersJp || !officers || officers.length === 0) {
+            fetchHoldersOfficers(data.company_code);
+        }
+
+        // PER・PBRの推移（株価履歴とEPS/BPSからその場で組み立てる）
+        loadValuationHistory(data.company_code);
 
         // スコアカード（サーバーが計算した内訳を描くだけ）
         updateScoreCard(data.score_breakdown);

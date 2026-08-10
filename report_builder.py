@@ -35,6 +35,39 @@ def _as_obj(value):
     return value
 
 
+# レポート項目のラベル → data_gaps が扱うフィールド名
+# 欠損理由の分類は data_gaps に集約する（銘柄詳細と同じ判定を使う）。
+_LABEL_TO_FIELD = {
+    '株価': 'stock_price', '時価総額': 'market_cap',
+    'PER': 'per', 'PBR': 'pbr',
+    '配当利回り': 'dividend_yield', '配当性向': 'payout_ratio',
+    '自己資本比率': 'equity_ratio', '営業利益率': 'operating_margin',
+    '現預金': 'cash', '流動負債': 'current_liabilities',
+    '流動比率': 'current_ratio', '営業CF': 'operating_cf',
+    '信用倍率': 'margin_trading_ratio',
+    '業種': 'industry_jp',
+    '設立': 'established', '上場日': 'listing_date',
+}
+
+
+def _omission_reason(label, row, source_status, financial_history=None):
+    """値が無い項目について、その理由をできる範囲で特定する"""
+    from data_gaps import classify
+
+    field = _LABEL_TO_FIELD.get(label)
+    if not field:
+        return {'label': label, 'status': 'unknown', 'reason': '値がありません'}
+
+    info = classify(field, row, financial_history, source_status)
+    return {
+        'label': label,
+        'status': info['status'],
+        'reason': info['message'],
+        'detail': info.get('detail'),
+        'source': info.get('source'),
+    }
+
+
 def _series(history, key):
     """financial_history / cf_history から [{date, value}] を取り出す"""
     if not isinstance(history, dict):
@@ -195,8 +228,15 @@ def build_from_screened(row):
         equity_roa = {'labels': labels, 'equity_ratio': eq_values, 'roa': roa_values, 'unit': '%'}
 
     # --- スナップショット（値がある項目だけ並べる） ---
+    # 落とした項目は omitted に理由つきで残す。画面には出さないが、
+    # 「該当なし」と「取得失敗」を後から区別できないと運用で困る。
+    omitted = []
+
     def item(label, value, unit='', digits=None):
         if value is None or value == '':
+            if not any(o['label'] == label for o in omitted):
+                omitted.append(
+                    _omission_reason(label, row, source_status, financial))
             return None
         if digits is not None:
             try:
@@ -247,13 +287,15 @@ def build_from_screened(row):
         if ca and latest['value']:
             current_ratio_val = ca / latest['value'] * 100
 
+    # 信用倍率はここに置かない。
+    # 会社の財務健全性ではなく市況・需給データであり、同じ数字を「2. 会社スナップショット」と
+    # 二重に出す意味もない。市況側の指標としてスナップショットにのみ載せる。
     health = [
         item('現預金', cash_val, '億円', 1),
         item('流動負債', current_liab_val, '億円', 1),
         item('流動比率', current_ratio_val, '%', 1),
         item('営業CF', row.get('operating_cf'), '億円', 1),
         item('配当性向', row.get('payout_ratio'), '%', 1),
-        item('信用倍率', row.get('margin_trading_ratio'), '倍', 2),
     ]
     health = [x for x in health if x]
 
@@ -362,6 +404,8 @@ def build_from_screened(row):
         'score_judged': score_info['judged'],
         'score_total': score_info['total'],
         'missing_sections': missing_sections,
+        # 項目ごとの欠損理由。表示はしないが、運用で追えるように必ず残す。
+        'omitted_items': omitted,
         'is_limited': bool(missing_sections) or not score_info['is_complete'],
         'summary_language': ('ja' if row.get('business_summary_jp') else
                              'en' if row.get('business_summary') else None),

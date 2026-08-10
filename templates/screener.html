@@ -330,6 +330,16 @@
 </div>
 
 <style>
+    /*
+      スマホで会社名の列が26px幅まで潰れ、「ミ/ロ/ク/情/報/…」と1文字ずつ
+      縦積みになっていた。表は overflow-x-auto の中にあるので、
+      セルを折り返さずに横スクロールで見せる。
+    */
+    .overflow-x-auto > table th,
+    .overflow-x-auto > table td {
+        white-space: nowrap;
+    }
+
     .scr-tabs {
         display: inline-flex;
         background: #f0f0ec;

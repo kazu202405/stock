@@ -3,10 +3,25 @@ from flask import render_template, redirect, request, session, flash
 from models.common import *
 from models.model import *
 from supabase_client import (
-    authenticate_user, create_user as create_app_user,
-    get_user_by_id, get_user_by_referral_code, migrate_guest_notes,
-    get_screened_data, get_supabase_client
+    ensure_app_user, get_user_by_id, get_user_by_referral_code,
+    migrate_guest_notes, get_screened_data, get_supabase_client
 )
+import gia_identity
+
+
+def _store_session(user, email):
+    """ログイン状態をセッションに保存する。
+
+    管理者判定はメールで行う（GIA_ADMIN_EMAILS。既定は gia-next の
+    is_admin() と同じアドレス）。app_users.role も見るのは、株アプリ側で
+    agent 等を付けている運用を壊さないため。
+    """
+    session['user_id'] = user['id']
+    session['user_name'] = user.get('name') or (email or '').split('@')[0]
+    session['user_email'] = email
+    session['user_role'] = ('admin' if gia_identity.is_admin_email(email)
+                            else (user.get('role') or 'user'))
+    session.permanent = True
 
 
 def normalize_code(code):
@@ -78,6 +93,43 @@ def market():
     if guard: return guard
     import market_data as md
     return render_template('market.html', indexes=md.INDEXES)
+
+
+@app.route('/earnings')
+def earnings():
+    """決算情報（決算月ごとの銘柄一覧）
+
+    扱うのは決算"期"の月であって、決算"発表予定日"ではない。
+    発表予定日は全銘柄を無料で取れる取得元が未整理のため、ここには出さない。
+    """
+    guard = _require_login()
+    if guard: return guard
+
+    client = get_supabase_client()
+    counts = {m: 0 for m in range(1, 13)}
+    total = 0
+    migration_ready = True
+
+    if client is not None:
+        try:
+            # 全件を引いてJS側で数えると1000行上限に切られるため、
+            # 件数はDB側のcountで月ごとに取る（headのみで行本体は転送しない）。
+            for month in range(1, 13):
+                result = (client.table('screened_latest')
+                          .select('company_code', count='exact')
+                          .eq('fiscal_month', month).limit(1).execute())
+                counts[month] = result.count or 0
+                total += counts[month]
+        except Exception as e:
+            if 'fiscal_month' in str(e):
+                migration_ready = False
+            else:
+                raise
+
+    return render_template('earnings.html',
+                           counts=counts,
+                           total=total,
+                           migration_ready=migration_ready)
 
 
 @app.route('/report')
@@ -169,10 +221,21 @@ def login():
             flash('メールアドレスとパスワードを入力してください', 'error')
             return render_template('login.html')
 
-        user = authenticate_user(email, password)
-        if not user:
+        # 認証はGIA（キャンパス）のSupabase Authで行う。
+        # 株アプリ独自のパスワードは持たない（アカウントを二重に持たせないため）。
+        try:
+            account = gia_identity.sign_in(email, password)
+        except gia_identity.GiaIdentityUnavailable as e:
+            # 設定漏れを「パスワードが違う」と表示すると原因が分からなくなる
+            print(f'GIA接続の設定不備: {e}')
+            flash('ログイン機能の設定が完了していません。管理者にご連絡ください。', 'error')
+            return render_template('login.html', saved_email=email)
+
+        if not account:
             flash('メールアドレスまたはパスワードが正しくありません', 'error')
             return render_template('login.html', saved_email=email)
+
+        user = ensure_app_user(account['id'], account['email'])
 
         # ゲストノートの引き継ぎ
         guest_id = session.get('guest_user_id')
@@ -180,12 +243,7 @@ def login():
             migrate_guest_notes(guest_id, user['id'])
             session.pop('guest_user_id', None)
 
-        # セッションにログイン状態を保存
-        session['user_id'] = user['id']
-        session['user_name'] = user['name']
-        session['user_role'] = user['role']
-        session.permanent = True
-
+        _store_session(user, account['email'])
         return redirect('/dashboard')
 
     return render_template('login.html')
@@ -232,12 +290,12 @@ def register():
                                    referrer_name=referrer_name, saved_name=name, saved_email=email)
 
         try:
-            user = create_app_user(
-                name=name,
-                email=email,
-                password=password,
-                referred_by_code=referral_code if referral_code else None
-            )
+            # アカウントはGIA（キャンパス）側に作る。株アプリとキャンパスで
+            # 別アカウントになると、課金しても株アプリが会員だと分からない。
+            account = gia_identity.create_auth_user(email, password)
+            user = ensure_app_user(
+                account['id'], account['email'], name=name,
+                referred_by_code=referral_code if referral_code else None)
 
             # ゲストノートの引き継ぎ
             guest_id = session.get('guest_user_id')
@@ -245,15 +303,24 @@ def register():
                 migrate_guest_notes(guest_id, user['id'])
                 session.pop('guest_user_id', None)
 
-            # セッションにログイン状態を保存
-            session['user_id'] = user['id']
-            session['user_name'] = user['name']
-            session['user_role'] = user['role']
-            session.permanent = True
-
+            _store_session(user, account['email'])
             return redirect('/dashboard')
+        except gia_identity.GiaIdentityUnavailable as e:
+            print(f'GIA接続の設定不備: {e}')
+            flash('登録機能の設定が完了していません。管理者にご連絡ください。', 'error')
+            return render_template('register.html', ref_code=referral_code,
+                                   referrer_name=referrer_name, saved_name=name, saved_email=email)
         except ValueError as e:
             flash(str(e), 'error')
+            return render_template('register.html', ref_code=referral_code,
+                                   referrer_name=referrer_name, saved_name=name, saved_email=email)
+        except Exception as e:
+            message = str(e)
+            if 'already' in message.lower() or 'registered' in message.lower():
+                flash('このメールアドレスは既に登録されています', 'error')
+            else:
+                print(f'登録エラー: {e}')
+                flash('登録に失敗しました。時間をおいて再度お試しください', 'error')
             return render_template('register.html', ref_code=referral_code,
                                    referrer_name=referrer_name, saved_name=name, saved_email=email)
 

@@ -242,9 +242,17 @@
 
     .watchlist-table {
         width: 100%;
-        min-width: 700px;
+        /* 列数に対して700pxでは足りず、セル内で社名が1文字ずつ折り返していた
+           （例:「Ｇｒｅｅｎ ｎＢｅｅ」）。列が潰れない幅を確保して横スクロールさせる。 */
+        min-width: 880px;
         border-collapse: collapse;
         font-size: 0.9rem;
+    }
+
+    /* セル内で折り返さない。入り切らない分は親の横スクロールで見る。 */
+    .watchlist-table th,
+    .watchlist-table td {
+        white-space: nowrap;
     }
 
     .watchlist-table th {
@@ -340,6 +348,9 @@
         align-items: center;
         gap: 8px;
         flex-shrink: 0;
+        /* 管理画面のボタン列が横に657px並び、ページごと横スクロールしていた。
+           入り切らない分は下の行へ折り返す。 */
+        flex-wrap: wrap;
     }
 
     .watchlist-table td {
@@ -427,7 +438,13 @@
         gap: 0;
         border-bottom: 2px solid var(--border-color);
         margin-bottom: 0;
+        /* スマホでタブが縮んで「お/気/に/入/り」と1文字ずつ縦積みになっていた。
+           縮ませず、入り切らない分は横スクロールさせる。 */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
     }
+    .watchlist-tabs::-webkit-scrollbar { display: none; }
 
     .watchlist-tab {
         padding: 10px 20px;
@@ -440,6 +457,9 @@
         margin-bottom: -2px;
         cursor: pointer;
         transition: all 0.2s;
+        /* 幅が足りなくても文字を折り返さない（縦積みの原因） */
+        flex: 0 0 auto;
+        white-space: nowrap;
     }
 
     .watchlist-tab:hover {
@@ -629,6 +649,44 @@
             flex-direction: column;
             align-items: stretch;
             gap: 15px;
+        }
+
+        /* 見出しとボタン列が横並びのままだと画面から溢れる。縦に積む。 */
+        .watchlist-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        /* 管理ボタンは横並びをやめ、2列に収める。
+           文字が縮んで縦積みにならないよう nowrap を効かせる。 */
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            width: 100%;
+        }
+        .action-buttons .gc-fetch-btn,
+        .action-buttons button {
+            width: 100%;
+            padding-left: 8px;
+            padding-right: 8px;
+            font-size: 0.78rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .watchlist-tab {
+            padding: 10px 14px;
+            font-size: 0.82rem;
+        }
+    }
+
+    /* 幅の狭い端末ではボタンを1列にする */
+    @media (max-width: 420px) {
+        .action-buttons {
+            grid-template-columns: 1fr;
         }
     }
 </style>

@@ -4,8 +4,22 @@
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
     [x-cloak] { display: none !important; }
+
+    /*
+      閉じているスライドメニュー(.slide-menu-panel)は position:fixed のまま
+      translateX(100%) で画面の右外に出しているが、これが文書のスクロール範囲を
+      広げてしまい、全ページでスマホが横に41pxほどドラッグできる状態だった。
+
+      overflow-x: hidden ではなく clip を使う。hidden はスクロールコンテナを
+      作ってしまい、position:sticky のヘッダー(.site-header)が効かなくなるため。
+    */
+    html {
+        overflow-x: clip;
+    }
+
     body {
         font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+        overflow-x: clip;
     }
     .btn-primary {
         background-color: #1b4332 !important;
@@ -232,6 +246,9 @@
                             <a href="/themes" class="nav-dropdown-item">
                                 <i class="fas fa-tags"></i>テーマ・業種
                             </a>
+                            <a href="/earnings" class="nav-dropdown-item">
+                                <i class="fas fa-calendar-alt"></i>決算情報
+                            </a>
                             <a href="/report" class="nav-dropdown-item">
                                 <i class="fas fa-file-invoice"></i>レポート
                             </a>
@@ -382,6 +399,9 @@
             </a>
             <a href="/themes" class="slide-menu-link">
                 <i class="fas fa-tags"></i>テーマ・業種
+            </a>
+            <a href="/earnings" class="slide-menu-link">
+                <i class="fas fa-calendar-alt"></i>決算情報
             </a>
             <a href="/report" class="slide-menu-link">
                 <i class="fas fa-file-invoice"></i>レポート

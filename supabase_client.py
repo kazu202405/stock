@@ -639,6 +639,75 @@ def is_favorite_stock(user_id: str, company_code: str) -> bool:
 # ノート（notes）テーブル操作
 # =============================================
 
+# =============================================
+# 学習の進捗
+# =============================================
+
+class LearningProgressUnavailable(Exception):
+    """learning_progressテーブルがまだ無い。
+
+    migrationは運用側が手で適用するため、コードが先行する期間がある。
+    その間に学習ノートが500で開かなくなるのを避けるため、呼び出し側で
+    「記録できない」状態として扱えるようにする。
+    """
+
+
+def _missing_learning_table(error) -> bool:
+    text = str(error)
+    return ('learning_progress' in text
+            and ('does not exist' in text or 'PGRST205' in text
+                 or 'schema cache' in text))
+
+
+def get_learning_progress(user_id: str) -> list:
+    """その人が理解済みにした term_id の一覧を返す"""
+    client = get_supabase_client()
+    try:
+        result = (client.table('learning_progress')
+                  .select('term_id, understood_at')
+                  .eq('user_id', user_id).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+    return result.data or []
+
+
+def mark_learning_understood(user_id: str, term_id: str) -> dict:
+    """理解済みにする。すでに記録済みなら何もしない（日時を更新しない）。
+
+    読み返すたびに日時が動くと「いつ理解したか」が分からなくなるため、
+    upsertではなく存在確認してから挿入する。
+    """
+    client = get_supabase_client()
+    try:
+        existing = (client.table('learning_progress')
+                    .select('term_id, understood_at')
+                    .eq('user_id', user_id).eq('term_id', term_id)
+                    .limit(1).execute())
+        if existing.data:
+            return existing.data[0]
+        result = (client.table('learning_progress')
+                  .insert({'user_id': user_id, 'term_id': term_id}).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+    return result.data[0] if result.data else {}
+
+
+def unmark_learning_understood(user_id: str, term_id: str) -> None:
+    """理解済みを取り消す。履歴は追わないので行ごと消す。"""
+    client = get_supabase_client()
+    try:
+        (client.table('learning_progress').delete()
+         .eq('user_id', user_id).eq('term_id', term_id).execute())
+    except Exception as e:
+        if _missing_learning_table(e):
+            raise LearningProgressUnavailable() from e
+        raise
+
+
 def create_note(user_id: str, data: dict) -> dict:
     """ノートを新規作成"""
     client = get_supabase_client()
@@ -719,28 +788,36 @@ def _generate_referral_code(length: int = 6) -> str:
     return ''.join(random.choices(chars, k=length))
 
 
-def create_user(name: str, email: str, password: str, referred_by_code: str = None) -> dict:
-    """ユーザーを新規登録"""
+def _new_referral_code(client) -> str:
+    """紹介コードをユニークになるまで生成する"""
+    for _ in range(10):
+        code = _generate_referral_code()
+        dup = client.table('app_users').select('id').eq('referral_code', code).execute()
+        if not dup.data:
+            return code
+    raise ValueError("紹介コードの生成に失敗しました。再度お試しください")
+
+
+def ensure_app_user(user_id: str, email: str, name: str = None,
+                    referred_by_code: str = None) -> dict:
+    """auth.users のUUIDに対応する app_users 行を用意する。
+
+    認証はGIA側(auth.users)に移したが、表示名・紹介コード・紹介ツリー・
+    マーケット所感は株アプリ固有なので app_users に残している。
+    そのため主キーを auth.users.id と同じUUIDにそろえ、ログインのたびに
+    行が無ければ作る。パスワードはここでは扱わない。
+    """
     client = get_supabase_client()
 
-    # メール重複チェック
-    existing = client.table('app_users').select('id').eq('email', email).execute()
+    existing = client.table('app_users').select('*').eq('id', user_id).execute()
     if existing.data:
-        raise ValueError("このメールアドレスは既に登録されています")
+        row = existing.data[0]
+        # GIA側でメールを変えた場合に追随する
+        if email and row.get('email') != email:
+            client.table('app_users').update({'email': email}).eq('id', user_id).execute()
+            row['email'] = email
+        return row
 
-    # パスワードハッシュ化
-    password_hash = generate_password_hash(password)
-
-    # 紹介コード自動生成（ユニークになるまでリトライ）
-    for _ in range(10):
-        referral_code = _generate_referral_code()
-        dup = client.table('app_users').select('id').eq('referral_code', referral_code).execute()
-        if not dup.data:
-            break
-    else:
-        raise ValueError("紹介コードの生成に失敗しました。再度お試しください")
-
-    # 紹介者の解決
     referred_by = None
     if referred_by_code:
         referrer = client.table('app_users').select('id').eq(
@@ -750,18 +827,21 @@ def create_user(name: str, email: str, password: str, referred_by_code: str = No
             referred_by = referrer.data[0]['id']
 
     user_data = {
-        'name': name,
+        'id': user_id,
+        'name': name or (email or '').split('@')[0],
         'email': email,
-        'password_hash': password_hash,
-        'referral_code': referral_code,
+        'referral_code': _new_referral_code(client),
+        # 認証はGIA側(auth.users)に移ったのでパスワードは持たない。
+        # ただし列が NOT NULL のままなので、照合に成功しない印を入れる。
+        # 列を落とすのは supabase/migration_app_users_no_password.sql 適用後。
+        'password_hash': 'moved-to-gia-auth',
     }
-    # referred_byがある場合のみ含める（Noneを送るとスキーマキャッシュエラーになる場合がある）
     if referred_by:
         user_data['referred_by'] = referred_by
 
     result = client.table('app_users').insert(user_data).execute()
     if not result.data:
-        raise ValueError("ユーザー登録に失敗しました")
+        raise ValueError("ユーザー情報の作成に失敗しました")
     return result.data[0]
 
 
@@ -871,6 +951,41 @@ def update_display_name(user_id: str, display_name: str) -> dict:
         {'display_name': display_name.strip() if display_name else None}
     ).eq('id', user_id).execute()
     return result.data[0] if result.data else None
+
+
+def update_gia_credential(user_id: str, current_password: str,
+                          new_email: str = None, new_password: str = None) -> dict:
+    """メール/パスワードをGIA(auth.users)側で変更する。
+
+    認証情報の正本はGIAのSupabase Authなので、app_users側だけ変えても
+    ログインには反映されない。現在のパスワードで本人確認してから更新する。
+    """
+    import gia_identity
+
+    row = get_user_by_id(user_id)
+    if not row:
+        raise ValueError("ユーザーが見つかりません")
+
+    # 本人確認。ここを省くとセッションを奪われた際に締め出される。
+    if not gia_identity.sign_in(row.get('email'), current_password):
+        raise ValueError("現在のパスワードが正しくありません")
+
+    payload = {}
+    if new_email:
+        payload['email'] = new_email.strip()
+        payload['email_confirm'] = True
+    if new_password:
+        payload['password'] = new_password
+
+    client = gia_identity.get_admin_client()
+    client.auth.admin.update_user_by_id(user_id, payload)
+
+    if new_email:
+        # 表示用にapp_users側もそろえる
+        get_supabase_client().table('app_users').update(
+            {'email': new_email.strip()}).eq('id', user_id).execute()
+        return {'email': new_email.strip()}
+    return {'success': True}
 
 
 def update_user_email(user_id: str, new_email: str, current_password: str) -> dict:
