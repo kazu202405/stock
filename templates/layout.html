@@ -120,6 +120,21 @@
         font-size: 18px;
         margin-bottom: 2px;
     }
+    /* ヘッダー右端のメニューボタン（モバイル） */
+    .header-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin-right: -8px; /* 端に寄せる。タップ領域は40pxのまま保つ */
+        color: #525252;
+        background: none;
+        border: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .header-menu-btn i { font-size: 18px; }
     /* スライドメニュー */
     .slide-menu-overlay {
         position: fixed;
@@ -325,6 +340,13 @@
                     {% endif %}
                 </div>
 
+                {# モバイルはヘッダー右端がメニュー。ボトムタブは行き先(マイノートまで)
+                   だけを置き、開閉するものはヘッダーに寄せる #}
+                <button class="md:hidden header-menu-btn" type="button"
+                        onclick="toggleSlideMenu(true)" aria-label="メニューを開く">
+                    <i class="fas fa-bars"></i>
+                </button>
+
             </div>
         </div>
     </nav>
@@ -361,10 +383,10 @@
             <i class="fas fa-graduation-cap"></i>
             <span>学習</span>
         </a>
-        <button class="bottom-tab-item" onclick="toggleSlideMenu(true)" type="button">
-            <i class="fas fa-bars"></i>
-            <span>メニュー</span>
-        </button>
+        <a href="/mypage" class="bottom-tab-item" data-tab-path="/mypage">
+            <i class="fas fa-file-alt"></i>
+            <span>マイノート</span>
+        </a>
     </div>
 
     <!-- スライドメニュー（モバイル専用） -->

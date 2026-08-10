@@ -1,4 +1,4 @@
-# 未完了の作業（2026-08-10 中断時点）
+# 未完了の作業（2026-08-10 時点）
 
 次のセッションはここを見れば、何が終わっていて何が残っているか分かる。
 取得元・欠損対策の詳細は `DATA_ACQUISITION.md`、全体像は `../CLAUDE.md`。
@@ -7,31 +7,40 @@
 
 ## ブランチ
 
-```
-feature/valuation-history-and-data-gaps   （8コミット・push済み・未マージ）
-```
-作業ツリーはクリーン。マージ判断は未了。
+`feature/valuation-history-and-data-gaps` は **2026-08-10 に main へマージ・
+本番反映済み**（`/earnings` の応答が404から変わったことで確認）。
+Render の `GIA_SUPABASE_*` 投入も完了しているため、本番のログインは動いている。
 
 ---
 
 ## 運用側でやること
 
-### 1. Render に環境変数を追加（**本番でログインするのに必須**）
+### 1. Supabase（GIAプロジェクト）の設定 — パスワード再設定を動かすのに必須
+
+`/forgot-password` → `/reset-password` を実装したが、**メールを送るのは
+Supabase Auth**。次の2つがダッシュボード側で揃っていないと動かない。
+
+**(a) Redirect URLs に追加**（Authentication → URL Configuration）
 ```
-GIA_SUPABASE_URL
-GIA_SUPABASE_ANON_KEY
-GIA_SUPABASE_SERVICE_ROLE_KEY
-GIA_ADMIN_EMAILS=global.information.academy@gmail.com
+https://note.gia2018.com/reset-password
 ```
-認証をGIA（キャンパス）のSupabase Authへ統一したため、
-**これが無いと本番で誰もログインできない**。ローカル `.env` には設定済み。
+未登録だとこのURLは無視され、Site URL（gia2018.com）に飛ばされて
+再設定できない。ローカル確認もするなら `http://127.0.0.1:5000/reset-password`。
+
+**(b) SMTP の確認**（Project Settings → Authentication → SMTP Settings）
+Supabase内蔵のメール送信は検証用で送信数の上限が低い。会員が増えてから
+「再設定メールが届かない」を踏むと原因が見えにくいので、独自SMTP
+（Resend / SendGrid 等）を入れておく方が安全。
+**現状どちらなのか未確認。** 会員登録は `email_confirm=True` で
+作っているためメール送信の実績が無く、コードからは判断できない。
 
 ### 2. パスワード再設定の連絡（2名）
 ```
 1008petalchime1119@gmail.com
 sakkun.i.0622@gmail.com
 ```
-ハッシュ方式が違い移行できないため。GIA側のパスワードリセットから設定してもらう。
+ハッシュ方式が違い移行できないため。上記1が済めば
+`/forgot-password` から本人が自分で再設定できる。
 `azmagic.17@` と `cepure7777@` は既存アカウントに紐付いたので再設定不要。
 
 ### 3. migration（任意）
@@ -63,6 +72,14 @@ supabase/migration_app_users_no_password.sql   未適用・適用しなくても
 実装・適用とも完了。ただし**実データでの通し確認はまだ**（テーブルが0件）。
 学習ノートを開いて「理解したらチェック」を押すと動くはず。
 
+### パスワード再設定（コードは完成・運用設定待ち）
+`/forgot-password`（送信）と `/reset-password`（設定）を追加した。
+ログイン画面から辿れる。動かすには上の「運用側でやること 1」が必要。
+
+`/reset-password` に渡しているのは **anonキーだけ**。サービスロールキーを
+ページに出すと、開いた誰もが全ユーザーを操作できるため
+`tests/test_password_reset.py` で固定してある。
+
 ### 未実装のまま残しているもの（意図的）
 - **課金による機能差（有料ゲート）**。
   「今の時点では株のアプリに差はない」という判断のため作っていない。
@@ -81,4 +98,4 @@ supabase/migration_app_users_no_password.sql   未適用・適用しなくても
 - スマホの表示崩れ修正（縦積み・横はみ出し）→ `tests/test_mobile_layout.py`
 - 認証をGIAへ統一（`gia_identity.py` / `migrate_users_to_gia.py`）
 
-テストは `py -3 -m unittest discover -s tests` で147件。
+テストは `py -3 -m unittest discover -s tests` で162件。
