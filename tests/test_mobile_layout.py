@@ -79,6 +79,43 @@ class AdminUsersLayoutTest(unittest.TestCase):
         self.assertIn('white-space: nowrap', self.admin)
 
 
+class MobileNavPlacementTest(unittest.TestCase):
+    """モバイルの導線配置。
+
+    ボトムタブは「行き先」だけを置き、開閉するもの（スライドメニュー）は
+    ヘッダー右端に寄せている。この配置で気をつける点は1つで、
+    スライドメニューにしか無い項目（スクリーニング・テーマ・決算情報・
+    レポート・マーケット・ログアウト）が、ヘッダーのボタンを失うと
+    モバイルから到達できなくなること。開く手段の存在を固定する。
+    """
+
+    def setUp(self):
+        layout = _read('templates/layout.html')
+        self.header = layout.split('<nav class="bg-white site-header"')[1].split('</nav>')[0]
+        # CSSの .bottom-tab-nav ではなくマークアップ側を見る
+        self.bottom_tabs = (layout.split('<div class="bottom-tab-nav')[1]
+                            .split('<!-- スライドメニュー')[0])
+
+    def test_header_has_mobile_menu_button(self):
+        """これが無いとスライドメニューを開く手段がモバイルに無くなる"""
+        self.assertIn('toggleSlideMenu(true)', self.header)
+        button = self.header.split('toggleSlideMenu(true)')[0]
+        self.assertIn('md:hidden', button[-300:])
+
+    def test_bottom_tabs_include_mypage(self):
+        self.assertIn('data-tab-path="/mypage"', self.bottom_tabs)
+        self.assertIn('マイノート', self.bottom_tabs)
+
+    def test_bottom_tabs_are_links_only(self):
+        """開閉ボタンをボトムタブに戻さない（ヘッダーと二重になる）"""
+        self.assertNotIn('toggleSlideMenu', self.bottom_tabs)
+
+    def test_every_bottom_tab_marks_active_state(self):
+        """data-tab-path が無いタブは現在地が光らない"""
+        self.assertEqual(self.bottom_tabs.count('class="bottom-tab-item"'),
+                         self.bottom_tabs.count('data-tab-path='))
+
+
 class ScreenerLayoutTest(unittest.TestCase):
     def test_table_cells_do_not_wrap(self):
         screener = _read('templates/screener.html')

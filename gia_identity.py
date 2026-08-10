@@ -91,6 +91,43 @@ def is_configured() -> bool:
     return bool(_env('GIA_SUPABASE_URL') and _env('GIA_SUPABASE_ANON_KEY'))
 
 
+def project_url() -> str:
+    """再設定ページがブラウザから直接叩くGIAプロジェクトのURL。"""
+    return _env('GIA_SUPABASE_URL')
+
+
+def anon_key() -> str:
+    """anonキー。公開前提の値なので、再設定ページのJSに渡してよい。
+
+    サービスロールキーは絶対に渡さない（渡すと誰でも全ユーザーを操作できる）。
+    """
+    return _env('GIA_SUPABASE_ANON_KEY')
+
+
+def send_password_reset(email: str, redirect_to: str) -> None:
+    """パスワード再設定メールを送る。
+
+    メールはSupabase Authが送る。リンクは
+    /auth/v1/verify?type=recovery&... を経由し、成功すると redirect_to に
+    #access_token=... を付けて戻ってくる（implicitフロー）。
+
+    重要: redirect_to は Supabase の Authentication > URL Configuration の
+    Redirect URLs に登録されていないと無視され、Site URL に飛ばされる。
+
+    Raises:
+        GiaIdentityUnavailable: 接続情報が無いとき
+        RuntimeError: 送信自体が失敗したとき（レート制限・SMTP未設定など）
+    """
+    client = get_auth_client()
+    try:
+        client.auth.reset_password_email(
+            (email or '').strip(), {'redirect_to': redirect_to})
+    except Exception as e:
+        # 「そのメールは存在しない」は Supabase が返さない（存在の有無を
+        # 漏らさないため）。ここに来るのは送信基盤側の失敗。
+        raise RuntimeError(str(e)) from e
+
+
 def sign_in(email: str, password: str) -> dict:
     """GIAのSupabase Authでログインする。
 

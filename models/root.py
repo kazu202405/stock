@@ -249,6 +249,54 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """パスワード再設定メールの送信を受け付ける。
+
+    認証の正本はGIAのSupabase Authなので、メールもSupabaseに送らせる。
+    株アプリは自前のSMTPを持たない。
+    """
+    if request.method != 'POST':
+        return render_template('forgot_password.html')
+
+    email = (request.form.get('email') or '').strip()
+    if not email:
+        flash('メールアドレスを入力してください', 'error')
+        return render_template('forgot_password.html')
+
+    redirect_to = request.url_root.rstrip('/') + '/reset-password'
+    try:
+        gia_identity.send_password_reset(email, redirect_to)
+    except gia_identity.GiaIdentityUnavailable as e:
+        print(f'GIA接続の設定不備: {e}')
+        flash('再設定機能の設定が完了していません。管理者にご連絡ください。', 'error')
+        return render_template('forgot_password.html', saved_email=email)
+    except RuntimeError as e:
+        # レート制限やSMTP未設定。ここを「送信しました」と嘘をつくと、
+        # 届かない理由を誰も追えなくなる。
+        print(f'再設定メールの送信失敗 {email}: {e}')
+        flash('メールを送信できませんでした。時間をおいて再度お試しいただくか、'
+              '管理者にご連絡ください。', 'error')
+        return render_template('forgot_password.html', saved_email=email)
+
+    # 登録の有無は明かさない（未登録アドレスを判別できると総当たりの材料になる）
+    return render_template('forgot_password.html', sent_to=email)
+
+
+@app.route('/reset-password')
+def reset_password():
+    """メールのリンクから戻ってくる先。新しいパスワードを設定する。
+
+    Supabaseは #access_token=... をURLのフラグメントに付けて返す。
+    フラグメントはサーバーに送られないため、ここはページを返すだけで、
+    トークンの取り出しと更新はブラウザ側で行う。
+    """
+    return render_template(
+        'reset_password.html',
+        gia_url=gia_identity.project_url(),
+        gia_anon_key=gia_identity.anon_key())
+
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     """ユーザー登録ページ"""

@@ -1,0 +1,107 @@
+{# 認証まわりの単独ページ（layout.htmlを継承しないページ）で使う共通スタイル。
+
+   login.html / register.html にも同じ指定があるが、認証をGIAへ移した直後の
+   ため今日は触っていない。次に触るときにこの include へ寄せる。 #}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+
+    :root {
+        --lp-bg: #fafaf8;
+        --lp-text: #1a1a1a;
+        --lp-accent: #1b4332;
+        --lp-accent-light: #2d6a4f;
+        --lp-muted: #6b7280;
+        --lp-border: #e5e5e0;
+    }
+
+    body {
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+        background: var(--lp-bg);
+        color: var(--lp-text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .login-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--lp-border);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        color: var(--lp-text);
+        background: white;
+        transition: border-color 0.3s, box-shadow 0.3s;
+        outline: none;
+    }
+
+    .login-input:focus {
+        border-color: var(--lp-accent);
+        box-shadow: 0 0 0 3px rgba(27, 67, 50, 0.08);
+    }
+
+    .login-input::placeholder { color: #b0b0a8; }
+
+    .login-btn {
+        width: 100%;
+        padding: 12px;
+        background: var(--lp-accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+    }
+
+    .login-btn:hover {
+        background: var(--lp-accent-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(27, 67, 50, 0.2);
+    }
+
+    .login-btn:active { transform: translateY(0); }
+
+    .login-btn:disabled {
+        background: #b7c4bd;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .login-link {
+        color: var(--lp-accent);
+        text-decoration: none;
+        transition: opacity 0.3s;
+    }
+
+    .login-link:hover { opacity: 0.7; }
+
+    .flash-error {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+
+    .flash-info {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #14532d;
+        padding: 14px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        line-height: 1.7;
+    }
+
+    .accent-line {
+        width: 40px;
+        height: 2px;
+        background: var(--lp-accent);
+    }
+</style>
