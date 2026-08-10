@@ -20,19 +20,23 @@ Render の `GIA_SUPABASE_*` 投入も完了しているため、本番のログ�
 `/forgot-password` → `/reset-password` を実装したが、**メールを送るのは
 Supabase Auth**。次の2つがダッシュボード側で揃っていないと動かない。
 
-**(a) Redirect URLs に追加**（Authentication → URL Configuration）
+**(a) Redirect URLs に追加**（Authentication → URL Configuration）— ✅ **2026-08-10 完了**
 ```
 https://note.gia2018.com/reset-password
 ```
 未登録だとこのURLは無視され、Site URL（gia2018.com）に飛ばされて
 再設定できない。ローカル確認もするなら `http://127.0.0.1:5000/reset-password`。
 
-**(b) SMTP の確認**（Project Settings → Authentication → SMTP Settings）
+**(b) SMTP の確認**（Project Settings → Authentication → SMTP Settings）— ⚠️ **未確認**
 Supabase内蔵のメール送信は検証用で送信数の上限が低い。会員が増えてから
 「再設定メールが届かない」を踏むと原因が見えにくいので、独自SMTP
 （Resend / SendGrid 等）を入れておく方が安全。
-**現状どちらなのか未確認。** 会員登録は `email_confirm=True` で
-作っているためメール送信の実績が無く、コードからは判断できない。
+会員登録は `email_confirm=True` で作っているためメール送信の実績が無く、
+コードからは判断できない。
+
+**確かめ方** ＝ `note.gia2018.com/forgot-password` に自分のアドレスを入れて
+1通送ってみる。届けば内蔵送信は生きている（ただし上限は低いまま）。
+届かない・エラーになるなら独自SMTPが要る。
 
 ### 2. パスワード再設定の連絡（2名）
 ```
@@ -72,9 +76,10 @@ supabase/migration_app_users_no_password.sql   未適用・適用しなくても
 実装・適用とも完了。ただし**実データでの通し確認はまだ**（テーブルが0件）。
 学習ノートを開いて「理解したらチェック」を押すと動くはず。
 
-### パスワード再設定（コードは完成・運用設定待ち）
-`/forgot-password`（送信）と `/reset-password`（設定）を追加した。
-ログイン画面から辿れる。動かすには上の「運用側でやること 1」が必要。
+### パスワード再設定（本番反映済み・実メールでの通し確認だけ未了）
+`/forgot-password`（送信）と `/reset-password`（設定）を追加し、
+2026-08-10 に本番へ出した（`784a7a2`）。ログイン画面から辿れる。
+Redirect URLs も登録済み。**残るは実際に1通送って届くかの確認だけ**（上の 1-(b)）。
 
 `/reset-password` に渡しているのは **anonキーだけ**。サービスロールキーを
 ページに出すと、開いた誰もが全ユーザーを操作できるため
