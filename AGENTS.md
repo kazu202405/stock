@@ -4,6 +4,7 @@
 
 ## 最初に読むもの
 
+0. `claudedocs/PENDING.md` — **未完了の作業と運用側の宿題（作業再開はここから）**
 1. `CLAUDE.md` — アプリ全体の目的・構成・設計方針
 2. `claudedocs/DATA_ACQUISITION.md` — 株価・財務・日本語概要・株主・役員等の取得仕様と改善計画
 3. 事業判断が必要な場合は `../../../contexts/projects/gia/company_note.md`

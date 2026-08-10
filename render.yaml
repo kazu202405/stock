@@ -10,10 +10,21 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.4"
-      # Supabase
+      # Supabase（株アプリ側：銘柄データ・ノート・デモ売買）
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # GIA（キャンパス）側：認証(auth.users)と会員情報(applicants)
+      # 未設定だとログイン・新規登録が一切できない（gia_identity.py）
+      - key: GIA_SUPABASE_URL
+        sync: false
+      - key: GIA_SUPABASE_ANON_KEY
+        sync: false
+      - key: GIA_SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # 管理者。gia-next の is_admin() と同じアドレスにそろえる
+      - key: GIA_ADMIN_EMAILS
         sync: false
       # Database (SQLAlchemy用)
       - key: DB_SERVER
