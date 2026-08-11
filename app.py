@@ -175,6 +175,11 @@ def login_required_api(f):
     return decorated
 
 
+# 非会員に見せるコミュニティの質問数。
+# 全部隠すと「何も無い場所」に見えて二度と来なくなる。数件見せて
+# 「他にもある」と分かる状態にする。
+FREE_COMMUNITY_QUESTIONS = 3
+
 # 段の表示名。内部キーをそのまま画面に出さないための対応表。
 # 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
 MEMBERSHIP_LABELS = {
@@ -3948,7 +3953,24 @@ def api_get_questions():
             liked_set = get_user_likes(current_user_id, 'question', q_ids)
             user_likes = {qid: True for qid in liked_set}
 
-        return jsonify({"questions": questions, "user_likes": user_likes}), 200
+        # 非会員には先頭 FREE_COMMUNITY_QUESTIONS 件だけ返す。
+        # 「まだ続きがある」ことは件数で伝え、中身は送らない。
+        # CSSでぼかしてもDevTools・curlで読めるので、隠すならサーバー側で落とす。
+        total = len(questions)
+        hidden = 0
+        if not is_member_session():
+            hidden = max(0, total - FREE_COMMUNITY_QUESTIONS)
+            questions = questions[:FREE_COMMUNITY_QUESTIONS]
+            shown_ids = {q['id'] for q in questions}
+            user_likes = {k: v for k, v in user_likes.items() if k in shown_ids}
+
+        return jsonify({
+            "questions": questions,
+            "user_likes": user_likes,
+            # 画面が「他N件は会員限定」を出すための数。中身は含まれない。
+            "hidden_count": hidden,
+            "is_member": is_member_session(),
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -3970,11 +3992,27 @@ def api_create_question():
 
 @app.route('/api/community/questions/<question_id>', methods=['GET'])
 def api_get_question_detail(question_id):
-    """質問詳細＋回答一覧を取得"""
+    """質問詳細＋回答一覧を取得。
+
+    一覧を3件に絞っても、詳細のURLを直接叩けば全部読めてしまう。
+    非会員には、一覧で見せている3件だけ詳細も開けるようにする。
+    """
     try:
         question = get_question_by_id(question_id)
         if not question:
             return jsonify({"error": "質問が見つかりません"}), 404
+
+        if not is_member_session():
+            free_ids = {
+                q['id'] for q in get_public_questions(
+                    limit=FREE_COMMUNITY_QUESTIONS, offset=0,
+                    filter_resolved='all')
+            }
+            if question_id not in free_ids:
+                return jsonify({
+                    "error": "この質問は会員限定です",
+                    "upgrade_url": "https://gia2018.com/upgrade",
+                }), 403
 
         # 質問者名を解決（poster_name > display_name > name）
         q_user_ids = [] if question.get('is_anonymous') or question.get('poster_name') else [question['user_id']]

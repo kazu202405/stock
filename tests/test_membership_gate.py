@@ -104,5 +104,50 @@ class GetMembershipErrorFlagTest(unittest.TestCase):
         self.assertFalse(result['found'])
 
 
+class CommunityTeaserTest(unittest.TestCase):
+    """非会員には先頭3件だけ返し、残りは件数だけ伝える。
+
+    「ぼかし」はCSSの見た目であって保護ではない。中身を送らないことが本体。
+    """
+
+    def setUp(self):
+        import app as app_module
+        self.app_module = app_module
+        app_module.app.config['TESTING'] = True
+        self.client = app_module.app.test_client()
+        self.questions = [{'id': f'q{i}', 'user_id': None, 'is_anonymous': True,
+                           'poster_name': None} for i in range(10)]
+
+    def _get(self, member):
+        with self.client.session_transaction() as s:
+            s['user_id'] = 'test'
+        with unittest.mock.patch.object(
+                self.app_module, 'get_public_questions',
+                return_value=list(self.questions)), \
+             unittest.mock.patch.object(
+                 self.app_module, '_build_user_map', return_value={}), \
+             unittest.mock.patch.object(
+                 self.app_module, 'get_user_likes', return_value=set()), \
+             unittest.mock.patch.object(
+                 self.app_module, 'is_member_session', return_value=member):
+            return self.client.get('/api/community/questions').get_json()
+
+    def test_non_member_receives_only_three(self):
+        body = self._get(member=False)
+        self.assertEqual(len(body['questions']), 3)
+        self.assertEqual(body['hidden_count'], 7)
+
+    def test_member_receives_all(self):
+        body = self._get(member=True)
+        self.assertEqual(len(body['questions']), 10)
+        self.assertEqual(body['hidden_count'], 0)
+
+    def test_hidden_questions_are_not_in_the_payload(self):
+        """隠した質問のIDすら含まれない（中身を送らないのが保護の本体）"""
+        body = self._get(member=False)
+        ids = {q['id'] for q in body['questions']}
+        self.assertEqual(ids, {'q0', 'q1', 'q2'})
+
+
 if __name__ == '__main__':
     unittest.main()

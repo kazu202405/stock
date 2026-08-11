@@ -18,6 +18,37 @@
         padding: 16px 18px; transition: all 0.2s ease; cursor: pointer;
     }
     .q-card:hover { border-color: #d4d4d4; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+
+    /* 会員限定で隠れている分の見せ方。
+       ぼかしているのは中身の無いプレースホルダ。本物の質問文はサーバーが
+       送っていないので、ぼかしを外しても何も出てこない。
+       「まだ続きがある」ことだけを伝えるための装飾。 */
+    .member-locked-wrap { position: relative; margin-top: 12px; }
+    .member-locked-ghosts {
+        display: flex; flex-direction: column; gap: 10px;
+        filter: blur(4px); opacity: 0.55; user-select: none; pointer-events: none;
+    }
+    .q-card.ghost { cursor: default; border-left: 3px solid #e5e5e5; }
+    .ghost-icon {
+        width: 32px; height: 32px; border-radius: 50%; background: #e8e8e6; flex-shrink: 0;
+    }
+    .ghost-line {
+        height: 10px; border-radius: 4px; background: #e8e8e6; margin-bottom: 8px;
+    }
+    .member-locked-overlay {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center;
+        padding: 20px;
+        background: linear-gradient(180deg, rgba(247,247,245,0.55) 0%, rgba(247,247,245,0.95) 55%);
+        border-radius: 10px;
+    }
+    .member-locked-count { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .member-locked-note { font-size: 12px; color: #737373; margin-top: 6px; line-height: 1.8; }
+    .member-locked-btn {
+        display: inline-block; margin-top: 12px; padding: 9px 20px;
+        background: #1b4332; color: #fff; text-decoration: none;
+        font-size: 12.5px; font-weight: 600; border-radius: 8px;
+    }
     .q-card.unresolved { border-left: 3px solid #f59e0b; }
     .q-card.resolved { border-left: 3px solid #22c55e; }
     .section-head { font-size: 13px; font-weight: 700; color: #1a1a1a; display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
@@ -281,7 +312,39 @@
                                 </div>
                             </div>
                         </template>
-                        <div x-show="filteredQuestions.length === 0 && !questionsLoading" class="empty-state">
+
+                        {# 会員限定で隠れている分。
+                           ぼかしているのは中身の無いプレースホルダで、本物の
+                           質問文はサーバーが送っていない（CSSぼかしは
+                           DevToolsで外れるため、値を渡す方式は採らない）。
+                           件数だけ本物を出して「まだある」ことを伝える。 #}
+                        <div x-show="hiddenCount > 0" class="member-locked-wrap">
+                            <div class="member-locked-ghosts" aria-hidden="true">
+                                <template x-for="i in 3" :key="'ghost-' + i">
+                                    <div class="q-card ghost">
+                                        <div class="flex items-start gap-3">
+                                            <div class="ghost-icon"></div>
+                                            <div style="flex:1; min-width:0;">
+                                                <div class="ghost-line" style="width:72%;"></div>
+                                                <div class="ghost-line" style="width:94%;"></div>
+                                                <div class="ghost-line" style="width:46%;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="member-locked-overlay">
+                                <p class="member-locked-count">
+                                    他 <span x-text="hiddenCount"></span> 件は会員限定です
+                                </p>
+                                <p class="member-locked-note">
+                                    会員になると、みんなの質問と回答をすべて読めます。
+                                </p>
+                                <a href="/membership" class="member-locked-btn">会員のご案内を見る</a>
+                            </div>
+                        </div>
+
+                        <div x-show="filteredQuestions.length === 0 && !questionsLoading && hiddenCount === 0" class="empty-state">
                             <div><i class="fas fa-comments"></i></div>
                             <p x-show="searchQuery || activeTag || qFilter !== 'all'">条件に一致する質問が見つかりません</p>
                             <p x-show="!searchQuery && !activeTag && qFilter === 'all'">まだ質問がありません</p>
@@ -512,6 +575,8 @@ function communityApp() {
         // 質問
         questions: [], questionTags: [], qFilter: 'all',
         questionsLoading: true, questionLikes: {},
+        // 会員限定で隠れている件数（中身はサーバーが送らない）
+        hiddenCount: 0, isMember: true,
         showQuestionModal: false,
         questionForm: { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false, poster_name: '' },
 
@@ -615,6 +680,10 @@ function communityApp() {
                 const data = await res.json();
                 if (data.questions) { this.questions = data.questions; }
                 if (data.user_likes) { this.questionLikes = data.user_likes; }
+                // 非会員には先頭3件だけ届く。残りの件数だけ受け取って
+                // 「他N件は会員限定」を出す（中身はサーバーが送っていない）。
+                this.hiddenCount = data.hidden_count || 0;
+                this.isMember = !!data.is_member;
             } catch (e) { console.error('質問取得エラー:', e); }
             this.questionsLoading = false;
         },
