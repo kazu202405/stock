@@ -1,0 +1,23 @@
+{# 会員限定エリアの案内。
+   呼び出し側で {% set cta_text = '...' %} を指定してから include する。
+
+   相手によって行き先が違う:
+     未ログイン      → 無料登録（まず入口に乗せる）
+     ログイン済み無料 → 会員のご案内（登録は済んでいるので「登録して」は的外れ）
+
+   ⚠️ ぼかしは見た目だけ。会員限定の値はサーバー側で落としてある
+   （API が非会員に返さない）。ここでぼかしているのは中身の無い枠。 #}
+<div class="members-cta">
+    <div class="members-cta-text">{{ cta_text }}</div>
+    {% if is_logged_in %}
+    <a href="/membership" class="members-cta-btn">
+        <i class="fas fa-unlock-alt" style="font-size:11px;"></i>会員のご案内を見る
+    </a>
+    <span class="members-cta-sub">オンライン会員（月額）でご覧いただけます</span>
+    {% else %}
+    <a href="/register" class="members-cta-btn">
+        <i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る
+    </a>
+    <span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span>
+    {% endif %}
+</div>

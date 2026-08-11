@@ -1032,7 +1032,7 @@
         <!-- 中央: スコア -->
         <div class="score-card">
             <div class="score-header">基準適合度</div>
-            {% if not is_logged_in %}
+            {% if not is_member %}
             {#
               非会員にはスコアの中身を一切描画しない。
               項目名・閾値（自己資本比率≥30% 等）を出すと、無料表示の基本指標と
@@ -1049,7 +1049,7 @@
                     財務の健全性・成長性・割安さを横断した判定です。
                 </p>
             </div>
-            <div class="members-cta"><div class="members-cta-text">スコアと12項目の判定を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>
+            {% set cta_text = 'スコアと12項目の判定は会員限定です' %}{% include '_members_cta.html' %}
         </div>
         {% else %}
             <div class="score-main">
@@ -1186,7 +1186,7 @@
 
     <!-- 財務データテーブル -->
     <div style="margin-bottom: 20px;">
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
+        <div class="detail-card{% if not is_member %} members-only{% endif %}" style="grid-column: 1 / -1;">
             <div class="detail-header">財務データ（直近5年）</div>
             <div class="detail-content" style="overflow-x: auto;">
                 <table class="financial-table" style="width: 100%; min-width: 800px;">
@@ -1212,13 +1212,13 @@
                 </table>
             </div>
         
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">売上・利益の5年推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            {% if not is_member %}{% set cta_text = '売上・利益の5年推移は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
             </div>
     </div>
 
     <!-- キャッシュフロー・財務指標テーブル -->
     <div style="margin-bottom: 20px;">
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
+        <div class="detail-card{% if not is_member %} members-only{% endif %}" style="grid-column: 1 / -1;">
             <div class="detail-header">キャッシュフロー・財務指標</div>
             <div class="detail-content" style="overflow-x: auto;">
                 <table class="financial-table" style="width: 100%; min-width: 800px;">
@@ -1245,7 +1245,7 @@
                 </table>
             </div>
         
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">キャッシュフローの推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            {% if not is_member %}{% set cta_text = 'キャッシュフローの推移は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
             </div>
     </div>
 
@@ -1257,7 +1257,7 @@
       他社との優劣や売買タイミングを示唆する表現は置かない。
     #}
     <div style="margin-bottom: 20px;">
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}" style="grid-column: 1 / -1;">
+        <div class="detail-card{% if not is_member %} members-only{% endif %}" style="grid-column: 1 / -1;">
             <div class="detail-header">
                 PER・PBRの推移
                 <span class="vh-tabs">
@@ -1270,7 +1270,7 @@
                 <div id="vh-chart" class="vh-chart"></div>
                 <div id="vh-note" class="vh-note"></div>
             </div>
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">PER・PBRの推移を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            {% if not is_member %}{% set cta_text = 'PER・PBRの推移は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
         </div>
     </div>
 
@@ -1279,7 +1279,7 @@
        クラスにしてCSS側で面倒を見る #}
     <div class="detail-grid-3">
         <!-- 財務健全性 -->
-        <div class="detail-card{% if not is_logged_in %} members-only{% endif %}">
+        <div class="detail-card{% if not is_member %} members-only{% endif %}">
             <div class="detail-header">財務健全性</div>
             <div class="detail-content">
                 <div class="detail-row">
@@ -1316,7 +1316,7 @@
                 </div>
             </div>
         
-            {% if not is_logged_in %}<div class="members-cta"><div class="members-cta-text">財務健全性の詳細を見るには登録が必要です</div><a href="/register" class="members-cta-btn"><i class="fas fa-unlock-alt" style="font-size:11px;"></i>無料登録して見る</a><span class="members-cta-sub">登録済みの方は<a href="/login" style="color:#2d6a4f;">ログイン</a></span></div>{% endif %}
+            {% if not is_member %}{% set cta_text = '財務健全性の詳細は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
             </div>
 
         <!-- 主要株主 -->
