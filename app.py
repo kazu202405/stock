@@ -175,6 +175,19 @@ def login_required_api(f):
     return decorated
 
 
+# 段の表示名。内部キーをそのまま画面に出さないための対応表。
+# 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
+MEMBERSHIP_LABELS = {
+    'online': 'オンライン会員',
+    'real': 'リアル会員',
+    'invite': 'ご招待会員',
+    'premium': 'プレミアム会員',
+    'terakoya': 'テラこや会員（旧）',
+    'salon': 'サロン会員（旧）',
+    'pro': '本会員（旧）',
+}
+
+
 def is_member_session():
     """いまのセッションが有料会員か。
 
@@ -357,10 +370,28 @@ def api_logout():
 
 @app.route('/api/auth/me', methods=['GET'])
 def api_auth_me():
-    """現在のユーザー情報取得"""
+    """現在のユーザー情報取得。
+
+    会員の段（plan）も返す。本人が自分の契約状態を確認できないと、
+    「会員限定です」と言われたときに何が足りないのか分からない。
+    段の正本は GIA(applicants) 側なので、ここは読むだけ。
+    """
     user = get_current_user()
     if not user:
         return jsonify({"logged_in": False}), 200
+
+    # 会員情報の取得に失敗しても、アカウント設定自体は開けるようにする
+    # （ここで落ちると画面が「読み込み中...」のまま止まる）。
+    plan = None
+    member = False
+    try:
+        import gia_identity
+        m = gia_identity.get_membership(user['id'])
+        plan = m.get('plan')
+        member = is_member_session()
+    except Exception as e:
+        print(f'会員情報の取得に失敗（表示は続行） {user["id"]}: {e}')
+
     return jsonify({
         "logged_in": True,
         "user": {
@@ -370,6 +401,9 @@ def api_auth_me():
             "role": user['role'],
             "referral_code": user['referral_code'],
             "display_name": user.get('display_name') or '',
+            "plan": plan,
+            "plan_label": MEMBERSHIP_LABELS.get(plan, '無料会員'),
+            "is_member": member,
         }
     }), 200
 
