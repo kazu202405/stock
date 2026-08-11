@@ -126,26 +126,48 @@ class ScreenedApiOmissionsTest(unittest.TestCase):
         app_module.app.config['TESTING'] = True
         self.client = app_module.app.test_client()
 
-    def _get(self, row, logged_in=True):
+    # 2026-08-11: 出し分けの基準を「ログイン済みか」から「有料会員か」に変えた。
+    # 無料登録だけで会員限定データが取れていたため。
+    def _get(self, row, member=True, logged_in=True):
         if logged_in:
             with self.client.session_transaction() as s:
                 s['user_id'] = 'test'
         with unittest.mock.patch.object(
                 self.app_module, 'get_screened_data', return_value=row), \
              unittest.mock.patch.object(
-                 self.app_module, 'get_supabase_client', return_value=None):
+                 self.app_module, 'get_supabase_client', return_value=None), \
+             unittest.mock.patch.object(
+                 self.app_module, 'is_member_session', return_value=member):
             return self.client.get('/api/stock/screened/9999').get_json()
 
+    ROW = {
+        'company_code': '9999', 'gc_date': 'x', 'dc_date': 'y',
+        'per_forward': None, 'pbr': 1.2,
+        'financial_history': {'eps': [{'date': '2026-03-31', 'value': -5.0}],
+                              'net_income': [{'date': '2026-03-31', 'value': -1e8}]},
+        'source_status': {},
+    }
+
     def test_response_carries_the_reason(self):
-        body = self._get({
-            'company_code': '9999', 'gc_date': 'x', 'dc_date': 'y',
-            'per_forward': None, 'pbr': 1.2,
-            'financial_history': {'eps': [{'date': '2026-03-31', 'value': -5.0}],
-                                  'net_income': [{'date': '2026-03-31', 'value': -1e8}]},
-            'source_status': {},
-        })
+        body = self._get(dict(self.ROW))
         self.assertEqual(body['omissions']['per']['status'], 'loss_making')
         self.assertNotIn('pbr', body['omissions'])
+
+    def test_non_member_does_not_receive_member_only_fields(self):
+        """無料会員には会員限定の値をサーバー側で落とす。
+
+        CSSで隠すのは保護にならない（DevTools・curl で丸見えになる）。
+        ここが通らなくなったら、その事故が再発している。
+        """
+        body = self._get(dict(self.ROW), member=False)
+        self.assertNotIn('financial_history', body)
+        self.assertNotIn('score_breakdown', body)
+        # 「続きがある」ことは伝えてよい。値でなく事実だけ。
+        self.assertTrue(body.get('member_only_available'))
+
+    def test_member_receives_the_breakdown_input(self):
+        body = self._get(dict(self.ROW), member=True)
+        self.assertIn('financial_history', body)
 
 
 class DetailTemplateTest(unittest.TestCase):

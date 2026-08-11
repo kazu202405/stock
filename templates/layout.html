@@ -576,6 +576,18 @@
                 <p style="font-size:12px; color:#737373; margin-bottom:4px;">メールアドレス</p>
                 <p id="accountEmailDisplay" style="font-size:13px; font-weight:500; color:#1a1a1a;">読み込み中...</p>
             </div>
+            <!-- 会員種別。本人が自分の契約状態を確認できないと、
+                 「会員限定です」と言われたときに何が足りないか分からない。 -->
+            <div style="margin-bottom:16px; padding:12px 14px; background:#fafaf8; border:1px solid #ebebeb; border-radius:8px;">
+                <p style="font-size:12px; color:#737373; margin-bottom:4px;">会員種別</p>
+                <p id="accountPlanDisplay" style="font-size:13px; font-weight:600; color:#1a1a1a;">読み込み中...</p>
+                <div id="accountPlanUpgrade" style="display:none; margin-top:8px;">
+                    <a href="https://gia2018.com/upgrade"
+                       style="font-size:12px; color:#1b4332; text-decoration:none; border-bottom:1px solid #d5e0d9;">
+                        会員のご案内を見る
+                    </a>
+                </div>
+            </div>
             <!-- メールアドレス変更 -->
             <div style="margin-bottom:12px;">
                 <button onclick="toggleAccountSection('email')" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:8px; border:none; background:none; cursor:pointer; transition:background 0.15s;" onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background='transparent'">
@@ -798,13 +810,32 @@
     function openAccountSettingsModal() {
         var modal = document.getElementById('accountSettingsModal');
         modal.style.display = 'flex';
+
+        var emailEl = document.getElementById('accountEmailDisplay');
+        var planEl = document.getElementById('accountPlanDisplay');
+        var upgradeEl = document.getElementById('accountPlanUpgrade');
+
+        emailEl.textContent = '読み込み中...';
+        planEl.textContent = '読み込み中...';
+        upgradeEl.style.display = 'none';
+
         fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(d) {
-            if (d.logged_in && d.user) {
-                document.getElementById('accountEmailDisplay').textContent = d.user.email || '未設定';
-                document.getElementById('accountUserId').textContent = d.user.id || '';
+            // セッション切れ（logged_in:false）のとき、以前は何も書き換えず
+            // 「読み込み中...」のまま固まっていた。再読み込みしても直らないので、
+            // 何が起きているかを出してログインし直してもらう。
+            if (!d.logged_in || !d.user) {
+                emailEl.textContent = 'ログインの有効期限が切れています';
+                planEl.textContent = '—';
+                return;
             }
+            emailEl.textContent = d.user.email || '未設定';
+            document.getElementById('accountUserId').textContent = d.user.id || '';
+            planEl.textContent = d.user.plan_label || '無料会員';
+            // 会員でない人にだけ案内を出す（会員に売り込みを見せない）
+            upgradeEl.style.display = d.user.is_member ? 'none' : 'block';
         }).catch(function() {
-            document.getElementById('accountEmailDisplay').textContent = '読み込みできませんでした';
+            emailEl.textContent = '読み込みできませんでした';
+            planEl.textContent = '—';
         });
     }
 

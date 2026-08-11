@@ -22,6 +22,7 @@
 
 import os
 import threading
+import time
 
 from supabase import Client, create_client
 
@@ -156,33 +157,105 @@ def sign_in(email: str, password: str) -> dict:
     return {'id': str(user.id), 'email': getattr(user, 'email', '') or ''}
 
 
+# 会員として扱う plan。gia-next の lib/membership/plans.ts と揃える。
+# 片方だけ足すと「キャンパスでは会員なのに株アプリでは非会員」になる。
+MEMBERSHIP_PLANS = ('online', 'real', 'invite', 'premium')
+# 過去の契約。現役の契約者がいるので締め出さない。
+LEGACY_MEMBER_PLANS = ('terakoya',)
+
+# 会員判定のキャッシュ。判定のたびにGIAへ問い合わせると、1ページ表示で
+# 何度も外部リクエストが飛ぶ。課金状態は秒単位で変わるものではない。
+_MEMBERSHIP_TTL_SECONDS = 300
+_membership_cache = {}
+_membership_cache_lock = threading.Lock()
+
+
+def is_paid_member(user_id: str, use_cache: bool = True) -> bool:
+    """有料会員か。画面・APIの出し分けはすべてこの関数を通す。
+
+    判定は gia-next の isActiveMember() と同じ:
+        plan が会員の段のいずれか / 旧テラこや / tier=='paid'
+
+    subscription_status は見ない。管理側で手動付与した会員（Stripeの契約が
+    無い無料枠）を締め出さないため。解約時は webhook が plan を外すので、
+    plan を見れば足りる。
+    """
+    if not user_id:
+        return False
+
+    if use_cache:
+        with _membership_cache_lock:
+            hit = _membership_cache.get(user_id)
+        if hit and (time.time() - hit[0]) < _MEMBERSHIP_TTL_SECONDS:
+            return hit[1]
+
+    m = get_membership(user_id)
+
+    if m.get('error'):
+        # 取得に失敗しただけ。非会員と断定しない。
+        # 直前の判定が残っていればそれを使い、無ければ非会員として扱うが
+        # **キャッシュしない**（次のリクエストで取り直す）。
+        # ここで False を焼き付けると、通信が数秒詰まっただけで課金者が
+        # 5分間締め出される。
+        with _membership_cache_lock:
+            stale = _membership_cache.get(user_id)
+        return stale[1] if stale else False
+
+    plan = (m.get('plan') or '').strip().lower()
+    result = (plan in MEMBERSHIP_PLANS
+              or plan in LEGACY_MEMBER_PLANS
+              or m.get('tier') == 'paid')
+
+    with _membership_cache_lock:
+        _membership_cache[user_id] = (time.time(), result)
+    return result
+
+
+def clear_membership_cache(user_id: str = None):
+    """課金直後など、キャッシュを待たずに反映したいときに使う。"""
+    with _membership_cache_lock:
+        if user_id:
+            _membership_cache.pop(user_id, None)
+        else:
+            _membership_cache.clear()
+
+
 def get_membership(user_id: str) -> dict:
     """キャンパスの会員情報を返す。
 
     applicants.id === auth.users.id なので、ログインで得たUUIDでそのまま引ける。
-    株アプリはこの値で機能を制限しない（2026-08-08時点で課金による機能差は無い）。
-    将来リアル会限定の機能を出すときに、ここを見て判定する。
+    機能の出し分けは is_paid_member() を使うこと（判定を1箇所に集約するため）。
 
     Returns:
         {'found': bool, 'plan': ..., 'subscription_status': ..., 'tier': ...,
          'is_active': bool}
     """
     empty = {'found': False, 'plan': None, 'subscription_status': None,
-             'tier': None, 'is_active': False}
+             'tier': None, 'is_active': False, 'error': False}
     if not user_id:
         return empty
+
+    # 「取得できなかった」と「会員ではない」を区別する。
+    # 同じ空データで返すと、GIAへの通信が一時的に落ちただけで
+    # 課金している人が非会員として扱われ、しかもキャッシュに焼き付く。
+    def failed(reason):
+        print(f'会員情報の取得に失敗 {user_id}: {reason}')
+        d = dict(empty)
+        d['error'] = True
+        return d
+
     try:
         client = get_admin_client()
         result = (client.table('applicants')
                   .select('plan, subscription_status, tier')
                   .eq('id', user_id).limit(1).execute())
-    except GiaIdentityUnavailable:
-        return empty
+    except GiaIdentityUnavailable as e:
+        return failed(f'接続情報なし: {e}')
     except Exception as e:
-        print(f'会員情報の取得エラー {user_id}: {e}')
-        return empty
+        return failed(e)
 
     if not result.data:
+        # 問い合わせは成功したが行が無い＝GIA側に会員登録が無い。これは失敗ではない。
         return empty
     row = result.data[0]
     return {
@@ -191,6 +264,7 @@ def get_membership(user_id: str) -> dict:
         'subscription_status': row.get('subscription_status'),
         'tier': row.get('tier'),
         'is_active': row.get('subscription_status') == 'active',
+        'error': False,
     }
 
 

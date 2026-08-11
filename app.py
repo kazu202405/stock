@@ -175,6 +175,52 @@ def login_required_api(f):
     return decorated
 
 
+# 段の表示名。内部キーをそのまま画面に出さないための対応表。
+# 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
+MEMBERSHIP_LABELS = {
+    'online': 'オンライン会員',
+    'real': 'リアル会員',
+    'invite': 'ご招待会員',
+    'premium': 'プレミアム会員',
+    'terakoya': 'テラこや会員（旧）',
+    'salon': 'サロン会員（旧）',
+    'pro': '本会員（旧）',
+}
+
+
+def is_member_session():
+    """いまのセッションが有料会員か。
+
+    判定は gia_identity.is_paid_member() に集約（gia-next の isActiveMember と
+    同じ定義）。admin は運営が会員向け表示を確認できるよう常に会員扱い。
+    """
+    if session.get('user_role') == 'admin':
+        return True
+    import gia_identity
+    return gia_identity.is_paid_member(session.get('user_id'))
+
+
+def member_required_api(f):
+    """API用 会員必須デコレータ。
+
+    ページ側にガードを置いても、APIが素通しだと curl で中身が取れる。
+    会員限定のデータを返すAPIは必ずこちらを使う。
+    未ログイン(401)と、ログイン済みだが非会員(403)を分けて返す。
+    画面側が「ログインして」と「会員になって」を出し分けられるようにするため。
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_id'):
+            return jsonify({"error": "ログインが必要です"}), 401
+        if not is_member_session():
+            return jsonify({
+                "error": "この機能は会員限定です",
+                "upgrade_url": "https://gia2018.com/upgrade",
+            }), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 def role_required(*roles):
     """指定ロール必須デコレータ（例: @role_required('agent', 'admin')）"""
     def decorator(f):
@@ -324,10 +370,28 @@ def api_logout():
 
 @app.route('/api/auth/me', methods=['GET'])
 def api_auth_me():
-    """現在のユーザー情報取得"""
+    """現在のユーザー情報取得。
+
+    会員の段（plan）も返す。本人が自分の契約状態を確認できないと、
+    「会員限定です」と言われたときに何が足りないのか分からない。
+    段の正本は GIA(applicants) 側なので、ここは読むだけ。
+    """
     user = get_current_user()
     if not user:
         return jsonify({"logged_in": False}), 200
+
+    # 会員情報の取得に失敗しても、アカウント設定自体は開けるようにする
+    # （ここで落ちると画面が「読み込み中...」のまま止まる）。
+    plan = None
+    member = False
+    try:
+        import gia_identity
+        m = gia_identity.get_membership(user['id'])
+        plan = m.get('plan')
+        member = is_member_session()
+    except Exception as e:
+        print(f'会員情報の取得に失敗（表示は続行） {user["id"]}: {e}')
+
     return jsonify({
         "logged_in": True,
         "user": {
@@ -337,6 +401,9 @@ def api_auth_me():
             "role": user['role'],
             "referral_code": user['referral_code'],
             "display_name": user.get('display_name') or '',
+            "plan": plan,
+            "plan_label": MEMBERSHIP_LABELS.get(plan, '無料会員'),
+            "is_member": member,
         }
     }), 200
 
@@ -557,8 +624,14 @@ def analysis_data_source_name(stock_data):
 
 # ウォッチリストAPI
 @app.route('/api/watchlist', methods=['GET'])
+@member_required_api
 def api_get_watchlist():
-    """登録銘柄一覧を取得（GC/DC形成日付き）"""
+    """登録銘柄一覧を取得（GC/DC形成日付き）。会員限定。
+
+    2026-08-11: デコレータが無く誰でも取れる状態だった。ホームの「好調企業」
+    タブの中身そのものなので、ページを会員限定にしてもここが開いていれば
+    curl で取れてしまう。
+    """
     try:
         data = get_watchlist_with_details()
 
@@ -1016,7 +1089,7 @@ def analyze_stocks_batch():
 
 
 @app.route('/api/stock/cache/<symbol>', methods=['GET'])
-@login_required_api
+@member_required_api
 def get_cached_analysis(symbol):
     """
     キャッシュされた分析結果を取得（会員限定）。
@@ -1053,8 +1126,9 @@ def get_cached_analysis(symbol):
 
 # GC銘柄API
 @app.route('/api/gc-stocks', methods=['GET'])
+@member_required_api
 def api_get_gc_stocks():
-    """保存済みGC銘柄一覧を取得（signal_stocks統合テーブル、表示用フィルタ適用）"""
+    """保存済みGC銘柄一覧を取得（signal_stocks統合テーブル、表示用フィルタ適用）。会員限定。"""
     try:
         data = get_signal_gc_stocks()
 
@@ -1692,8 +1766,9 @@ def api_scrape_dc_stocks():
 
 
 @app.route('/api/dividend-stocks', methods=['GET'])
+@member_required_api
 def api_get_dividend_stocks():
-    """高配当フラグが立っている銘柄を一覧取得"""
+    """高配当フラグが立っている銘柄を一覧取得。会員限定。"""
     try:
         stocks = get_dividend_stocks()
         return jsonify({"dividend_stocks": stocks}), 200
@@ -2000,8 +2075,9 @@ def api_tech_analyze_status():
 
 
 @app.route('/api/technical-stocks', methods=['GET'])
+@member_required_api
 def api_get_technical_stocks():
-    """GC/DC発生日を持つ銘柄を一覧取得。
+    """GC/DC発生日を持つ銘柄を一覧取得。会員限定。
 
     日付は ma_crosses（保存済みの日足から自前計算したもの）を使う。
     signal_stocks.gc_date はスクレイピングした時刻が全銘柄一律で入っており、
@@ -2535,7 +2611,7 @@ def api_list_ma_crosses():
 
 
 @app.route('/api/report/<source>/<key>', methods=['GET'])
-@login_required_api
+@member_required_api
 def api_report(source, key):
     """企業分析レポートのデータを返す。会員限定（/reportページと同じ基準）。
     source は将来 'own'（経営者が自社の数字で作る）を足せるようURLに含めている。
@@ -3085,7 +3161,7 @@ def _attach_gc(rows):
 
 
 @app.route('/api/stocks/screen', methods=['GET'])
-@login_required_api
+@member_required_api
 def api_screen_stocks():
     """全銘柄を横断して絞り込み・並べ替え・ページングする。
 
@@ -3656,8 +3732,11 @@ def api_earnings_by_month(month):
 def api_get_screened_stock(company_code):
     """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）。
 
-    未ログインには無料フィールドだけを返す。会員限定の数値をブラウザに送らない
+    非会員には無料フィールドだけを返す。会員限定の数値をブラウザに送らない
     ことが唯一の確実な保護（CSSぼかしはDevToolsで外れる）。
+
+    2026-08-11: 判定を「ログイン済みか」から「有料会員か」に変えた。
+    それまでは無料登録すれば会員限定データが全部取れていた。
     """
     try:
         company_code = normalize_code(company_code)
@@ -3676,8 +3755,9 @@ def api_get_screened_stock(company_code):
 
             # スコアと12項目の判定はサーバーで作って渡す。
             # 以前はブラウザ側でも同じ計算をしていて、片方を直すと必ずズレた。
-            # 会員限定なので未ログインには含めない（閾値と判定の作り方が価値の中心）。
-            if session.get('user_id'):
+            # 会員限定なので非会員には含めない（閾値と判定の作り方が価値の中心）。
+            member = is_member_session()
+            if member:
                 from supabase_client import score_breakdown
                 data['score_breakdown'] = score_breakdown(data)
 
@@ -3687,11 +3767,13 @@ def api_get_screened_stock(company_code):
             from data_gaps import classify_missing_fields
             omissions = classify_missing_fields(data, OMISSION_FIELDS)
 
-            if not session.get('user_id'):
-                # 未ログインには無料フィールドのみ。会員限定はサーバー側で落とす
+            if not member:
+                # 非会員には無料フィールドのみ。会員限定はサーバー側で落とす。
+                # 「まだ続きがある」ことは件数と案内で伝え、値は送らない。
                 data = {k: v for k, v in data.items() if k in FREE_SCREENED_FIELDS}
                 omissions = {k: v for k, v in omissions.items()
                              if k in FREE_SCREENED_FIELDS}
+                data['member_only_available'] = True
             data['omissions'] = omissions
 
             return jsonify(data), 200

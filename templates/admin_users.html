@@ -238,8 +238,19 @@ function adminUsers() {
                 const res = await fetch('/api/admin/users');
                 const data = await res.json();
                 if (!res.ok) {
-                    this.loadError = 'データの読み込みに失敗しました。ページを再読み込みしてお試しください。';
-                    console.error('API エラー (' + res.status + '): ' + (data.error || '不明なエラー'));
+                    // サーバーが理由を返しているのに「読み込みに失敗しました」だけ出すと、
+                    // 権限不足なのか通信断なのか分からず、再読み込みを繰り返すことになる。
+                    // 管理画面なので、原因をそのまま出す。
+                    const reason = data && data.error ? data.error : '不明なエラー';
+                    if (res.status === 403) {
+                        this.loadError = 'この画面を見る権限がありません（' + reason + '）。'
+                            + '管理者のアカウントでログインし直してください。';
+                    } else if (res.status === 401) {
+                        this.loadError = 'ログインの有効期限が切れています。ログインし直してください。';
+                    } else {
+                        this.loadError = 'データを読み込めませんでした（' + res.status + '）: ' + reason;
+                    }
+                    console.error('API エラー (' + res.status + '): ' + reason);
                     return;
                 }
                 this.users = data.users || [];
