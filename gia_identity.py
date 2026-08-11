@@ -190,6 +190,17 @@ def is_paid_member(user_id: str, use_cache: bool = True) -> bool:
             return hit[1]
 
     m = get_membership(user_id)
+
+    if m.get('error'):
+        # 取得に失敗しただけ。非会員と断定しない。
+        # 直前の判定が残っていればそれを使い、無ければ非会員として扱うが
+        # **キャッシュしない**（次のリクエストで取り直す）。
+        # ここで False を焼き付けると、通信が数秒詰まっただけで課金者が
+        # 5分間締め出される。
+        with _membership_cache_lock:
+            stale = _membership_cache.get(user_id)
+        return stale[1] if stale else False
+
     plan = (m.get('plan') or '').strip().lower()
     result = (plan in MEMBERSHIP_PLANS
               or plan in LEGACY_MEMBER_PLANS
@@ -220,21 +231,31 @@ def get_membership(user_id: str) -> dict:
          'is_active': bool}
     """
     empty = {'found': False, 'plan': None, 'subscription_status': None,
-             'tier': None, 'is_active': False}
+             'tier': None, 'is_active': False, 'error': False}
     if not user_id:
         return empty
+
+    # 「取得できなかった」と「会員ではない」を区別する。
+    # 同じ空データで返すと、GIAへの通信が一時的に落ちただけで
+    # 課金している人が非会員として扱われ、しかもキャッシュに焼き付く。
+    def failed(reason):
+        print(f'会員情報の取得に失敗 {user_id}: {reason}')
+        d = dict(empty)
+        d['error'] = True
+        return d
+
     try:
         client = get_admin_client()
         result = (client.table('applicants')
                   .select('plan, subscription_status, tier')
                   .eq('id', user_id).limit(1).execute())
-    except GiaIdentityUnavailable:
-        return empty
+    except GiaIdentityUnavailable as e:
+        return failed(f'接続情報なし: {e}')
     except Exception as e:
-        print(f'会員情報の取得エラー {user_id}: {e}')
-        return empty
+        return failed(e)
 
     if not result.data:
+        # 問い合わせは成功したが行が無い＝GIA側に会員登録が無い。これは失敗ではない。
         return empty
     row = result.data[0]
     return {
@@ -243,6 +264,7 @@ def get_membership(user_id: str) -> dict:
         'subscription_status': row.get('subscription_status'),
         'tier': row.get('tier'),
         'is_active': row.get('subscription_status') == 'active',
+        'error': False,
     }
 
 
