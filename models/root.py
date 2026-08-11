@@ -48,6 +48,16 @@ def is_member():
     return gia_identity.is_paid_member(session.get('user_id'))
 
 
+def home_path():
+    """ログイン後に着地させる場所。
+
+    /dashboard は会員限定にしたので、ここを固定で /dashboard にすると
+    無料会員は登録した直後に「この機能は会員限定です」に飛ばされる。
+    無料会員には、無料で使えて最初に触るであろう銘柄検索を出す。
+    """
+    return '/dashboard' if is_member() else '/search'
+
+
 def _require_member():
     """有料会員必須チェック。
 
@@ -67,7 +77,7 @@ def _require_admin():
     if not session.get('user_id'):
         return redirect('/login')
     if session.get('user_role') != 'admin':
-        return redirect('/dashboard')
+        return redirect(home_path())
     return None
 
 
@@ -111,7 +121,7 @@ def membership():
     if not session.get('user_id'):
         return redirect('/login')
     if is_member():
-        return redirect('/dashboard')
+        return redirect('/dashboard')  # 会員がここに来る理由がない
     return render_template('membership.html', member_features=[
         'ホーム（好調企業・高配当企業・テクニカル分析）',
         'スクリーナー（全銘柄からの絞り込み・並べ替え）',
@@ -270,9 +280,9 @@ def community():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """ログインページ"""
-    # 既にログイン済みならダッシュボードへ
+    # 既にログイン済みなら、その人が使える場所へ
     if session.get('user_id'):
-        return redirect('/dashboard')
+        return redirect(home_path())
 
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip()
@@ -305,7 +315,7 @@ def login():
             session.pop('guest_user_id', None)
 
         _store_session(user, account['email'])
-        return redirect('/dashboard')
+        return redirect(home_path())
 
     return render_template('login.html')
 
@@ -361,9 +371,9 @@ def reset_password():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     """ユーザー登録ページ"""
-    # 既にログイン済みならダッシュボードへ
+    # 既にログイン済みなら、その人が使える場所へ
     if session.get('user_id'):
-        return redirect('/dashboard')
+        return redirect(home_path())
 
     # URLパラメータから紹介コードを取得
     ref_code = request.args.get('ref', '')
@@ -413,7 +423,7 @@ def register():
                 session.pop('guest_user_id', None)
 
             _store_session(user, account['email'])
-            return redirect('/dashboard')
+            return redirect(home_path())
         except gia_identity.GiaIdentityUnavailable as e:
             print(f'GIA接続の設定不備: {e}')
             flash('登録機能の設定が完了していません。管理者にご連絡ください。', 'error')

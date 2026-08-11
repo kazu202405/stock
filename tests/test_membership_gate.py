@@ -104,6 +104,31 @@ class GetMembershipErrorFlagTest(unittest.TestCase):
         self.assertFalse(result['found'])
 
 
+class LandingAfterLoginTest(unittest.TestCase):
+    """ログイン・登録した直後に課金案内へ飛ばさない。
+
+    /dashboard を会員限定にしたとき、着地が /dashboard のままだったため
+    無料会員は登録した瞬間に「この機能は会員限定です」を見せられていた。
+    """
+
+    def setUp(self):
+        import models.root as root
+        self.root = root
+
+    def test_free_user_lands_on_a_page_they_can_use(self):
+        with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
+            self.assertEqual(self.root.home_path(), '/search')
+
+    def test_member_lands_on_the_dashboard(self):
+        with unittest.mock.patch.object(self.root, 'is_member', return_value=True):
+            self.assertEqual(self.root.home_path(), '/dashboard')
+
+    def test_landing_is_never_the_gated_page_for_free_users(self):
+        """/membership に着地させるのも駄目（登録直後に売り込みが出る）"""
+        with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
+            self.assertNotIn(self.root.home_path(), ('/dashboard', '/membership'))
+
+
 class CommunityTeaserTest(unittest.TestCase):
     """非会員には先頭3件だけ返し、残りは件数だけ伝える。
 
