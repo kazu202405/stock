@@ -29,6 +29,10 @@
         transition: color 0.2s ease;
         border-bottom: 2px solid transparent;
         padding-bottom: 2px;
+        /* 幅が足りないとき「マーケッ/ト」と語の途中で折り返していた。
+           折り返さないことで、入らなければ気づける（黙って崩れない）。
+           表示の切り替えは lg(1024px) 側で担保している。 */
+        white-space: nowrap;
     }
     .nav-link:hover {
         color: #1b4332;
@@ -221,20 +225,26 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-14">
                 <!-- ロゴ・ブランド -->
-                <div class="flex items-center">
+                {# 幅が足りないと「Company/Note」「～企業分析アプ/リ～」と
+                   折り返してヘッダーの高さが崩れていた。ロゴは縮めない。 #}
+                <div class="flex items-center flex-shrink-0">
                     <a href="/dashboard" class="flex items-center space-x-2.5">
-                        <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: #1b4332;">
+                        <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background: #1b4332;">
                             <i class="fas fa-book-open text-white" style="font-size: 11px;"></i>
                         </div>
                         <div class="flex flex-col">
-                            <span class="text-base font-bold leading-tight" style="color: #1a1a1a; letter-spacing: -0.01em;">Company Note</span>
-                            <span class="text-xs" style="color: #a3a3a3; letter-spacing: 0.02em;">～企業分析アプリ～</span>
+                            <span class="text-base font-bold leading-tight" style="color: #1a1a1a; letter-spacing: -0.01em; white-space: nowrap;">Company Note</span>
+                            <span class="text-xs" style="color: #a3a3a3; letter-spacing: 0.02em; white-space: nowrap;">～企業分析アプリ～</span>
                         </div>
                     </a>
                 </div>
 
                 <!-- メインナビゲーション -->
-                <div class="hidden md:flex items-center space-x-6">
+                {# 2026-08-12: md(768px) → lg(1024px) に上げた。
+                   ナビ項目が7つ＋ユーザー名あり、768〜1000px では横に入りきらず
+                   「ホー/ム」「マーケッ/ト」のように語の途中で折り返していた。
+                   入らない幅では出さず、☰（スライドメニュー）に集約する。 #}
+                <div class="hidden lg:flex items-center space-x-6">
                     <a href="/dashboard" class="nav-link px-2 py-1.5 text-sm font-medium">
                         ホーム
                     </a>
@@ -299,9 +309,13 @@
                 </div>
 
                 <!-- ユーザー名・アカウントメニュー（デスクトップのみ） -->
-                <div class="hidden md:flex items-center space-x-3">
+                <div class="hidden lg:flex items-center space-x-3 flex-shrink-0">
                     {% if is_logged_in %}
-                    <span class="text-sm font-medium" style="color: #525252;">{{ user_name }}</span>
+                    {# 名前も折り返していた。長い表示名でヘッダーを崩さないよう、
+                       折り返さずに幅で切る。 #}
+                    <span class="text-sm font-medium"
+                          style="color: #525252; white-space: nowrap; max-width: 10em; overflow: hidden; text-overflow: ellipsis;"
+                          title="{{ user_name }}">{{ user_name }}</span>
                     <div x-data="{ accountMenuOpen: false }" class="relative" style="z-index: 60;">
                         <button @click="accountMenuOpen = !accountMenuOpen" class="flex items-center px-2 py-1.5 rounded-md text-sm font-medium" style="color: #525252; background: none; border: none; cursor: pointer;" title="マイアカウント">
                             <i class="fas fa-user-circle" style="font-size: 20px;"></i>
@@ -342,7 +356,7 @@
 
                 {# モバイルはヘッダー右端がメニュー。ボトムタブは行き先(マイノートまで)
                    だけを置き、開閉するものはヘッダーに寄せる #}
-                <button class="md:hidden header-menu-btn" type="button"
+                <button class="lg:hidden header-menu-btn" type="button"
                         onclick="toggleSlideMenu(true)" aria-label="メニューを開く">
                     <i class="fas fa-bars"></i>
                 </button>
@@ -390,8 +404,8 @@
     </div>
 
     <!-- スライドメニュー（モバイル専用） -->
-    <div id="slideMenuOverlay" class="slide-menu-overlay md:hidden" style="display:none; opacity:0;" onclick="toggleSlideMenu(false)"></div>
-    <div id="slideMenuPanel" class="slide-menu-panel md:hidden">
+    <div id="slideMenuOverlay" class="slide-menu-overlay lg:hidden" style="display:none; opacity:0;" onclick="toggleSlideMenu(false)"></div>
+    <div id="slideMenuPanel" class="slide-menu-panel lg:hidden">
         <!-- ヘッダー -->
         <div style="padding: 20px; border-bottom: 1px solid #ebebeb;">
             <div style="display:flex; justify-content:space-between; align-items:center;">

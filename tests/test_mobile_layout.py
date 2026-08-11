@@ -150,8 +150,22 @@ class MobileNavPlacementTest(unittest.TestCase):
     def test_header_has_mobile_menu_button(self):
         """これが無いとスライドメニューを開く手段がモバイルに無くなる"""
         self.assertIn('toggleSlideMenu(true)', self.header)
-        button = self.header.split('toggleSlideMenu(true)')[0]
-        self.assertIn('md:hidden', button[-300:])
+        button = self.header.split('toggleSlideMenu(true)')[0][-300:]
+        # ブレークポイントの値そのもの（md/lg）は変わりうるので固定しない。
+        # 見るのは「広い画面では隠れる指定があるか」だけ。
+        self.assertRegex(button, r'(md|lg):hidden')
+
+    def test_desktop_nav_and_menu_button_switch_at_the_same_width(self):
+        """同じ幅で切り替わらないと、両方出る／両方消える幅ができる。
+
+        2026-08-12: ナビの表示開始が md(768px) のままで、項目が入りきらず
+        「マーケッ/ト」と語の途中で折り返していた。lg(1024px) に上げた際、
+        ☰ 側だけ md のままだと 768〜1024px でナビも☰も出ない穴があく。
+        """
+        nav = re.search(r'hidden (md|lg):flex items-center space-x-6', self.header)
+        self.assertIsNotNone(nav, 'デスクトップナビが見つからない')
+        button = self.header.split('toggleSlideMenu(true)')[0][-300:]
+        self.assertIn(f'{nav.group(1)}:hidden', button)
 
     def test_bottom_tabs_include_mypage(self):
         self.assertIn('data-tab-path="/mypage"', self.bottom_tabs)
