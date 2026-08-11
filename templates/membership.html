@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+
+{% block title %}会員のご案内 - Company Note{% endblock %}
+{% block meta_description %}Company Note の会員向け機能のご案内。好調企業・高配当企業・テクニカル分析、スクリーナー、企業分析レポート、5年財務などがご利用いただけます。{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; padding: 48px 20px 64px;">
+
+  <div style="text-align:center; margin-bottom:40px;">
+    <div style="width:40px; height:2px; background:#1b4332; margin:0 auto 20px;"></div>
+    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin-bottom:10px;">
+      この機能は会員限定です
+    </h1>
+    <p style="font-size:14px; color:#737373; line-height:1.9;">
+      銘柄を横断して選ぶ機能と、企業の中身を深く見る機能は<br class="hidden sm:inline">
+      会員の方にご利用いただいています。
+    </p>
+  </div>
+
+  <div style="background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:28px 24px; margin-bottom:24px;">
+    <p style="font-size:12px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:16px;">会員でご覧いただけるもの</p>
+    <ul style="list-style:none; padding:0; margin:0;">
+      {% for item in member_features %}
+      <li style="display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f5f5f3;">
+        <span style="color:#2d6a4f; font-size:13px; line-height:1.7;">◆</span>
+        <span style="font-size:14px; color:#525252; line-height:1.7;">{{ item }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:12px; padding:24px; margin-bottom:28px;">
+    <p style="font-size:12px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:12px;">いまのご登録でご利用いただけるもの</p>
+    <p style="font-size:13.5px; color:#525252; line-height:1.9;">
+      銘柄検索・学習ノート・マイノート・コミュニティ・マーケット、
+      および個別銘柄ページの基本情報は、引き続きそのままお使いいただけます。
+    </p>
+  </div>
+
+  <div style="text-align:center;">
+    <a href="https://gia2018.com/upgrade"
+       style="display:inline-flex; align-items:center; justify-content:center; gap:8px;
+              background:#1b4332; color:#fff; text-decoration:none;
+              font-size:14px; font-weight:600; letter-spacing:0.06em;
+              padding:14px 32px; border-radius:10px;">
+      会員のご案内を見る
+    </a>
+    <p style="font-size:11.5px; color:#a3a3a3; margin-top:14px; line-height:1.8;">
+      お申し込みは gia2018.com で承ります。<br>
+      Company Note とは同じメールアドレス・パスワードでご利用いただけます。
+    </p>
+  </div>
+
+  <div style="text-align:center; margin-top:32px;">
+    <a href="/search" style="font-size:13px; color:#525252; text-decoration:none; border-bottom:1px solid #ebebeb; padding-bottom:2px;">
+      銘柄検索に戻る
+    </a>
+  </div>
+
+</div>
+{% endblock %}

@@ -22,6 +22,7 @@
 
 import os
 import threading
+import time
 
 from supabase import Client, create_client
 
@@ -156,12 +157,63 @@ def sign_in(email: str, password: str) -> dict:
     return {'id': str(user.id), 'email': getattr(user, 'email', '') or ''}
 
 
+# 会員として扱う plan。gia-next の lib/membership/plans.ts と揃える。
+# 片方だけ足すと「キャンパスでは会員なのに株アプリでは非会員」になる。
+MEMBERSHIP_PLANS = ('online', 'real', 'invite', 'premium')
+# 過去の契約。現役の契約者がいるので締め出さない。
+LEGACY_MEMBER_PLANS = ('terakoya',)
+
+# 会員判定のキャッシュ。判定のたびにGIAへ問い合わせると、1ページ表示で
+# 何度も外部リクエストが飛ぶ。課金状態は秒単位で変わるものではない。
+_MEMBERSHIP_TTL_SECONDS = 300
+_membership_cache = {}
+_membership_cache_lock = threading.Lock()
+
+
+def is_paid_member(user_id: str, use_cache: bool = True) -> bool:
+    """有料会員か。画面・APIの出し分けはすべてこの関数を通す。
+
+    判定は gia-next の isActiveMember() と同じ:
+        plan が会員の段のいずれか / 旧テラこや / tier=='paid'
+
+    subscription_status は見ない。管理側で手動付与した会員（Stripeの契約が
+    無い無料枠）を締め出さないため。解約時は webhook が plan を外すので、
+    plan を見れば足りる。
+    """
+    if not user_id:
+        return False
+
+    if use_cache:
+        with _membership_cache_lock:
+            hit = _membership_cache.get(user_id)
+        if hit and (time.time() - hit[0]) < _MEMBERSHIP_TTL_SECONDS:
+            return hit[1]
+
+    m = get_membership(user_id)
+    plan = (m.get('plan') or '').strip().lower()
+    result = (plan in MEMBERSHIP_PLANS
+              or plan in LEGACY_MEMBER_PLANS
+              or m.get('tier') == 'paid')
+
+    with _membership_cache_lock:
+        _membership_cache[user_id] = (time.time(), result)
+    return result
+
+
+def clear_membership_cache(user_id: str = None):
+    """課金直後など、キャッシュを待たずに反映したいときに使う。"""
+    with _membership_cache_lock:
+        if user_id:
+            _membership_cache.pop(user_id, None)
+        else:
+            _membership_cache.clear()
+
+
 def get_membership(user_id: str) -> dict:
     """キャンパスの会員情報を返す。
 
     applicants.id === auth.users.id なので、ログインで得たUUIDでそのまま引ける。
-    株アプリはこの値で機能を制限しない（2026-08-08時点で課金による機能差は無い）。
-    将来リアル会限定の機能を出すときに、ここを見て判定する。
+    機能の出し分けは is_paid_member() を使うこと（判定を1箇所に集約するため）。
 
     Returns:
         {'found': bool, 'plan': ..., 'subscription_status': ..., 'tier': ...,

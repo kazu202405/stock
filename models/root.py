@@ -36,6 +36,32 @@ def _require_login():
     return None
 
 
+def is_member():
+    """いまのログインユーザーが有料会員か。
+
+    判定は gia_identity.is_paid_member() に集約している（gia-next 側の
+    isActiveMember() と同じ定義）。admin は常に会員として扱う。
+    運営が自分の画面で確認できないと、会員向けの表示を検証できないため。
+    """
+    if session.get('user_role') == 'admin':
+        return True
+    return gia_identity.is_paid_member(session.get('user_id'))
+
+
+def _require_member():
+    """有料会員必須チェック。
+
+    未ログイン → ログインへ。ログイン済みの無料会員 → 案内ページへ。
+    「ログインしろ」と言われ続けると、既にログインしている人が混乱するため
+    行き先を分ける。
+    """
+    if not session.get('user_id'):
+        return redirect('/login')
+    if not is_member():
+        return redirect('/membership')
+    return None
+
+
 def _require_admin():
     """admin必須チェック。未ログインまたは非adminならリダイレクト"""
     if not session.get('user_id'):
@@ -54,8 +80,12 @@ def _get_user_context():
             'user_name': session.get('user_name', ''),
             'user_role': session.get('user_role', 'user'),
             'is_logged_in': True,
+            # テンプレートで会員向け表示を出し分けるために渡す。
+            # ただし会員限定の「値」はテンプレートに渡さずサーバー側で落とすこと
+            # （CSSで隠してもAPIやソース表示から丸見えになる）。
+            'is_member': is_member(),
         }
-    return {'is_logged_in': False}
+    return {'is_logged_in': False, 'is_member': False}
 
 
 @app.context_processor
@@ -70,18 +100,47 @@ def index():
     return render_template('lp.html')
 
 
+@app.route('/membership')
+def membership():
+    """会員限定機能に無料会員が来たときの案内。
+
+    「ログインしてください」ではなく「会員限定です」と伝える。
+    既にログインしている人にログインを促すと、何が足りないのか分からなくなる。
+    申し込みは gia2018.com 側（決済はそちらに一本化している）。
+    """
+    if not session.get('user_id'):
+        return redirect('/login')
+    if is_member():
+        return redirect('/dashboard')
+    return render_template('membership.html', member_features=[
+        'ホーム（好調企業・高配当企業・テクニカル分析）',
+        'スクリーナー（全銘柄からの絞り込み・並べ替え）',
+        '企業分析レポート',
+        '決算情報（決算月ごとの銘柄一覧）',
+        '銘柄ページの5年financials・キャッシュフロー・財務健全性',
+        '会社予想・成長率・ROA と、12項目の合致度スコアの内訳',
+    ])
+
+
 @app.route('/dashboard')
 def dashboard():
-    """分析ダッシュボード（閲覧専用）"""
-    guard = _require_login()
+    """分析ダッシュボード（好調企業・高配当企業・テクニカル分析）
+
+    2026-08-11: 会員限定にした。どの銘柄を拾ってどう並べるかが判断そのもので、
+    ここが有料の中身にあたる。
+    """
+    guard = _require_member()
     if guard: return guard
     return render_template('stock.html', is_admin=False)
 
 
 @app.route('/screener')
 def screener():
-    """好調企業ランキングページ"""
-    guard = _require_login()
+    """好調企業ランキングページ（会員限定）
+
+    銘柄を横断して絞り込む機能は会員価値、という既存の整理に従う。
+    """
+    guard = _require_member()
     if guard: return guard
     return render_template('screener.html')
 
@@ -101,8 +160,10 @@ def earnings():
 
     扱うのは決算"期"の月であって、決算"発表予定日"ではない。
     発表予定日は全銘柄を無料で取れる取得元が未整理のため、ここには出さない。
+
+    2026-08-11: 会員限定。銘柄を横断して絞り込む機能なのでスクリーナーと同性質。
     """
-    guard = _require_login()
+    guard = _require_member()
     if guard: return guard
 
     client = get_supabase_client()
@@ -134,8 +195,8 @@ def earnings():
 
 @app.route('/report')
 def report_select():
-    """レポートを見る企業を選ぶ入口"""
-    guard = _require_login()
+    """レポートを見る企業を選ぶ入口（会員限定）"""
+    guard = _require_member()
     if guard: return guard
     return render_template('report_select.html')
 
@@ -148,7 +209,7 @@ def report_sample():
     確認できるようにするためのページ。
     ⚠️ 中身は特定企業の実例なので、他銘柄のレポートには絶対に流用しない。
     """
-    guard = _require_login()
+    guard = _require_member()
     if guard: return guard
     return render_template('report_view.html', report=None, show_sample=True)
 
@@ -160,7 +221,7 @@ def report_view(source, key):
     source はデータ源。将来 'own'（経営者が自社決算から作る）を足せるよう
     URLに含めている。描画側は共通で、build_report が返す構造だけを見る。
     """
-    guard = _require_login()
+    guard = _require_member()
     if guard: return guard
 
     import report_builder
