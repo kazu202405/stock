@@ -1050,7 +1050,9 @@
                 </p>
             </div>
             {% set cta_text = 'スコアと12項目の判定は会員限定です' %}{% include '_members_cta.html' %}
-        </div>
+        {# ⚠️ ここで score-card を閉じない。閉じると endif の後の </div> が
+           親の .content-grid を閉じてしまい、チャートがグリッドの外に出て
+           スコアの右ではなく下に回る。閉じるのは endif の後の1箇所だけ。 #}
         {% else %}
             <div class="score-main">
                 <div class="score-value" id="score-value">--</div>
