@@ -8,6 +8,7 @@
 """
 
 import os
+import time as time_module
 import unittest
 import unittest.mock
 
@@ -83,6 +84,52 @@ class LookupFailureTest(unittest.TestCase):
                 return_value=_membership(plan='real')) as m:
             self.assertTrue(gia_identity.is_paid_member('u3'))
             m.assert_called()  # キャッシュではなく取り直している
+
+
+class CacheTtlTest(unittest.TestCase):
+    """付与がすぐ効くこと。
+
+    会員になった瞬間に使えないのは体験として悪い。管理画面から段を付与しても
+    数分「会員限定です」と言われ続けると、付与した側も本人も混乱する。
+    """
+
+    def setUp(self):
+        gia_identity.clear_membership_cache()
+
+    def test_non_member_is_cached_only_briefly(self):
+        self.assertLessEqual(gia_identity._NON_MEMBER_TTL_SECONDS, 60)
+
+    def test_member_cache_is_longer_than_non_member(self):
+        """会員が数分長く会員のままでも実害はない（解約直後に少し使える程度）"""
+        self.assertGreater(gia_identity._MEMBERSHIP_TTL_SECONDS,
+                           gia_identity._NON_MEMBER_TTL_SECONDS)
+
+    def test_grant_takes_effect_after_the_short_ttl(self):
+        with unittest.mock.patch.object(
+                gia_identity, 'get_membership',
+                return_value=_membership()):
+            self.assertFalse(gia_identity.is_paid_member('u9'))
+
+        # 付与された。短いTTLが切れていれば取り直す
+        with unittest.mock.patch.object(
+                gia_identity, 'get_membership',
+                return_value=_membership(plan='online')):
+            with unittest.mock.patch.object(
+                    gia_identity.time, 'time',
+                    return_value=time_module.time() + gia_identity._NON_MEMBER_TTL_SECONDS + 1):
+                self.assertTrue(gia_identity.is_paid_member('u9'))
+
+    def test_clear_cache_makes_it_immediate(self):
+        """/membership はキャッシュを捨てて取り直す（付与直後の確認用）"""
+        with unittest.mock.patch.object(
+                gia_identity, 'get_membership', return_value=_membership()):
+            self.assertFalse(gia_identity.is_paid_member('u10'))
+
+        gia_identity.clear_membership_cache('u10')
+        with unittest.mock.patch.object(
+                gia_identity, 'get_membership',
+                return_value=_membership(plan='online')):
+            self.assertTrue(gia_identity.is_paid_member('u10'))
 
 
 class GetMembershipErrorFlagTest(unittest.TestCase):

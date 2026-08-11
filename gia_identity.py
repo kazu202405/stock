@@ -164,8 +164,15 @@ MEMBERSHIP_PLANS = ('online', 'real', 'invite', 'premium')
 LEGACY_MEMBER_PLANS = ('terakoya',)
 
 # 会員判定のキャッシュ。判定のたびにGIAへ問い合わせると、1ページ表示で
-# 何度も外部リクエストが飛ぶ。課金状態は秒単位で変わるものではない。
+# 何度も外部リクエストが飛ぶ。
+#
+# 会員(True)と非会員(False)でTTLを変える理由:
+#   会員になった瞬間に使えないのは体験として悪い。管理画面から段を付与しても
+#   最大5分間「会員限定です」と言われ続けると、付与した側も本人も混乱する。
+#   一方、会員が数分長く会員のままでも実害はない（解約直後に少し使える程度）。
+#   非会員の判定は短くして、付与がすぐ効くようにする。
 _MEMBERSHIP_TTL_SECONDS = 300
+_NON_MEMBER_TTL_SECONDS = 30
 _membership_cache = {}
 _membership_cache_lock = threading.Lock()
 
@@ -186,8 +193,10 @@ def is_paid_member(user_id: str, use_cache: bool = True) -> bool:
     if use_cache:
         with _membership_cache_lock:
             hit = _membership_cache.get(user_id)
-        if hit and (time.time() - hit[0]) < _MEMBERSHIP_TTL_SECONDS:
-            return hit[1]
+        if hit:
+            ttl = _MEMBERSHIP_TTL_SECONDS if hit[1] else _NON_MEMBER_TTL_SECONDS
+            if (time.time() - hit[0]) < ttl:
+                return hit[1]
 
     m = get_membership(user_id)
 

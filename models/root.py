@@ -120,8 +120,13 @@ def membership():
     """
     if not session.get('user_id'):
         return redirect('/login')
+
+    # ここはキャッシュを使わず取り直す。
+    # 会員になった直後の人が「まだ会員限定と言われる」と確認しに来る場所なので、
+    # ここだけは最新の状態を見る。会員になっていれば、そのままホームへ通す。
+    gia_identity.clear_membership_cache(session.get('user_id'))
     if is_member():
-        return redirect('/dashboard')  # 会員がここに来る理由がない
+        return redirect('/dashboard')
     return render_template('membership.html', member_features=[
         'ホーム（好調企業・高配当企業・テクニカル分析）',
         'スクリーナー（全銘柄からの絞り込み・並べ替え）',
