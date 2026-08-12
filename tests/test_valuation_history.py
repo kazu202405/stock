@@ -223,15 +223,51 @@ class DerivedMultiplesTest(unittest.TestCase):
         self.assertEqual(result['pbr'], 2.0)
         self.assertEqual(result['source_status']['multiples']['status'], 'derived')
 
-    def test_does_not_overwrite_values_from_yahoo(self):
-        result = {'last_price': 1000.0, 'per': 12.34, 'pbr': 1.5,
+    def test_keeps_yahoo_value_when_the_two_agree(self):
+        """2つの計算が近ければ、TTMで新しいYahooの要約値を残す。"""
+        result = {'last_price': 1000.0, 'per': 11.0, 'pbr': 1.9,
                   'eps': [{'date': '2026-03-31', 'value': 100.0}],
                   'bps': [{'date': '2026-03-31', 'value': 500.0}],
                   'source_status': {}}
         self.analyzer._fill_missing_multiples(result)
-        self.assertEqual(result['per'], 12.34)
+        self.assertEqual(result['per'], 11.0)
+        self.assertEqual(result['pbr'], 1.9)
+        self.assertNotIn('multiples_conflict', result['source_status'])
+
+    def test_conflicting_values_become_unjudgeable(self):
+        """2026-08-12。**どちらが正しいか決められないものは出さない。**
+
+        3939 の実データ相当。Yahooの bookValue が小さすぎてPBR 48.65倍になるが、
+        貸借対照表からは 5.30倍。Yahooが壊れている銘柄（3939）と、
+        EPS/BPS系列が壊れている銘柄（1773）の両方が実在するため、
+        機械的にどちらかを選ぶと必ず一方を壊す。
+        """
+        result = {'last_price': 519.0, 'per': None, 'pbr': 48.6481,
+                  'bps': [{'date': '2025-09-30', 'value': 97.97}],
+                  'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertIsNone(result['pbr'])
+        conflict = result['source_status']['multiples_conflict']['items']['pbr']
+        self.assertEqual(conflict['external'], 48.6481)
+        self.assertEqual(conflict['computed'], 5.2975)
+        self.assertGreaterEqual(conflict['gap'], 9.0)
+
+    def test_keeps_yahoo_value_when_nothing_to_derive_from(self):
+        """BPSが作れない銘柄では、Yahooの値をそのまま残す（消さない）。"""
+        result = {'last_price': 1000.0, 'per': None, 'pbr': 1.5,
+                  'bps': [], 'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
         self.assertEqual(result['pbr'], 1.5)
-        self.assertNotIn('multiples', result['source_status'])
+
+    def test_drops_yahoo_value_that_is_out_of_range(self):
+        """割り算で検算できず、かつ桁がおかしい値は「不明」にする。
+
+        誤った数字を出すより、出さない方がよい。
+        """
+        result = {'last_price': 1000.0, 'per': None, 'pbr': 480.0,
+                  'bps': [], 'source_status': {}}
+        self.analyzer._fill_missing_multiples(result)
+        self.assertIsNone(result['pbr'])
 
     def test_loss_making_company_gets_no_per(self):
         """赤字にPERは存在しない。マイナスの倍率を作らない。"""

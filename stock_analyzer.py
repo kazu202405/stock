@@ -147,7 +147,14 @@ def extract_yahoo_forecast_data(page_html: str) -> Dict[str, Any]:
 
 class StockAnalyzer:
     """株式データ分析クラス"""
-    
+
+    # 外部から来た指標を「そのまま信じてよい上限」。これを超えたら採らない。
+    # 欠損だけを見て異常値を素通りさせると、画面に出てから気づくことになる
+    # （2026-08-12: 配当利回り47%・PBR48倍が本番に出ていた）。
+    MAX_DIVIDEND_YIELD = 20.0   # %。上場企業の年間利回りの現実的な上限
+    MAX_PER = 300.0             # 倍。これ以上は分母がほぼゼロで指標にならない
+    MAX_PBR = 50.0              # 倍
+
     def __init__(self):
         """初期化"""
         self.output_dir = "output"
@@ -418,22 +425,27 @@ class StockAnalyzer:
             if result["pbr"] is None:
                 result["pbr"] = info.get('priceToBook')
 
-            # 配当利回り（自前計算を最優先）
-            # 1. trailingAnnualDividendRate / 株価 × 100 で統一的に%計算
-            annual_div_rate = info.get('trailingAnnualDividendRate')
-            if annual_div_rate and result["last_price"] and result["last_price"] > 0:
-                result["dividend_yield"] = (annual_div_rate / result["last_price"]) * 100
-            else:
-                # 2. dividendYieldをフォーマット正規化して使用
-                # yfinanceはdividendYieldを小数(0.025)で返す場合と%値(2.5)で返す場合がある
+            # 配当利回り＝実際に支払われた配当（直近12か月）÷株価。
+            #
+            # 2026-08-12: 以前は Yahoo の trailingAnnualDividendRate を第一にし、
+            # 取れなければ dividendYield を「0.5超なら%、以下なら小数」と推測して
+            # 100倍していた。この2つがどちらも壊れており、22銘柄で 20〜47% という
+            # あり得ない利回りが出ていた。
+            #   - dividendYield は実際には常に%（0.4 は 0.4%）。0.5未満を小数と
+            #     見なす分岐が、利回り0.5%未満の銘柄を軒並み100倍していた
+            #     （9720: 0.4% → 40%）
+            #   - trailingAnnualDividendRate は分割調整されないことがある
+            #     （4918: 実際15円のところ150円 → 47.5%）
+            # 支払い履歴 ticker.dividends は分割調整済みで検証もできるため、
+            # 推測が要らない。これを正とする。
+            result["dividend_yield"] = self._trailing_dividend_yield(
+                ticker, result.get("last_price"))
+
+            if result["dividend_yield"] is None:
+                # 支払い履歴が無い銘柄だけ Yahoo の値を使う。%として扱う（換算しない）。
                 raw_yield = info.get('dividendYield')
-                if raw_yield is not None:
-                    if raw_yield > 0.5:
-                        # 0.5超 → 既に%値としてそのまま使用（50%超の配当利回りは現実的にない）
-                        result["dividend_yield"] = raw_yield
-                    else:
-                        # 小数 → %に変換
-                        result["dividend_yield"] = raw_yield * 100
+                if raw_yield is not None and 0 <= raw_yield <= self.MAX_DIVIDEND_YIELD:
+                    result["dividend_yield"] = raw_yield
 
             # 追加情報
             result["current_liabilities"] = info.get('totalCurrentLiabilities')
@@ -452,20 +464,43 @@ class StockAnalyzer:
         except:
             pass
 
-        # 配当利回りのフォールバック（TTM計算）
-        if result["dividend_yield"] is None and result["last_price"]:
-            try:
-                dividends = ticker.dividends
-                if not dividends.empty:
-                    # 直近365日の配当合計
-                    one_year_ago = pd.Timestamp.now(tz='Asia/Tokyo') - pd.Timedelta(days=365)
-                    recent_div = dividends[dividends.index >= one_year_ago]
-                    if not recent_div.empty:
-                        ttm_dividend = recent_div.sum()
-                        result["dividend_yield"] = (ttm_dividend / result["last_price"]) * 100
-            except:
-                pass
-                
+        # info の取得自体が落ちた場合の保険（上の try の外で、支払い履歴だけで出す）
+        if result["dividend_yield"] is None:
+            result["dividend_yield"] = self._trailing_dividend_yield(
+                ticker, result.get("last_price"))
+
+    def _trailing_dividend_yield(self, ticker: yf.Ticker, price):
+        """直近12か月に実際に支払われた配当 ÷ 株価 × 100。
+
+        `ticker.dividends` は分割調整済みの支払い実績なので、Yahooの要約値
+        （trailingAnnualDividendRate / dividendYield）と違って単位を推測しなくてよい。
+
+        無配（履歴はあるが直近12か月の支払いがゼロ）は 0.0 ではなく None を返す。
+        「配当を出していない」と「利回りが0%」は同じではなく、0.0 を入れると
+        画面で「0.00%」と表示されて配当実施企業と見分けがつかなくなるため。
+        """
+        if not price or price <= 0:
+            return None
+        try:
+            dividends = ticker.dividends
+            if dividends is None or dividends.empty:
+                return None
+            one_year_ago = pd.Timestamp.now(tz='Asia/Tokyo') - pd.Timedelta(days=365)
+            recent = dividends[dividends.index >= one_year_ago]
+            if recent.empty:
+                return None
+            total = float(recent.sum())
+            if total <= 0:
+                return None
+            value = (total / price) * 100
+            # 上場企業の年間利回りがこれを超えるのは、ほぼ分割・単位の取り違え。
+            # 誤った数字を出すくらいなら「不明」にする。
+            if value > self.MAX_DIVIDEND_YIELD:
+                return None
+            return round(value, 4)
+        except Exception:
+            return None
+
     def _get_financial_data(self, ticker: yf.Ticker, result: Dict[str, Any]):
         """財務データを取得"""
         try:
@@ -651,15 +686,36 @@ class StockAnalyzer:
             'derived_periods': filled,
         }
 
+    # 2つの計算が食い違ったとみなす倍率。
+    MULTIPLE_DISAGREEMENT = 1.5
+
     def _fill_missing_multiples(self, result: Dict[str, Any]):
-        """PER・PBRが取れなかった銘柄を、株価÷EPS / 株価÷BPS で補う。
+        """PER・PBRを、独立した2つの計算で突き合わせてから確定する。
 
-        PER/PBRは `ticker.info` からしか取れていない（FastInfoにこの2つは無い）。
-        infoは重くレート制限にも当たりやすく、返ってこない銘柄もある。
-        しかしEPS・BPSは財務諸表から作っており、株価も別経路で取れているので、
-        定義どおりの割り算で出せる。実測で84銘柄がこれに該当した。
+        取れる値は2系統ある。
 
-        赤字（EPSがマイナス）ならPERは存在しないので補完しない。
+          A. Yahooの `trailingPE` / `priceToBook`（要約値。TTMで新しい）
+          B. 株価 ÷ 最新決算期のEPS / BPS（開示数値からの割り算）
+
+        2026-08-12 の調査で、**どちらも壊れることがある**と分かった。
+
+          3939: Aが誤り。Yahooの bookValue が 10.319（貸借対照表からは 97.97）で
+                PBR 48.65倍と表示。正しくは 5.26倍
+          1773: Bが誤り。EPS・BPSの系列が同じ倍率で小さく、PBRが 48.7倍 になる。
+                Yahooの 1.20倍 の方が ROE と整合する
+
+        Bの検算にROEを使う案は成り立たない。**EPSとBPSが同じ倍率で狂うと
+        ROE（＝EPS÷BPS）は変わらない**ので、スケール誤りを検出できない。
+        時価総額÷純資産という株数を経由しない基準も、`equity` 列が全銘柄で
+        空のため今は使えない。
+
+        したがって「どちらが正しいか」を機械的に決められない。
+        **決められないものを、決めたふりをして出さない。**
+        2つが1.5倍以上食い違ったら値を持たせず「判定不能」にする。
+        スコアは判定できた項目数を分母にするので（§10 の修正）、
+        判定不能の項目は減点ではなく除外として正しく扱われる。
+
+        赤字（EPSがマイナス）ならPERは存在しないので作らない。
         """
         price = result.get('last_price')
         if not price or price <= 0:
@@ -670,19 +726,54 @@ class StockAnalyzer:
                     if isinstance(r, dict) and r.get('value') is not None]
             return max(rows, key=lambda r: r['date']) if rows else None
 
-        derived = {}
-        for key, series, limit in (('per', 'eps', 300.0), ('pbr', 'bps', 50.0)):
-            if result.get(key) is not None:
-                continue
+        derived, conflicts = {}, {}
+        for key, series, limit in (('per', 'eps', self.MAX_PER),
+                                   ('pbr', 'bps', self.MAX_PBR)):
+            external = result.get(key)
+            if external is not None and (external <= 0 or external > limit):
+                # 桁が明らかにおかしい外部値は、この時点で捨てる
+                external = None
+                result[key] = None
+
             row = _latest(series)
-            if not row or row['value'] <= 0:
+            computed = None
+            if row and row['value'] > 0:
+                candidate = price / row['value']
+                if candidate <= limit:
+                    computed = round(candidate, 4)
+
+            if computed is None:
+                # 割り算で出せない銘柄。外部値があればそれを使う（従来どおり）
                 continue
-            value = price / row['value']
-            if value > limit:
-                # 分母がほぼゼロの銘柄で数千倍が出る。指標として使えないので採らない。
+
+            if external is None:
+                result[key] = computed
+                derived[key] = {'from': series, 'fiscal_end': row['date']}
                 continue
-            result[key] = round(value, 4)
-            derived[key] = {'from': series, 'fiscal_end': row['date']}
+
+            gap = max(external / computed, computed / external)
+            if gap < self.MULTIPLE_DISAGREEMENT:
+                # 一致。要約値の方がTTMで新しいのでそちらを残す
+                continue
+
+            # 食い違った。どちらが正しいか決められないので値を持たせない。
+            result[key] = None
+            conflicts[key] = {
+                'external': round(external, 4),
+                'computed': computed,
+                'from': series,
+                'fiscal_end': row['date'],
+                'gap': round(gap, 2),
+            }
+
+        if conflicts:
+            result.setdefault('source_status', {})['multiples_conflict'] = {
+                'status': 'conflict',
+                'source': 'Yahoo要約値 と 株価÷EPS/BPS',
+                'reason': ('2つの計算が1.5倍以上食い違ったため判定不能にしました'
+                           '（どちらが正しいか機械的に決められないため）'),
+                'items': conflicts,
+            }
 
         if derived:
             result.setdefault('source_status', {})['multiples'] = {
