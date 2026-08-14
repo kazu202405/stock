@@ -101,14 +101,20 @@
         <div class="scr-card" style="margin-bottom:12px;">
             <div class="scr-card-label">絞り込み</div>
             <div class="scr-filter-grid">
+                <!-- 遅延させるのは x-model ではなく @input の側。
+                     x-model.debounce は「モデルへの書き込み」を遅らせるだけで、
+                     @input のハンドラは1打鍵ごとに即座に走る。つまり search() は
+                     まだ更新されていない filters.q を読み、常に1打鍵前の内容で
+                     検索していた（打ち終わっても再検索は走らないので、入力と
+                     結果がズレたままになる）。x-model は即時、検索の方を遅らせる。 -->
                 <div class="scr-field" style="grid-column: span 2;">
                     <label>キーワード（銘柄コード・企業名）</label>
-                    <input type="text" x-model.debounce.400ms="filters.q" @input="search(1)"
+                    <input type="text" x-model="filters.q" @input.debounce.400ms="search(1)"
                            placeholder="例: 7203 / トヨタ" autocomplete="off">
                 </div>
                 <div class="scr-field" style="grid-column: span 2;">
                     <label>事業内容に含む言葉</label>
-                    <input type="text" x-model.debounce.400ms="filters.business" @input="search(1)"
+                    <input type="text" x-model="filters.business" @input.debounce.400ms="search(1)"
                            placeholder="例: 厨房 / 金型 / 学習塾" autocomplete="off">
                 </div>
                 <div class="scr-field">
