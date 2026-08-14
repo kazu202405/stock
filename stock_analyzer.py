@@ -155,6 +155,170 @@ FORWARD_DPS_MAX_RATIO = 5.0
 MAX_FORWARD_DIVIDEND_YIELD = 20.0
 
 
+def forecast_annual_dividend(payments, fiscal_end_month, today=None):
+    """支払い実績から予想年間配当（円）を出す。決算年度に分けて数える。
+
+    **「直近1回 × 年間回数」だけでは破綻する。** 直近の支払いが
+    〈前期を締めた期末配当〉のとき、その額を年換算しても意味が無い。
+    日本企業は中間と期末で額が違うことが多く、実データで大きく外れた。
+
+        7273 イクヨ   中間30円 + 期末3円 = 年33円
+                      直近(期末3円)×2 = 6円  → 実態の1/5
+        7505 扶桑電通 中間79.5円 + 期末7.5円 = 年87円
+                      直近(期末7.5円)×2 = 15円 → 実態の1/6
+
+        全3,127銘柄で確定年度と比べたところ、0.6倍未満が28件、
+        1.6倍超が57件あった（2026-08-14 実測）。
+
+    分け方:
+      進行中の決算年度に支払いがまだ無い＝直近の支払いは前期を締めたもの。
+      このときの最良の見積もりは**前期の年間配当そのもの**。
+      支払いがあるなら、残りの回数分を直近の額で補う。
+
+    引数:
+        payments: [(日付文字列, 金額), ...]。順不同でよい。**分割調整済みのこと**。
+        fiscal_end_month: 決算月（1〜12）。screened_latest.fiscal_month。
+                          不明なら3月として扱う（日本企業の最多）。
+    """
+    if not payments:
+        return None
+
+    from datetime import datetime as _dt
+    now = _dt.strptime(today, '%Y-%m-%d') if today else _dt.now()
+
+    try:
+        end_month = int(fiscal_end_month)
+        if not 1 <= end_month <= 12:
+            raise ValueError
+    except (TypeError, ValueError):
+        end_month = 3
+
+    rows = []
+    for date_str, value in payments:
+        try:
+            when = _dt.strptime(str(date_str)[:10], '%Y-%m-%d')
+            amount = float(value)
+        except (TypeError, ValueError):
+            continue
+        if amount > 0 and when <= now:
+            rows.append((when, amount))
+    if not rows:
+        return None
+
+    # 決算年度に割り振る。stock_analyzer が配当を集計するときと同じ規則。
+    by_fy = {}
+    for when, amount in rows:
+        fy = when.year if when.month <= end_month else when.year + 1
+        by_fy.setdefault(fy, []).append((when, amount))
+
+    current_fy = now.year if now.month <= end_month else now.year + 1
+    in_progress = by_fy.get(current_fy, [])
+
+    completed_years = sorted(y for y in by_fy if y < current_fy)
+    if not completed_years:
+        # 上場直後などで確定した年度がまだ無い。進行中の実績だけで年換算する
+        if not in_progress:
+            return None
+        return round(sum(a for _, a in in_progress), 4)
+
+    last_fy = completed_years[-1]
+    last_fy_payments = by_fy[last_fy]
+    last_fy_total = sum(a for _, a in last_fy_payments)
+
+    if not in_progress:
+        # 直近の支払いは前期を締めたもの。前期並みと見るのが素直
+        return round(last_fy_total, 4)
+
+    # 進行中の年度に支払いがある。残りは**前期の対応する回の額**で埋める。
+    #
+    # 「直近の額 × 残り回数」ではいけない。中間と期末で額が大きく違う
+    # 会社を取り違える。
+    #     7505 扶桑電通(9月決算): 中間7.5円・期末79.5円 = 年87円
+    #     進行中は中間7.5円まで。期末も7.5円と見ると年15円になる
+    # 前期の期末79.5円を当てれば 7.5 + 79.5 = 87円 になる。
+    #
+    # 前期からの増減は、ここまでに払った分の比で補正する
+    # （増配していれば残りも増える前提）。
+    in_progress.sort(key=lambda r: r[0])
+    last_fy_payments.sort(key=lambda r: r[0])
+    paid = sum(a for _, a in in_progress)
+
+    same_slots = last_fy_payments[:len(in_progress)]
+    remaining_slots = last_fy_payments[len(in_progress):]
+
+    if remaining_slots:
+        base = sum(a for _, a in same_slots)
+        growth = (paid / base) if base > 0 else 1.0
+        return round(paid + sum(a for _, a in remaining_slots) * growth, 4)
+
+    # 前期に「残りの回」が無い＝前期の方が支払い回数が少ない。
+    # 上場直後に多い（367A: 前期は期末105円のみ、当期は中間60円まで）。
+    # 直近12か月の支払い件数から年間回数を見て、直近の額で埋める。
+    from datetime import timedelta as _td
+    trailing_count = len([1 for when, _ in rows if when >= now - _td(days=365)])
+    expected_count = max(len(last_fy_payments), len(in_progress), trailing_count)
+    remaining = expected_count - len(in_progress)
+    if remaining <= 0:
+        return round(paid, 4)
+    latest_amount = in_progress[-1][1]
+    return round(paid + latest_amount * remaining, 4)
+
+
+def annualized_dividend_from_payments(payments, today=None):
+    """支払い実績から予想年間配当（円）を出す。＝直近の1回 × 年間の支払い回数。
+
+    **決算年度を見ないため、直近が期末配当だと大きく外れる。**
+    `forecast_annual_dividend()` を使うこと。決算月が取れない場合の
+    保険としてのみ残している。
+
+    **Yahoo の `dividendRate` を使わない理由**（2026-08-14 に判明）:
+      `info` の要約値は株式併合に追随していないことがある。`ticker.dividends`
+      （支払い実績）は調整済みなので、両者が食い違う。
+
+        5706 三井金属  dividendRate=28   実際の支払い 90 / 100 / 145円
+        8377 ほくほく  dividendRate=15   実際の支払い 22.5 / 27.5 / 45 / 65円
+
+      いずれも `lastDividendValue`（14 / 7.5）を2倍しただけの値で、
+      併合前の額のまま止まっていた。比率で弾けば大きな取り違えは防げるが、
+      1:2 の併合なら比率0.5で検証を通り抜ける。**調整済みのデータだけで
+      計算すれば、この問題自体が起きない。**
+
+    引数:
+        payments: [(日付文字列, 金額), ...]。順不同でよい。分割調整済みのこと。
+
+    回数を「直近12か月の支払い件数」で数えるのは、日本企業が中間・期末の
+    年2回（一部は年1回）で払うため。直近1回を年換算するのは、増配後の
+    水準を反映させるため（前期の合計だと増配前の数字になる）。
+    """
+    if not payments:
+        return None
+
+    from datetime import datetime as _dt, timedelta as _td
+    now = _dt.strptime(today, '%Y-%m-%d') if today else _dt.now()
+    one_year_ago = now - _td(days=365)
+
+    rows = []
+    for date_str, value in payments:
+        try:
+            when = _dt.strptime(str(date_str)[:10], '%Y-%m-%d')
+            amount = float(value)
+        except (TypeError, ValueError):
+            continue
+        if amount > 0 and when <= now:
+            rows.append((when, amount))
+
+    recent = [r for r in rows if r[0] >= one_year_ago]
+    if not recent:
+        # 直近12か月に支払いが無い＝無配。0.0 ではなく None
+        # （「配当を出していない」と「利回りが0%」は別物）
+        return None
+
+    recent.sort(key=lambda r: r[0])
+    frequency = len(recent)
+    latest_amount = recent[-1][1]
+    return round(latest_amount * frequency, 4)
+
+
 def forward_dividend_yield(dps_forecast, price, confirmed_dps=None):
     """予想配当利回り(%)を出す。信用できない値は None を返す。
 
@@ -326,7 +490,7 @@ class StockAnalyzer:
 
             # 予想配当利回り。5年分の配当が揃ってから計算する
             # （確定した決算年度の配当と桁が合うかを検証に使うため）。
-            self._fill_forward_dividend(result)
+            self._fill_forward_dividend(ticker, result)
 
             # ROE/ROA計算（正確な計算）
             self._calculate_roe_roa(ticker, result)
@@ -541,13 +705,51 @@ class StockAnalyzer:
             result["dividend_yield"] = self._trailing_dividend_yield(
                 ticker, result.get("last_price"))
 
-    def _fill_forward_dividend(self, result: Dict[str, Any]):
-        """予想配当利回りを計算して入れる。信用できなければ None のままにする。
+    def _fiscal_end_month(self, result: Dict[str, Any]):
+        """決算月を EPS の期末日から求める。取れなければ None。
+
+        `_get_five_year_financial_data` が配当を決算年度に集計するときと
+        同じ求め方にそろえる。ここがズレると、同じ支払いが別の年度に
+        割り振られて予想配当が狂う。
+        """
+        eps = result.get('eps') or []
+        dated = [x for x in eps if x.get('date')]
+        if not dated:
+            return None
+        latest = max(dated, key=lambda x: str(x['date']))
+        try:
+            return int(str(latest['date'])[5:7])
+        except (ValueError, IndexError):
+            return None
+
+    def _fill_forward_dividend(self, ticker, result: Dict[str, Any]):
+        """予想配当と予想利回りを入れる。信用できなければ None のままにする。
+
+        予想配当は**支払い実績から自分で年換算する**。Yahoo の
+        `dividendRate` は株式併合に追随しないことがあり、実際に
+        4銘柄で併合前の額のまま止まっていた（annualized_dividend_from_payments
+        のコメント参照）。`ticker.dividends` は調整済みで、実績利回りの計算に
+        すでに取得しているため、追加の通信は発生しない。
 
         検証に「確定した決算年度の年間配当」を使うので、5年分の配当
         （result["dps"]）が揃ってから呼ぶこと。dps は決算年度ごとの合計で、
         進行中の年度は中間配当までしか入っていないため対象から外す。
         """
+        try:
+            dividends = ticker.dividends
+            if dividends is not None and not dividends.empty:
+                payments = [(idx.strftime('%Y-%m-%d'), float(v))
+                            for idx, v in dividends.items()]
+                # 決算月は result にまだ入っていない（後の工程で決まる）。
+                # 配当を決算年度に集計するときと同じく、EPSの期末日から採る。
+                own = forecast_annual_dividend(
+                    payments, self._fiscal_end_month(result))
+                if own is not None:
+                    result["dps_forecast"] = own
+        except Exception as e:
+            # 取れなければ _get_basic_metrics が入れた Yahoo の値のまま進む
+            print(f'  予想配当の自前計算に失敗（Yahooの値を使います）: {e}')
+
         confirmed_dps = None
         today = datetime.now().strftime('%Y-%m-%d')
         for row in sorted(result.get("dps") or [],
