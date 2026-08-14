@@ -601,6 +601,38 @@ def get_latest_value(val):
     return None
 
 
+def get_latest_completed_value(val):
+    """配列データから「まだ終わっていない年度」を除いた最新値を抽出。
+
+    配当(dps)・配当性向は決算年度ごとに合計している。進行中の年度は
+    中間配当までしか入っていないため、そのまま最新値として拾うと
+    年間配当が半分に見える（8月決算の367Aで、確定した2025年度105円では
+    なく、中間だけの2026年度60円が「1株配当」として出ていた）。
+
+    決算年度の行には期末の日付が入っているので、それが未来なら
+    その年度はまだ終わっていない。日付だけで判定でき、銘柄ごとの
+    例外を持たなくてよい。
+
+    売上や利益は実績しか入らない（＝日付が未来にならない）ので、
+    この関数を通すのは配当まわりだけでよい。
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return val
+    if not isinstance(val, list) or not val:
+        return None
+
+    from datetime import datetime as _dt
+    today = _dt.now().strftime('%Y-%m-%d')
+    completed = [x for x in val if str(x.get('date', '')) <= today]
+    # 全部が未来＝確定した年度がまだ1つも無い。半端な値を出すより
+    # 「無い」を返す（画面は欠損として扱い、理由を出す）。
+    if not completed:
+        return None
+    return sorted(completed, key=lambda x: x.get('date', ''), reverse=True)[0].get('value')
+
+
 def get_yearly_values(data_list, count=4):
     """配列データから直近N年分の値を取得"""
     if not data_list or not isinstance(data_list, list):
@@ -712,9 +744,10 @@ def api_add_to_watchlist():
                 current_ratio = (current_assets / current_liabilities) * 100
 
             # EPS/DPS（最新値）
+            # 配当は進行中の年度を拾わない（中間配当だけで年間配当に見えるため）
             eps = get_latest_value(stock_data.get('eps'))
-            dps = get_latest_value(stock_data.get('dps'))
-            payout_ratio = get_latest_value(stock_data.get('payout_ratio'))
+            dps = get_latest_completed_value(stock_data.get('dps'))
+            payout_ratio = get_latest_completed_value(stock_data.get('payout_ratio'))
 
             # ROE（最新値）
             roe_list = stock_data.get('roe')
@@ -1256,8 +1289,9 @@ def _save_analysis_to_screened(symbol, stock_data):
         current_ratio = (current_assets / current_liabilities) * 100
 
     eps = get_latest_value(stock_data.get('eps'))
-    dps = get_latest_value(stock_data.get('dps'))
-    payout_ratio = get_latest_value(stock_data.get('payout_ratio'))
+    # 配当は進行中の年度を拾わない（中間配当だけで年間配当に見えるため）
+    dps = get_latest_completed_value(stock_data.get('dps'))
+    payout_ratio = get_latest_completed_value(stock_data.get('payout_ratio'))
     roe = get_latest_value(stock_data.get('roe'))
 
     financial_history = {
@@ -1452,8 +1486,9 @@ def _analyze_stock_and_save(analyzer, company_code):
         'pbr': stock_data.get('pbr'),
         'dividend_yield': stock_data.get('dividend_yield'),
         'eps': get_latest_value(stock_data.get('eps')),
-        'dps': get_latest_value(stock_data.get('dps')),
-        'payout_ratio': get_latest_value(stock_data.get('payout_ratio')),
+        # 配当は進行中の年度を拾わない（中間配当だけで年間配当に見えるため）
+        'dps': get_latest_completed_value(stock_data.get('dps')),
+        'payout_ratio': get_latest_completed_value(stock_data.get('payout_ratio')),
         'roe': get_latest_value(stock_data.get('roe')),
         'analyzed_at': now,
         'forecast_revenue': stock_data.get('forecast_revenue'),
@@ -4444,12 +4479,13 @@ def api_compare():
                                 data['eps'] = eps_val
                                 update_fields['eps'] = eps_val
                         if 'dps' in missing:
-                            dps_val = get_latest_value(stock_data.get('dps'))
+                            # 配当は進行中の年度を拾わない
+                            dps_val = get_latest_completed_value(stock_data.get('dps'))
                             if dps_val:
                                 data['dps'] = dps_val
                                 update_fields['dps'] = dps_val
                         if 'payout_ratio' in missing:
-                            pr_val = get_latest_value(stock_data.get('payout_ratio'))
+                            pr_val = get_latest_completed_value(stock_data.get('payout_ratio'))
                             if pr_val:
                                 data['payout_ratio'] = pr_val
                                 update_fields['payout_ratio'] = pr_val

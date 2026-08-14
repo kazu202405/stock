@@ -1010,6 +1010,14 @@
                     <div class="metric-label">配当利回り</div>
                     <div class="metric-value">---</div>
                     <div class="metric-sub"></div>
+                    <!-- 「予想」ではなく「実績」であることを明示する。
+                         この値は直近12か月に実際に支払われた配当÷株価で、
+                         決算期をまたぐことがある（期末配当＋翌期の中間配当）。
+                         会社予想の年間配当から出す一般的な予想利回りとは
+                         別物なので、書かないと高く見えて誤解を招く。
+                         ラベル本文は updateMetric() が要素の探索キーに
+                         使っているため変えない。注記を別要素で足す。 -->
+                    <div style="font-size:10px; color:#a3a3a3; margin-top:4px; line-height:1.4;">直近12か月の実績</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">時価総額</div>
@@ -2085,6 +2093,13 @@
             if (data[type] && Array.isArray(data[type])) {
                 data[type].forEach(item => {
                     const d = new Date(item.date);
+                    // 配当・配当性向は決算年度ごとの合計。まだ終わっていない年度は
+                    // 中間配当までしか入っておらず、年間配当として読むと減配に見える
+                    // （8月決算で 105円 → 60円 に見えていた）。しかもこの行は
+                    // 会社予想の年度と重なるため「予想配当60円」と誤読される。
+                    // 確定した年度だけを出す。サーバー側の
+                    // get_latest_completed_value() と同じ判定。
+                    if ((type === 'dps' || type === 'payout_ratio') && d > new Date()) return;
                     const year = d.getFullYear();
                     const month = d.getMonth() + 1;
                     if (!yearDataMap.has(year)) yearDataMap.set(year, { _month: month, _date: item.date });
@@ -2264,9 +2279,53 @@
         }
         const payoutDisplay = document.getElementById('payout-ratio-display');
         if (payoutDisplay && data.payout_ratio && data.payout_ratio.length > 0) {
-            const sorted = [...data.payout_ratio].sort((a, b) => new Date(b.date) - new Date(a.date));
-            if (sorted[0] && sorted[0].value !== undefined) payoutDisplay.textContent = `${sorted[0].value.toFixed(1)}%`;
+            // 終わっていない決算年度は使わない（配当が中間までしか入っていない）
+            const now = new Date();
+            const sorted = [...data.payout_ratio]
+                .filter(x => new Date(x.date) <= now)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            if (sorted[0] && sorted[0].value !== undefined) {
+                payoutDisplay.textContent = `${sorted[0].value.toFixed(1)}%`;
+                // どの決算期の数字かを添える。年度を書かないと、隣の1株配当と
+                // 期がずれていても読者が気づけない
+                appendFiscalPeriod(payoutDisplay, sorted[0].date);
+            }
         }
+    }
+
+    /**
+     * 「(2025年8月期)」のような決算期の注記を値の後ろに足す。
+     *
+     * 決算書の数字は年度とセットでないと検算できない。数字だけを並べると、
+     * 配当性向と1株配当が別の年度でも同じ期のものに見えてしまう。
+     */
+    /**
+     * financial_history から、終わっている決算年度で最も新しいものの日付を返す。
+     * 保存済みのスカラー値（payout_ratio 等）には日付が付かないため、
+     * 「その値がどの期のものか」はここで引き直す。
+     */
+    function latestCompletedDate(data, key) {
+        let history = data.financial_history;
+        if (typeof history === 'string') {
+            try { history = JSON.parse(history); } catch (e) { return null; }
+        }
+        const rows = history && history[key];
+        if (!Array.isArray(rows) || !rows.length) return null;
+        const now = new Date();
+        const done = rows
+            .filter(x => x && x.date && new Date(x.date) <= now)
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        return done.length ? done[0].date : null;
+    }
+
+    function appendFiscalPeriod(element, dateStr) {
+        if (!element || !dateStr) return;
+        const d = new Date(dateStr);
+        if (isNaN(d)) return;
+        const note = document.createElement('span');
+        note.textContent = ` (${d.getFullYear()}年${d.getMonth() + 1}月期)`;
+        note.style.cssText = 'font-size:10px; color:#a3a3a3; font-weight:400;';
+        element.appendChild(note);
     }
 
     // 事業概要表示
@@ -2578,7 +2637,10 @@
             element.textContent = value || '--';
             element.className = 'score-item-status';
         } else {
-            element.textContent = pass ? `✓ ${value}` : `− ${value}`;
+            // 不合格の印に「−」を使うと、値の前に付いたマイナス符号に読める
+            // （ROA 3.9% が「− 3.9%」＝マイナス3.9%と誤読された）。
+            // 符号に見えない記号を使う。search.html と同じ「✗」にそろえる。
+            element.textContent = pass ? `✓ ${value}` : `✗ ${value}`;
             element.className = 'score-item-status ' + (pass ? 'pass' : 'fail');
         }
     }
@@ -2851,7 +2913,11 @@
             else currentRatioDisplay.style.color = 'var(--danger-color)';
         }
         const payoutDisplay = document.getElementById('payout-ratio-display');
-        if (payoutDisplay && data.payout_ratio) payoutDisplay.textContent = `${data.payout_ratio.toFixed(1)}%`;
+        if (payoutDisplay && data.payout_ratio) {
+            payoutDisplay.textContent = `${data.payout_ratio.toFixed(1)}%`;
+            // 保存済みの値には日付が付いていないので、履歴から同じ値の期を引く
+            appendFiscalPeriod(payoutDisplay, latestCompletedDate(data, 'payout_ratio'));
+        }
 
         // 財務健全性の各行も、値が無い理由を出す（--- のままにしない）
         [['cash-display', 'cash'], ['current-liab-display', 'current_liabilities'],
