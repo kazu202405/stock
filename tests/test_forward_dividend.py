@@ -25,7 +25,8 @@ os.environ.setdefault('ENABLE_SCHEDULER', 'false')
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stock_analyzer import (annualized_dividend_from_payments,
-                            forecast_annual_dividend, forward_dividend_yield)
+                            forecast_annual_dividend, forward_dividend_yield,
+                            trailing_dividend_yield_from_payments)
 
 
 class TestForecastAnnualDividend(unittest.TestCase):
@@ -176,6 +177,39 @@ class TestAnnualizedDividendFromPayments(unittest.TestCase):
     def test_順不同でも直近を選ぶ(self):
         self.assertEqual(self._run([
             ('2026-02-26', 60.0), ('2025-08-28', 105.0)]), 120.0)
+
+
+class TestTrailingDividendYieldFromPayments(unittest.TestCase):
+    """実績利回りは支払い実績の合計÷株価。判定は1か所にまとめる。
+
+    分析側（StockAnalyzer._trailing_dividend_yield）とバックフィルで
+    違う値が出ると、どちらが正か分からなくなる。
+    """
+
+    def test_直近12か月の合計で計算する(self):
+        """7505 扶桑電通: 期末79.5円 + 中間7.5円 = 87円 ÷ 2277円。"""
+        value = trailing_dividend_yield_from_payments(
+            [('2024-09-27', 39.0), ('2025-09-29', 79.5), ('2026-03-30', 7.5)],
+            2277.0, today='2026-07-21')
+        self.assertAlmostEqual(value, 3.8208, places=3)
+
+    def test_窓の外の支払いは数えない(self):
+        value = trailing_dividend_yield_from_payments(
+            [('2024-09-27', 39.0)], 2277.0, today='2026-07-21')
+        self.assertIsNone(value)
+
+    def test_上限を超えたら採らない(self):
+        """分割・単位の取り違えを疑う。誤った数字より「不明」がよい。"""
+        self.assertIsNone(trailing_dividend_yield_from_payments(
+            [('2026-03-30', 500.0)], 1000.0, today='2026-07-21'))
+
+    def test_無配と欠損(self):
+        self.assertIsNone(trailing_dividend_yield_from_payments([], 1000.0))
+        self.assertIsNone(trailing_dividend_yield_from_payments(None, 1000.0))
+        self.assertIsNone(trailing_dividend_yield_from_payments(
+            [('2026-03-30', 10.0)], None))
+        self.assertIsNone(trailing_dividend_yield_from_payments(
+            [('2026-03-30', 10.0)], 0))
 
 
 class TestForwardDividendYield(unittest.TestCase):

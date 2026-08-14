@@ -48,7 +48,8 @@ warnings.filterwarnings('ignore')
 
 import yfinance as yf
 
-from stock_analyzer import forecast_annual_dividend, forward_dividend_yield
+from stock_analyzer import (forecast_annual_dividend, forward_dividend_yield,
+                            trailing_dividend_yield_from_payments)
 from supabase_client import get_supabase_client
 
 PAGE_SIZE = 500
@@ -101,12 +102,23 @@ def confirmed_annual_dps(row):
     return sorted(done, key=lambda x: x.get('date', ''), reverse=True)[0].get('value')
 
 
+def differs(stored, computed, tolerance=0.01):
+    """保存値と再計算値が実質的に違うか。丸め差で無駄に書き換えない。"""
+    if stored is None:
+        return computed is not None
+    try:
+        return abs(float(stored) - float(computed)) > tolerance
+    except (TypeError, ValueError):
+        return True
+
+
 def load_rows(client):
     """全銘柄を取り切る。Supabaseは1リクエスト既定1000行までなのでページングする。"""
     rows, offset = [], 0
     while True:
         page = (client.table('screened_latest')
-                .select('company_code, company_name, stock_price, dps, fiscal_month, financial_history')
+                .select('company_code, company_name, stock_price, dps, dividend_yield, '
+                        'fiscal_month, analyzed_at, financial_history')
                 .range(offset, offset + PAGE_SIZE - 1)
                 .execute())
         batch = page.data or []
@@ -176,6 +188,7 @@ def main():
             time.sleep(SLEEP_BETWEEN_BATCHES)
 
     updates, rejected, no_dividend = [], [], 0
+    trailing_fixed = []
     for symbol, row in by_symbol.items():
         forecast = forecast_annual_dividend(payments_by_symbol.get(symbol),
                                             row.get('fiscal_month'))
@@ -189,13 +202,41 @@ def main():
             rejected.append((row['company_code'], row.get('company_name'),
                              forecast, row.get('stock_price'), confirmed))
             continue
-        updates.append((row['company_code'], {
-            'dps_forecast': forecast,
-            'dividend_yield_forward': value,
-        }))
+        patch = {'dps_forecast': forecast, 'dividend_yield_forward': value}
+
+        # 実績もここで直す。2026-08-12 の修正より前に分析された銘柄には、
+        # Yahooの要約値から入れた実績利回りが残っている。あのときの
+        # バックフィルは「20%超」だけを対象にしたため、**低く壊れていた
+        # 銘柄は直っていない**（7505 扶桑電通: 87円のところ7.5円分だけで
+        # 0.33% ／ 7273 イクヨ: 33円のところ3円分だけで0.49%）。
+        #
+        # ⚠️ **今日を基準に計算し直してはいけない。** 実績利回りは
+        # 「直近12か月」の切り方で変わるうえ、保存されている株価は
+        # 分析日のもの。今日の配当窓と分析日の株価を混ぜると、直った
+        # ように見えて別のズレを作る（試走では300件中203件が対象に
+        # なったが、そのほとんどは基準日の違いにすぎなかった）。
+        #
+        # **分析日を基準に計算し直し、それでも合わないものだけ**を
+        # 壊れていると判定する。株価と配当の基準日がそろう。
+        as_of = str(row.get('analyzed_at') or '')[:10] or None
+        trailing = trailing_dividend_yield_from_payments(
+            payments_by_symbol.get(symbol), row.get('stock_price'), today=as_of)
+        if trailing is not None and differs(row.get('dividend_yield'), trailing,
+                                            tolerance=max(0.05, trailing * 0.1)):
+            patch['dividend_yield'] = trailing
+            trailing_fixed.append((row['company_code'], row.get('company_name'),
+                                   row.get('dividend_yield'), trailing))
+
+        updates.append((row['company_code'], patch))
 
     print(f'\n採用: {len(updates)}件 / 検証で不採用: {len(rejected)}件 / '
           f'直近1年に配当なし: {no_dividend}件', flush=True)
+
+    print(f'実績利回りも直すもの: {len(trailing_fixed)}件', flush=True)
+    for code, name, before, after in trailing_fixed[:10]:
+        print(f'  実績 {code} {name}: {before} -> {after}')
+    if len(trailing_fixed) > 10:
+        print(f'  ... 他 {len(trailing_fixed) - 10}件')
 
     for code, name, forecast, price, confirmed in rejected[:15]:
         print(f'  不採用 {code} {name}: 年換算{forecast}円 株価{price} 確定年度{confirmed}円')

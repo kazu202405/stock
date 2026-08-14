@@ -319,6 +319,49 @@ def annualized_dividend_from_payments(payments, today=None):
     return round(latest_amount * frequency, 4)
 
 
+def trailing_dividend_yield_from_payments(payments, price, today=None):
+    """実績配当利回り(%)＝直近12か月に実際に支払われた配当 ÷ 株価。
+
+    `StockAnalyzer._trailing_dividend_yield` と同じ計算を、支払い実績の
+    リストから行う版。バックフィルがバッチ取得した配当をそのまま渡せる
+    ようにするために切り出した。**判定は1か所にまとめる**（分析側と
+    バックフィルで違う値が出ると、どちらが正か分からなくなる）。
+
+    無配（履歴はあるが直近12か月の支払いがゼロ）は 0.0 ではなく None。
+    """
+    if not payments or not price:
+        return None
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+
+    from datetime import datetime as _dt, timedelta as _td
+    now = _dt.strptime(today, '%Y-%m-%d') if today else _dt.now()
+    one_year_ago = now - _td(days=365)
+
+    total = 0.0
+    for date_str, value in payments:
+        try:
+            when = _dt.strptime(str(date_str)[:10], '%Y-%m-%d')
+            amount = float(value)
+        except (TypeError, ValueError):
+            continue
+        if amount > 0 and one_year_ago <= when <= now:
+            total += amount
+
+    if total <= 0:
+        return None
+
+    value = (total / price) * 100
+    # 上場企業の年間利回りがこれを超えるのは、ほぼ分割・単位の取り違え。
+    if value > MAX_FORWARD_DIVIDEND_YIELD:
+        return None
+    return round(value, 4)
+
+
 def forward_dividend_yield(dps_forecast, price, confirmed_dps=None):
     """予想配当利回り(%)を出す。信用できない値は None を返す。
 
