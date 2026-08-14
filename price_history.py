@@ -249,7 +249,7 @@ def _refresh_in_background(key, work):
     threading.Thread(target=run, daemon=True, name=f'price-refresh-{key}').start()
 
 
-def _call_with_deadline(func, seconds):
+def call_with_deadline(func, seconds):
     """funcをseconds以内に終わらせる。超えたら諦めて None を返す。
 
     スレッドは止められないので走り続けるが、**リクエストは返る**。
@@ -288,7 +288,7 @@ def get_daily(company_code, max_age_days=2):
         return cached
 
     # 保存が無い＝出すものが何も無いので、ここだけ待つ（上限つき）
-    rows = _call_with_deadline(
+    rows = call_with_deadline(
         lambda: _fetch_and_save_daily(company_code), FETCH_TIMEOUT_SECONDS)
     return rows or []
 
@@ -320,7 +320,7 @@ def get_long_term(company_code, granularity, max_age_days=7):
                                    lambda: _fetch_and_save_long_term(company_code))
         return cached
 
-    result = _call_with_deadline(
+    result = call_with_deadline(
         lambda: _fetch_and_save_long_term(company_code), FETCH_TIMEOUT_SECONDS)
     if result:
         return result[0] if granularity == 'weekly' else result[1]
@@ -339,3 +339,7 @@ def _fetch_and_save_long_term(company_code):
     except Exception as e:
         print(f'長期足の保存エラー {company_code}: {e}')
     return weekly, monthly
+
+
+# 旧名。呼び出し元を移し終えるまで残す。
+_call_with_deadline = call_with_deadline

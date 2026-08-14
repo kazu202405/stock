@@ -253,17 +253,18 @@
                                 <td class="scr-td-num" x-text="fmtMultiple(row.per_forward)"></td>
                                 <td class="scr-td-num" x-text="fmtMultiple(row.pbr, 2)"></td>
                                 <td class="scr-td-num" x-text="fmtPct(row.dividend_yield, 2)"></td>
+                                <td class="scr-td-num" x-text="fmtPct(row.dividend_yield_forward, 2)"></td>
                             </tr>
                         </template>
 
                         <tr x-show="!loading && rows.length === 0">
-                            <td colspan="12" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                            <td colspan="13" class="px-4 py-12 text-center" style="color:#a3a3a3;">
                                 <i class="fas fa-search text-2xl mb-3 block"></i>
                                 条件に一致する企業がありませんでした。条件をゆるめてお試しください。
                             </td>
                         </tr>
                         <tr x-show="loading && rows.length === 0">
-                            <td colspan="12" class="px-4 py-12 text-center" style="color:#a3a3a3;">
+                            <td colspan="13" class="px-4 py-12 text-center" style="color:#a3a3a3;">
                                 <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>
                                 読み込み中...
                             </td>
@@ -628,7 +629,16 @@
                 { key: 'roe',              label: 'ROE' },
                 { key: 'per_forward',      label: 'PER' },
                 { key: 'pbr',              label: 'PBR' },
-                { key: 'dividend_yield',   label: '配当利回り' },
+                // 実績と予想は別物なので、どちらの数字かを列名に出す。
+                // 銘柄ページは予想を主に出すため、書かないと開いた瞬間に
+                // 値が変わったように見える。
+                //   実績 = 直近12か月に実際に支払われた配当 ÷ 株価
+                //   予想 = 決算年度で数えた年間配当 ÷ 株価
+                { key: 'dividend_yield',         label: '配当利回り(実績)' },
+                // 予想は並べ替えキーにしない。並べ替えは値が空の行を除外する
+                // ため、予想の無い銘柄（無配など748件）が一覧から消える。
+                // 消えたことは画面から見えないので、列としてだけ出す。
+                { key: 'dividend_yield_forward', label: '配当利回り(予想)', noSort: true },
             ],
 
             presets: [
@@ -801,7 +811,7 @@
         tableContainer.classList.remove('hidden');
         emptyState.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="12" class="px-4 py-12 text-center text-gray-500">
+            <tr><td colspan="13" class="px-4 py-12 text-center text-gray-500">
                 <i class="fas fa-spinner fa-spin text-2xl mb-3 block"></i>データを読み込み中...
             </td></tr>`;
 
@@ -814,7 +824,7 @@
             console.error('ウォッチリスト取得エラー:', err);
             favorites = [];
             tbody.innerHTML = `
-                <tr><td colspan="12" class="px-4 py-12 text-center text-red-500">
+                <tr><td colspan="13" class="px-4 py-12 text-center text-red-500">
                     <i class="fas fa-exclamation-circle text-2xl mb-3 block"></i>
                     データの読み込みに失敗しました。ページを再読み込みしてお試しください。
                 </td></tr>`;

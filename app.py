@@ -1542,6 +1542,12 @@ def _analyze_stock_and_save(analyzer, company_code):
 # migrationを適用する前でも分析・保存が止まらないようにするための、
 # 「まだ無い列」の一覧。列が来たら自動でまた書き始める。
 _MIGRATION_PENDING_COLUMNS = {'fiscal_month', 'dps_forecast', 'dividend_yield_forward'}
+
+# 株主・役員のオンデマンド取得に許す最大秒数。
+# チャート（price_history.FETCH_TIMEOUT_SECONDS）より長めにしてよい。
+# 無料ソース → 公式キャッシュ → EDINET DB と3段構えで、正常でも数秒かかる。
+# ただし「画面が待つ」ことに変わりはないので上限は必ず置く。
+HOLDERS_FETCH_TIMEOUT_SECONDS = 25
 _missing_columns = set()
 
 
@@ -2717,7 +2723,7 @@ SCREEN_COLUMNS = (
     'company_code, company_name, sector, industry_jp, market_segment, '
     'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
-    'dividend_yield, match_rate, operating_cf, free_cf, '
+    'dividend_yield, dividend_yield_forward, match_rate, operating_cf, free_cf, '
     'forecast_revenue, forecast_op_income, financial_history, cf_history, '
     'analyzed_at, gc_date, dc_date'
 )
@@ -3609,7 +3615,8 @@ def api_fetch_holders_officers(company_code):
     result = {'source_status': {}}
     analyzer = StockAnalyzer()
     sources = []
-    try:
+
+    def _fetch():
         # 無料ソース → 確認済み公式キャッシュ → EDINET DB の順。
         # 概要・財務・業績予想の枠は消費しない。
         analyzer._get_holders_and_officers(symbol, result)
@@ -3628,6 +3635,24 @@ def api_fetch_holders_officers(company_code):
             if apply_edinet_db_fallback(
                     symbol, result, categories={'major_shareholders', 'directors'}):
                 sources.append('EDINET DB')
+        return True   # 最後まで走ったことの印（時間切れなら None が返る）
+
+    # 画面のリクエストの中で外部（Yahoo・EDINET DB）を待つので、上限を付ける。
+    #
+    # 本番は gunicorn worker 1本（app.py の APScheduler がプロセス内で動くため
+    # 増やせない）。1本のリクエストが詰まると裏で他の画面も待たされ、
+    # 詰まり続ければアプリごと 503 になる。2026-08-14 にチャートで実際に
+    # 起きたのと同じ形。
+    #
+    # 株主・役員は無くてもページは成立し、次に開いたときに取り直される。
+    # **待たせるくらいなら空で返す。**
+    timed_out = False
+    try:
+        from price_history import call_with_deadline
+        if call_with_deadline(_fetch, HOLDERS_FETCH_TIMEOUT_SECONDS) is None:
+            timed_out = True
+            print(f'株主・役員の取得が{HOLDERS_FETCH_TIMEOUT_SECONDS}秒を超えたため'
+                  f'打ち切りました {code}（取れた分だけ保存します）')
     except Exception as e:
         print(f'株主・役員のオンデマンド取得エラー {code}: {e}')
 
@@ -3643,6 +3668,10 @@ def api_fetch_holders_officers(company_code):
         status = 'success'
     elif filled:
         status = 'partial'
+    elif timed_out:
+        # 時間切れは「どこにも載っていない」とは違う。no_data にすると
+        # 長いクールダウンに入り、実際は取れる銘柄が取れないまま固定される。
+        status = 'timeout'
     else:
         status = 'no_data'
 
@@ -3655,7 +3684,10 @@ def api_fetch_holders_officers(company_code):
                  'status': status,
                  'source': ' + '.join(sources) if sources else '主要株主・役員取得',
                  'filled': filled,
-                 'reason': None if got_any else '無料ソース・公式キャッシュ・EDINET DBのいずれにも未収録',
+                 'reason': (None if got_any else
+                            ('取得に時間がかかったため打ち切りました（次に開いたときに取り直します）'
+                             if timed_out else
+                             '無料ソース・公式キャッシュ・EDINET DBのいずれにも未収録')),
                  'fetched_at': datetime.now(timezone.utc).isoformat(),
              }}),
     }
