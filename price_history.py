@@ -14,6 +14,7 @@
       10年    月足   (約120本)
 """
 
+import threading
 from datetime import datetime, timezone
 
 # 取引所ローカルの日付に正規化するためのオフセット。
@@ -35,13 +36,33 @@ def granularity_for_range(range_key):
     return 'daily'
 
 
-def fetch_ohlc(symbol, period='1y'):
-    """yfinanceからOHLCを取得する。失敗時は空リスト。"""
+# 画面からの取得に許す最大秒数。
+#
+# これを入れる前は Yahoo への取得に上限が無かった。本番は
+# gunicorn --workers 1 --timeout 120 で動いており、1本の遅い
+# リクエストが120秒を超えると **worker ごと落とされる**。worker が1本
+# しか無いのでアプリ全体が落ち、その間の他ページも 503 になる
+# （2026-08-14 にキオクシアのチャートで実際に発生）。
+#
+# 外部が遅いのは避けられない。避けられるのは「待ち続けること」なので、
+# ここで切る。取れなければ保存済みの古い足を返せばよい。
+FETCH_TIMEOUT_SECONDS = 20
+
+
+def fetch_ohlc(symbol, period='1y', timeout=FETCH_TIMEOUT_SECONDS):
+    """yfinanceからOHLCを取得する。失敗・時間切れは空リスト。"""
     import yfinance as yf
     import pandas as pd
 
     ticker = yf.Ticker(symbol)
-    hist = ticker.history(period=period)
+    try:
+        # yfinance の timeout は1リクエストあたり。リトライや複数回の
+        # 通信で合計はこれより延びるため、呼び出し側でも上限をかける
+        # （_call_with_deadline）。
+        hist = ticker.history(period=period, timeout=timeout)
+    except TypeError:
+        # timeout を受け取らない版のための保険
+        hist = ticker.history(period=period)
     if hist is None or hist.empty:
         return []
 
@@ -201,40 +222,120 @@ def to_symbol(company_code):
     return f'{code}.T' if len(code) == 4 and code[0].isdigit() else code
 
 
-def get_daily(company_code, max_age_days=2):
-    """日足を返す。未取得または古い場合はyfinanceから取得して保存する。"""
-    stored = get_stored(company_code)
-    if stored and stored.get('daily_1y') and not _is_stale(stored.get('daily_updated_at'), max_age_days):
-        return stored['daily_1y']
+_refreshing = set()
+_refreshing_lock = threading.Lock()
 
+
+def _refresh_in_background(key, work):
+    """保存済みを返した後ろで取り直す。同じ銘柄の多重起動はしない。
+
+    画面を待たせないための仕組み。ユーザーには古い足がすぐ出て、
+    次に開いたときには新しくなっている。
+    """
+    with _refreshing_lock:
+        if key in _refreshing:
+            return
+        _refreshing.add(key)
+
+    def run():
+        try:
+            work()
+        except Exception as e:
+            print(f'株価履歴の裏更新エラー {key}: {e}')
+        finally:
+            with _refreshing_lock:
+                _refreshing.discard(key)
+
+    threading.Thread(target=run, daemon=True, name=f'price-refresh-{key}').start()
+
+
+def _call_with_deadline(func, seconds):
+    """funcをseconds以内に終わらせる。超えたら諦めて None を返す。
+
+    スレッドは止められないので走り続けるが、**リクエストは返る**。
+    worker が gunicorn のタイムアウトで殺されるのを防ぐのが目的。
+    """
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as _Timeout
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(func)
+        try:
+            return future.result(timeout=seconds)
+        except _Timeout:
+            return None
+    finally:
+        # 走り続けているスレッドの完了は待たない（待つと意味が無い）
+        executor.shutdown(wait=False)
+
+
+def get_daily(company_code, max_age_days=2):
+    """日足を返す。
+
+    保存済みがあれば**古くてもすぐ返し**、取り直しは裏で行う。
+    未取得の銘柄だけ、上限つきでその場で取りに行く。
+
+    以前は古いというだけでその場で取りに行っており、Yahooが遅いと
+    リクエストが何十秒も返らなかった。本番は worker 1本なので、
+    それが120秒を超えると worker ごと落ちてアプリ全体が 503 になる。
+    """
+    stored = get_stored(company_code)
+    cached = (stored or {}).get('daily_1y')
+
+    if cached:
+        if _is_stale((stored or {}).get('daily_updated_at'), max_age_days):
+            _refresh_in_background(f'daily:{company_code}',
+                                   lambda: _fetch_and_save_daily(company_code))
+        return cached
+
+    # 保存が無い＝出すものが何も無いので、ここだけ待つ（上限つき）
+    rows = _call_with_deadline(
+        lambda: _fetch_and_save_daily(company_code), FETCH_TIMEOUT_SECONDS)
+    return rows or []
+
+
+def _fetch_and_save_daily(company_code):
     rows = fetch_ohlc(to_symbol(company_code), period='1y')
     if rows:
         try:
             save_daily(company_code, rows)
         except Exception as e:
             print(f'日足の保存エラー {company_code}: {e}')
-        return rows
-
-    # 取得に失敗したら、古くても保存済みがあればそれを返す
-    return (stored or {}).get('daily_1y') or []
+    return rows
 
 
 def get_long_term(company_code, granularity, max_age_days=7):
-    """週足/月足を返す。未取得または古い場合は10年分を取得して間引き保存する。"""
+    """週足/月足を返す。日足と同じく、保存済みを優先して裏で取り直す。
+
+    長期足は10年分を取ってから週足・月足に間引くので、日足より重い。
+    その場で待たせると 503 の原因になりやすい。
+    """
     column = 'weekly_10y' if granularity == 'weekly' else 'monthly_10y'
 
     stored = get_stored(company_code)
-    if stored and stored.get(column) and not _is_stale(stored.get('long_term_updated_at'), max_age_days):
-        return stored[column]
+    cached = (stored or {}).get(column)
 
+    if cached:
+        if _is_stale((stored or {}).get('long_term_updated_at'), max_age_days):
+            _refresh_in_background(f'long:{company_code}',
+                                   lambda: _fetch_and_save_long_term(company_code))
+        return cached
+
+    result = _call_with_deadline(
+        lambda: _fetch_and_save_long_term(company_code), FETCH_TIMEOUT_SECONDS)
+    if result:
+        return result[0] if granularity == 'weekly' else result[1]
+    return []
+
+
+def _fetch_and_save_long_term(company_code):
+    """10年分を取って週足・月足に間引き保存する。(weekly, monthly) を返す。"""
     daily = fetch_ohlc(to_symbol(company_code), period='10y')
-    if daily:
-        weekly = downsample(daily, 'weekly')
-        monthly = downsample(daily, 'monthly')
-        try:
-            save_long_term(company_code, weekly, monthly)
-        except Exception as e:
-            print(f'長期足の保存エラー {company_code}: {e}')
-        return weekly if granularity == 'weekly' else monthly
-
-    return (stored or {}).get(column) or []
+    if not daily:
+        return None
+    weekly = downsample(daily, 'weekly')
+    monthly = downsample(daily, 'monthly')
+    try:
+        save_long_term(company_code, weekly, monthly)
+    except Exception as e:
+        print(f'長期足の保存エラー {company_code}: {e}')
+    return weekly, monthly

@@ -1153,9 +1153,12 @@
                 <span class="chart-legend-item"><i style="background:#4a7fb5;"></i>陰線</span>
             </div>
             <div class="chart-legend" id="chartLegendCompare" style="display:none;"></div>
+            <!-- 最初の読み込みだけ回るものが無く、止まって見えていた
+                 （期間を切り替えたときは既にスピナーが出る）。
+                 銘柄によっては取得に時間がかかるので、動きで進行中を示す。 -->
             <div class="chart-placeholder" id="tradingview-chart-container" style="margin-top: 10px; position: relative;">
                 <div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;">
-                    チャートデータを読み込み中...
+                    <span class="demo-loading-spinner-sm" style="margin-right:8px;"></span>チャートデータを読み込み中...
                 </div>
             </div>
             <div class="chart-compare-summary" id="chartCompareSummary" style="display:none;"></div>
@@ -2637,10 +2640,16 @@
             element.textContent = value || '--';
             element.className = 'score-item-status';
         } else {
-            // 不合格の印に「−」を使うと、値の前に付いたマイナス符号に読める
+            // 基準を満たさない項目に記号は付けない。
+            //
+            // もともと「−」を使っていたが、値の前に付いたマイナス符号に読めた
             // （ROA 3.9% が「− 3.9%」＝マイナス3.9%と誤読された）。
-            // 符号に見えない記号を使う。search.html と同じ「✗」にそろえる。
-            element.textContent = pass ? `✓ ${value}` : `✗ ${value}`;
+            // いったん「✗」にしたが、これはこれで不合格を強く突きつける印象で、
+            // 「賢くなった」が見えるアプリの見せ方に合わない（2026-08-14 五島さん）。
+            //
+            // 満たした項目だけ「✓」を付け、満たさない項目は値だけを薄い色で出す。
+            // 色（pass=緑 / fail=グレー）で区別が付き、記号は要らない。
+            element.textContent = pass ? `✓ ${value}` : `${value}`;
             element.className = 'score-item-status ' + (pass ? 'pass' : 'fail');
         }
     }
