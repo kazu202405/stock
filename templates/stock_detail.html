@@ -1010,14 +1010,14 @@
                     <div class="metric-label">配当利回り</div>
                     <div class="metric-value">---</div>
                     <div class="metric-sub"></div>
-                    <!-- 「予想」ではなく「実績」であることを明示する。
-                         この値は直近12か月に実際に支払われた配当÷株価で、
-                         決算期をまたぐことがある（期末配当＋翌期の中間配当）。
-                         会社予想の年間配当から出す一般的な予想利回りとは
-                         別物なので、書かないと高く見えて誤解を招く。
+                    <!-- 「予想」と「実績」は別物なので、どちらの数字かを必ず出す。
+                         実績＝直近12か月に実際に支払われた配当÷株価。決算期を
+                         またぐため、期末配当と翌期の中間配当が重なった年は
+                         実態より高く出る（367A: 実績6.18% / 予想4.24%）。
                          ラベル本文は updateMetric() が要素の探索キーに
                          使っているため変えない。注記を別要素で足す。 -->
-                    <div style="font-size:10px; color:#a3a3a3; margin-top:4px; line-height:1.4;">直近12か月の実績</div>
+                    <div id="dividend-basis-note"
+                         style="font-size:10px; color:#a3a3a3; margin-top:4px; line-height:1.4;"></div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-label">時価総額</div>
@@ -2772,6 +2772,41 @@
         return rows[0] && rows[0].value !== undefined ? rows[0].value : null;
     }
 
+    /**
+     * カードに出す配当利回りと、それが何の数字かを決める。
+     *
+     * 予想（直近配当の年換算）を主に出す。日本で「配当利回り」として
+     * 見慣れているのは予想ベースで、他社サイトの表示とも一致するため。
+     * 予想が無い銘柄は実績を出す。どちらを出しているかは必ず注記する。
+     */
+    function dividendForDisplay(data) {
+        const forward = data.dividend_yield_forward;
+        const trailing = resolvedDividendYield(data);
+        if (forward !== null && forward !== undefined) {
+            return { value: forward, basis: 'forward', trailing: trailing,
+                     dpsForecast: data.dps_forecast };
+        }
+        return { value: trailing, basis: 'trailing', trailing: trailing };
+    }
+
+    function updateDividendBasisNote(info) {
+        const note = document.getElementById('dividend-basis-note');
+        if (!note) return;
+        if (info.value === null || info.value === undefined) {
+            note.textContent = '';
+            return;
+        }
+        if (info.basis === 'forward') {
+            const dps = (info.dpsForecast !== null && info.dpsForecast !== undefined)
+                ? `年${formatNumber(info.dpsForecast)}円・` : '';
+            const trailing = (info.trailing !== null && info.trailing !== undefined)
+                ? ` ／ 実績 ${formatNumber(info.trailing)}%` : '';
+            note.textContent = `予想（${dps}直近配当の年換算）${trailing}`;
+        } else {
+            note.textContent = '直近12か月の実績';
+        }
+    }
+
     function resolvedDividendYield(data) {
         if (data.dividend_yield !== null && data.dividend_yield !== undefined) {
             return data.dividend_yield;
@@ -2831,7 +2866,10 @@
 
         updateMetric('per', data.per_forward, '倍', 'PER', cachedSector);
         updateMetric('pbr', data.pbr, '倍', 'PBR', cachedSector);
-        updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', cachedSector);
+        // 予想を主に出し、何の数字かを注記する（予想と実績は別物）
+        const dividendInfo = dividendForDisplay(data);
+        updateMetric('dividend-yield', dividendInfo.value, '%', '配当利回り', cachedSector);
+        updateDividendBasisNote(dividendInfo);
         if (data.market_cap) {
             updateMetric('market-cap', data.market_cap * 1e8, 'JPY', '時価総額', cachedSector);
         }
@@ -3053,7 +3091,10 @@
         updateMetric('op-margin', data.op_margin_pct, '%', '営業利益率', industryForPER);
         updateMetric('per', data.per, '倍', 'PER', industryForPER);
         updateMetric('pbr', data.pbr, '倍', 'PBR', industryForPER);
-        updateMetric('dividend-yield', resolvedDividendYield(data), '%', '配当利回り', industryForPER);
+        // 予想を主に出し、何の数字かを注記する（予想と実績は別物）
+        const dividendInfoScreened = dividendForDisplay(data);
+        updateMetric('dividend-yield', dividendInfoScreened.value, '%', '配当利回り', industryForPER);
+        updateDividendBasisNote(dividendInfoScreened);
         updateMetric('market-cap', data.market_cap, window.currentCurrency, '時価総額', industryForPER);
         updateCompanyDates(data);
 

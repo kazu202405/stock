@@ -815,6 +815,9 @@ def api_add_to_watchlist():
                 'per_forward': stock_data.get('per'),
                 'pbr': stock_data.get('pbr'),
                 'dividend_yield': stock_data.get('dividend_yield'),
+                # 実績とは別物。予想＝直近配当の年換算（migration_forward_dividend.sql）
+                'dps_forecast': stock_data.get('dps_forecast'),
+                'dividend_yield_forward': stock_data.get('dividend_yield_forward'),
                 'eps': eps,
                 'dps': dps,
                 'payout_ratio': payout_ratio,
@@ -1347,6 +1350,9 @@ def _save_analysis_to_screened(symbol, stock_data):
         'per_forward': stock_data.get('per'),
         'pbr': stock_data.get('pbr'),
         'dividend_yield': stock_data.get('dividend_yield'),
+        # 実績とは別物。予想＝直近配当の年換算（migration_forward_dividend.sql）
+        'dps_forecast': stock_data.get('dps_forecast'),
+        'dividend_yield_forward': stock_data.get('dividend_yield_forward'),
         'eps': eps,
         'dps': dps,
         'payout_ratio': payout_ratio,
@@ -1485,6 +1491,9 @@ def _analyze_stock_and_save(analyzer, company_code):
         'per_forward': stock_data.get('per'),
         'pbr': stock_data.get('pbr'),
         'dividend_yield': stock_data.get('dividend_yield'),
+        # 実績とは別物。予想＝直近配当の年換算（migration_forward_dividend.sql）
+        'dps_forecast': stock_data.get('dps_forecast'),
+        'dividend_yield_forward': stock_data.get('dividend_yield_forward'),
         'eps': get_latest_value(stock_data.get('eps')),
         # 配当は進行中の年度を拾わない（中間配当だけで年間配当に見えるため）
         'dps': get_latest_completed_value(stock_data.get('dps')),
@@ -1532,7 +1541,7 @@ def _analyze_stock_and_save(analyzer, company_code):
 
 # migrationを適用する前でも分析・保存が止まらないようにするための、
 # 「まだ無い列」の一覧。列が来たら自動でまた書き始める。
-_MIGRATION_PENDING_COLUMNS = {'fiscal_month'}
+_MIGRATION_PENDING_COLUMNS = {'fiscal_month', 'dps_forecast', 'dividend_yield_forward'}
 _missing_columns = set()
 
 
@@ -1554,7 +1563,9 @@ def _save_screened_tolerating_new_columns(screened_data):
             raise
         _missing_columns.update(dropped)
         print(f'[migration未適用] {", ".join(sorted(dropped))} 列が無いため'
-              f'除外して保存します。supabase/migration_fiscal_month.sql を適用してください。')
+              f'除外して保存します。supabase/ の該当migrationを適用してください'
+              f'（fiscal_month → migration_fiscal_month.sql ／'
+              f' dps_forecast・dividend_yield_forward → migration_forward_dividend.sql）。')
 
     upsert_screened_data_with_match_rate(
         {k: v for k, v in payload.items() if k not in _missing_columns})
@@ -3508,6 +3519,11 @@ FREE_SCREENED_FIELDS = {
     'company_code', 'company_name', 'sector', 'industry_jp', 'market_segment',
     'stock_price', 'market_cap', 'per_forward', 'pbr', 'equity_ratio',
     'operating_margin', 'dividend_yield',
+    # 予想利回りも無料側に置く。実績だけを返すと、非会員には決算期をまたいで
+    # 高く出た数字（367A: 6.18%）しか見えず、一番誤解を招く値だけが公開される。
+    # 深さとしては実績利回りと同じ「銘柄の基本情報」であり、会社予想の
+    # 売上・利益（会員限定）とは別物。
+    'dps_forecast', 'dividend_yield_forward',
     'business_summary', 'business_summary_jp',
     'established', 'listing_date', 'ceo_name', 'headquarters', 'market',
     'data_status', 'data_source', 'source_status',

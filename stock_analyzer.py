@@ -145,6 +145,63 @@ def extract_yahoo_forecast_data(page_html: str) -> Dict[str, Any]:
     }
 
 
+# 予想配当が「確定した年度の配当」から離れてよい倍率。
+# これを外れたら、増配・減配ではなく単位や分割調整の取り違えを疑う。
+# 2026-08-12 の事故（4918: 実際15円のところ150円＝10倍）はこの範囲で落ちる。
+FORWARD_DPS_MIN_RATIO = 0.2
+FORWARD_DPS_MAX_RATIO = 5.0
+
+# 予想利回りとして採ってよい上限(%)。StockAnalyzer.MAX_DIVIDEND_YIELD と同じ値。
+MAX_FORWARD_DIVIDEND_YIELD = 20.0
+
+
+def forward_dividend_yield(dps_forecast, price, confirmed_dps=None):
+    """予想配当利回り(%)を出す。信用できない値は None を返す。
+
+    **利回りは Yahoo の利回り値を使わず、必ずここで計算する。**
+      - Yahoo の利回りは提供元によって小数だったり%だったりする
+        （yfinance は 4.24、yahooquery は 0.0424）。単位を推測する分岐が
+        2026-08-12 の「利回り47%」事故の原因だった。配当額（円）には
+        この曖昧さが無いので、額から自分で割れば推測が要らない
+      - 画面に出る株価・予想配当・利回りが互いに検算できる状態になる
+        （Yahooの利回りはYahoo側の株価基準なので、当社表示の株価と合わない）
+
+    検証:
+      1. 利回りが現実的な範囲か（0% 超 MAX 以下）
+      2. 確定した年度の配当と桁が合っているか。増配・減配では説明の
+         つかない乖離は、分割調整漏れ等を疑って捨てる
+
+    無配（予想配当が0）は 0.0 ではなく None。「配当を出していない」と
+    「利回りが0%」は別物で、0.0 だと配当実施企業と見分けがつかない
+    （実績利回り _trailing_dividend_yield と同じ扱い）。
+    """
+    try:
+        if dps_forecast is None or price is None:
+            return None
+        dps_forecast = float(dps_forecast)
+        price = float(price)
+    except (TypeError, ValueError):
+        return None
+
+    if price <= 0 or dps_forecast <= 0:
+        return None
+
+    if confirmed_dps:
+        try:
+            confirmed = float(confirmed_dps)
+        except (TypeError, ValueError):
+            confirmed = 0
+        if confirmed > 0:
+            ratio = dps_forecast / confirmed
+            if not (FORWARD_DPS_MIN_RATIO <= ratio <= FORWARD_DPS_MAX_RATIO):
+                return None
+
+    value = (dps_forecast / price) * 100
+    if value > MAX_FORWARD_DIVIDEND_YIELD:
+        return None
+    return round(value, 4)
+
+
 class StockAnalyzer:
     """株式データ分析クラス"""
 
@@ -188,7 +245,9 @@ class StockAnalyzer:
             "last_price": None,
             "per": None,
             "pbr": None,
-            "dividend_yield": None,
+            "dividend_yield": None,      # 実績（直近12か月に支払われた配当÷株価）
+            "dps_forecast": None,        # 予想1株配当（円・年換算）
+            "dividend_yield_forward": None,  # 予想利回り(%)
             "equity_ratio_pct": None,
             "op_margin_pct": None,
             "operating_cash_flow": None,
@@ -264,6 +323,10 @@ class StockAnalyzer:
             # EPS・BPSが揃った後にPER/PBRを補う。
             # Yahooのinfoが返さなかった銘柄でも、割り算で出せる場合がある。
             self._fill_missing_multiples(result)
+
+            # 予想配当利回り。5年分の配当が揃ってから計算する
+            # （確定した決算年度の配当と桁が合うかを検証に使うため）。
+            self._fill_forward_dividend(result)
 
             # ROE/ROA計算（正確な計算）
             self._calculate_roe_roa(ticker, result)
@@ -447,6 +510,15 @@ class StockAnalyzer:
                 if raw_yield is not None and 0 <= raw_yield <= self.MAX_DIVIDEND_YIELD:
                     result["dividend_yield"] = raw_yield
 
+            # 予想配当（年換算）。実績とは別の列に持ち、画面でも別物として出す。
+            # 実績は決算期をまたぐため、期末配当と翌期の中間配当が重なった年は
+            # 実態より高く出る（367A: 実績6.18% / 予想4.24%）。
+            #
+            # dividendRate は「円」で来るので単位の曖昧さが無い。利回り自体は
+            # 5年分の配当が揃ってから _fill_forward_dividend() で計算する
+            # （確定年度の配当と突き合わせて検証するため）。
+            result["dps_forecast"] = info.get('dividendRate')
+
             # 追加情報
             result["current_liabilities"] = info.get('totalCurrentLiabilities')
             result["cash_and_equivalents"] = info.get('totalCash')
@@ -468,6 +540,30 @@ class StockAnalyzer:
         if result["dividend_yield"] is None:
             result["dividend_yield"] = self._trailing_dividend_yield(
                 ticker, result.get("last_price"))
+
+    def _fill_forward_dividend(self, result: Dict[str, Any]):
+        """予想配当利回りを計算して入れる。信用できなければ None のままにする。
+
+        検証に「確定した決算年度の年間配当」を使うので、5年分の配当
+        （result["dps"]）が揃ってから呼ぶこと。dps は決算年度ごとの合計で、
+        進行中の年度は中間配当までしか入っていないため対象から外す。
+        """
+        confirmed_dps = None
+        today = datetime.now().strftime('%Y-%m-%d')
+        for row in sorted(result.get("dps") or [],
+                          key=lambda x: str(x.get('date', '')), reverse=True):
+            if str(row.get('date', '')) <= today:
+                confirmed_dps = row.get('value')
+                break
+
+        result["dividend_yield_forward"] = forward_dividend_yield(
+            result.get("dps_forecast"), result.get("last_price"), confirmed_dps)
+
+        if result.get("dps_forecast") and result["dividend_yield_forward"] is None:
+            # 捨てたことを記録に残す。黙って None にすると、後から
+            # 「取れなかった」のか「弾いた」のか分からなくなる。
+            print(f"  予想配当を採用しませんでした: rate={result.get('dps_forecast')}, "
+                  f"price={result.get('last_price')}, 確定年度の配当={confirmed_dps}")
 
     def _trailing_dividend_yield(self, ticker: yf.Ticker, price):
         """直近12か月に実際に支払われた配当 ÷ 株価 × 100。

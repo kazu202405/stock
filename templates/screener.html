@@ -324,7 +324,11 @@
                             <th class="scr-th scr-th-sortable sortable" data-sort="operating_margin">営業利益率 <i class="fas fa-sort"></i></th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="per">PER <i class="fas fa-sort"></i></th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="pbr">PBR <i class="fas fa-sort"></i></th>
-                            <th class="scr-th scr-th-sortable sortable" data-sort="dividend_yield">配当利回り <i class="fas fa-sort"></i></th>
+                            <!-- この列は実績（直近12か月に支払われた配当÷株価）。
+                                 銘柄ページは予想を主に出すので、どちらの数字かを
+                                 書かないと開いた瞬間に値が変わったように見える。
+                                 並べ替えキーは data-sort なので表示文字は変えてよい。 -->
+                            <th class="scr-th scr-th-sortable sortable" data-sort="dividend_yield">配当利回り(実績) <i class="fas fa-sort"></i></th>
                             <th class="scr-th">アクション</th>
                         </tr>
                     </thead>
