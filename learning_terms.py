@@ -33,6 +33,10 @@ LEARNING_TERMS = (
     ('golden_cross', 'technical'),
     ('dead_cross', 'technical'),
     ('dca', 'strategy'),
+    # 用語解説②（指標を分解して読む）。既存の roa は「ROAとは何か」、
+    # roa_breakdown は「利益率 × 回転率に分けて読む」で役割を分けている。
+    ('roa_breakdown', 'decompose'),
+    ('roe', 'decompose'),
 )
 
 TERM_IDS = frozenset(term_id for term_id, _ in LEARNING_TERMS)
@@ -40,6 +44,7 @@ TERM_IDS = frozenset(term_id for term_id, _ in LEARNING_TERMS)
 CATEGORY_IDS = (
     'scale', 'safety', 'growth', 'profitability',
     'cashflow', 'valuation', 'technical', 'strategy',
+    'decompose',
 )
 
 
