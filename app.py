@@ -3577,22 +3577,49 @@ def _holders_retry_allowed(source_status):
     return datetime.now(timezone.utc) - last >= timedelta(hours=hours)
 
 
-@app.route('/api/stock/holders-officers/<company_code>', methods=['POST'])
-def api_fetch_holders_officers(company_code):
-    """主要株主・役員を、その銘柄が実際に見られたときだけ取りに行く。
+def _officers_are_useful(officers):
+    """役員データが「経営陣が株主か」を見るのに使えるか。
 
-    全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
-    3,879銘柄中25件しか埋まっていなかった。EDINET DBのFree枠は100回/日で
-    全銘柄を埋めるには到底足りないので、閲覧された銘柄に枠を使う。
+    使えると言えるのは、持株数が入っているか、少なくとも日本語の氏名が
+    あって大株主リストと突き合わせられる場合。yfinance が返す
+    「Mr. Hideo Misawa」だけの行はどちらも満たさない。
+    """
+    if not officers:
+        return False
+    if isinstance(officers, str):
+        try:
+            officers = json.loads(officers)
+        except (TypeError, ValueError):
+            return False
+    for row in officers or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get('shares') is not None:
+            return True
+        name = str(row.get('name_jp') or row.get('name') or '')
+        # 日本語（ひらがな・カタカナ・漢字）が入っていれば名寄せに使える
+        if any('぀' <= ch <= 'ヿ' or '一' <= ch <= '鿿'
+               for ch in name):
+            return True
+    return False
 
-    画面はキャッシュで先に描画され、この呼び出しは後追いで走る。
+
+def fetch_and_store_holders_officers(company_code):
+    """主要株主・役員を取りに行き、screened_latest に保存する。
+
+    閲覧時のオンデマンド取得（/api/stock/holders-officers）と、
+    夜間のバックフィル（scheduled_backfill_holders_officers）の両方から呼ぶ。
+    **処理を1本にしておく**。片方だけ直すと、画面から見たときと夜間で
+    保存される内容が変わる。
+
+    Returns: (dict, HTTPステータス)
     """
     from datetime import datetime, timezone
 
     code = normalize_code(company_code)
     symbol = normalize_analysis_symbol(code)
     if not symbol.endswith('.T'):
-        return jsonify({"status": "skipped", "reason": "日本株のみ対応"}), 200
+        return {"status": "skipped", "reason": "日本株のみ対応"}, 200
 
     existing = get_screened_data(code) or {}
 
@@ -3604,13 +3631,13 @@ def api_fetch_holders_officers(company_code):
         return bool(value)
 
     if _has('major_shareholders_jp') and _has('company_officers'):
-        return jsonify({"status": "cached"}), 200
+        return {"status": "cached"}, 200
 
     if not _holders_retry_allowed(existing.get('source_status')):
-        return jsonify({
+        return {
             "status": "cooldown",
             "reason": "前回の取得から間隔を空けています",
-        }), 200
+        }, 200
 
     result = {'source_status': {}}
     analyzer = StockAnalyzer()
@@ -3627,6 +3654,17 @@ def api_fetch_holders_officers(company_code):
         if apply_official_profile_fallback(symbol, result):
             sources.append('会社公式開示（確認済みキャッシュ）')
 
+        # yfinance の役員は「Mr. Hideo Misawa」のように英語名だけで、
+        # 役職も持株数も入らないことがある。それが埋まっていると
+        # apply_edinet_db_fallback が「役員は取得済み」と判断して
+        # EDINET DB を呼ばず、**持株数のある役員データが永久に入らない**。
+        # 役員の持株数は「経営陣が株主か」を見るための中心的な材料なので、
+        # 使えない役員データは一旦どけて、EDINET DB に取りに行かせる。
+        weak_officers = None
+        if result.get('company_officers') and not _officers_are_useful(
+                result.get('company_officers')):
+            weak_officers = result.pop('company_officers')
+
         # 片方だけ取れた場合も、欠けている方はEDINET DBで補う。
         # apply_edinet_db_fallback は欠損しているカテゴリだけ呼ぶので、
         # 揃っている項目のために無料枠を使うことはない。
@@ -3635,6 +3673,12 @@ def api_fetch_holders_officers(company_code):
             if apply_edinet_db_fallback(
                     symbol, result, categories={'major_shareholders', 'directors'}):
                 sources.append('EDINET DB')
+
+        # EDINET DB でも取れなかったら、どけた分を戻す。
+        # 使えないデータでも「役員が誰か」は分かるので、消すよりはよい。
+        if weak_officers and not result.get('company_officers'):
+            result['company_officers'] = weak_officers
+
         return True   # 最後まで走ったことの印（時間切れなら None が返る）
 
     # 画面のリクエストの中で外部（Yahoo・EDINET DB）を待つので、上限を付ける。
@@ -3702,14 +3746,26 @@ def api_fetch_holders_officers(company_code):
         update_screened_data(code, update)
     except Exception as e:
         print(f'株主・役員の保存エラー {code}: {e}')
-        return jsonify({"status": "error", "reason": "保存に失敗しました"}), 500
+        return {"status": "error", "reason": "保存に失敗しました"}, 500
 
-    return jsonify({
-        "status": "fetched" if got_any else "no_data",
+    return {
+        "status": "fetched" if got_any else ("timeout" if timed_out else "no_data"),
         "major_shareholders_jp": shareholders or [],
         "company_officers": _convert_timestamps(officers) if officers else [],
         "source": ' + '.join(sources) if sources else None,
-    }), 200
+    }, 200
+
+
+@app.route('/api/stock/holders-officers/<company_code>', methods=['POST'])
+def api_fetch_holders_officers(company_code):
+    """銘柄ページを開いたときの後追い取得。
+
+    全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
+    EDINET DBのFree枠（100回/日）を閲覧された銘柄に優先して使う設計。
+    画面はキャッシュで先に描画され、この呼び出しは後追いで走る。
+    """
+    payload, status = fetch_and_store_holders_officers(company_code)
+    return jsonify(payload), status
 
 
 @app.route('/api/stock/valuation-history/<company_code>', methods=['GET'])
@@ -4310,6 +4366,98 @@ def scheduled_enqueue_earnings():
         print(f"[Scheduler] 決算検知エラー: {e}")
 
 
+# 株主・役員のバックフィルで狙う銘柄の条件。
+#
+# 「経営陣が株主か」を見たいのは**オーナー系の中小型株**。プライムの
+# 大型株は大株主が信託銀行ばかりで、この指標に意味が無い
+# （6632 JVCケンウッド: 上位5社すべて信託・カストディ銀行）。
+# 全3,879銘柄を追うと無料枠では130日かかるが、ここに絞れば1,872銘柄。
+HOLDERS_BACKFILL_SEGMENTS = ('スタンダード', 'グロース')
+HOLDERS_BACKFILL_MAX_MARKET_CAP = 300     # 億円
+
+# 1回の実行に許す最大秒数。定期実行はリクエストのスレッドを掴まないが、
+# 際限なく走らせると翌朝の株価更新と重なる。
+HOLDERS_BACKFILL_TIME_BUDGET = 20 * 60
+
+# EDINET DB の残り予算がこれ以下になったら止める。
+# **翌日の閲覧のために残す**のではなく、当日のうちに誰かが銘柄ページを
+# 開いたときのため（予算は日付で切り替わる）。
+HOLDERS_BACKFILL_STOP_AT_REMAINING = 6
+
+
+def scheduled_backfill_holders_officers():
+    """定期実行: 株主・役員が空の銘柄を、その日の**残り予算**で埋める。
+
+    枠を固定で分け合わない理由:
+      EDINET DB の無料枠は100回/日。バックフィルに固定枠を与えると
+      「誰も見ていないのに枠が余る」日と「見たいのに枠が無い」日が
+      両方起きる。**日中は閲覧に使い切ってよく、夜に残りをまとめて使う**
+      形にすれば、閲覧が枯渇することが構造的に起きない。
+
+    1銘柄あたり3リクエスト（検索・役員・大株主）なので、丸ごと余った日で
+    30銘柄前後。対象1,872銘柄なら2〜3か月で埋まる。無料枠の制約であり、
+    どう組んでも短縮できない。
+    """
+    from datetime import datetime
+    import time as _time
+
+    started = _time.time()
+    print(f"[Scheduler] 株主・役員バックフィル開始: {datetime.now()}")
+
+    try:
+        from edinet_db_client import EdinetDbClient
+        budget = EdinetDbClient().budget_snapshot()
+        print(f"[Scheduler] EDINET予算: {budget}")
+    except Exception as e:
+        print(f"[Scheduler] EDINET予算の確認に失敗: {e}")
+        return
+
+    try:
+        client = get_supabase_client()
+        # 役員・大株主のどちらかが空の銘柄を、対象の市場・規模だけ拾う
+        rows = []
+        for segment in HOLDERS_BACKFILL_SEGMENTS:
+            res = (client.table('screened_latest')
+                   .select('company_code, company_name, market_cap')
+                   .eq('market_segment', segment)
+                   .is_('company_officers', 'null')
+                   .lt('market_cap', HOLDERS_BACKFILL_MAX_MARKET_CAP)
+                   .order('market_cap', desc=True)
+                   .limit(500)
+                   .execute())
+            rows.extend(res.data or [])
+    except Exception as e:
+        print(f"[Scheduler] 対象銘柄の取得に失敗: {e}")
+        return
+
+    print(f"[Scheduler] 未取得の対象: {len(rows)}銘柄")
+
+    done, skipped, stopped = 0, 0, None
+    for row in rows:
+        if _time.time() - started > HOLDERS_BACKFILL_TIME_BUDGET:
+            stopped = '時間切れ'
+            break
+        try:
+            from edinet_db_client import EdinetDbClient
+            remaining = EdinetDbClient().budget_snapshot().get('remaining_remote')
+            if remaining is not None and remaining <= HOLDERS_BACKFILL_STOP_AT_REMAINING:
+                stopped = f'残り予算{remaining}'
+                break
+
+            payload, _ = fetch_and_store_holders_officers(row['company_code'])
+            if payload.get('status') == 'fetched':
+                done += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            skipped += 1
+            print(f"[Scheduler] {row['company_code']} で失敗: {e}")
+
+    elapsed = int(_time.time() - started)
+    print(f"[Scheduler] 株主・役員バックフィル終了: 取得{done}件 / 取れず{skipped}件"
+          f" / {elapsed}秒" + (f" / 中断={stopped}" if stopped else ""))
+
+
 def scheduled_update_stock_prices():
     """定期実行: screened_latest全銘柄の株価を更新する"""
     from datetime import datetime
@@ -4389,6 +4537,12 @@ scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='ea
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
+
+# 株主・役員のバックフィルは23:00。
+# **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
+# 朝に回すと、閲覧より先にバックフィルが枠を取ってしまう。
+scheduler.add_job(scheduled_backfill_holders_officers, 'cron', hour=23, minute=0,
+                  id='holders_backfill')
 
 # スケジューラは1プロセスでのみ起動させる。
 # ENABLE_SCHEDULER=false にすると起動しない（将来worker側へcronを分離する際に、
