@@ -3709,10 +3709,20 @@ def fetch_and_store_holders_officers(company_code):
     # 片方だけの銘柄を success にすると、欠けている側が再取得されなくなる。
     filled = ([k for k, v in (('major_shareholders_jp', shareholders),
                               ('company_officers', officers)) if v])
+    # EDINET DB が予算切れ・レート制限で答えられなかったのか、
+    # 本当に未収録なのかを見分ける。**ここを一緒くたにすると事故になる。**
+    # 2026-08-15 の初回バックフィルで、予算を使い切ったあとの979銘柄を
+    # no_data として記録し、30日のクールダウンに入れてしまった。
+    edinet_status = ((result.get('source_status') or {}).get('edinet_db') or {}).get('status')
+    budget_hit = edinet_status in ('budget_reserved', 'rate_limited')
+
     if len(filled) == 2:
         status = 'success'
     elif filled:
         status = 'partial'
+    elif budget_hit:
+        # 取りに行けなかっただけ。次の機会にすぐ再試行させる
+        status = edinet_status
     elif timed_out:
         # 時間切れは「どこにも載っていない」とは違う。no_data にすると
         # 長いクールダウンに入り、実際は取れる銘柄が取れないまま固定される。
@@ -3750,7 +3760,7 @@ def fetch_and_store_holders_officers(company_code):
         return {"status": "error", "reason": "保存に失敗しました"}, 500
 
     return {
-        "status": "fetched" if got_any else ("timeout" if timed_out else "no_data"),
+        "status": ('fetched' if got_any else status),
         "major_shareholders_jp": shareholders or [],
         "company_officers": _convert_timestamps(officers) if officers else [],
         "source": ' + '.join(sources) if sources else None,
@@ -4439,15 +4449,24 @@ def scheduled_backfill_holders_officers():
             stopped = '時間切れ'
             break
         try:
-            from edinet_db_client import EdinetDbClient
-            remaining = EdinetDbClient().budget_snapshot().get('remaining_remote')
+            # **必ず共有クライアントを見る。** EdinetDbClient() を新しく作ると
+            # 使用数も残数も初期値に戻り、予算切れの判定が一度も働かない
+            # （初回に1000銘柄を走り切って979件を no_data にした原因）。
+            from edinet_db_client import get_edinet_db_client
+            snap = get_edinet_db_client().budget_snapshot()
+            remaining = snap.get('remaining_remote')
             if remaining is not None and remaining <= HOLDERS_BACKFILL_STOP_AT_REMAINING:
                 stopped = f'残り予算{remaining}'
                 break
 
             payload, _ = fetch_and_store_holders_officers(row['company_code'])
-            if payload.get('status') == 'fetched':
+            st = payload.get('status')
+            if st == 'fetched':
                 done += 1
+            elif st in ('budget_reserved', 'rate_limited'):
+                # 残数が返らない提供元でも、ここで確実に止まる
+                stopped = f'予算切れ（{st}）'
+                break
             else:
                 skipped += 1
         except Exception as e:
