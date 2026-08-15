@@ -97,7 +97,56 @@
 
       <template x-if="!loading && !error && stocks.length">
         <div>
-          <div class="en-table-wrap">
+          <!-- 表 / カード の切り替え。データは同じものを使うので取得は増えない -->
+          <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+            <div class="tv-toggle">
+              <button type="button" class="tv-toggle-btn" :class="{ 'is-on': view === 'table' }"
+                      @click="setView('table')"><i class="fas fa-table-list"></i> 表</button>
+              <button type="button" class="tv-toggle-btn" :class="{ 'is-on': view === 'card' }"
+                      @click="setView('card')"><i class="fas fa-grip"></i> カード</button>
+            </div>
+          </div>
+
+          <!-- カード表示。左: 株価相当が無いので時価総額 / PER / ROE、
+               右: PBR / 自己資本比率 に合わせている（この画面のデータに株価が無い） -->
+          <div x-show="view === 'card'" x-cloak class="tv-cards">
+            <template x-for="s in stocks" :key="'c-' + s.company_code">
+              <div class="tv-card">
+                <div class="tv-card-head">
+                  <div style="min-width:0;">
+                    <a class="tv-card-title" :href="'/stock/' + s.company_code"
+                       x-text="s.company_name || '---'"></a>
+                    <div class="tv-card-sub"
+                         x-text="[s.company_code, s.industry_jp || s.sector].filter(Boolean).join(' / ')"></div>
+                  </div>
+                </div>
+                <div class="tv-card-grid">
+                  <div class="tv-card-cell">
+                    <div class="tv-card-label">時価総額</div>
+                    <div class="tv-card-value" x-text="fmtOku(s.market_cap)"></div>
+                  </div>
+                  <div class="tv-card-cell">
+                    <div class="tv-card-label">PER</div>
+                    <div class="tv-card-value" x-text="fmtNum(s.per_forward, '倍')"></div>
+                  </div>
+                  <div class="tv-card-cell">
+                    <div class="tv-card-label">PBR</div>
+                    <div class="tv-card-value" x-text="fmtNum(s.pbr, '倍')"></div>
+                  </div>
+                  <div class="tv-card-cell">
+                    <div class="tv-card-label">ROE</div>
+                    <div class="tv-card-value" x-text="fmtNum(s.roe, '%')"></div>
+                  </div>
+                  <div class="tv-card-cell">
+                    <div class="tv-card-label">自己資本比率</div>
+                    <div class="tv-card-value" x-text="fmtNum(s.equity_ratio, '%')"></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="en-table-wrap tv-scroll" x-show="view === 'table'">
             <table class="en-table">
               <thead>
                 <tr>
@@ -245,6 +294,9 @@ function earningsPage() {
   return {
     selectedMonth: null,
     stocks: [],
+    // 'table' か 'card'。選んだ表示は覚えておく（共通部品 table-view.js）
+    view: TableView.isCard('earnings') ? 'card' : 'table',
+    setView(v) { this.view = v; TableView.setView('earnings', v); },
     total: 0,
     page: 1,
     totalPages: 0,

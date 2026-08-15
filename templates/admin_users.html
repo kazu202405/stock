@@ -80,8 +80,58 @@
         </div>
 
         <!-- テーブル -->
-        <div class="bg-white rounded-xl overflow-hidden" style="border: 1px solid #ebebeb;">
-            <div class="overflow-x-auto admin-table-scroll">
+        <!-- 表 / カード の切り替え。データは同じものを使うので取得は増えない -->
+        <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+            <div class="tv-toggle">
+                <button type="button" class="tv-toggle-btn" :class="{ 'is-on': view === 'table' }"
+                        @click="setView('table')"><i class="fas fa-table-list"></i> 表</button>
+                <button type="button" class="tv-toggle-btn" :class="{ 'is-on': view === 'card' }"
+                        @click="setView('card')"><i class="fas fa-grip"></i> カード</button>
+            </div>
+        </div>
+
+        <!-- カード表示。銘柄一覧と違い、ここは人の情報なので項目もそれに合わせる -->
+        <div x-show="view === 'card'" x-cloak class="tv-cards">
+            <template x-for="user in filteredUsers" :key="'c-' + user.id">
+                <div class="tv-card">
+                    <div class="tv-card-head">
+                        <div style="min-width:0;">
+                            <div class="tv-card-title" x-text="user.name"></div>
+                            <div class="tv-card-sub" x-text="user.email"></div>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded" style="background:#f3f3f1; color:#525252; white-space:nowrap;"
+                              x-text="roleLabel(user.role)"></span>
+                    </div>
+                    <div class="tv-card-grid">
+                        <div class="tv-card-cell">
+                            <div class="tv-card-label">紹介コード</div>
+                            <div class="tv-card-value" style="font-size:12px;" x-text="user.referral_code || '---'"></div>
+                        </div>
+                        <div class="tv-card-cell">
+                            <div class="tv-card-label">紹介者</div>
+                            <div class="tv-card-value" style="font-size:12px;" x-text="getReferrerName(user.referred_by) || '---'"></div>
+                        </div>
+                        <div class="tv-card-cell" style="grid-column: 1 / -1;">
+                            <div class="tv-card-label">登録日</div>
+                            <div class="tv-card-value" style="font-size:12px;" x-text="formatDate(user.created_at)"></div>
+                        </div>
+                    </div>
+                    <div class="tv-card-actions">
+                        <select :value="user.role"
+                                @change="changeRole(user.id, $event.target.value, $event.target)"
+                                class="text-xs rounded px-2 py-1" style="border: 1px solid #ebebeb; color: #525252; outline: none;">
+                            <option value="user">一般</option>
+                            <option value="agent">代理店</option>
+                            <option value="admin">管理者</option>
+                        </select>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div x-show="view === 'table'"
+             class="bg-white rounded-xl overflow-hidden" style="border: 1px solid #ebebeb;">
+            <div class="overflow-x-auto admin-table-scroll tv-scroll">
                 <table class="w-full admin-table">
                     <thead>
                         <tr style="background: #fafaf8; border-bottom: 1px solid #ebebeb;">
@@ -223,6 +273,9 @@ function adminUsers() {
     return {
         users: [],
         activeTab: 'list',
+        // 'table' か 'card'。選んだ表示は覚えておく（共通部品 table-view.js）
+        view: TableView.isCard('admin-users') ? 'card' : 'table',
+        setView(v) { this.view = v; TableView.setView('admin-users', v); },
         roleFilter: '',
         searchQuery: '',
         notification: '',

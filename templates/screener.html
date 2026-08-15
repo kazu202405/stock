@@ -375,8 +375,11 @@
             ※ <span style="color:#b45309; font-weight:700;">オレンジ色のスコア</span>は、データ充足度100%未満の暫定評価です。
         </p>
 
+        <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+        <div id="favViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
+        <div id="favCards"></div>
         <div id="tableContainer" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto tv-scroll">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -1091,6 +1094,15 @@
     }
 
     // ===== お気に入り（従来ロジックを維持） =====
+    // 表 / カード の切り替えボタン。押されたら同じ描画経路をもう一度通す。
+    document.addEventListener('DOMContentLoaded', function () {
+        TableView.mountToggle({
+            key: 'screener-favorite',
+            mount: '#favViewToolbar',
+            onChange: () => renderFavorites(),
+        });
+    });
+
     let favorites = [];
     let favoritesLoaded = false;
     let sortColumn = '';
@@ -1163,9 +1175,36 @@
         if (favorites.length === 0) {
             emptyState.classList.remove('hidden');
             tableContainer.classList.add('hidden');
+            document.getElementById('favCards').innerHTML = '';
             return;
         }
         emptyState.classList.add('hidden');
+
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        const cardBox = document.getElementById('favCards');
+        if (TableView.isCard('screener-favorite')) {
+            tableContainer.classList.add('hidden');
+            cardBox.innerHTML = TableView.cards(favorites, {
+                title: (r) => r.company_name || '---',
+                href: (r) => '/stock/' + r.company_code,
+                sub: (r) => [r.company_code, r.industry_jp || r.sector].filter(Boolean).join(' / '),
+                badge: (r) => `<span class="scr-match ${getMatchRateClass(r)}" title="${getMatchRateTitle(r)}">`
+                    + (r.match_rate != null ? r.match_rate : '---') + '</span>',
+                // 左: 株価 / PER / 配当利回り ／ 右: 時価総額 / PBR / 自己資本比率
+                // （この画面のデータに配当性向が無いため、代わりに自己資本比率）
+                metrics: [
+                    { key: 'stock_price',      label: '株価',        value: (r) => formatWatchlistPrice(r.stock_price) },
+                    { key: 'market_cap',       label: '時価総額',     value: (r) => formatMarketCapOku(r.market_cap) },
+                    { key: 'per_forward',      label: 'PER',         value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
+                    { key: 'pbr',              label: 'PBR',         value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
+                    { key: 'dividend_yield',   label: '配当利回り',   value: (r) => r.dividend_yield ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                    { key: 'equity_ratio',     label: '自己資本比率', value: (r) => r.equity_ratio != null ? r.equity_ratio + '%' : '---' },
+                ],
+                actions: (r) => `<button onclick="removeFavorite('${r.company_code}')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><i class="fas fa-trash-alt mr-1"></i>削除</button>`,
+            });
+            return;
+        }
+        cardBox.innerHTML = '';
         tableContainer.classList.remove('hidden');
 
         let html = '';
