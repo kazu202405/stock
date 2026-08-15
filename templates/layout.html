@@ -217,6 +217,15 @@
 
     <!-- Chart.jsのCDNを追加 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!--
+      横に広い表をスマホで読めるようにする共通部品。
+      1列目の固定・幅の上限・カード表示をここにまとめてある。
+      画面ごとに書くと、直すときも画面の数だけ直すことになる。
+      CSSはTailwindより後に読み込む（同じ強さなら後勝ちのため）。
+    -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/table-view.css') }}">
+    <script src="{{ url_for('static', filename='js/table-view.js') }}"></script>
 </head>
 
 <body class="min-h-screen" style="background: #f7f7f5;">
