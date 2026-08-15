@@ -2589,6 +2589,25 @@
         return v >= 50 ? 'metric-good' : v >= 30 ? 'metric-warning' : 'metric-danger';
     }
 
+    // 時価総額の色分け。**市場によって線を変える。**
+    //
+    // 100億という線は東証プライムの流通株式時価総額の基準。プライムでは
+    // 該当が0.7%しかなく、当てはまれば本当に上場維持が危ない強い合図になる。
+    // 一方スタンダード・グロースの基準は10億・40億なので、100億は
+    // その市場では普通の規模。全市場に100億を当てると該当が36.7%になり、
+    // 「その市場では普通」の会社まで警告してしまう（実データで確認）。
+    //
+    //   プライム              100億以下 → 黄
+    //   スタンダード・グロース   50億以下 → 黄   （全体で22.9%）
+    //
+    // 市場が取れない銘柄は狭い方（50億）に寄せる。警告を出しすぎない。
+    function toneMarketCap(r) {
+        const v = r.market_cap;
+        if (v == null) return null;
+        const line = (r.market_segment === 'プライム') ? 100 : 50;
+        return v <= line ? 'mid' : null;
+    }
+
     // 自己資本比率の色分け。40以上は色を付けない。
     // 高すぎるのは「安全だが資本を使えていない」ということでもあり、
     // 良し悪しが一方向に決まらないため（2026-08-15 五島さん）。
@@ -2634,7 +2653,7 @@
             //   （⚠️ スコアは700億以下を合格としており、ここだけ向きが逆になる）。
             metrics: [
                 { key: 'market_cap',     label: '時価総額',        value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---',
-                  tone: (r) => (r.market_cap != null && r.market_cap <= 100) ? 'mid' : null },
+                  tone: (r) => toneMarketCap(r) },
                 { key: 'equity_ratio',   label: '自己資本比率',    value: (r) => r.equity_ratio != null ? Number(r.equity_ratio).toFixed(1) + '%' : '---',
                   tone: (r) => toneEquity(r.equity_ratio) },
                 { key: 'per_forward',    label: 'PER',            value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---',

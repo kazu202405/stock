@@ -862,7 +862,7 @@
                 // しきい値の根拠は stock.html の stockCardConfig に書いてある。
                 return [
                     { key: 'market_cap',     label: '時価総額',        format: (v) => this.fmtOku(v),
-                      tone: (r) => (r.market_cap != null && r.market_cap <= 100) ? 'mid' : null },
+                      tone: (r) => this.toneMarketCap(r) },
                     { key: 'equity_ratio',   label: '自己資本比率',    format: pct,
                       tone: (r) => this.toneEquity(r.equity_ratio) },
                     { key: 'per_forward',    label: 'PER',            format: (v) => this.fmtMultiple(v),
@@ -1017,6 +1017,14 @@
             },
 
             // カードの色分け。判定はダッシュボードと同じ形にそろえる。
+            // 時価総額は市場によって線を変える（根拠は stock.html の toneMarketCap）。
+            //   プライム 100億以下 / スタンダード・グロース 50億以下
+            toneMarketCap(r) {
+                const v = r.market_cap;
+                if (v == null) return null;
+                const line = (r.market_segment === 'プライム') ? 100 : 50;
+                return v <= line ? 'mid' : null;
+            },
             toneEquity(v) {
                 if (v == null) return null;
                 if (v < 30) return 'low';
