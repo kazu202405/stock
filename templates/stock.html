@@ -2589,15 +2589,21 @@
         return v >= 50 ? 'metric-good' : v >= 30 ? 'metric-warning' : 'metric-danger';
     }
 
-    // 大きいほど良い指標の色分け（自己資本比率など）
-    function toneHigher(v, good, mid) {
+    // 自己資本比率の色分け。40以上は色を付けない。
+    // 高すぎるのは「安全だが資本を使えていない」ということでもあり、
+    // 良し悪しが一方向に決まらないため（2026-08-15 五島さん）。
+    function toneEquity(v) {
         if (v == null) return null;
-        return v >= good ? 'good' : v >= mid ? 'mid' : 'low';
+        if (v < 30) return 'low';
+        if (v < 40) return 'mid';
+        return null;
     }
-    // 小さいほど良い指標の色分け（PER・PBR）
-    function toneLower(v, good, mid) {
+    // 小さいほど良い指標（PER・PBR）。okLine以下は色なし、
+    // warnLine未満まで黄、それ以上は赤。
+    function toneLower(v, okLine, warnLine) {
         if (v == null || v <= 0) return null;
-        return v <= good ? 'good' : v <= mid ? 'mid' : 'low';
+        if (v < okLine) return null;
+        return v < warnLine ? 'mid' : 'low';
     }
 
     function stockCardConfig(extra) {
@@ -2610,25 +2616,35 @@
             price: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '',
             badge: (r) => `<span class="${getMatchRateClass(r.match_rate)}" style="font-weight:700;">`
                 + (r.match_rate != null ? r.match_rate : '---') + '</span>',
-            // tone は「基準を満たしているか」の色分け。
-            // **しきい値はアプリに既にあるものだけを使う。**
-            //   自己資本比率 50/30 … スクリーナーの pill と同じ
-            //   PER 15/30・PBR 1/2  … ダッシュボードの表と同じ（低いほど良い）
-            //   配当利回り 3%       … スクリーナーの「高配当」プリセットと同じ線
-            //   配当性向 100%超     … 利益以上に配当しているという事実だけを示す
-            //   時価総額            … 大小に優劣が無いので色を付けない
+            // tone は「基準を満たしているか」の色分け（2026-08-15 五島さんと確定）。
+            //
+            // **赤はスコアの不合格ラインと一致させる。** 色とスコアが食い違うと
+            // 「赤なのに合格」が起きて説明できなくなる。
+            //   自己資本比率 30未満  … スコアの合格ラインが30以上
+            //   PER 40以上          … スコアの合格ラインが40倍未満
+            //   PBR 10以上          … スコアの合格ラインが10倍未満
+            //
+            // 自己資本比率は40以上に色を付けない。高すぎるのは安全だが
+            // 資本を使えていないということでもあり、良し悪しが一方向に決まらない。
+            // 配当利回りは3%以上だけ緑（スクリーナーの「高配当」と同じ線）。
+            // 2〜3%に黄は付けない。黄は他の指標で「注意」の意味に使っており、
+            // 平均的な利回りに注意色を当てると意味が濁る。
+            // 配当性向は85%以上の赤だけ。黄は作らない。
+            // 時価総額100億以下は黄。上場廃止基準に近づく規模のため
+            //   （⚠️ スコアは700億以下を合格としており、ここだけ向きが逆になる）。
             metrics: [
-                { key: 'market_cap',     label: '時価総額',        value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---' },
+                { key: 'market_cap',     label: '時価総額',        value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---',
+                  tone: (r) => (r.market_cap != null && r.market_cap <= 100) ? 'mid' : null },
                 { key: 'equity_ratio',   label: '自己資本比率',    value: (r) => r.equity_ratio != null ? Number(r.equity_ratio).toFixed(1) + '%' : '---',
-                  tone: (r) => toneHigher(r.equity_ratio, 50, 30) },
+                  tone: (r) => toneEquity(r.equity_ratio) },
                 { key: 'per_forward',    label: 'PER',            value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---',
-                  tone: (r) => toneLower(r.per_forward, 15, 30) },
+                  tone: (r) => toneLower(r.per_forward, 30, 40) },
                 { key: 'pbr',            label: 'PBR',            value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---',
-                  tone: (r) => toneLower(r.pbr, 1, 2) },
+                  tone: (r) => toneLower(r.pbr, 3, 10) },
                 { key: 'dividend_yield', label: '配当利回り(実績)', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---',
                   tone: (r) => (r.dividend_yield != null && r.dividend_yield >= 3) ? 'good' : null },
                 { key: 'payout_ratio',   label: '配当性向',        value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---',
-                  tone: (r) => (r.payout_ratio != null && r.payout_ratio > 100) ? 'mid' : null },
+                  tone: (r) => (r.payout_ratio != null && r.payout_ratio >= 85) ? 'low' : null },
             ],
         }, extra || {});
     }

@@ -180,16 +180,31 @@
     margin-top: 1px;
 }
 /*
-  基準を満たしているかで色を変える。色はスクリーナーの pill と同じ
-  （画面によって緑の意味が違うと読み手が混乱するため）。
+  基準を満たしているかでマスごと色を変える。
 
-  **基準は新しく作らない。** アプリに既にあるものだけを使う。
-  勝手なしきい値で色を付けると、スコアの合否と食い違って
-  「緑なのに不合格」が起きる。
+  濃さは「並べ替え中のセル」と同じ**ごく薄い背景＋細い枠線**にそろえる。
+  ベタ塗りにすると画面が色で埋まり、「色が付いている＝注目」という
+  合図そのものが働かなくなる（実画面で見比べて確認済み）。
+
+  is-sorted より後に書く。両方に当てはまるセルでは、
+  「並べ替え中」より「基準を満たしているか」を優先して見せる。
 */
 .tv-card-value.tv-good { color: #15803d; }
 .tv-card-value.tv-mid  { color: #a16207; }
 .tv-card-value.tv-low  { color: #b91c1c; }
+
+.tv-card-cell.tone-good {
+    background: #f0fdf4;
+    box-shadow: inset 0 0 0 1px #bbf7d0;
+}
+.tv-card-cell.tone-mid {
+    background: #fefce8;
+    box-shadow: inset 0 0 0 1px #fde68a;
+}
+.tv-card-cell.tone-low {
+    background: #fef2f2;
+    box-shadow: inset 0 0 0 1px #fecaca;
+}
 .tv-card-note {
     font-size: 11px;
     color: #737373;

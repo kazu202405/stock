@@ -236,7 +236,8 @@
                     <!-- 項目の位置は固定する。並べ替え中のものは色で示す。 -->
                     <div class="tv-card-grid">
                         <template x-for="m in cardMetrics()" :key="m.key">
-                            <div class="tv-card-cell" :class="{ 'is-sorted': m.key === sort }">
+                            <div class="tv-card-cell"
+                                 :class="[m.key === sort ? 'is-sorted' : '', m.tone && m.tone(row) ? 'tone-' + m.tone(row) : '']">
                                 <div class="tv-card-label" x-text="m.label"></div>
                                 <div class="tv-card-value"
                                      :class="m.tone ? 'tv-' + (m.tone(row) || '') : ''"
@@ -856,21 +857,22 @@
             cardMetrics() {
                 const pct = (v) => this.fmtPct(v);
                 const pct2 = (v) => this.fmtPct(v, 2);
-                // tone は「基準を満たしているか」の色分け。
-                // **しきい値はこの画面に既にあるものを使う**（表の pill と同じ）。
-                // 時価総額は大小に優劣が無いので色を付けない。
+                // tone は「基準を満たしているか」の色分け（ダッシュボードと同一）。
+                // **赤はスコアの不合格ラインと一致させる。**
+                // しきい値の根拠は stock.html の stockCardConfig に書いてある。
                 return [
-                    { key: 'market_cap',     label: '時価総額',        format: (v) => this.fmtOku(v) },
+                    { key: 'market_cap',     label: '時価総額',        format: (v) => this.fmtOku(v),
+                      tone: (r) => (r.market_cap != null && r.market_cap <= 100) ? 'mid' : null },
                     { key: 'equity_ratio',   label: '自己資本比率',    format: pct,
-                      tone: (r) => this.toneHigher(r.equity_ratio, 50, 30) },
+                      tone: (r) => this.toneEquity(r.equity_ratio) },
                     { key: 'per_forward',    label: 'PER',            format: (v) => this.fmtMultiple(v),
-                      tone: (r) => this.toneLower(r.per_forward, 15, 30) },
+                      tone: (r) => this.toneLower(r.per_forward, 30, 40) },
                     { key: 'pbr',            label: 'PBR',            format: (v) => this.fmtMultiple(v, 2),
-                      tone: (r) => this.toneLower(r.pbr, 1, 2) },
+                      tone: (r) => this.toneLower(r.pbr, 3, 10) },
                     { key: 'dividend_yield', label: '配当利回り(実績)', format: pct2,
                       tone: (r) => (r.dividend_yield != null && r.dividend_yield >= 3) ? 'good' : null },
                     { key: 'payout_ratio',   label: '配当性向',        format: pct,
-                      tone: (r) => (r.payout_ratio != null && r.payout_ratio > 100) ? 'mid' : null },
+                      tone: (r) => (r.payout_ratio != null && r.payout_ratio >= 85) ? 'low' : null },
                 ];
             },
 
@@ -1014,15 +1016,17 @@
                 return v >= good ? 'pill-good' : v >= mid ? 'pill-mid' : 'pill-low';
             },
 
-            // カードの数字の色分け。pillClass と同じ考え方を、
-            // 背景ではなく文字色で使う。
-            toneHigher(v, good, mid) {
+            // カードの色分け。判定はダッシュボードと同じ形にそろえる。
+            toneEquity(v) {
                 if (v == null) return null;
-                return v >= good ? 'good' : v >= mid ? 'mid' : 'low';
+                if (v < 30) return 'low';
+                if (v < 40) return 'mid';
+                return null;   // 40以上は色なし（高すぎは資本を使えていないとも言える）
             },
-            toneLower(v, good, mid) {
+            toneLower(v, okLine, warnLine) {
                 if (v == null || v <= 0) return null;
-                return v <= good ? 'good' : v <= mid ? 'mid' : 'low';
+                if (v < okLine) return null;
+                return v < warnLine ? 'mid' : 'low';
             },
         };
     }

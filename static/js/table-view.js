@@ -160,7 +160,8 @@ window.TableView = (function () {
                 // しきい値は各画面が持つ既存の判定をそのまま渡す。
                 var tone = m.tone ? m.tone(row) : null;
                 var toneClass = tone ? ' tv-' + tone : '';
-                html += '<div class="tv-card-cell' + (on ? ' is-sorted' : '') + '">' +
+                html += '<div class="tv-card-cell' + (on ? ' is-sorted' : '') +
+                    (tone ? ' tone-' + tone : '') + '">' +
                     '<div class="tv-card-label">' + escapeHtml(m.label) + '</div>' +
                     '<div class="tv-card-value' + toneClass + '">' + (m.value(row) === null || m.value(row) === undefined
                         ? '---' : m.value(row)) + '</div></div>';
