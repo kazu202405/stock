@@ -424,6 +424,16 @@
       背景色を必ず指定する。透明のままだと、下に流れてくる他の列が
       名前の上に重なって読めなくなる。
     */
+    /*
+      Tailwind の base が table に border-collapse: collapse を当てている。
+      **この状態では th/td の position: sticky が効かないブラウザがある**
+      （セルの位置をテーブルが決めてしまうため）。separate に戻し、
+      罫線が二重にならないよう border-spacing を 0 にする。
+    */
+    .overflow-x-auto > table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
     .overflow-x-auto > table th:first-child,
     .overflow-x-auto > table td:first-child {
         position: sticky;
@@ -444,15 +454,8 @@
         background: #f9fafb;
     }
 
-    /*
-      スマホでは事業内容の説明を出さない。
-      セルは nowrap なので折り返されず、説明文がそのまま1行に伸びて
-      銘柄名の列が340px近くを占めていた。375pxの画面では指標が
-      ほぼ画面外から始まることになる。事業内容は銘柄ページで読める。
-    */
-    @media (max-width: 640px) {
-        .scr-summary { display: none; }
-    }
+    /* スマホ向けの調整はこのファイルの末尾にまとめている
+       （後ろに書かないと、あとから来る同じ強さの指定に上書きされるため） */
 
     /* ===== 表 / カードの切り替え ===== */
     .scr-view-toggle {
@@ -781,6 +784,46 @@
     }
     .scr-page-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
     .scr-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* =========================================================
+       スマホ向けの調整（必ずファイルの末尾に置く）
+       ここより前に書くと、あとから来る同じ強さの指定に上書きされる。
+       実際 .scr-summary の非表示を前方に書いていて効いておらず、
+       説明文が出たままになっていた。
+       ========================================================= */
+    @media (max-width: 640px) {
+        /*
+          事業内容の説明を出さない。セルは white-space: nowrap なので
+          折り返されず、説明文がそのまま1行に伸びる。
+        */
+        .scr-summary { display: none; }
+
+        /*
+          銘柄名の列に幅の上限を置く。
+
+          **これが無いと横スクロールが効かなくなる。** 1列目は
+          position: sticky で固定しているので、その列が表示幅より
+          広いと画面全体を覆い続け、右へスクロールしても何も現れない
+          （実測: 表示幅314pxに対して1列目372px）。長い社名でも
+          必ず表示幅より狭くなるよう上限を決め、はみ出す分は
+          「…」で省略する。
+        */
+        .overflow-x-auto > table th:first-child,
+        .overflow-x-auto > table td:first-child {
+            max-width: 42vw;
+        }
+        .scr-name-link {
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: bottom;
+        }
+
+        /* カードは1行3指標だと窮屈なので2列にする */
+        .scr-card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
 </style>
 
 <script>
