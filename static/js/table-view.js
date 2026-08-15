@@ -131,6 +131,9 @@ window.TableView = (function () {
             var href = config.href ? config.href(row) : null;
             var sub = config.sub ? config.sub(row) : '';
             var badge = config.badge ? config.badge(row) : null;
+            // 会社名とスコアの間は元々空いている。株価は一番よく見る数字なので
+            // 指標のマス目に埋もれさせず、ここに出す（config.price）。
+            var price = config.price ? config.price(row) : null;
             var note = config.note ? config.note(row) : '';
             var actions = config.actions ? config.actions(row) : '';
 
@@ -141,8 +144,13 @@ window.TableView = (function () {
                 : '<div class="tv-card-title">' + escapeHtml(title) + '</div>';
             if (sub) html += '<div class="tv-card-sub">' + escapeHtml(sub) + '</div>';
             html += '</div>';
-            // バッジは呼び出し側がHTMLを作る（スコアの色分け等があるため）
-            if (badge) html += badge;
+            if (price || badge) {
+                html += '<div class="tv-card-head-right">';
+                if (price) html += '<span class="tv-card-price">' + escapeHtml(price) + '</span>';
+                // バッジは呼び出し側がHTMLを作る（スコアの色分け等があるため）
+                if (badge) html += badge;
+                html += '</div>';
+            }
             html += '</div>';
 
             html += '<div class="tv-card-grid">';

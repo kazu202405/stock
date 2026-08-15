@@ -2578,15 +2578,18 @@
             title: (r) => r.company_name || '---',
             href: (r) => '/stock/' + String(r.company_code || '').replace('.T', ''),
             sub: (r) => [r.company_code, r.sector].filter(Boolean).join(' / '),
+            // 株価は会社名とスコアの間へ。一番よく見る数字なので
+            // 指標のマス目に埋もれさせない（スクリーナーと同じ形）。
+            price: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '',
             badge: (r) => `<span class="${getMatchRateClass(r.match_rate)}" style="font-weight:700;">`
                 + (r.match_rate != null ? r.match_rate : '---') + '</span>',
             metrics: [
-                { key: 'stock_price',    label: '株価',      value: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '---' },
-                { key: 'market_cap',     label: '時価総額',   value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---' },
-                { key: 'per_forward',    label: 'PER',       value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
-                { key: 'pbr',            label: 'PBR',       value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
-                { key: 'dividend_yield', label: '配当利回り', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
-                { key: 'payout_ratio',   label: '配当性向',   value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---' },
+                { key: 'market_cap',     label: '時価総額',        value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---' },
+                { key: 'equity_ratio',   label: '自己資本比率',    value: (r) => r.equity_ratio != null ? Number(r.equity_ratio).toFixed(1) + '%' : '---' },
+                { key: 'per_forward',    label: 'PER',            value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
+                { key: 'pbr',            label: 'PBR',            value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
+                { key: 'dividend_yield', label: '配当利回り(実績)', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                { key: 'payout_ratio',   label: '配当性向',        value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---' },
             ],
         }, extra || {});
     }
