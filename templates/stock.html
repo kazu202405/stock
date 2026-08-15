@@ -830,6 +830,8 @@
                     <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">スコア再計算</button>
                 </div>
             </div>
+            <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+            <div id="watchlistViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="watchlistContent">
                 <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
             </div>
@@ -940,6 +942,8 @@
                     <button class="gc-fetch-btn" onclick="stopDivAnalyze()" id="divStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                 </div>
             </div>
+            <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+            <div id="dividendViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="dividendContent">
                 <div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>
             </div>
@@ -1481,6 +1485,14 @@
         const shown = shownCount('watchlist');
         const pageRows = list.slice(0, shown);
 
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        if (TableView.isCard('dashboard-watchlist')) {
+            content.innerHTML = TableView.cards(pageRows, stockCardConfig({
+                sortKey: currentSort.key,
+            })) + moreRowsHtml('watchlist', shown, list.length);
+            return;
+        }
+
         const sortIcon = (key) => {
             if (currentSort.key !== key) return '<span class="sort-icon">▲▼</span>';
             return currentSort.asc
@@ -1489,6 +1501,7 @@
         };
 
         let html = `
+            <div class="tv-scroll">
             <table class="watchlist-table">
                 <thead>
                     <tr>
@@ -1545,7 +1558,7 @@
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
 
         html += moreRowsHtml('watchlist', shown, list.length);
 
@@ -2108,26 +2121,10 @@
         // スマホでは表を横に振るより1社ずつ読む方が早い場面がある。
         // 表示の切り替えは共通部品（static/js/table-view.js）に集約している。
         if (TableView.isCard('dashboard-favorite')) {
-            content.innerHTML = TableView.cards(list.slice(0, shownCount('favorite')), {
-                title: (r) => r.company_name || '---',
-                href: (r) => '/stock/' + String(r.company_code || '').replace('.T', ''),
-                sub: (r) => [r.company_code, r.sector].filter(Boolean).join(' / '),
-                badge: (r) => `<span class="${getMatchRateClass(r.match_rate)}" style="font-weight:700;">`
-                    + (r.match_rate != null ? r.match_rate : '---') + '</span>',
+            content.innerHTML = TableView.cards(list.slice(0, shownCount('favorite')), stockCardConfig({
                 sortKey: favSort.key,
-                // 2列に流れるので「左1・右1・左2・右2・左3・右3」の順で渡す。
-                //   左: 株価 / PER / 配当利回り
-                //   右: 時価総額 / PBR / 配当性向
-                metrics: [
-                    { key: 'stock_price',    label: '株価',      value: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '---' },
-                    { key: 'market_cap',     label: '時価総額',   value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---' },
-                    { key: 'per_forward',    label: 'PER',       value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
-                    { key: 'pbr',            label: 'PBR',       value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
-                    { key: 'dividend_yield', label: '配当利回り', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
-                    { key: 'payout_ratio',   label: '配当性向',   value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---' },
-                ],
                 actions: (r) => `<button class="delete-btn" onclick="removeFavoriteStock('${r.company_code}')">解除</button>`,
-            }) + moreRowsHtml('favorite', shownCount('favorite'), list.length);
+            })) + moreRowsHtml('favorite', shownCount('favorite'), list.length);
             return;
         }
 
@@ -2332,7 +2329,16 @@
             return;
         }
 
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        if (TableView.isCard('dashboard-dividend')) {
+            content.innerHTML = TableView.cards(list.slice(0, shownCount('dividend')), stockCardConfig({
+                sortKey: divSort.key,
+            })) + moreRowsHtml('dividend', shownCount('dividend'), list.length);
+            return;
+        }
+
         let html = `
+            <div class="tv-scroll">
             <table class="watchlist-table">
                 <thead>
                     <tr>
@@ -2389,7 +2395,7 @@
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         html += moreRowsHtml('dividend', _shown, list.length);
         content.innerHTML = html;
     }
@@ -2556,6 +2562,35 @@
      * 代わりにクロス回数を出す。5日/25日線は揉み合いで何度も交差するため、
      * 「何回目のクロスか」はこの画面では意味のある数字になる。
      */
+    /**
+     * 銘柄一覧のカード設定（お気に入り・ウォッチリスト・高配当で共通）。
+     *
+     * 2列に流れるので「左1・右1・左2・右2…」の順で渡す。
+     *   左: 株価 / PER / 配当利回り
+     *   右: 時価総額 / PBR / 配当性向
+     * 位置を固定しているのは、位置で覚えられる方が読みやすいため
+     * （2026-08-15 五島さん）。並べ替え中の項目は色で示す。
+     *
+     * extra で sortKey や actions（解除ボタン等）を足す。
+     */
+    function stockCardConfig(extra) {
+        return Object.assign({
+            title: (r) => r.company_name || '---',
+            href: (r) => '/stock/' + String(r.company_code || '').replace('.T', ''),
+            sub: (r) => [r.company_code, r.sector].filter(Boolean).join(' / '),
+            badge: (r) => `<span class="${getMatchRateClass(r.match_rate)}" style="font-weight:700;">`
+                + (r.match_rate != null ? r.match_rate : '---') + '</span>',
+            metrics: [
+                { key: 'stock_price',    label: '株価',      value: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '---' },
+                { key: 'market_cap',     label: '時価総額',   value: (r) => r.market_cap ? formatMarketCapOku(r.market_cap) : '---' },
+                { key: 'per_forward',    label: 'PER',       value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
+                { key: 'pbr',            label: 'PBR',       value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
+                { key: 'dividend_yield', label: '配当利回り', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                { key: 'payout_ratio',   label: '配当性向',   value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---' },
+            ],
+        }, extra || {});
+    }
+
     // GC / DC / テクニカルの切り替えボタン。押されたら同じ描画経路を
     // もう一度通す（絞り込みや並べ替えの状態を保ったまま表示だけ切り替わる）。
     document.addEventListener('DOMContentLoaded', function () {
@@ -2570,6 +2605,14 @@
         TableView.mountToggle({
             key: 'dashboard-technical', mount: '#technicalViewToolbar',
             onChange: () => applyTechFilters(true),
+        });
+        TableView.mountToggle({
+            key: 'dashboard-watchlist', mount: '#watchlistViewToolbar',
+            onChange: () => applyFilterAndSort(),
+        });
+        TableView.mountToggle({
+            key: 'dashboard-dividend', mount: '#dividendViewToolbar',
+            onChange: () => applyDivFilters(true),
         });
     });
 
