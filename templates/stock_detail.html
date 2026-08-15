@@ -916,8 +916,8 @@
             <button onclick="openNotesModal()" style="padding: 6px 14px; background: white; color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
                 <i class="fas fa-comments" style="margin-right: 4px;"></i>みんなのノート
             </button>
-            <button id="favoriteBtn" onclick="toggleFavorite()" style="padding: 6px 14px; background: white; color: #a3a3a3; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" title="お気に入り">
-                <span id="favoriteBtnText">★ お気に入りに登録</span>
+            <button id="favoriteBtn" onclick="toggleFavorite()" style="padding: 6px 14px; background: white; color: #525252; border: 1px solid #d4d4d4; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" title="お気に入り">
+                <span id="favoriteBtnText">☆ お気に入りに登録</span>
             </button>
         </div>
         {# インラインstyleだと折り返せず、スマホでボタン列がはみ出す。クラスにする #}
@@ -1380,6 +1380,13 @@
         }
     }
 
+    // 登録前と登録後は「記号」で分ける。
+    //
+    // 以前はどちらも塗りつぶしの★で、色だけで区別していた。登録前が
+    // 薄いグレーだったため「もう押した（＝これ以上押せない）」ように
+    // 見えていた（2026-08-15 五島さん）。
+    // ☆＝まだ、★＝登録済み。これは色を見なくても伝わる。
+    // 登録前の文字色も、押せることが分かる濃さにする。
     function updateFavoriteButton() {
         const btn = document.getElementById('favoriteBtn');
         const text = document.getElementById('favoriteBtnText');
@@ -1391,9 +1398,9 @@
             text.textContent = '★ お気に入り登録済';
         } else {
             btn.style.background = 'white';
-            btn.style.color = '#a3a3a3';
-            btn.style.borderColor = 'var(--border-color)';
-            text.textContent = '★ お気に入りに登録';
+            btn.style.color = '#525252';
+            btn.style.borderColor = '#d4d4d4';
+            text.textContent = '☆ お気に入りに登録';
         }
     }
 

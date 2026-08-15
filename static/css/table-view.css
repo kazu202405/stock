@@ -133,9 +133,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/*
+  常に2列。画面幅で列数を変えると項目の位置が動いてしまい、
+  「左の上が株価」のように位置で覚えられなくなる。
+*/
 .tv-card-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
 }
 .tv-card-cell {
@@ -197,8 +201,4 @@
         text-overflow: ellipsis;
     }
 
-    /* カードは1行3項目だと窮屈 */
-    .tv-card-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
 }

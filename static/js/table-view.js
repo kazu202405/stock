@@ -106,20 +106,20 @@ window.TableView = (function () {
     /**
      * カード列のHTMLを組み立てる。
      *
-     * metrics は最大6項目まで出す。並べ替えに使っている項目
-     * （config.sortKey）は先頭に寄せて色を変える。カードは横に
-     * 2〜3項目しか置けないので、いま何で比べているのかが見えないと
-     * 並べ替えの意味が無くなるため。
+     * metrics は**渡された順のまま**最大6項目を出す。並べ替えに使って
+     * いる項目は色だけ変える（config.sortKey）。
+     *
+     * 当初は並べ替え中の項目を先頭へ寄せていたが、それだと項目の位置が
+     * 毎回変わる。カードは2列なので「左の上から株価・PER・配当利回り、
+     * 右の上から時価総額・PBR・配当性向」のように**位置で覚えられる**
+     * 方が読みやすい（2026-08-15 五島さん）。位置は固定し、
+     * いま何で比べているかは色で示す。
+     *
+     * 2列に並ぶので、渡す順は「左1・右1・左2・右2・左3・右3」になる。
      */
     function cards(items, config) {
         if (!items || !items.length) return '';
-        var metrics = (config.metrics || []).slice();
-
-        if (config.sortKey) {
-            var i = metrics.findIndex(function (m) { return m.key === config.sortKey; });
-            if (i > 0) metrics.unshift(metrics.splice(i, 1)[0]);
-        }
-        metrics = metrics.slice(0, 6);
+        var metrics = (config.metrics || []).slice(0, 6);
 
         var html = '<div class="tv-cards">';
         items.forEach(function (row) {
