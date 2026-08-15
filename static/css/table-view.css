@@ -179,6 +179,17 @@
     color: #1a1a1a;
     margin-top: 1px;
 }
+/*
+  基準を満たしているかで色を変える。色はスクリーナーの pill と同じ
+  （画面によって緑の意味が違うと読み手が混乱するため）。
+
+  **基準は新しく作らない。** アプリに既にあるものだけを使う。
+  勝手なしきい値で色を付けると、スコアの合否と食い違って
+  「緑なのに不合格」が起きる。
+*/
+.tv-card-value.tv-good { color: #15803d; }
+.tv-card-value.tv-mid  { color: #a16207; }
+.tv-card-value.tv-low  { color: #b91c1c; }
 .tv-card-note {
     font-size: 11px;
     color: #737373;

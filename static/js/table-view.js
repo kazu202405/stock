@@ -156,9 +156,13 @@ window.TableView = (function () {
             html += '<div class="tv-card-grid">';
             metrics.forEach(function (m) {
                 var on = config.sortKey && m.key === config.sortKey;
+                // 基準を満たしているかで数字の色を変える（m.tone が 'good'|'mid'|'low'）。
+                // しきい値は各画面が持つ既存の判定をそのまま渡す。
+                var tone = m.tone ? m.tone(row) : null;
+                var toneClass = tone ? ' tv-' + tone : '';
                 html += '<div class="tv-card-cell' + (on ? ' is-sorted' : '') + '">' +
                     '<div class="tv-card-label">' + escapeHtml(m.label) + '</div>' +
-                    '<div class="tv-card-value">' + (m.value(row) === null || m.value(row) === undefined
+                    '<div class="tv-card-value' + toneClass + '">' + (m.value(row) === null || m.value(row) === undefined
                         ? '---' : m.value(row)) + '</div></div>';
             });
             html += '</div>';
