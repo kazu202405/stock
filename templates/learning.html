@@ -408,7 +408,7 @@
                         :class="{ 'active': activeTab === 'glossary2' }"
                         @click="activeTab = 'glossary2'">
                     <i class="fas fa-diagram-project" style="font-size: 13px;"></i>
-                    用語解説②
+                    応用編
                 </button>
                 <button class="learning-tab-btn"
                         :class="{ 'active': activeTab === 'sector' }"
@@ -450,6 +450,19 @@
                         </div>
                     </template>
                 </div>
+            </div>
+
+            <!--
+              応用編は用語解説の続き。タブは横に並ぶので、名前だけでは
+              「同格の2冊目」に見えてしまう。前提であることを一行で書く。
+            -->
+            <div x-show="activeTab === 'glossary2'" x-cloak
+                 style="background:#f0fdf4; border-left:3px solid #1b4332; border-radius:8px;
+                        padding:12px 14px; margin-bottom:24px;">
+                <p class="text-sm leading-relaxed" style="color:#525252;">
+                    用語解説で扱った指標を、もう一歩踏み込んで読むところです。
+                    先に用語解説をひととおり見ておくと、話がつながります。
+                </p>
             </div>
 
             <!-- いま開いているタブのカテゴリだけ表示する -->
