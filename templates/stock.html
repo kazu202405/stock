@@ -969,6 +969,8 @@
                     <button class="filter-reset-btn" onclick="resetGCFilters()">リセット</button>
                 </div>
             </div>
+            <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+            <div id="gcViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="gcContent">
                 <div class="watchlist-empty">「取得」ボタンを押してGC銘柄を取得してください</div>
             </div>
@@ -995,6 +997,8 @@
                     <button class="filter-reset-btn" onclick="resetDCFilters()">リセット</button>
                 </div>
             </div>
+            <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+            <div id="dcViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="dcContent">
                 <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
             </div>
@@ -1074,6 +1078,8 @@
                     <button class="gc-fetch-btn" onclick="stopTechAnalyze()" id="techStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                 </div>
             </div>
+            <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
+            <div id="technicalViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="technicalContent">
                 <div class="watchlist-empty">タブを開くとデータを読み込みます</div>
             </div>
@@ -2534,6 +2540,60 @@
         }
     }
 
+    /**
+     * GC/DC/テクニカルのカード設定。3画面で同じものを使う。
+     *
+     * この画面はクロスの日付を見るのが目的なので、GC・DCを先頭行に置く
+     * （2026-08-15 五島さん）。銘柄一覧より1行多い8項目にする。
+     *
+     * 2列に流れるので「左1・右1・左2・右2…」の順で渡す。
+     *   GC形成日 / DC形成日
+     *   株価     / 時価総額
+     *   PER      / PBR
+     *   配当利回り / クロス回数
+     *
+     * 配当性向はこのAPIが返さないので入れない（'---' が並ぶだけになる）。
+     * 代わりにクロス回数を出す。5日/25日線は揉み合いで何度も交差するため、
+     * 「何回目のクロスか」はこの画面では意味のある数字になる。
+     */
+    // GC / DC / テクニカルの切り替えボタン。押されたら同じ描画経路を
+    // もう一度通す（絞り込みや並べ替えの状態を保ったまま表示だけ切り替わる）。
+    document.addEventListener('DOMContentLoaded', function () {
+        TableView.mountToggle({
+            key: 'dashboard-gc', mount: '#gcViewToolbar',
+            onChange: () => renderGcStocks(gcStocksCache, true),
+        });
+        TableView.mountToggle({
+            key: 'dashboard-dc', mount: '#dcViewToolbar',
+            onChange: () => renderDcStocks(dcStocksCache, true),
+        });
+        TableView.mountToggle({
+            key: 'dashboard-technical', mount: '#technicalViewToolbar',
+            onChange: () => applyTechFilters(true),
+        });
+    });
+
+    function crossCardConfig() {
+        return {
+            title: (r) => r.company_name || '---',
+            href: (r) => '/stock/' + String(r.company_code || '').replace('.T', ''),
+            sub: (r) => [r.company_code, r.sector].filter(Boolean).join(' / '),
+            badge: (r) => `<span style="font-weight:700; color:#1b4332;">`
+                + (r.match_rate != null ? r.match_rate : '---') + '</span>',
+            maxMetrics: 8,
+            metrics: [
+                { key: 'gc_date',        label: 'GC形成日',   value: (r) => formatScrapedDate(r.gc_date) },
+                { key: 'dc_date',        label: 'DC形成日',   value: (r) => formatScrapedDate(r.dc_date) },
+                { key: 'stock_price',    label: '株価',       value: (r) => r.stock_price != null ? Number(r.stock_price).toLocaleString() + '円' : '---' },
+                { key: 'market_cap',     label: '時価総額',    value: (r) => r.market_cap != null ? Number(r.market_cap).toLocaleString() + '億' : '---' },
+                { key: 'per',            label: 'PER',        value: (r) => r.per != null ? Number(r.per).toFixed(1) + '倍' : '---' },
+                { key: 'pbr',            label: 'PBR',        value: (r) => r.pbr != null ? Number(r.pbr).toFixed(2) + '倍' : '---' },
+                { key: 'dividend_yield', label: '配当利回り',  value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                { key: 'cross_count',    label: 'クロス回数',  value: (r) => r.cross_count != null ? r.cross_count + '回' : '---' },
+            ],
+        };
+    }
+
     function renderGcStocks(stocks, keepShown) {
         // 再描画（絞り込み・もっと見る）ではキャッシュを上書きしない
         if (stocks !== gcStocksCache) gcStocksCache = stocks;
@@ -2557,7 +2617,15 @@
             return;
         }
 
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        if (TableView.isCard('dashboard-gc')) {
+            content.innerHTML = TableView.cards(stocks.slice(0, shownCount('gc')), crossCardConfig())
+                + moreRowsHtml('gc', shownCount('gc'), stocks.length);
+            return;
+        }
+
         let html = `
+            <div class="tv-scroll">
             <table class="watchlist-table">
                 <thead>
                     <tr>
@@ -2612,7 +2680,7 @@
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         html += moreRowsHtml('gc', _shown, stocks.length);
         content.innerHTML = html;
     }
@@ -2812,7 +2880,15 @@
             return;
         }
 
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        if (TableView.isCard('dashboard-dc')) {
+            content.innerHTML = TableView.cards(stocks.slice(0, shownCount('dc')), crossCardConfig())
+                + moreRowsHtml('dc', shownCount('dc'), stocks.length);
+            return;
+        }
+
         let html = `
+            <div class="tv-scroll">
             <table class="watchlist-table">
                 <thead>
                     <tr>
@@ -2858,7 +2934,7 @@
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         html += moreRowsHtml('dc', _shown, stocks.length);
         content.innerHTML = html;
     }
@@ -2991,7 +3067,15 @@
             return;
         }
 
+        // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
+        if (TableView.isCard('dashboard-technical')) {
+            content.innerHTML = TableView.cards(stocks.slice(0, shownCount('technical')), crossCardConfig())
+                + moreRowsHtml('technical', shownCount('technical'), stocks.length);
+            return;
+        }
+
         let html = `
+            <div class="tv-scroll">
             <table class="watchlist-table">
                 <thead>
                     <tr>
@@ -3052,7 +3136,7 @@
             `;
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         html += moreRowsHtml('technical', _shown, stocks.length);
         content.innerHTML = html;
     }

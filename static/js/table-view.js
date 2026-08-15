@@ -116,10 +116,14 @@ window.TableView = (function () {
      * いま何で比べているかは色で示す。
      *
      * 2列に並ぶので、渡す順は「左1・右1・左2・右2・左3・右3」になる。
+     *
+     * 出す数は画面の目的で変える。銘柄一覧は6項目（3行）が目安だが、
+     * GC/DC の画面はクロスの日付を見るのが目的なので、そこを足して
+     * 8項目（4行）にする。上限は maxMetrics で調整する。
      */
     function cards(items, config) {
         if (!items || !items.length) return '';
-        var metrics = (config.metrics || []).slice(0, 6);
+        var metrics = (config.metrics || []).slice(0, config.maxMetrics || 6);
 
         var html = '<div class="tv-cards">';
         items.forEach(function (row) {
