@@ -1980,6 +1980,13 @@
                     if (value !== null && value !== undefined) {
                         if (label === '時価総額') {
                             valueElem.textContent = formatAmount(value, suffix);
+                        } else if (label === 'PBR') {
+                            // PBRは小数第2位まで固定で出す。
+                            // formatNumber は toLocaleString で末尾の0を落とすため、
+                            // 5.2975 が「5.3倍」になっていた。他の画面
+                            // （スクリーナー・カード表示）は2桁で出しており、
+                            // 同じ銘柄なのに桁数が違って見えていた。
+                            valueElem.textContent = `${Number(value).toFixed(2)}${suffix}`;
                         } else {
                             valueElem.textContent = `${formatNumber(value)}${suffix}`;
                         }

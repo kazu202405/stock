@@ -2287,6 +2287,11 @@
                         if (label === '時価総額') {
                             displayValue = formatAmount(value, suffix);
                             rawValue = value;
+                        } else if (label === 'PBR') {
+                            // PBRは小数第2位まで固定（銘柄ページと桁数をそろえる）。
+                            // formatNumber は末尾の0を落とすため 5.2975 が「5.3」になる。
+                            displayValue = Number(value).toFixed(2);
+                            rawValue = value;
                         } else {
                             displayValue = formatNumber(value);
                             rawValue = value;

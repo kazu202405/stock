@@ -2723,7 +2723,8 @@ SCREEN_COLUMNS = (
     'company_code, company_name, sector, industry_jp, market_segment, '
     'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
-    'dividend_yield, dividend_yield_forward, match_rate, operating_cf, free_cf, '
+    'dividend_yield, dividend_yield_forward, payout_ratio, '
+    'match_rate, operating_cf, free_cf, '
     'forecast_revenue, forecast_op_income, financial_history, cf_history, '
     'analyzed_at, gc_date, dc_date'
 )
