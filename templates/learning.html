@@ -390,7 +390,7 @@
 
     <!-- ヘッダー -->
     <div class="learning-hero">
-        <div class="max-w-3xl mx-auto px-6 py-10" :class="{ 'max-w-3xl': activeTab === 'glossary', 'max-w-7xl': activeTab === 'sector' }">
+        <div class="max-w-3xl mx-auto px-6 py-10" :class="{ 'max-w-3xl': activeTab !== 'sector', 'max-w-7xl': activeTab === 'sector' }">
             <p class="text-xs font-semibold tracking-widest uppercase mb-3" style="color: #16a34a;">Learning Note</p>
             <h1 class="text-2xl font-bold mb-3" style="color: #1a1a1a;">企業を見る目を養う基礎知識</h1>
             <p class="text-sm leading-relaxed" style="color: #737373; max-width: 440px;">
@@ -405,6 +405,12 @@
                     用語解説
                 </button>
                 <button class="learning-tab-btn"
+                        :class="{ 'active': activeTab === 'glossary2' }"
+                        @click="activeTab = 'glossary2'">
+                    <i class="fas fa-diagram-project" style="font-size: 13px;"></i>
+                    用語解説②
+                </button>
+                <button class="learning-tab-btn"
                         :class="{ 'active': activeTab === 'sector' }"
                         @click="activeTab = 'sector'; if (!sectorLoaded) { sectorLoaded = true; }">
                     <i class="fas fa-chart-pie" style="font-size: 13px;"></i>
@@ -414,8 +420,11 @@
         </div>
     </div>
 
-    <!-- ===== 用語解説タブ ===== -->
-    <div x-show="activeTab === 'glossary'" x-data="learningApp()" x-init="loadProgress()">
+    <!-- ===== 用語解説タブ（①と②で中身を共有する） =====
+         カードの開閉・進捗の記録は同じ仕組みなので、
+         コンポーネントは1つのまま、出すカテゴリだけタブで切り替える。 -->
+    <div x-show="activeTab === 'glossary' || activeTab === 'glossary2'"
+         x-data="learningApp()" x-init="loadProgress()">
         <div class="max-w-3xl mx-auto px-6 py-8">
 
             {#
@@ -443,8 +452,8 @@
                 </div>
             </div>
 
-            <!-- 全カテゴリを順に表示 -->
-            <template x-for="(cat, catIdx) in categories" :key="cat.id">
+            <!-- いま開いているタブのカテゴリだけ表示する -->
+            <template x-for="(cat, catIdx) in categoriesFor(activeTab)" :key="cat.id">
                 <div class="mb-12">
                     <!-- カテゴリ見出し -->
                     <div class="mb-5 flex items-start gap-4">
@@ -927,8 +936,10 @@ function learningApp() {
                 id: 'strategy', name: '投資の考え方',
                 description: '企業分析とは別に、知っておきたい投資の基本的な考え方です。感情に流されず、合理的に行動するための知恵を学びます。'
             },
+            // tab を書いた分だけ「用語解説②」に入る。書かなければ「用語解説」。
+            // 難しい話をここに足していけるよう、タブを分けている。
             {
-                id: 'decompose', name: '用語解説② 指標を分解して読む',
+                id: 'decompose', tab: 'glossary2', name: '指標を分解して読む',
                 description: '指標は「高い・低い」で終わらせると、その会社の何が良くて何が課題かが見えません。掛け算に分解すると、同じ数字でも中身がまるで違うことがわかります。ここでは収益性の指標を分解して読む練習をします。'
             },
         ],
@@ -1248,6 +1259,15 @@ function learningApp() {
 
         getTermsByCategory(catId) {
             return this.terms.filter(t => t.category === catId);
+        },
+
+        /**
+         * そのタブに出すカテゴリ。
+         * category に tab を書けば「用語解説②」へ、書かなければ「用語解説」へ。
+         * 難しい話を足すときは tab: 'glossary2' を付けるだけでよい。
+         */
+        categoriesFor(tab) {
+            return this.categories.filter(c => (c.tab || 'glossary') === tab);
         },
 
         toggle(id) {
