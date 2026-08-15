@@ -1546,13 +1546,13 @@
                     <td class="company-name-cell">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
-                    <td>${marketCap}</td>
+                    <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
-                    <td class="${equityRatioClass(item.equity_ratio)}">${equityRatioText(item.equity_ratio)}</td>
-                    <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
-                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
-                    <td>${divYield}</td>
-                    <td>${payoutRatio}</td>
+                    <td class="${toneCell(toneEquity(item.equity_ratio))}">${equityRatioText(item.equity_ratio)}</td>
+                    <td class="${toneCell(toneLower(item.per_forward, 30, 40))}">${per}</td>
+                    <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
+                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
+                    <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
                     ${IS_ADMIN ? `<td><button class="delete-btn" onclick="event.stopPropagation(); removeFromWatchlist('${code}')">削除</button></td>` : ''}
@@ -2178,13 +2178,13 @@
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
-                    <td>${marketCap}</td>
+                    <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
-                    <td class="${equityRatioClass(item.equity_ratio)}">${equityRatioText(item.equity_ratio)}</td>
-                    <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
-                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
-                    <td>${divYield}</td>
-                    <td>${payoutRatio}</td>
+                    <td class="${toneCell(toneEquity(item.equity_ratio))}">${equityRatioText(item.equity_ratio)}</td>
+                    <td class="${toneCell(toneLower(item.per_forward, 30, 40))}">${per}</td>
+                    <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
+                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
+                    <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
                     <td><button class="delete-btn" onclick="removeFavoriteStock('${code}')">解除</button></td>
                 </tr>
             `;
@@ -2389,13 +2389,13 @@
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
-                    <td>${marketCap}</td>
+                    <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
-                    <td class="${equityRatioClass(item.equity_ratio)}">${equityRatioText(item.equity_ratio)}</td>
-                    <td class="${getMetricClass(item.per_forward, 15, 30)}">${per}</td>
-                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
+                    <td class="${toneCell(toneEquity(item.equity_ratio))}">${equityRatioText(item.equity_ratio)}</td>
+                    <td class="${toneCell(toneLower(item.per_forward, 30, 40))}">${per}</td>
+                    <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
                     <td><strong>${divYield}</strong></td>
-                    <td>${payoutRatio}</td>
+                    <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
                     ${IS_ADMIN ? `<td><button class="delete-btn" onclick="removeDividendStock('${code}')">解除</button></td>` : ''}
                 </tr>
             `;
@@ -2584,9 +2584,13 @@
     function equityRatioText(v) {
         return v != null ? Number(v).toFixed(1) + '%' : '---';
     }
-    function equityRatioClass(v) {
-        if (v == null) return '';
-        return v >= 50 ? 'metric-good' : v >= 30 ? 'metric-warning' : 'metric-danger';
+
+    // 表のセル用。カードと同じ判定を、表の色クラス名に置き換えるだけ。
+    // **判定を2か所に書かない。** 基準がズレると同じ銘柄で色が食い違う。
+    function toneCell(tone) {
+        return tone === 'good' ? 'metric-good'
+             : tone === 'mid'  ? 'metric-warning'
+             : tone === 'low'  ? 'metric-danger' : '';
     }
 
     // 時価総額の色分け。**市場によって線を変える。**
@@ -2790,11 +2794,11 @@
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td>${matchRate}</td>
                     <td>${sector}</td>
-                    <td>${marketCap}</td>
+                    <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
-                    <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
-                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
-                    <td>${divYield}</td>
+                    <td class="${toneCell(toneLower(item.per, 30, 40))}">${per}</td>
+                    <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
+                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
                     <td>${gcDate}</td>
                 </tr>
             `;
@@ -3244,11 +3248,11 @@
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
                     <td>${sector}</td>
-                    <td>${marketCap}</td>
+                    <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
-                    <td class="${getMetricClass(item.per, 15, 30)}">${per}</td>
-                    <td class="${getMetricClass(item.pbr, 1, 2)}">${pbr}</td>
-                    <td>${divYield}</td>
+                    <td class="${toneCell(toneLower(item.per, 30, 40))}">${per}</td>
+                    <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
+                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
                     <td>${gcDate}${daysAgo(item.gc_date)}</td>
                     <td>${dcDate}${daysAgo(item.dc_date)}</td>
                     <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>

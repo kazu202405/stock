@@ -310,20 +310,25 @@
                                     </span>
                                     <span x-show="!row.gc_date" style="color:#d4d4d4;">—</span>
                                 </td>
-                                <td class="scr-td-num" x-text="fmtOku(row.market_cap)"></td>
+                                <!-- 色の基準はカードと同じものを使う（toneCell で表の色名に変換）。
+                                     判定を2か所に書くと、同じ銘柄で表とカードの色が食い違う。 -->
+                                <td class="scr-td-num" :class="toneCell(toneMarketCap(row))"
+                                    x-text="fmtOku(row.market_cap)"></td>
                                 <td class="scr-td-num" x-text="fmtYen(row.stock_price)"></td>
-                                <td class="scr-td-num">
-                                    <span class="scr-pill" :class="pillClass(row.equity_ratio, 50, 30)"
-                                          x-text="fmtPct(row.equity_ratio)"></span>
-                                </td>
+                                <td class="scr-td-num" :class="toneCell(toneEquity(row.equity_ratio))"
+                                    x-text="fmtPct(row.equity_ratio)"></td>
                                 <td class="scr-td-num">
                                     <span class="scr-pill" :class="pillClass(row.operating_margin, 15, 5)"
                                           x-text="fmtPct(row.operating_margin)"></span>
                                 </td>
                                 <td class="scr-td-num" x-text="fmtPct(row.roe)"></td>
-                                <td class="scr-td-num" x-text="fmtMultiple(row.per_forward)"></td>
-                                <td class="scr-td-num" x-text="fmtMultiple(row.pbr, 2)"></td>
-                                <td class="scr-td-num" x-text="fmtPct(row.dividend_yield, 2)"></td>
+                                <td class="scr-td-num" :class="toneCell(toneLower(row.per_forward, 30, 40))"
+                                    x-text="fmtMultiple(row.per_forward)"></td>
+                                <td class="scr-td-num" :class="toneCell(toneLower(row.pbr, 3, 10))"
+                                    x-text="fmtMultiple(row.pbr, 2)"></td>
+                                <td class="scr-td-num"
+                                    :class="toneCell(row.dividend_yield != null && row.dividend_yield >= 3 ? 'good' : null)"
+                                    x-text="fmtPct(row.dividend_yield, 2)"></td>
                                 <td class="scr-td-num" x-text="fmtPct(row.dividend_yield_forward, 2)"></td>
                             </tr>
                         </template>
@@ -699,6 +704,11 @@
         cursor: pointer;
         transition: all 0.15s;
     }
+    /* 表の数字の色。カードの tv-good/mid/low と同じ色を使う。 */
+    .scr-num-good { color: #15803d; font-weight: 600; }
+    .scr-num-mid  { color: #a16207; font-weight: 600; }
+    .scr-num-low  { color: #b91c1c; font-weight: 600; }
+
     .scr-page-btn:hover:not(:disabled) { border-color: #2d6a4f; color: #1b4332; }
     .scr-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -1017,6 +1027,13 @@
             },
 
             // カードの色分け。判定はダッシュボードと同じ形にそろえる。
+            // 表のセル用。カードと同じ判定を、表の色クラス名に置き換えるだけ。
+            toneCell(tone) {
+                return tone === 'good' ? 'scr-num-good'
+                     : tone === 'mid'  ? 'scr-num-mid'
+                     : tone === 'low'  ? 'scr-num-low' : '';
+            },
+
             // 時価総額は市場によって線を変える（根拠は stock.html の toneMarketCap）。
             //   プライム 100億以下 / スタンダード・グロース 50億以下
             toneMarketCap(r) {
