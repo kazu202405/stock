@@ -429,17 +429,48 @@ def upsert_screened_data_with_match_rate(data: dict) -> dict:
         if 'is_dividend' not in data and existing.get('is_dividend'):
             data['is_dividend'] = True
     else:
+        merged = data
         data['match_rate'] = calculate_match_rate(data)
+
+    # スコアの色（緑＝全項目を判定できた／橙＝暫定）は読み取り時に計算して
+    # いるが、それでは並べ替えに使えない。一覧はサーバー側で50件ずつ
+    # 区切るため、取得後に並べ替えるとページをまたいで順序が崩れる。
+    # **match_rate を出すのと同じ場所で保存する。** 別の場所で計算すると
+    # スコアと色の判定がズレる。
+    if _score_complete_supported:
+        data['score_complete'] = score_breakdown(merged)['status'] == 'complete'
 
     client = get_supabase_client()
     try:
-        result = client.table('screened_latest').upsert(data).execute()
+        result = _upsert_screened(data)
     except Exception as e:
         if 'source_status' not in data or not _is_missing_source_status_column(e):
             raise
         fallback = {k: v for k, v in data.items() if k != 'source_status'}
-        result = client.table('screened_latest').upsert(fallback).execute()
+        result = _upsert_screened(fallback)
     return result.data
+
+
+# migration を適用する前でも保存を落とさないための状態。
+# 列が来たら自動でまた書き始める…わけではなく、プロセスを再起動するまで
+# 書かない。運用側が migration を当てたらデプロイで再起動するので実害はない。
+_score_complete_supported = True
+
+
+def _upsert_screened(payload: dict):
+    """screened_latest への upsert。score_complete 列が無い環境でも落とさない。"""
+    global _score_complete_supported
+    client = get_supabase_client()
+    try:
+        return client.table('screened_latest').upsert(payload).execute()
+    except Exception as e:
+        if 'score_complete' not in payload or 'score_complete' not in str(e):
+            raise
+        _score_complete_supported = False
+        print('[migration未適用] score_complete 列が無いため除外して保存します。'
+              'supabase/migration_score_complete.sql を適用してください。')
+        return client.table('screened_latest').upsert(
+            {k: v for k, v in payload.items() if k != 'score_complete'}).execute()
 
 
 # =============================================

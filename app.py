@@ -2724,7 +2724,7 @@ SCREEN_COLUMNS = (
     'business_summary_jp, market_cap, stock_price, '
     'per_forward, pbr, roe, roa, equity_ratio, operating_margin, '
     'dividend_yield, dividend_yield_forward, payout_ratio, '
-    'match_rate, operating_cf, free_cf, '
+    'match_rate, score_complete, operating_cf, free_cf, '
     'forecast_revenue, forecast_op_income, financial_history, cf_history, '
     'analyzed_at, gc_date, dc_date'
 )
@@ -3321,7 +3321,25 @@ def api_screen_stocks():
             query = query.gte('equity_ratio', ROE_MIN_EQUITY_RATIO)
 
         offset = (page - 1) * per_page
-        res = query.order(sort, desc=desc).range(offset, offset + per_page - 1).execute()
+        query = query.order(sort, desc=desc)
+
+        # スコア順のときは「同じスコアなら全項目を判定できた方（緑）を上」。
+        #
+        # 画面のスコアは緑（12項目すべて判定）と橙（判定できた分だけの暫定値）が
+        # あり、同じ100でも中身の確かさが違う。並べ替えの第2キーにすることで、
+        # 確かな方が先に出る。
+        #
+        # **ブラウザ側で並べ替えてはいけない。** 一覧は50件ずつサーバーで
+        # 区切っているので、取得後に並べると同じスコアの塊がページをまたいだ
+        # ときに順序が崩れる（1ページ目に緑と橙が混ざり、2ページ目にまた緑が出る）。
+        if sort == 'match_rate':
+            try:
+                query = query.order('score_complete', desc=True, nullsfirst=False)
+            except TypeError:
+                # nullsfirst を受け取らない版のための保険
+                query = query.order('score_complete', desc=True)
+
+        res = query.range(offset, offset + per_page - 1).execute()
 
         rows = res.data or []
         _attach_gc(rows)
