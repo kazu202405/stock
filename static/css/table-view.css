@@ -133,6 +133,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* 会社名とスコアの間に置く株価。ここは元々空いていた場所で、
+   一番よく見る数字なので指標のマス目に埋もれさせない。 */
+.tv-card-head-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+.tv-card-price {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
 /*
   常に2列。画面幅で列数を変えると項目の位置が動いてしまい、
   「左の上が株価」のように位置で覚えられなくなる。

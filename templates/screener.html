@@ -224,12 +224,16 @@
                                       x-text="' / ' + (row.industry_jp || row.sector)"></span>
                             </div>
                         </div>
-                        <span class="scr-match" :class="matchClass(row)" :title="matchTitle(row)"
-                              x-text="row.match_rate != null ? row.match_rate : '---'"></span>
+                        <!-- 会社名とスコアの間は元々空いていた。株価は一番よく見る
+                             数字なので、指標のマス目に埋もれさせずここに出す。 -->
+                        <div class="tv-card-head-right">
+                            <span class="tv-card-price" x-text="fmtYen(row.stock_price)"></span>
+                            <span class="scr-match" :class="matchClass(row)" :title="matchTitle(row)"
+                                  x-text="row.match_rate != null ? row.match_rate : '---'"></span>
+                        </div>
                     </div>
 
-                    <!-- 並べ替えに使っている指標を先頭に置く。
-                         いま何で比べているのかが、スクロールせずに分かる。 -->
+                    <!-- 項目の位置は固定する。並べ替え中のものは色で示す。 -->
                     <div class="tv-card-grid">
                         <template x-for="m in cardMetrics()" :key="m.key">
                             <div class="tv-card-cell" :class="{ 'is-sorted': m.key === sort }">
