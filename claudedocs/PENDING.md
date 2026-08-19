@@ -1,8 +1,61 @@
-# 未完了の作業（2026-08-12 更新）
+# 未完了の作業（2026-08-19 更新）
+
+> **⚠️ 2026-08-19 のセッションはここから読む。** 下の「2026-08-19 の作業」を先に見ること。
+
+---
+
+## 2026-08-19 の作業（すべて**未コミット・未デプロイ**）
+
+### いま走っているもの
+
+```
+python backfill_impact_dryrun.py --missing-only --spread 100 --sleep 1.5 --resume
+```
+
+- ログ: `claudedocs/dryrun_run3.log`
+- 結果: `claudedocs/backfill_impact_dryrun.jsonl`（**1銘柄ずつ追記**。途中で落ちても残る）
+- 中断したら**同じコマンドをもう一度**打てば続きから走る（`--resume` 付き）
+- 途中経過だけ見たい: `python backfill_impact_dryrun.py --report`
+
+**何を測っているか** ＝ いま今期予想が入っていない銘柄を、コード帯を散らして100件。
+①本当に埋まるのか ②スコアがどう動くのか（PER/PBRが判定不能に転ばないか）。
+これが出れば**全3,879件のバックフィルをやるかどうか**を決められる。
+
+判断の目安：埋まる率が3割を切るなら全件（約4.5時間・1銘柄10リクエスト）は割に合わない。
+EDINET DB（業績予想あり・Free枠100回/日）を時価総額順に日々消化する方に倒す。
+
+### 触ったファイル（`git status` で確認できる）
+
+| ファイル | 内容 |
+|---|---|
+| `yahoo_jp_guard.py` | **ブレーカーに半開放**（10分→倍々・上限60分）。以前は `reset()` を手で呼ぶまで戻らず、予想が全銘柄で取れない真因だった |
+| `app.py` | `_enqueue_announced()`。**決算更新の二度押し／21時cronで全件再取得**になっていたのを修正。日付をUTC→JSTに |
+| `models/root.py` | `/stock/<code>` に会社名が来たときコードへ寄せる。`/welcome` `/seminar` 追加 |
+| `company_lookup.py` | 会社名→証券コードの解決（新規） |
+| `templates/stock_not_found.html` | 空ページの代わりに理由と候補を出す（新規） |
+| `templates/stock_detail.html` | **適合度に12項目メーター**。色＝点数／枠＝充足度に分離 |
+| `templates/search.html` | Enterで候補未選択のとき入力文字列のまま飛んでいたのを修正 |
+| `templates/welcome.html` `templates/seminar.html` | 知人向け・勉強会LP（新規） |
+| `.gitignore` | `!static/images/seminar/*.png`（`*.png` に巻き込まれて本番だけ404になる） |
+| `tests/test_company_lookup.py` `tests/test_yahoo_jp_guard.py` | 新規。全272件通過 |
+
+詳細な経緯と数字は `../../../contexts/projects/gia/company_note.md` の「20」〜「25」。
+
+### 分かっていること（結論を間違えないための要点）
+
+- **キオクシア(285A)に予想が無いのは会社が出していないから**（`not_disclosed`）。バグではない
+- 予想の充足率9%の主因は、**当初考えた「在庫が古い」ではない**。
+  ブレーカー（修正済み）と、**Yahooにそもそも業績ページが無い（`no_data`）**の合わせ技
+- スコア副作用は50件計測で **PER/PBR判定不能 0件**＝全件やっても点数は崩れない
+- ⚠️ **`order('company_code')` の先頭から取ると偏る。** 先頭50件は56%が予想持ち（母集団9%）
+
+---
 
 次のセッションはここを見れば、何が終わっていて何が残っているか分かる。
 取得元・欠損対策の詳細は `DATA_ACQUISITION.md`、全体像は `../CLAUDE.md`。
 会員・課金の全体は `../../../contexts/projects/gia/membership_plans_stripe.md`。
+
+## 2026-08-12 までの状態
 
 ---
 
