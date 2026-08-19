@@ -38,6 +38,10 @@ os.environ['ENABLE_SCHEDULER'] = 'false'
 
 CONSECUTIVE_FAIL_ABORT = 15
 
+# 遮断されて待つ時間の合計がこれを超えたら打ち切る。
+# 夜間に流しっぱなしにするが、相手がずっと閉じているのに何時間も居座らない。
+MAX_TOTAL_WAIT_SECONDS = 4 * 3600
+
 
 def normalize_target_codes(values):
     """--code の値をDBで使う銘柄コードへ正規化し、入力順で重複除去する。"""
@@ -199,6 +203,8 @@ def main():
     parser.add_argument('--all', action='store_true',
                         help='欠けているものだけでなく全銘柄を対象にする')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--no-wait', action='store_true',
+                        help='遮断されたら待たずに中断する（従来の挙動）')
     parser.add_argument('--edinet-forecasts', action='store_true',
                         help='Yahooで取得できない業績予想だけEDINET DBで補完する。'
                              '会社予想非開示では呼ばない')
@@ -251,6 +257,7 @@ def main():
 
     analyzer = StockAnalyzer()
     started = time.time()
+    waited_total = 0        # 遮断で待った合計秒数
     ok = fail = 0
     consecutive_fail = 0
 
@@ -277,11 +284,27 @@ def main():
             print(f'[{i}/{len(targets)}] {code} {status} | 成功{ok} 失敗{fail} | 残り約{fmt_duration(remain)}',
                   flush=True)
 
-            # ガードが落ちたら即座に中断する（叩き続けない）
-            if not yahoo_jp_guard.is_available():
-                print('\n[中断] Yahoo!JPへのアクセスが遮断されました（連続失敗）。')
-                print('       時間を置いてから再実行してください。済んだ分はスキップされます。')
-                break
+            # ガードが落ちたら、冷却が明けるまで待ってから続ける。
+            # 2026-08-19にブレーカーへ半開放を入れるまでは、一度落ちると
+            # プロセスを作り直すまで戻らなかったので中断するしかなかった。
+            # いまは待てば1本試して復帰できるので、夜間に流しっぱなしにできる。
+            # --no-wait を付けると従来どおり即中断する。
+            snap = yahoo_jp_guard.status_snapshot()
+            if snap['tripped']:
+                if args.no_wait:
+                    print('\n[中断] Yahoo!JPへのアクセスが遮断されました（連続失敗）。')
+                    print('       時間を置いてから再実行してください。済んだ分はスキップされます。')
+                    break
+                waited_total += snap['retry_in_seconds']
+                if waited_total > MAX_TOTAL_WAIT_SECONDS:
+                    print(f'\n[中断] 待ち時間の合計が {fmt_duration(waited_total)} を超えました。'
+                          f'時間を置いて再実行してください。済んだ分はスキップされます。')
+                    break
+                wait = snap['retry_in_seconds'] + 2
+                print(f'  … 遮断されました。{fmt_duration(wait)} 待って再開します'
+                      f'（{snap["trip_count"]}回目／待ち合計 {fmt_duration(waited_total)}）',
+                      flush=True)
+                time.sleep(wait)
 
             if consecutive_fail >= CONSECUTIVE_FAIL_ABORT:
                 print(f'\n[中断] {consecutive_fail}件連続で失敗しました。時間を置いて再実行してください。')
