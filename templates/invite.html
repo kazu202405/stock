@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ head.title }}｜ご紹介者向け企業分析の会</title>
+<meta name="description" content="{{ head.lead }} 月額11,000円。Company Note、講義録画、少人数の企業分析研究会を含むご紹介者向けプランです。">
+<meta name="robots" content="noindex, nofollow">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ head.title }}｜ご紹介者向け企業分析の会">
+<meta property="og:description" content="{{ head.lead }}">
+<meta property="og:url" content="{{ page_url }}">
+<meta property="og:site_name" content="Company Note / 株式会社GIA">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Shippori+Mincho:wght@500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --navy:#102f50;
+  --navy-dark:#092139;
+  --teal:#157d82;
+  --teal-pale:#e7f2f2;
+  --blue-pale:#edf3f8;
+  --paper:#ffffff;
+  --ground:#f4f7f9;
+  --ink:#162331;
+  --muted:#5b6875;
+  --line:#cfd9e1;
+  --line-dark:#9fb0be;
+  --max:1080px;
+}
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; -webkit-text-size-adjust:100%; overflow-x:clip; }
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:'BIZ UDPGothic','Yu Gothic',Meiryo,sans-serif;
+  font-size:16px;
+  line-height:1.9;
+  overflow-x:clip;
+  padding-bottom:74px;
+}
+@media (min-width:760px){ body{ padding-bottom:0; } }
+
+a{ color:inherit; }
+img{ display:block; max-width:100%; }
+p{ margin:0 0 1em; }
+p:last-child{ margin-bottom:0; }
+
+.shell{ width:min(var(--max),calc(100% - 40px)); margin:0 auto; }
+.narrow{ width:min(760px,calc(100% - 40px)); margin:0 auto; }
+.mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+.mobile-only{ display:none; }
+
+.skip{
+  position:absolute;
+  left:12px;
+  top:-60px;
+  background:var(--navy);
+  color:white;
+  padding:8px 14px;
+  z-index:100;
+}
+.skip:focus{ top:12px; }
+
+/* 招待状の上端。サイトのナビではなく、誰から何が届いたかだけを示す。 */
+.invite-bar{
+  background:var(--navy-dark);
+  color:#d8e2ea;
+  border-bottom:3px solid var(--teal);
+}
+.invite-bar .shell{
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10.5px;
+  letter-spacing:.14em;
+}
+.invite-bar strong{ color:white; font-weight:500; }
+.invite-bar .private{ white-space:nowrap; color:#8fc8ca; }
+
+/* ヒーローは価格カードではなく、一枚の招待状として組む。 */
+.hero{
+  background:var(--paper);
+  border-bottom:1px solid var(--line);
+}
+.hero-grid{
+  min-height:610px;
+  display:grid;
+  grid-template-columns:74px minmax(0,1fr) 270px;
+  align-items:stretch;
+}
+.hero-rail{
+  border-left:1px solid var(--line);
+  border-right:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  writing-mode:vertical-rl;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+  letter-spacing:.24em;
+  color:var(--teal);
+  padding:30px 0;
+}
+.hero-copy{
+  padding:86px 58px 72px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.hero-tag{
+  margin:0 0 28px;
+  color:var(--teal);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  letter-spacing:.17em;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.hero-tag::before{ content:""; width:34px; height:1px; background:var(--teal); }
+.hero h1{
+  margin:0;
+  color:var(--navy);
+  font-family:'Shippori Mincho','Yu Mincho',serif;
+  font-size:clamp(34px,4.4vw,59px);
+  font-weight:600;
+  line-height:1.48;
+  letter-spacing:.025em;
+}
+.hero h1 span{ display:block; }
+.hero h1 .under{
+  text-decoration-line:underline;
+  text-decoration-color:var(--teal);
+  text-decoration-thickness:5px;
+  text-underline-offset:10px;
+  text-decoration-skip-ink:none;
+}
+.hero-lead{
+  max-width:610px;
+  margin:34px 0 0;
+  color:#445363;
+  font-size:16px;
+  line-height:2;
+}
+.hero-note{
+  margin-top:28px;
+  padding-left:14px;
+  border-left:2px solid var(--line);
+  color:var(--muted);
+  font-size:12.5px;
+}
+.hero-ticket{
+  background:var(--blue-pale);
+  border-left:1px solid var(--line);
+  border-right:1px solid var(--line);
+  padding:54px 32px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.hero-ticket .label{
+  color:var(--teal);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+  letter-spacing:.18em;
+  margin-bottom:28px;
+}
+.hero-ticket .plan{
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+  font-size:22px;
+  font-weight:600;
+  line-height:1.55;
+  margin-bottom:14px;
+}
+.price{
+  color:var(--navy-dark);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:38px;
+  line-height:1.2;
+  letter-spacing:-.04em;
+  margin-bottom:7px;
+}
+.price small{ font-size:13px; letter-spacing:0; }
+.tax{ color:var(--muted); font-size:11px; margin-bottom:28px; }
+.ticket-list{
+  list-style:none;
+  margin:0 0 30px;
+  padding:0;
+  border-top:1px solid var(--line-dark);
+}
+.ticket-list li{
+  border-bottom:1px solid var(--line);
+  padding:10px 0;
+  font-size:12px;
+  line-height:1.55;
+}
+
+.button{
+  min-height:52px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  background:var(--navy);
+  color:white;
+  text-decoration:none;
+  font-weight:700;
+  font-size:14px;
+  letter-spacing:.04em;
+  border:1px solid var(--navy);
+  padding:13px 20px;
+  transition:background .18s ease,color .18s ease,border-color .18s ease;
+}
+.button:hover{ background:var(--teal); border-color:var(--teal); }
+.button:focus-visible{ outline:3px solid #75c8cb; outline-offset:3px; }
+.button.secondary{ background:transparent; color:var(--navy); border-color:var(--line-dark); }
+.button.secondary:hover{ background:white; border-color:var(--navy); }
+.ticket-foot{ margin-top:12px; color:var(--muted); font-size:10.5px; line-height:1.6; }
+
+main section{ padding:92px 0; }
+main section.white{ background:white; }
+main section.ruled{
+  background-color:var(--ground);
+  background-image:linear-gradient(var(--line) 1px,transparent 1px);
+  background-size:100% 38px;
+}
+
+.section-head{
+  display:grid;
+  grid-template-columns:180px minmax(0,1fr);
+  gap:42px;
+  align-items:start;
+  margin-bottom:48px;
+}
+.section-code{
+  font-family:'IBM Plex Mono',monospace;
+  color:var(--teal);
+  font-size:10.5px;
+  letter-spacing:.16em;
+  border-top:2px solid var(--teal);
+  padding-top:10px;
+}
+.section-head h2{
+  margin:0;
+  color:var(--navy);
+  font-family:'Shippori Mincho','Yu Mincho',serif;
+  font-size:clamp(27px,3vw,40px);
+  font-weight:600;
+  line-height:1.55;
+  letter-spacing:.025em;
+}
+.section-head .intro{ color:var(--muted); margin-top:16px; max-width:690px; }
+
+/* 3つの価値はカード化せず、会議資料の項目のように一続きで見せる。 */
+.three-lines{ border-top:2px solid var(--navy); }
+.three-lines article{
+  display:grid;
+  grid-template-columns:80px 240px minmax(0,1fr);
+  gap:24px;
+  align-items:baseline;
+  border-bottom:1px solid var(--line);
+  padding:25px 0;
+}
+.three-lines .n{ color:var(--teal); font-size:13px; }
+.three-lines h3{
+  margin:0;
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+  font-size:20px;
+  font-weight:600;
+}
+.three-lines p{ color:var(--muted); font-size:14px; margin:0; }
+
+/* 実画面は資料を机上で見比べるような、左右非対称の綴じ方。 */
+.tool-stage{
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);
+  gap:26px;
+  align-items:start;
+}
+.evidence{
+  margin:0;
+  background:white;
+  border:1px solid var(--line-dark);
+  box-shadow:8px 8px 0 var(--teal-pale);
+}
+.evidence .cap{
+  min-height:38px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:0 14px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;
+  letter-spacing:.08em;
+  color:var(--muted);
+}
+.evidence img{ width:100%; height:auto; }
+.evidence figcaption{
+  border-top:1px solid var(--line);
+  padding:15px 17px 17px;
+  color:#43515f;
+  font-size:13px;
+  line-height:1.75;
+}
+.tool-side{ padding-top:62px; }
+.tool-side .evidence{ box-shadow:-7px 7px 0 var(--blue-pale); }
+.tool-notes{
+  margin:34px 0 0;
+  padding:0;
+  list-style:none;
+  counter-reset:note;
+}
+.tool-notes li{
+  counter-increment:note;
+  position:relative;
+  padding:13px 0 13px 42px;
+  border-bottom:1px solid var(--line);
+  font-size:13px;
+  color:var(--muted);
+}
+.tool-notes li::before{
+  content:counter(note,decimal-leading-zero);
+  position:absolute;
+  left:0;
+  top:13px;
+  color:var(--teal);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+}
+.live-link{
+  display:inline-block;
+  margin-top:30px;
+  color:var(--navy);
+  text-decoration:none;
+  font-size:13px;
+  font-weight:700;
+  border-bottom:1px solid var(--navy);
+}
+.live-link:hover{ color:var(--teal); border-color:var(--teal); }
+
+.meeting-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  border-top:2px solid var(--navy);
+  border-left:1px solid var(--line);
+}
+.meeting-grid article{
+  min-height:210px;
+  background:white;
+  border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  padding:32px;
+}
+.meeting-grid .kicker{ color:var(--teal); font-size:10px; letter-spacing:.13em; }
+.meeting-grid h3{
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+  font-size:21px;
+  font-weight:600;
+  line-height:1.55;
+  margin:10px 0 12px;
+}
+.meeting-grid p{ color:var(--muted); font-size:13.5px; line-height:1.8; }
+
+.letter{
+  background:white;
+  border:1px solid var(--line-dark);
+  padding:54px clamp(28px,6vw,74px);
+  position:relative;
+}
+.letter::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:7px;
+  background:var(--teal);
+}
+.letter p{ line-height:2.1; }
+.letter-sign{
+  margin-top:30px;
+  text-align:right;
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+}
+.letter-sign small{ display:block; color:var(--muted); font-family:'BIZ UDPGothic',sans-serif; font-size:11px; }
+
+.plan-sheet{
+  background:white;
+  border-top:3px solid var(--navy);
+  border-bottom:1px solid var(--line-dark);
+}
+.plan-row{
+  display:grid;
+  grid-template-columns:190px minmax(0,1fr);
+  border-left:1px solid var(--line-dark);
+  border-right:1px solid var(--line-dark);
+  border-bottom:1px solid var(--line);
+}
+.plan-row:last-child{ border-bottom:0; }
+.plan-row dt,.plan-row dd{ margin:0; padding:22px 26px; }
+.plan-row dt{
+  background:var(--blue-pale);
+  color:var(--navy);
+  font-size:12px;
+  font-weight:700;
+  border-right:1px solid var(--line);
+}
+.plan-row dd{ color:#354554; font-size:14px; }
+.plan-row dd strong{ color:var(--navy); font-size:18px; }
+.plan-row dd small{ display:block; color:var(--muted); margin-top:5px; font-size:11.5px; }
+
+.fit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+.fit{
+  background:white;
+  border-top:3px solid var(--teal);
+  padding:30px 32px;
+}
+.fit.no{ border-color:var(--line-dark); }
+.fit h3{
+  margin:0 0 18px;
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+  font-size:20px;
+}
+.fit ul{ list-style:none; padding:0; margin:0; }
+.fit li{
+  position:relative;
+  border-top:1px solid var(--line);
+  padding:12px 0 12px 23px;
+  color:var(--muted);
+  font-size:13px;
+}
+.fit li::before{ position:absolute; left:0; color:var(--teal); }
+.fit.yes li::before{ content:"○"; }
+.fit.no li::before{ content:"—"; color:var(--line-dark); }
+
+.profile{
+  display:grid;
+  grid-template-columns:220px minmax(0,1fr);
+  border-top:1px solid var(--line-dark);
+  border-bottom:1px solid var(--line-dark);
+  padding:34px 0;
+  gap:38px;
+}
+.profile-name{
+  color:var(--navy);
+  font-family:'Shippori Mincho',serif;
+  font-size:27px;
+  margin:0;
+}
+.profile-role{ color:var(--teal); font-size:11px; letter-spacing:.1em; margin-top:7px; }
+.profile-copy{ color:var(--muted); font-size:14px; }
+
+.entry{
+  background:var(--navy-dark);
+  color:white;
+  padding:88px 0 80px;
+}
+.entry-grid{ display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:70px; align-items:center; }
+.entry .section-code{ color:#8fc8ca; border-color:#8fc8ca; width:150px; }
+.entry h2{
+  margin:22px 0 20px;
+  font-family:'Shippori Mincho',serif;
+  font-size:clamp(28px,3.5vw,45px);
+  font-weight:600;
+  line-height:1.55;
+}
+.entry p{ color:#c6d2dc; font-size:14px; }
+.steps{
+  margin:30px 0 0;
+  padding:0;
+  list-style:none;
+  border-top:1px solid #3d5368;
+}
+.steps li{
+  display:grid;
+  grid-template-columns:36px 1fr;
+  gap:10px;
+  border-bottom:1px solid #3d5368;
+  padding:12px 0;
+  color:#d6e0e7;
+  font-size:12.5px;
+}
+.steps .mono{ color:#8fc8ca; }
+.entry-box{
+  border:1px solid #5f7487;
+  padding:30px;
+}
+.entry-box .small{ color:#8fc8ca; font-size:10px; letter-spacing:.14em; }
+.entry-box .price{ color:white; margin:13px 0 4px; }
+.entry-box .tax{ color:#9eb0bf; }
+.entry-box .button{ width:100%; background:white; color:var(--navy-dark); border-color:white; }
+.entry-box .button:hover{ background:#8fc8ca; border-color:#8fc8ca; }
+.entry-box .note{ color:#9eb0bf; font-size:10.5px; line-height:1.7; margin-top:13px; }
+
+.faq{ border-top:2px solid var(--navy); }
+.faq details{ border-bottom:1px solid var(--line); background:white; }
+.faq summary{
+  cursor:pointer;
+  list-style:none;
+  padding:20px 54px 20px 22px;
+  color:var(--navy);
+  font-weight:700;
+  position:relative;
+}
+.faq summary::-webkit-details-marker{ display:none; }
+.faq summary::after{
+  content:"＋";
+  position:absolute;
+  right:22px;
+  top:20px;
+  color:var(--teal);
+  font-family:'IBM Plex Mono',monospace;
+}
+.faq details[open] summary::after{ content:"−"; }
+.faq .answer{ padding:0 54px 22px 22px; color:var(--muted); font-size:13px; }
+
+footer{ background:#071929; color:#92a5b5; padding:38px 0; font-size:11px; line-height:1.8; }
+footer strong{ color:#d6e0e7; }
+.disclaimer{ margin-top:18px; padding-top:18px; border-top:1px solid #304659; max-width:820px; }
+
+.mobile-dock{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:50;
+  background:rgba(255,255,255,.96);
+  border-top:1px solid var(--line);
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  display:none;
+}
+.mobile-dock .button{ width:100%; min-height:48px; }
+
+@media (max-width:900px){
+  .hero-grid{ grid-template-columns:48px minmax(0,1fr); min-height:0; }
+  .hero-copy{ padding:68px 38px 58px; }
+  .hero-ticket{
+    grid-column:1 / -1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px 34px;
+    padding:34px 38px;
+    border-top:1px solid var(--line);
+    border-left:1px solid var(--line);
+  }
+  .hero-ticket .label{ grid-column:1 / -1; margin:0; }
+  .hero-ticket .button{ align-self:end; }
+  .ticket-list{ margin-bottom:0; }
+  .section-head{ grid-template-columns:140px 1fr; gap:28px; }
+  .three-lines article{ grid-template-columns:60px 210px minmax(0,1fr); }
+  .entry-grid{ gap:42px; }
+}
+
+@media (max-width:720px){
+  .shell,.narrow{ width:min(100% - 32px,var(--max)); }
+  .invite-bar .shell{ min-height:44px; }
+  .invite-bar .private{ display:none; }
+  .hero-grid{ display:block; }
+  .hero-rail{
+    writing-mode:horizontal-tb;
+    justify-content:flex-start;
+    height:42px;
+    padding:0 18px;
+    border-left:0;
+    border-right:0;
+    border-bottom:1px solid var(--line);
+  }
+  .hero-copy{ padding:48px 18px 44px; }
+  .hero h1{ font-size:clamp(28px,8.1vw,32px); line-height:1.62; letter-spacing:0; }
+  .hero h1 span{ white-space:nowrap; }
+  .hero h1 .under{ text-decoration-thickness:4px; text-underline-offset:8px; }
+  .hero-lead{ margin-top:29px; font-size:15px; }
+  .hero-ticket{ display:block; padding:32px 18px 36px; border-right:0; border-left:0; }
+  .hero-ticket .label{ margin-bottom:18px; }
+  .price{ font-size:34px; }
+  main section{ padding:66px 0; }
+  .section-head{ display:block; margin-bottom:34px; }
+  .section-code{ width:128px; margin-bottom:18px; }
+  .section-head h2{ font-size:27px; }
+  .mobile-only{ display:block; }
+  .three-lines article{ display:block; padding:22px 0; }
+  .three-lines h3{ margin:7px 0 7px; }
+  .tool-stage{ display:block; }
+  .tool-side{ padding-top:34px; }
+  .evidence{ box-shadow:5px 5px 0 var(--teal-pale); }
+  .tool-side .evidence{ box-shadow:5px 5px 0 var(--blue-pale); }
+  .evidence .cap{ font-size:8.5px; }
+  .meeting-grid{ display:block; }
+  .meeting-grid article{ min-height:0; padding:27px 24px; }
+  .letter{ padding:38px 25px 38px 32px; }
+  .plan-row{ display:block; }
+  .plan-row dt{ border-right:0; border-bottom:1px solid var(--line); padding:12px 18px; }
+  .plan-row dd{ padding:18px; }
+  .fit-grid{ display:block; }
+  .fit + .fit{ margin-top:20px; }
+  .fit{ padding:26px 22px; }
+  .profile{ display:block; }
+  .profile-copy{ margin-top:24px; }
+  .entry{ padding:66px 0; }
+  .entry-grid{ display:block; }
+  .entry-box{ margin-top:38px; padding:26px 22px; }
+  .mobile-dock{ display:block; }
+}
+
+@media (prefers-reduced-motion:reduce){ html{ scroll-behavior:auto; } }
+</style>
+</head>
+
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<div class="invite-bar">
+  <div class="shell">
+    <strong>{% if inviter %}{{ inviter }}さんから届いたご案内{% else %}ご紹介者へお渡ししているご案内{% endif %}</strong>
+    <span class="private">PRIVATE INVITATION / COMPANY NOTE</span>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="shell hero-grid">
+    <div class="hero-rail">INVITATION 11 / GIA</div>
+
+    <div class="hero-copy">
+      <p class="hero-tag">経営者のための企業分析研究会</p>
+      <h1>
+        <span>{{ head.line_a }}</span>
+        <span class="under">{{ head.line_b }}</span>
+      </h1>
+      <p class="hero-lead">{{ head.lead }}</p>
+      <p class="hero-note">
+        株をすすめる会ではありません。<br>
+        公開されている企業の数字を材料に、会社の見方を一緒に磨く会です。
+      </p>
+    </div>
+
+    <aside class="hero-ticket" aria-label="ご招待プランの概要">
+      <p class="label">INVITED MEMBER</p>
+      <div>
+        <p class="plan">ご紹介者向け<br>継続プラン</p>
+        <p class="price">¥11,000<small> / 月</small></p>
+        <p class="tax">税込</p>
+      </div>
+      <div>
+        <ul class="ticket-list">
+          <li>Company Note 全機能</li>
+          <li>講義録画の視聴</li>
+          <li>少人数の企業分析研究会</li>
+        </ul>
+        <a class="button" href="#details">内容を確認する</a>
+        <p class="ticket-foot">このページは一般募集用ではありません。</p>
+      </div>
+    </aside>
+  </div>
+</header>
+
+<main id="main">
+  <section class="white">
+    <div class="shell">
+      <div class="section-head">
+        <p class="section-code">WHAT WE DO</p>
+        <div>
+          <h2>会社の数字を、<br>ひとりで眺めて終わらせない。</h2>
+          <p class="intro">企業分析は、知識を覚えるだけでは身につきません。同じ会社を見ても、どこに注目するかは人によって違います。実際の企業を題材に、数字を読み、考えを話し、ほかの経営者の見方を聞く。その繰り返しをつくります。</p>
+        </div>
+      </div>
+
+      <div class="three-lines">
+        <article>
+          <span class="n mono">01</span>
+          <h3>数字をそろえる</h3>
+          <p>売上、利益、自己資本、キャッシュフロー。会社ごとに散らばる情報を、同じ位置に並べます。</p>
+        </article>
+        <article>
+          <span class="n mono">02</span>
+          <h3>数字の理由を考える</h3>
+          <p>伸びているのか、無理をしているのか。単独の数字ではなく、5年間の変化と組み合わせて読みます。</p>
+        </article>
+        <article>
+          <span class="n mono">03</span>
+          <h3>経営者同士で話す</h3>
+          <p>正解を教わる場ではなく、自分の見方を言葉にする場。ほかの人の視点が、自分の判断軸を増やします。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="ruled">
+    <div class="shell">
+      <div class="section-head">
+        <p class="section-code">THE TOOL</p>
+        <div>
+          <h2>当日は、自作の企業分析アプリを使います。</h2>
+          <p class="intro">Company Noteは、上場企業の情報を同じ順番で読めるようにした道具です。投資判断を代わりに出すのではなく、考える材料を見つけやすくします。</p>
+        </div>
+      </div>
+
+      <div class="tool-stage">
+        <figure class="evidence">
+          <div class="cap"><span>COMPANY NOTE / METRICS</span><span>7203</span></div>
+          <img src="/static/images/seminar/app-metrics.png" alt="Company Noteでトヨタ自動車の自己資本比率、営業利益率、PER、PBR、配当利回り、時価総額を並べた実際の画面">
+          <figcaption>企業ごとに散らばっている指標を、同じ場所・同じ順番に。数字を探す時間より、数字の意味を考える時間を増やします。</figcaption>
+        </figure>
+
+        <div class="tool-side">
+          <figure class="evidence">
+            <div class="cap"><span>PRICE / MARKET</span><span>1 YEAR</span></div>
+            <img src="/static/images/seminar/app-chart.png" alt="Company Noteの株価推移と日経平均を比較できる実際のチャート画面">
+            <figcaption>会社固有の動きか、市場全体の動きか。起点をそろえて見比べます。</figcaption>
+          </figure>
+          <ul class="tool-notes">
+            <li>5年間の売上・利益・一株利益</li>
+            <li>財務健全性とキャッシュフロー</li>
+            <li>業界基準との比較とデータ充足度</li>
+          </ul>
+          <a class="live-link" href="https://note.gia2018.com/stock/7203" target="_blank" rel="noopener">登録せずに実際の画面を見る →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white">
+    <div class="shell">
+      <div class="section-head">
+        <p class="section-code">MONTHLY STUDY</p>
+        <div>
+          <h2>月に一度、ひとつの会社を深く見る。</h2>
+          <p class="intro">一度きりの講座では、分かったつもりで終わりがちです。この会では、毎月の研究会を基本に、違う会社・違う論点を繰り返し扱います。</p>
+        </div>
+      </div>
+
+      <div class="meeting-grid">
+        <article>
+          <span class="kicker mono">READ</span>
+          <h3>5年間の変化を読む</h3>
+          <p>売上と利益がどう動いたか。現金は増えたか。配当は無理をしていないか。数字を順番に見ます。</p>
+        </article>
+        <article>
+          <span class="kicker mono">COMPARE</span>
+          <h3>2社を並べて違いを探す</h3>
+          <p>大きい会社と、良い会社は同じとは限りません。同じ業種や似た規模の会社を比べます。</p>
+        </article>
+        <article>
+          <span class="kicker mono">DISCUSS</span>
+          <h3>参加者の見方を聞く</h3>
+          <p>経営者、営業、財務。それぞれ注目する場所が違います。少人数だから、一人ずつ言葉にできます。</p>
+        </article>
+        <article>
+          <span class="kicker mono">RETURN</span>
+          <h3>自社を見る目盛りに戻す</h3>
+          <p>他社の決算なら、少し距離を置いて見られます。その目盛りを持ち帰り、自社の数字にも当てます。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="narrow">
+      <div class="section-head" style="grid-template-columns:150px minmax(0,1fr)">
+        <p class="section-code">A NOTE FROM GOTO</p>
+        <div><h2>なぜ、アプリまで作ったのか。</h2></div>
+      </div>
+      <div class="letter">
+        <p>会社の見方をお話ししていると、毎回きまって同じところで手が止まりました。</p>
+        <p>「で、この会社の数字はどこで見るんですか」</p>
+        <p>数字は公開されています。ただ、載っている場所がばらばらで、並びも会社ごとに違います。探すだけで疲れてしまい、その先の「なぜ」を考えるところまで進めない。だから、先に道具を作りました。</p>
+        <p>もうひとつ、経営者同士で決算や会社の話をできる場が、思ったより少ないと感じています。株価の予想ではなく、会社そのものについて話せる場です。</p>
+        <p>大人数に広げるより、まずは顔が分かる方と、小さく続けたいと思っています。</p>
+        <p class="letter-sign"><small>株式会社GIA</small>五島 一将</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="white" id="details">
+    <div class="shell">
+      <div class="section-head">
+        <p class="section-code">INVITED PLAN</p>
+        <div>
+          <h2>ご招待プランに<br class="mobile-only">含まれるもの</h2>
+          <p class="intro">料金を曖昧にせず、継続して使えるものと、参加時にだけ必要な費用を分けています。</p>
+        </div>
+      </div>
+
+      <dl class="plan-sheet">
+        <div class="plan-row">
+          <dt>企業分析アプリ</dt>
+          <dd><strong>Company Noteの会員機能</strong><small>銘柄検索、5年の業績、財務・キャッシュフロー、企業比較、企業分析レポートなど。</small></dd>
+        </div>
+        <div class="plan-row">
+          <dt>学習</dt>
+          <dd><strong>講義録画の視聴</strong><small>参加できなかった回や、もう一度確認したい内容を自分の時間で見られます。</small></dd>
+        </div>
+        <div class="plan-row">
+          <dt>研究会</dt>
+          <dd><strong>少人数のオフライン会・企業研究</strong><small>月1回を基本にご案内します。日程とテーマは参加者へ個別にお知らせします。</small></dd>
+        </div>
+        <div class="plan-row">
+          <dt>月額</dt>
+          <dd><strong class="mono">11,000円（税込）</strong><small>Stripeによる月額決済。いつでも解約できます。</small></dd>
+        </div>
+        <div class="plan-row">
+          <dt>別途かかるもの</dt>
+          <dd><strong>懇親会・飲食代の実費</strong><small>参加される場合だけ必要です。金額は開催案内で事前にお伝えします。</small></dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section>
+    <div class="shell">
+      <div class="section-head">
+        <p class="section-code">FOR WHOM</p>
+        <div><h2>合う方と、合わない方。</h2></div>
+      </div>
+      <div class="fit-grid">
+        <div class="fit yes">
+          <h3>この会が合う方</h3>
+          <ul>
+            <li>企業の数字を、自分で読めるようになりたい</li>
+            <li>他社を見る目を、自社の経営にも生かしたい</li>
+            <li>少人数で考えを話し、ほかの経営者の視点も聞きたい</li>
+            <li>投資経験に関係なく、基礎から続けて学びたい</li>
+          </ul>
+        </div>
+        <div class="fit no">
+          <h3>この会では扱わないこと</h3>
+          <ul>
+            <li>今すぐ買う銘柄、売る銘柄の紹介</li>
+            <li>短期間で利益を出すための売買手法</li>
+            <li>利益や元本を保証する話</li>
+            <li>誰かの判断を、そのまま正解として受け取ること</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white">
+    <div class="narrow">
+      <div class="section-head" style="grid-template-columns:150px minmax(0,1fr)">
+        <p class="section-code">HOST</p>
+        <div><h2>主催者について</h2></div>
+      </div>
+      <div class="profile">
+        <div>
+          <p class="profile-name">五島 一将</p>
+          <p class="profile-role mono">株式会社GIA</p>
+        </div>
+        <div class="profile-copy">
+          <p>企業分析アプリ「Company Note」を設計・開発。決算の数字から会社の状態を読む方法を、経営者向けのセミナーや勉強会で伝えています。</p>
+          <p>講師が一方的に答えを話すより、参加者自身が考え、話せる進め方を大切にしています。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="narrow">
+      <div class="section-head" style="grid-template-columns:150px minmax(0,1fr)">
+        <p class="section-code">QUESTIONS</p>
+        <div><h2>よくあるご質問</h2></div>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>投資経験がなくても参加できますか？</summary>
+          <div class="answer">はい。決算書を読んだことがない方でも、見る順番から扱います。投資経験よりも、会社について考えてみたいという気持ちを大切にしています。</div>
+        </details>
+        <details>
+          <summary>毎回、対面で参加する必要がありますか？</summary>
+          <div class="answer">参加できる回にお越しください。Company Noteと講義録画は、研究会に参加できない月も利用できます。</div>
+        </details>
+        <details>
+          <summary>今のCompany Noteアカウントはそのまま使えますか？</summary>
+          <div class="answer">使えます。決済時に現在のアカウントでログインしてください。新しく作り直す必要はありません。</div>
+        </details>
+        <details>
+          <summary>申し込む前に質問できますか？</summary>
+          <div class="answer">このページを送った方へ、そのままLINEでご返信ください。{% if inviter %}{{ inviter }}さんから届いたページであることを添えていただくとスムーズです。{% endif %}</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="entry" id="entry">
+    <div class="shell entry-grid">
+      <div>
+        <p class="section-code">ENTRY</p>
+        <h2>一緒に、会社を見る練習を<br>続けませんか。</h2>
+        <p>{% if inviter %}このご案内は、{{ inviter }}さんから届いた方へお渡ししています。{% else %}このご案内は、五島またはご紹介者から直接お渡ししています。{% endif %}</p>
+        <ol class="steps">
+          <li><span class="mono">01</span><span>下のボタンから、GIAのログインまたは無料登録へ進みます。</span></li>
+          <li><span class="mono">02</span><span>ログイン後、自動で11,000円プランのStripe決済に戻ります。</span></li>
+          <li><span class="mono">03</span><span>決済が完了すると、Company Noteの会員機能が開きます。</span></li>
+        </ol>
+      </div>
+      <div class="entry-box">
+        <p class="small mono">INVITED MEMBER</p>
+        <p class="price">¥11,000<small> / 月</small></p>
+        <p class="tax">税込・いつでも解約可能</p>
+        <a class="button" href="{{ checkout_url }}">この招待で参加する</a>
+        <p class="note">すでにアカウントをお持ちの方は、そのままログインしてください。決済はStripeの安全な画面で行います。</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="shell">
+    <p><strong>株式会社GIA / Company Note</strong></p>
+    <p class="disclaimer">本サービスは企業分析の学習を目的としたもので、特定の金融商品の売買を推奨するものではありません。投資に関する最終的な判断は、ご自身の責任でお願いいたします。</p>
+  </div>
+</footer>
+
+<div class="mobile-dock">
+  <a class="button" href="{{ checkout_url }}">月額11,000円で参加する</a>
+</div>
+</body>
+</html>

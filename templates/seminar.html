@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ head.title }}｜経営者の少人数勉強会 - 株式会社GIA</title>
+<meta name="description" content="{{ head.lead }} 定員{{ s.capacity }}名。株式投資・企業分析の実践勉強会。主催 {{ s.host }}。">
+<meta name="robots" content="noindex, follow">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ head.title }}｜経営者{{ s.capacity }}名の勉強会">
+<meta property="og:description" content="{{ head.lead }}">
+<meta property="og:url" content="{{ page_url }}">
+<meta property="og:site_name" content="株式会社GIA">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ------------------------------------------------------------------
+   経営者向けの案内状として組む。
+   チラシ（紺＋金）と地続きにしつつ、紙より情報の順番を効かせる。
+   ・数字は必ず等幅（IBM Plex Mono）。決算の話をする場なので桁が揃うこと自体が説得
+   ・金は「数字」と「区切り」にだけ使う。文章には乗せない
+   ・定員12を12個の枠で見せる。この会の価値の核が席数なので、そこを絵にする
+   ------------------------------------------------------------------ */
+:root{
+  --navy:      #16304f;
+  --navy-deep: #0b1a2c;
+  --navy-soft: #24466d;
+  --gold:      #b28b3c;
+  --gold-lt:   #d8bd7e;
+  --paper:     #ffffff;
+  --mist:      #f2f4f7;
+  --ink:       #1b2430;
+  --muted:     #5d6a7a;
+  --line:      #dde3ea;
+  --maxw:      720px;
+}
+
+*{ box-sizing: border-box; }
+html{ -webkit-text-size-adjust: 100%; overflow-x: clip; }
+
+body{
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Zen Kaku Gothic New', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+  font-size: 15.5px;
+  line-height: 1.95;
+  font-feature-settings: "palt" 1;
+  overflow-x: clip;
+  /* スマホの固定CTAぶんの逃げ */
+  padding-bottom: 76px;
+}
+@media (min-width: 768px){ body{ padding-bottom: 0; } }
+
+a{ color: inherit; }
+p{ margin: 0 0 1.1em; }
+p:last-child{ margin-bottom: 0; }
+
+.wrap{ max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+/* 数字は必ず等幅で */
+.num{ font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* 節のラベル。金の短い罫＋等幅の小さな見出し */
+.eyebrow{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  color: var(--gold);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow::before{ content: ""; width: 22px; height: 1px; background: var(--gold); flex: 0 0 auto; }
+
+h2{
+  font-family: 'Zen Old Mincho', serif;
+  font-weight: 600;
+  font-size: 23px;
+  line-height: 1.55;
+  letter-spacing: .02em;
+  margin: 0 0 18px;
+}
+@media (min-width: 768px){ h2{ font-size: 27px; } }
+
+section{ padding: 52px 0; }
+section.tint{ background: var(--mist); }
+@media (min-width: 768px){ section{ padding: 72px 0; } }
+
+/* ============================ ヒーロー ============================ */
+.hero{
+  background: linear-gradient(168deg, var(--navy) 0%, var(--navy-deep) 100%);
+  color: #fff;
+  padding: 34px 0 40px;
+  border-bottom: 3px solid var(--gold);
+}
+.hero .host{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  color: var(--gold-lt);
+  margin: 0 0 26px;
+}
+.hero h1{
+  font-family: 'Zen Old Mincho', serif;
+  font-weight: 700;
+  font-size: clamp(27px, 7.4vw, 42px);
+  line-height: 1.5;
+  letter-spacing: .01em;
+  margin: 0 0 18px;
+}
+/* 塗りではなく下線として引く。面で塗ると黒塗りに見えて字が沈む */
+.hero h1 .mark{
+  background: linear-gradient(to bottom,
+    transparent 0, transparent 86%,
+    var(--gold) 86%, var(--gold) 94%,
+    transparent 94%);
+}
+.hero .sub{
+  font-size: 15px;
+  color: #cdd8e4;
+  margin: 0 0 26px;
+  line-height: 1.85;
+}
+.hero .kicker{
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  border: 1px solid rgba(216,189,126,.5);
+  color: var(--gold-lt);
+  padding: 3px 12px;
+  margin: 0 0 20px;
+}
+
+/* 席。定員12をそのまま12個の枠で見せる */
+.seats{
+  border-top: 1px solid rgba(255,255,255,.14);
+  border-bottom: 1px solid rgba(255,255,255,.14);
+  padding: 16px 0;
+  margin: 0 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.seats .cap{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--gold-lt);
+}
+.seats .boxes{ display: flex; gap: 5px; }
+.seats i{
+  width: 13px; height: 15px;
+  border: 1px solid var(--gold-lt);
+  display: block;
+  opacity: 0;
+  animation: seatIn .34s ease forwards;
+}
+.seats i.taken{ background: var(--gold-lt); }
+@keyframes seatIn{ from{ opacity:0; transform: translateY(3px); } to{ opacity:1; transform:none; } }
+.seats .left{ font-size: 13px; color: #cdd8e4; }
+.seats .left b{ color: #fff; font-weight: 700; }
+
+/* 開催の要点。読み手が最初に探す4つを先に出す */
+.facts{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+  margin: 0 0 26px;
+}
+.facts dt{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  color: var(--gold-lt);
+  margin-bottom: 3px;
+}
+.facts dd{ margin: 0; font-size: 14px; line-height: 1.7; color: #eef3f8; }
+.facts dd small{ display: block; font-size: 11.5px; color: #9fb1c4; line-height: 1.6; }
+
+/* ============================ ボタン ============================ */
+.cta{
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--gold);
+  color: #14243a;
+  font-weight: 700;
+  font-size: 15.5px;
+  letter-spacing: .04em;
+  text-decoration: none;
+  padding: 15px 20px;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cta:hover{ background: #c29a48; }
+.cta:focus-visible{ outline: 2px solid #fff; outline-offset: 3px; }
+.cta-note{ font-size: 12px; color: #9fb1c4; margin: 10px 0 0; line-height: 1.7; text-align: center; }
+section .cta{ max-width: 420px; margin: 0 auto; }
+section .cta-note{ color: var(--muted); }
+
+/* ============================ 2社比較 ============================ */
+.quiz-lead{ font-size: 16px; margin-bottom: 20px; }
+
+/* 狭い画面でも2列が同時に見えることが最優先。折り返したら比較にならないので
+   セルは nowrap にし、それでも入らないときだけ表ごと横スクロールさせる */
+.cmp-scroll{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cmp{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.cmp th, .cmp td{
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.cmp thead th{
+  background: var(--navy);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: .1em;
+  font-weight: 500;
+  border-bottom: 0;
+}
+.cmp tbody th{
+  text-align: left;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: #fafbfc;
+  font-weight: 400;
+}
+.cmp tbody td{ font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+.cmp tr:last-child td, .cmp tr:last-child th{ border-bottom: 0; }
+@media (min-width: 480px){
+  .cmp{ font-size: 13.5px; }
+  .cmp th, .cmp td{ padding: 9px 12px; }
+  .cmp tbody th{ font-size: 12.5px; }
+}
+.cmp caption{
+  caption-side: bottom;
+  text-align: left;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding-top: 10px;
+  line-height: 1.7;
+}
+
+.pick{ display: flex; gap: 12px; margin: 22px 0 0; }
+.pick button{
+  flex: 1;
+  font-family: 'Zen Old Mincho', serif;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 13px 8px;
+  background: #fff;
+  color: var(--navy);
+  border: 1px solid var(--navy);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pick button:hover{ background: var(--navy); color: #fff; }
+.pick button[aria-pressed="true"]{ background: var(--navy); color: #fff; }
+.pick button:focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.answer{ margin-top: 22px; border-left: 3px solid var(--gold); padding-left: 18px; }
+.answer[hidden]{ display: none; }
+.answer .said{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.answer strong{ font-weight: 700; }
+.answer .punch{
+  font-family: 'Zen Old Mincho', serif;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.6;
+  margin: 16px 0 12px;
+}
+
+/* ============================ 学べること ============================ */
+.learn{ list-style: none; margin: 0; padding: 0; }
+.learn li{
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.learn li:first-child{ border-top: 1px solid var(--line); }
+.learn .n{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--gold);
+  line-height: 1.9;
+}
+.learn .t{ font-size: 15.5px; line-height: 1.8; }
+
+/* ============================ アプリ ============================ */
+.shots{
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -22px;
+  padding: 0 22px 14px;
+}
+.shot{ flex: 0 0 86%; scroll-snap-align: center; max-width: 520px; }
+.shot img{
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.shot figcaption{ font-size: 12.5px; color: var(--muted); margin-top: 9px; line-height: 1.7; }
+.swipe-hint{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.applink{
+  display: inline-block;
+  font-size: 13.5px;
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px solid var(--gold);
+  margin-top: 6px;
+}
+
+/* ============================ 講師・折りたたみ ============================ */
+details.fold{ border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+details.fold summary{
+  list-style: none;
+  cursor: pointer;
+  padding: 15px 0;
+  font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+details.fold summary::-webkit-details-marker{ display: none; }
+details.fold summary .sign{
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  color: var(--gold);
+}
+details.fold[open] summary .sign::after{ content: "\2212"; }
+details.fold:not([open]) summary .sign::after{ content: "+"; }
+details.fold .inner{ padding: 0 0 20px; }
+.bio-name{ font-family: 'Zen Old Mincho', serif; font-size: 19px; font-weight: 600; margin: 0 0 2px; }
+.bio-role{ font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+
+/* ============================ 開催概要 ============================ */
+.spec{ width: 100%; border-collapse: collapse; font-size: 14px; }
+.spec th, .spec td{ text-align: left; vertical-align: top; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.spec th{
+  width: 92px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  color: var(--gold);
+  font-weight: 500;
+  padding-top: 17px;
+}
+.spec td small{ display: block; font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+/* 費用の内訳。ここが判断の分かれ目なので独立して見せる */
+.fees{ margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.fees li{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14.5px;
+}
+.fees .amount{ font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.fees .free{ color: var(--gold); font-weight: 700; }
+.fees small{ display: block; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.fees-punch{
+  font-family: 'Zen Old Mincho', serif;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 18px 0 0;
+}
+
+/* ============================ 流れ ============================ */
+.flow{ list-style: none; margin: 0 0 26px; padding: 0; counter-reset: step; }
+.flow li{
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 14px;
+  padding: 12px 0;
+  align-items: start;
+}
+.flow li::before{
+  counter-increment: step;
+  content: counter(step);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: #fff;
+  background: var(--navy);
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  margin-top: 4px;
+}
+
+/* ============================ 固定CTA（スマホ） ============================ */
+.dock[hidden]{ display: none; }
+.dock{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 50;
+  background: rgba(11,26,44,.97);
+  border-top: 1px solid var(--gold);
+  padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
+}
+.dock .cta{ padding: 12px 16px; font-size: 15px; }
+@media (min-width: 768px){ .dock{ display: none; } }
+
+/* ============================ フッター ============================ */
+footer{ background: var(--navy-deep); color: #93a5b8; padding: 30px 0 38px; font-size: 12px; line-height: 1.9; }
+footer .disc{ border-top: 1px solid rgba(255,255,255,.12); padding-top: 16px; margin-top: 16px; }
+footer a{ color: #cdd8e4; }
+
+/* ============================ 広い画面 ============================ */
+@media (min-width: 768px){
+  .hero{ padding: 56px 0 60px; }
+  .facts{ grid-template-columns: repeat(4, 1fr); }
+  .hero .cta{ max-width: 360px; margin: 0; }
+  .hero .cta-note{ text-align: left; }
+  .shot{ flex: 0 0 62%; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .seats i{ animation: none; opacity: 1; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ============================ ヒーロー ============================ -->
+<header class="hero">
+  <div class="wrap">
+    <p class="host">{{ s.host }}　｜　経営者のための少人数勉強会</p>
+
+    {% if s.session_no %}<span class="kicker">{{ s.session_no }}</span>{% endif %}
+
+    <h1>{{ head.h1_a }}<br><span class="mark">{{ head.h1_b }}</span></h1>
+    <p class="sub">{{ head.lead }}</p>
+
+    <div class="seats">
+      <span class="cap">CAPACITY {{ s.capacity }}</span>
+      <span class="boxes" aria-hidden="true">
+        {% for i in range(s.capacity) %}<i class="{% if i < s.seats_taken %}taken{% endif %}" style="animation-delay: {{ 0.25 + i * 0.045 }}s"></i>{% endfor %}
+      </span>
+      <span class="left">定員 {{ s.capacity }}名 ／ 残り <b>{{ s.capacity - s.seats_taken }}</b> 席</span>
+    </div>
+
+    <dl class="facts">
+      <div>
+        <dt>DATE</dt>
+        <dd>{% if s.date_label %}{{ s.date_label }}{% else %}日程調整中<small>候補日をお伝えします</small>{% endif %}</dd>
+      </div>
+      <div>
+        <dt>VENUE</dt>
+        <dd>大阪・{{ s.venue_area }}<small>{{ s.venue }}</small></dd>
+      </div>
+      <div>
+        <dt>FEE</dt>
+        <dd>講座 無料<small>会場費 {{ s.fee_venue }}／懇親会は任意</small></dd>
+      </div>
+      <div>
+        <dt>ENTRY</dt>
+        <dd>紹介制<small>LINEでご返信ください</small></dd>
+      </div>
+    </dl>
+
+    <a class="cta" href="#entry">{{ head.cta }}</a>
+    <p class="cta-note">
+      {% if inviter %}{{ inviter }}さんへ「参加希望」とご返信ください。{% else %}ご紹介くださった方へ「参加希望」とご返信ください。{% endif %}
+    </p>
+  </div>
+</header>
+
+<!-- ============================ 2社比較 ============================ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">THE QUESTION</p>
+    <h2>この2社、どちらに投資しますか。</h2>
+    <p class="quiz-lead">社名は伏せてあります。数字だけで選んでみてください。<br>実際の勉強会は、この問いから始まります。</p>
+
+    <div class="cmp-scroll">
+      <table class="cmp">
+        <caption>数字は勉強会で使う架空の2社です。実在の企業ではありません。売上高・営業CFは直近3期の推移。単位は億円。</caption>
+        <thead>
+          <tr><th scope="col">　</th><th scope="col">X社</th><th scope="col">Y社</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">売上高</th><td>3,600→4,050</td><td>340→420</td></tr>
+          <tr><th scope="row">営業利益率</th><td>4.2→4.3%</td><td>7.9→9.5%</td></tr>
+          <tr><th scope="row">営業CF</th><td>+180→+30</td><td>+24→+35</td></tr>
+          <tr><th scope="row">自己資本比率</th><td>13%</td><td>53%</td></tr>
+          <tr><th scope="row">PER</th><td>35倍</td><td>10倍</td></tr>
+          <tr><th scope="row">PBR</th><td>4.0倍</td><td>0.9倍</td></tr>
+          <tr><th scope="row">配当利回り</th><td>4.0%</td><td>3.5%</td></tr>
+          <tr><th scope="row">配当性向</th><td>140%</td><td>35%</td></tr>
+          <tr><th scope="row">時価総額</th><td>3,000億円</td><td>270億円</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pick">
+      <button type="button" data-pick="X社" aria-pressed="false" aria-controls="answer">X社</button>
+      <button type="button" data-pick="Y社" aria-pressed="false" aria-controls="answer">Y社</button>
+    </div>
+
+    <div class="answer" id="answer" hidden>
+      <p class="said" id="said"></p>
+      <p>規模はX社が10倍。配当利回りも高い。ぱっと見はX社です。</p>
+      <p>ただ、営業キャッシュフローは <span class="num">+180 → +30</span> と細っていて、配当は稼いだ利益の <span class="num">140%</span> を出しています。足りない分は、どこかから持ってきている。自己資本比率は <span class="num">13%</span>。</p>
+      <p>Y社は規模こそ小さいものの、利益率は上がり続け、手元の現金も増えています。</p>
+      <p class="punch">大きい会社と、良い投資先は違う。</p>
+      <p>勉強会では、この8つの数字を1つずつ、順番に読み解きます。<strong>ここまで、株価が上がるか下がるかの話は一度も出ていません。</strong>これが「会社を見る」ということで、同じ目盛りは、そのままご自身の会社にも当たります。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 学べること ============================ -->
+<section class="tint">
+  <div class="wrap">
+    <p class="eyebrow">PROGRAM</p>
+    <h2>講座で学べること</h2>
+    <ul class="learn">
+      <li><span class="n">01</span><span class="t">5年間の売上や利益から、会社の成長を読む</span></li>
+      <li><span class="n">02</span><span class="t">伸びている会社と、苦戦している会社を比べる</span></li>
+      <li><span class="n">03</span><span class="t">数字だけでは見えない「会社の強み」を見つける</span></li>
+      <li><span class="n">04</span><span class="t">情報に振り回されず、自分なりの判断軸を持つ</span></li>
+    </ul>
+    <p style="margin-top:22px; font-size:14px; color:var(--muted)">
+      そして、食事を囲みながら、投資や会社について気軽に話せる相手ができます。
+      経営者同士でこの話ができる場は、意外とありません。
+    </p>
+  </div>
+</section>
+
+<!-- ============================ 道具 ============================ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">THE TOOL</p>
+    <h2>当日は、自作の企業分析アプリを<br>実際に触っていただきます</h2>
+    <p>上場企業 <span class="num">3,906</span>社の決算を、どの会社でも同じ形で並べて見られるようにした道具です。数字を探す手間をなくすためだけに作りました。当日はこれを使って、気になる会社をその場で開きます。</p>
+    <p class="swipe-hint">→ 横にスクロールできます</p>
+  </div>
+  <div class="wrap">
+    <div class="shots">
+      <figure class="shot" style="margin:0">
+        <img src="/static/images/seminar/app-metrics.png" alt="企業分析アプリの銘柄ページ。自己資本比率・営業利益率・PER・PBR・配当利回り・時価総額が一覧で並んでいる画面">
+        <figcaption>会社ごとに散らばっている数字を、同じ位置・同じ形で並べる。勉強会で扱う指標がそのまま出ます。</figcaption>
+      </figure>
+      <figure class="shot" style="margin:0">
+        <img src="/static/images/seminar/app-chart.png" alt="株価推移のチャート画面。日経平均と比べるための切り替えがついている">
+        <figcaption>「この会社が弱いのか、市場全体が弱いのか」を切り分ける。日経平均と同じ起点に揃えて比べます。</figcaption>
+      </figure>
+    </div>
+  </div>
+  <div class="wrap">
+    <a class="applink" href="https://note.gia2018.com/stock/7203" target="_blank" rel="noopener">実際の画面を見てみる（登録不要）</a>
+  </div>
+</section>
+
+<!-- ============================ なぜやるのか ============================ -->
+<section class="tint">
+  <div class="wrap">
+    <p class="eyebrow">WHY</p>
+    <h2>なぜ、この勉強会をやるのか</h2>
+    <p>会社の見方をお話ししていると、毎回きまって同じところで手が止まりました。「で、この会社の数字はどこで見るんですか」。</p>
+    <p>数字はぜんぶ公開されています。ただ、載っている場所がばらばらで、並びも会社ごとに違う。そこで詰まって、多くの方がその先に進みませんでした。だから、道具のほうを作りました。</p>
+    <p>もうひとつ。経営者同士で決算の話ができる場が、思ったより無いということです。同業の集まりでは自社の数字の話はしにくい。よその会社の数字なら、遠慮なく話せます。そして他社を測っているうちに、目盛りのほうが手に入ります。</p>
+    <p><strong>だから、少人数にしています。</strong>{{ s.capacity }}名なら、全員が一度は口を開けます。</p>
+
+    <details class="fold" style="margin-top:26px">
+      <summary>講師について<span class="sign"></span></summary>
+      <div class="inner">
+        <p class="bio-name">五島 一将</p>
+        <p class="bio-role">{{ s.host }} 代表</p>
+        <p>企業分析アプリ「Company Note」を自ら設計・開発。決算の数字から会社の状態を読む方法を、セミナーや勉強会で伝えています。</p>
+        <p style="font-size:12.5px; color:var(--muted)">※ 経歴・実績はご紹介の際に別途お伝えします。</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ============================ 開催概要 ============================ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">DETAILS</p>
+    <h2>開催概要</h2>
+
+    <table class="spec">
+      <tr>
+        <th scope="row">日時</th>
+        <td>{% if s.date_label %}{{ s.date_label }}{% else %}日程調整中<small>ご希望をうかがったうえで候補日をお伝えします。</small>{% endif %}</td>
+      </tr>
+      <tr>
+        <th scope="row">会場</th>
+        <td>{{ s.venue }}<small>{{ s.venue_zip }}</small></td>
+      </tr>
+      <tr>
+        <th scope="row">定員</th>
+        <td><span class="num">{{ s.capacity }}</span>名<small>一人ひとりの理解を大切にするため、少人数で開催します。</small></td>
+      </tr>
+      <tr>
+        <th scope="row">対象</th>
+        <td>経営者・経営に関わる方<small>投資の経験は問いません。決算書を読んだことがなくても大丈夫です。</small></td>
+      </tr>
+      <tr>
+        <th scope="row">主催</th>
+        <td>{{ s.host }}</td>
+      </tr>
+    </table>
+
+    <h2 style="margin-top:44px; font-size:20px">参加費</h2>
+    <ul class="fees">
+      <li>
+        <span>講座<small>2時間程度</small></span>
+        <span class="amount free">無料</span>
+      </li>
+      <li>
+        <span>会場費<small>当日、会場でお支払いください</small></span>
+        <span class="amount">{{ s.fee_venue }}</span>
+      </li>
+      <li>
+        <span>懇親会<small>任意です。参加される方のみ、実費を頭割り</small></span>
+        <span class="amount">{{ s.fee_party }}</span>
+      </li>
+    </ul>
+    <p class="fees-punch">勉強会だけなら、{{ s.fee_venue }}です。</p>
+  </div>
+</section>
+
+<!-- ============================ 申込 ============================ -->
+<section class="tint" id="entry">
+  <div class="wrap">
+    <p class="eyebrow">ENTRY</p>
+    <h2>お申し込み</h2>
+
+    <ol class="flow">
+      <li><div>{% if inviter %}<strong>{{ inviter }}さん</strong>へ{% else %}このページを送ってくださった方へ{% endif %}、LINEで「<strong>参加希望</strong>」とご返信ください。</div></li>
+      <li><div>{% if s.date_label %}当日の詳細と会場の地図をお送りします。{% else %}候補日をいくつかお送りします。ご都合の合う日をお選びください。{% endif %}</div></li>
+      <li><div>当日は手ぶらでお越しください。スマホかノートPCがあれば、その場でアプリを触れます。</div></li>
+    </ol>
+
+    <a class="cta" href="{{ line_url }}"{% if line_url.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ head.cta }}</a>
+    <p class="cta-note">
+      定員 {{ s.capacity }}名です。埋まり次第、次回のご案内に切り替えさせていただきます。
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin:0">主催　{{ s.host }}<br>{{ s.venue_zip }}　{{ s.venue }}</p>
+    <p class="disc">
+      本講座は企業分析の学習を目的としたもので、特定の金融商品の売買を推奨するものではありません。
+      投資に関する最終的な判断は、ご自身の責任でお願いいたします。
+      掲載している2社の数字は学習用に作成した架空のものです。
+    </p>
+  </div>
+</footer>
+
+<!-- スマホだけ、下に申込を出しておく -->
+<div class="dock" hidden>
+  <a class="cta" href="#entry">{{ head.cta }}</a>
+</div>
+
+<script>
+(function () {
+  // 「どちらを選ぶか」を先に決めてもらってから答えを出す。
+  // 勉強会そのものが同じ順番（選ばせてから剥がす）なので、ページでも同じにする。
+  var answer = document.getElementById('answer');
+  var said   = document.getElementById('said');
+  var btns   = document.querySelectorAll('.pick button');
+
+  Array.prototype.forEach.call(btns, function (b) {
+    b.addEventListener('click', function () {
+      Array.prototype.forEach.call(btns, function (o) {
+        o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+      });
+      said.textContent = 'あなたが選んだのは ' + b.dataset.pick;
+      answer.hidden = false;
+      answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+
+  // 固定CTAは、ヒーローのボタンと申込欄が見えていない間だけ出す。
+  // 最初から出すと同じボタンが画面に2つ並ぶ。
+  var dock  = document.querySelector('.dock');
+  var hero  = document.querySelector('.hero .cta');
+  var entry = document.getElementById('entry');
+  if (dock && 'IntersectionObserver' in window) {
+    var shown = {};
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { shown[e.target.dataset.dockKey] = e.isIntersecting; });
+      dock.hidden = !!(shown.hero || shown.entry);
+    }, { threshold: 0.15 });
+    if (hero)  { hero.dataset.dockKey  = 'hero';  io.observe(hero); }
+    if (entry) { entry.dataset.dockKey = 'entry'; io.observe(entry); }
+    dock.hidden = true;
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -110,6 +110,169 @@ def index():
     return render_template('lp.html')
 
 
+@app.route('/welcome')
+def welcome():
+    """知人に直接URLを渡すための案内ページ。
+
+    `/` の lp.html は検索から来た人向け（機能の説明が主）。こちらは
+    「五島から渡された」人向けで、製品説明ではなく、まず1社ひいてもらう
+    ことを目的にしている。sitemap には載せず、noindex。
+
+    `?ref=<紹介コード>` を受けたら紹介者名を表示し、そのまま /register へ
+    引き継ぐ。口伝てで配ると誰が連れてきたか残らないため、ここで拾う。
+    """
+    from urllib.parse import quote
+
+    ref_code = (request.args.get('ref') or '').strip()
+    referrer_name = ''
+    register_url = '/register'
+    if ref_code:
+        referrer = get_user_by_referral_code(ref_code)
+        if referrer:
+            referrer_name = referrer['name']
+            register_url = '/register?ref=' + quote(ref_code, safe='')
+
+    return render_template('welcome.html',
+                           referrer_name=referrer_name,
+                           register_url=register_url,
+                           page_url=request.url_root.rstrip('/') + '/welcome')
+
+
+# 勉強会の案内ページの内容。**開催のたびにここだけ書き換える。**
+# date_label を空にすると「日程調整中」表示に切り替わり、申込の文言も
+# 「候補日をお送りします」に変わる（開催日が都度変わるため、空が既定）。
+SEMINAR = {
+    'session_no':  '',            # 例 '第1回'。空なら出さない
+    'date_label':  '',            # 例 '2026年9月12日（金）19:00〜21:00'
+    'venue':       '大阪府大阪市中央区石町2丁目3-1-201',
+    'venue_zip':   '〒540-0033',
+    'venue_area':  '中央区石町',
+    'capacity':    12,
+    'seats_taken': 0,             # 埋まった席数。残席表示に使う
+    'fee_venue':   '2,000円',
+    'fee_party':   '6,000円前後',
+    'host':        '株式会社GIA',
+}
+
+# 訴求のテスト用。渡す相手ごとに ?v= を変えて、LINEの返信数で比べる。
+# 変わるのは見出しまわりだけで、中身は共通。
+SEMINAR_HEADLINES = {
+    'a': {
+        'title': '他社を測る目盛りで、自分の会社を見る',
+        'h1_a':  '他社を測る目盛りで、',
+        'h1_b':  '自分の会社を見る。',
+        'lead':  '経営者12名で学ぶ、株式投資・企業分析の実践勉強会。'
+                 '決算の数字から会社の状態を読み、自分の判断軸をつくります。',
+        'cta':   '参加希望をLINEで伝える',
+    },
+    'b': {
+        'title': '投資先を見る目は、会社を見る目から',
+        'h1_a':  '投資先を見る目は、',
+        'h1_b':  '会社を見る目から。',
+        'lead':  '経営者同士で学ぶ、株式投資・企業分析の実践勉強会。'
+                 '株価の動きや誰かのおすすめに頼らず、会社の中身を自分で読めるようになります。',
+        'cta':   '参加希望をLINEで伝える',
+    },
+    'c': {
+        'title': '数字で会社を語れる人が、社内に何人いますか',
+        'h1_a':  '数字で会社を語れる人が、',
+        'h1_b':  '社内に何人いますか。',
+        'lead':  '経営者12名の少人数勉強会。他社の決算を読む練習を通して、'
+                 '自社の数字を語れる目盛りを手に入れます。',
+        'cta':   '参加希望をLINEで伝える',
+    },
+}
+
+# 申込の受け口。いまは「紹介者への個別LINE」なので、ページ内の申込欄へ送るだけ。
+# LINE公式アカウントに変えるときは、ここを https://lin.ee/... に差し替える。
+SEMINAR_LINE_URL = '#entry'
+
+
+# 知人・紹介者へ個別に渡す月額11,000円プランの案内。
+# `?v=a|b|c` は入口の言葉だけを変える。本文や料金は共通にして、
+# 何に反応したかをLINEの返信・申込で比べられるようにする。
+INVITE_HEADLINES = {
+    'a': {
+        'title': '投資先を見る目は、会社を見る目から',
+        'line_a': '投資先を見る目は、',
+        'line_b': '会社を見る目から。',
+        'lead': '企業の数字を読み、経営者同士で考える。Company Noteを使った、'
+                'ご紹介者向けの小さな研究会です。',
+    },
+    'b': {
+        'title': '他社を測る目盛りで、自分の会社を見る',
+        'line_a': '他社を測る目盛りで、',
+        'line_b': '自分の会社を見る。',
+        'lead': '上場企業の決算を題材に、売上・利益・財務の見方を身につける。'
+                '経営者同士で続ける企業分析の会です。',
+    },
+    'c': {
+        'title': '決算書を、経営者同士で読む',
+        'line_a': '決算書を、',
+        'line_b': '経営者同士で読む。',
+        'lead': '誰かのおすすめを聞く場ではありません。会社の中身を自分で読み、'
+                '自分の言葉で話せるようになるための少人数会です。',
+    },
+}
+
+INVITE_CHECKOUT_URL = 'https://gia2018.com/upgrade/invite'
+
+
+@app.route('/seminar')
+def seminar():
+    """経営者向け少人数勉強会の案内ページ。
+
+    チラシのWeb版だが、紙と違って順番を効かせている。
+    `/welcome`（アプリの案内）とは別物で、こちらが売っているのは勉強会。
+
+    `?v=a|b|c` で見出しだけ差し替える（訴求のテスト用）。
+    `?from=<名前>` を付けると「◯◯さんへ参加希望とご返信ください」と名指しできる。
+    紹介者はアプリの登録者とは限らないので、紹介コードではなく表示名で受ける。
+    そのぶん任意の文字列が入るため、名前に使う文字だけ残して長さも切る。
+    """
+    import re
+
+    variant = (request.args.get('v') or 'a').lower()
+    head = SEMINAR_HEADLINES.get(variant, SEMINAR_HEADLINES['a'])
+
+    raw = request.args.get('from') or ''
+    inviter = re.sub(r'[^0-9A-Za-z぀-ゟ゠-ヿ一-鿿々ー・\s]', '', raw)
+    inviter = ' '.join(inviter.split())[:24]
+
+    return render_template('seminar.html',
+                           s=SEMINAR,
+                           head=head,
+                           inviter=inviter,
+                           line_url=SEMINAR_LINE_URL,
+                           page_url=request.url_root.rstrip('/') + '/seminar')
+
+
+@app.route('/invite')
+def invite():
+    """知人・紹介者向けの月額11,000円プラン案内。
+
+    一般公開の料金比較ではなく、五島さん本人または紹介者からURLを受け取った
+    経営者に向けたページ。検索には載せず、決済はGIA側の既存Stripe導線へ渡す。
+
+    `?v=a|b|c` で見出しをテストでき、`?from=<名前>` で誰から届いた案内かを
+    ページ内に出せる。任意文字列なので表示前に文字種と長さを制限する。
+    """
+    import re
+
+    variant = (request.args.get('v') or 'a').lower()
+    head = INVITE_HEADLINES.get(variant, INVITE_HEADLINES['a'])
+
+    raw = request.args.get('from') or ''
+    inviter = re.sub(r'[^0-9A-Za-z぀-ゟ゠-ヿ一-鿿々ー・\s]', '', raw)
+    inviter = ' '.join(inviter.split())[:24]
+
+    return render_template('invite.html',
+                           head=head,
+                           inviter=inviter,
+                           checkout_url=INVITE_CHECKOUT_URL,
+                           page_url=request.url_root.rstrip('/') + '/invite')
+
+
 @app.route('/membership')
 def membership():
     """会員限定機能に無料会員が来たときの案内。
@@ -471,8 +634,35 @@ def stock_detail(code):
     ⚠️ クローキング（検索エンジンにだけ全文を見せる）は規約違反になるため、
     未ログインユーザーとクローラーには必ず同じ内容を返すこと。
     """
+    import company_lookup
+
     normalized = normalize_code(code)
     company = get_screened_data(normalized) or {}
+
+    # 会社名のままURLに乗ってくることがある（例 /stock/キオクシア）。
+    # 検索欄が「銘柄コードまたは会社名」を受けるので、サジェストを選ばずに
+    # Enterを押すと名前がそのままパスになる。空のページを見せる前にコードへ寄せる。
+    if not company and company_lookup.looks_like_name(normalized):
+        resolved = company_lookup.resolve(normalized)
+        if resolved:
+            return redirect(f'/stock/{resolved}')
+        # 1つに決められないときは飛ばさず、候補を出して選んでもらう
+        return render_template('stock_not_found.html',
+                               reason='name', query=normalized,
+                               candidates=company_lookup.suggest(normalized),
+                               listed_name=None,
+                               is_admin=session.get('user_role') == 'admin'), 404
+
+    # コードは正しいがDBに行が無い場合。「取得に失敗した」と「まだ分析していない」は
+    # 別物なので分けて伝える（data_gaps.py と同じ考え方）。
+    if not company:
+        listed = company_lookup.is_listed_code(normalized)
+        return render_template('stock_not_found.html',
+                               reason='listed' if listed else 'code',
+                               query=normalized,
+                               candidates=[],
+                               listed_name=company_lookup.name_of(normalized),
+                               is_admin=session.get('user_role') == 'admin'), 404
 
     # テーマは検索エンジンにも読ませたいのでサーバー側で出す。
     # テーマページへの相互リンクにもなり、銘柄ページ同士がつながる。

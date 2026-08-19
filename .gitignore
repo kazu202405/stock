@@ -23,6 +23,9 @@ charts/
 !package.json
 !static/companies.json
 !static/market_valuation.json
+# 勉強会LPで使うアプリの画面キャプチャ。*.png の除外に巻き込まれると
+# 本番で画像だけ404になる（ローカルでは見えるので気づけない）
+!static/images/seminar/*.png
 
 # ログ
 *.log
@@ -59,3 +62,6 @@ z.md
 # 利用規約PDFや動画など、公開したくない資料がリポジトリ直下に置かれることがある
 *.pdf
 *.mp4
+
+# 計測スクリプトの出力（結論は contexts の company_note.md に残す）
+claudedocs/*.jsonl
