@@ -2405,23 +2405,56 @@ def _enqueue_announced():
 
     その日に発表された分だけを直接処理する作りだと、ボタンを押し忘れた日の分が
     消えてしまう。検知した時点でキューに積み、処理済みになるまで残す。
+
+    ⚠️ **同じ日に2回検知しても、処理済みを未処理に戻さない。**
+    kabutanが返すのは「その日の発表」なので、1日に2回ここを通ると同じ銘柄が
+    並ぶ。以前は毎回 processed=False で上書きしていたため、
+    「更新ボタンを押す → 21時の検知cronが同じ銘柄を未処理に戻す →
+    次に押すと何も変わっていないのに全部取り直す」が毎日起きていた
+    （2026-08-19に実データで確認。1銘柄あたり約10リクエストなので決算日に効く）。
+
+    そのかわり、同じ日のうちに決算→業績修正と2回出した銘柄は拾い直せない。
+    翌日の検知で announced_date が変わるので、そこで開き直る。
+    無駄な全件再取得を毎日払うより軽いと判断した。
     """
     import earnings_scraper
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     client = get_supabase_client()
 
     data = earnings_scraper.fetch_announced_stocks()
-    today = datetime.now(timezone.utc).date().isoformat()
+    # 市場の日付で見る。スケジューラは Asia/Tokyo なのにここだけUTCだと、
+    # JSTの朝9時より前に走った検知が「前日の発表」として記録される。
+    jst = timezone(timedelta(hours=9))
+    today = datetime.now(jst).date().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
-    # 既に処理済みの銘柄が再度発表された場合は未処理に戻す
+    codes = [s['company_code'] for s in data['stocks']]
+
+    # 今日の日付で既に積んである銘柄は触らない（processed を巻き戻さないため）
+    already_today = set()
+    if codes:
+        try:
+            for i in range(0, len(codes), 500):
+                rows = (client.table('earnings_queue')
+                        .select('company_code')
+                        .in_('company_code', codes[i:i + 500])
+                        .eq('announced_date', today)
+                        .execute().data or [])
+                already_today.update(r['company_code'] for r in rows)
+        except Exception as e:
+            # 読めなかったら「触らない」側に倒す。取りこぼしても翌日の検知で拾えるが、
+            # 巻き戻すと全件再取得が走ってレート制限に当たる
+            print(f'決算キューの照会エラー（今回は既存行を触りません）: {e}')
+            already_today = set(codes)
+
     payload = [{
         'company_code': s['company_code'],
         'company_name': s.get('company_name'),
         'announced_date': today,
         'source': s.get('source'),
         'processed': False,
-        'updated_at': datetime.now(timezone.utc).isoformat(),
-    } for s in data['stocks']]
+        'updated_at': now,
+    } for s in data['stocks'] if s['company_code'] not in already_today]
 
     if payload:
         try:
