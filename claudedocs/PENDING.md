@@ -6,7 +6,36 @@
 
 ## 2026-08-19 の作業（すべて**未コミット・未デプロイ**）
 
-### いま走っているもの
+### いま走っているもの（2026-08-20 夜）
+
+**本番バックフィル**（`screened_latest` に書き込む）:
+
+```
+python backfill_yahoo_fields.py --max-per-run 400 --sleep 5.0
+```
+
+- ログ: `claudedocs/backfill_real_400.log`
+- **未取得だけを拾うので、いつ止めても同じコマンドで続きから走る**
+- 1銘柄18.3秒。400件で約2時間。**全3,800件だと約19時間**なので10回ほどに分けて流す
+- 進捗: `grep -c "OK (" claudedocs/backfill_real_400.log`
+- 件数確認: 下の「実行前後の件数」参照
+
+**実行前の件数（2026-08-20）**
+
+| | |
+|---|---|
+| forecast_revenue | 382 |
+| forecast_op_income | 384 |
+| business_summary_jp | 3,784 |
+
+（50件テスト前は 348 / 350。50件で +34＝68%が埋まった）
+
+⚠️ ブレーカーが開いたときの「待って復帰」はまだ本番で発動していない。
+このログに「遮断されました。◯分待って再開します」が出たら、そこが初検証。
+
+---
+
+### 計測スクリプト（DBに書かない方）
 
 ```
 python backfill_impact_dryrun.py --missing-only --spread 100 --sleep 1.5 --resume
