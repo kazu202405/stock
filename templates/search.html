@@ -2048,18 +2048,45 @@
         resizeObserver.observe(container);
     }
 
-    // 銘柄分析
-    async function analyzeStock() {
-        const stockCode = document.getElementById('stockCode').value.trim().toUpperCase();
+    // 入力文字列を証券コードに寄せる。
+    // 入力欄は「銘柄コードまたは会社名」を受けるので、会社名のまま /stock/ に渡すと
+    // 空のページになる（例 /stock/キオクシア）。1社に決められるときだけ置き換え、
+    // 決められなければそのまま送ってサーバー側に候補を出させる。
+    function resolveToCode(input) {
+        const q = (input || '').trim();
+        if (!q) return '';
+        const upper = q.toUpperCase();
+        if (!companiesData.length) return upper;
+        if (companiesData.some(c => c.c.toUpperCase() === upper)) return upper;
 
-        if (!stockCode) {
-            showErrorModal('銘柄コードを入力してください');
+        const lower = q.toLowerCase();
+        const exact = companiesData.filter(c => c.n.toLowerCase() === lower);
+        if (exact.length === 1) return exact[0].c;
+
+        const starts = companiesData.filter(c => c.n.toLowerCase().startsWith(lower));
+        if (starts.length === 1) return starts[0].c;
+
+        const contains = companiesData.filter(c => c.n.toLowerCase().includes(lower));
+        if (contains.length === 1) return contains[0].c;
+
+        return upper;
+    }
+
+    // 銘柄分析
+    async function analyzeStock(codeOverride) {
+        const raw = codeOverride !== undefined
+            ? codeOverride
+            : document.getElementById('stockCode').value.trim();
+
+        if (!raw) {
+            showErrorModal('銘柄コードまたは会社名を入力してください');
             return;
         }
 
         // 検索画面でYahooへ再分析を掛けると、一時欠損の生レスポンスで表示が
         // 「---」になる。保存済みの正規ページを唯一の表示先にする。
-        const code = stockCode.endsWith('.T') ? stockCode.slice(0, -2) : stockCode;
+        const resolved = resolveToCode(raw);
+        const code = resolved.endsWith('.T') ? resolved.slice(0, -2) : resolved;
         window.location.assign(`/stock/${encodeURIComponent(code)}`);
     }
 
@@ -2721,14 +2748,13 @@
             items.forEach((el, i) => el.classList.toggle('active', i === suggestIndex));
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (suggestIndex >= 0 && items[suggestIndex]) {
-                stockInput.value = items[suggestIndex].dataset.code;
-                suggestList.style.display = 'none';
-                analyzeStock();
-            } else {
-                suggestList.style.display = 'none';
-                analyzeStock();
-            }
+            // 矢印で選んでいなければ、いま画面の一番上に出ている候補を使う。
+            // ここで入力文字列のまま送ると /stock/キオクシア のような
+            // 会社名URLになり、空のページに着いてしまう。
+            const target = (suggestIndex >= 0 && items[suggestIndex]) ? items[suggestIndex] : items[0];
+            stockInput.value = target.dataset.code;
+            suggestList.style.display = 'none';
+            analyzeStock(target.dataset.code);
         } else if (e.key === 'Escape') {
             suggestList.style.display = 'none';
         }

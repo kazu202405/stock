@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+
+{# 銘柄ページを開いたが中身が無いとき。
+   以前は空の銘柄ページをそのまま出していたため、「アプリが壊れている」に見えていた。
+   理由を3つに分けて、次にできることを必ず1つ以上置く。 #}
+
+{% block title %}
+{% if reason == 'listed' %}{{ listed_name }}（{{ query }}）- Company Note
+{% else %}見つかりませんでした - Company Note{% endif %}
+{% endblock %}
+{% block meta_description %}お探しの銘柄ページが見つかりませんでした。銘柄コードまたは会社名で検索し直してください。{% endblock %}
+
+{% block content %}
+<div style="max-width: 640px; margin: 0 auto; padding: 48px 20px 72px;">
+
+  <div style="text-align:center; margin-bottom:32px;">
+    <div style="width:40px; height:2px; background:#1b4332; margin:0 auto 20px;"></div>
+
+    {% if reason == 'listed' %}
+      <h1 style="font-size:22px; font-weight:600; color:#1a1a1a; margin-bottom:12px;">
+        {{ listed_name }}は、まだ分析していません
+      </h1>
+      <p style="font-size:14px; color:#737373; line-height:1.9;">
+        上場している会社ですが、Company Note にまだデータがありません。<br>
+        銘柄コードは <strong style="color:#1a1a1a;">{{ query }}</strong> です。
+      </p>
+    {% elif reason == 'name' %}
+      {# 候補があるかどうかで意味が違う。0件のときに「絞れませんでした」と書くと、
+         あるはずのものが出せなかったように読める #}
+      <h1 style="font-size:22px; font-weight:600; color:#1a1a1a; margin-bottom:12px;">
+        {% if candidates %}「{{ query }}」で1社に絞れませんでした
+        {% else %}「{{ query }}」に一致する会社はありませんでした{% endif %}
+      </h1>
+      <p style="font-size:14px; color:#737373; line-height:1.9;">
+        {% if candidates %}近い会社が見つかりました。開きたい会社を選んでください。
+        {% else %}社名の一部だけでも探せます。正式名称でなくても構いません。{% endif %}
+      </p>
+    {% else %}
+      <h1 style="font-size:22px; font-weight:600; color:#1a1a1a; margin-bottom:12px;">
+        「{{ query }}」は見つかりませんでした
+      </h1>
+      <p style="font-size:14px; color:#737373; line-height:1.9;">
+        上場銘柄の一覧に無いコードです。<br>
+        ETF・REIT や、上場していない会社の可能性があります。
+      </p>
+    {% endif %}
+  </div>
+
+  {% if candidates %}
+  <div style="background:#fff; border:1px solid #ebebeb; border-radius:12px; overflow:hidden; margin-bottom:24px;">
+    {% for c in candidates %}
+    <a href="/stock/{{ c.c }}"
+       style="display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+              padding:13px 18px; text-decoration:none; color:#1a1a1a;
+              border-bottom:1px solid #f5f5f3;">
+      <span style="font-size:14.5px;">{{ c.n }}</span>
+      <span style="font-size:12px; color:#a3a3a3; font-family:ui-monospace,monospace;">{{ c.c }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if reason == 'listed' %}
+  <div style="background:#fafaf8; border:1px solid #ebebeb; border-radius:12px; padding:20px; margin-bottom:24px;">
+    <p style="font-size:13px; color:#525252; line-height:1.9; margin:0;">
+      分析すると、財務・キャッシュフロー・12項目のスコアが見られるようになります。
+      {% if is_admin %}下のボタンから取得してください。{% else %}
+      新しく上場した会社や小型の会社は、取得元にまだ情報が無いことがあります。{% endif %}
+    </p>
+    {% if is_admin %}
+    <button type="button" id="analyzeNowBtn"
+            style="margin-top:14px; padding:10px 20px; background:#1b4332; color:#fff;
+                   border:0; border-radius:8px; font-size:13.5px; font-weight:600; cursor:pointer;">
+      いま分析する
+    </button>
+    <span id="analyzeMsg" style="margin-left:12px; font-size:12.5px; color:#737373;"></span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="text-align:center;">
+    <a href="/search"
+       style="display:inline-flex; align-items:center; justify-content:center;
+              background:#1b4332; color:#fff; text-decoration:none;
+              font-size:14px; font-weight:600; letter-spacing:0.04em;
+              padding:13px 30px; border-radius:10px;">
+      銘柄を検索する
+    </a>
+    <p style="font-size:12px; color:#a3a3a3; margin-top:14px; line-height:1.8;">
+      会社名の一部でも探せます。「{{ '285A' if reason != 'listed' else query }}」のような
+      英字まじりの新しいコードにも対応しています。
+    </p>
+  </div>
+
+</div>
+
+{% if reason == 'listed' and is_admin %}
+<script>
+// 運営が自分で埋められるようにしておく。無いと「データが無い」と分かった時点で
+// 手が止まり、コマンドラインに戻ることになる。
+document.getElementById('analyzeNowBtn').addEventListener('click', function () {
+  var btn = this, msg = document.getElementById('analyzeMsg');
+  btn.disabled = true;
+  msg.textContent = '取得しています…（30秒ほどかかります）';
+  fetch('/api/stock/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol: '{{ query }}' })
+  })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (res.ok) { location.reload(); }
+      else { msg.textContent = '取得できませんでした：' + (res.d.error || '不明なエラー'); btn.disabled = false; }
+    })
+    .catch(function () { msg.textContent = '通信に失敗しました'; btn.disabled = false; });
+});
+</script>
+{% endif %}
+{% endblock %}

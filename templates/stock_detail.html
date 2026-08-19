@@ -336,10 +336,41 @@
         color: var(--text-primary);
     }
 
+    /* ⚠️ 色は「何項目を満たしたか」だけを表す。データが揃っているかは色で表さない。
+       以前は medium（点数が中くらい）と provisional（判定材料が足りない）が
+       同じオレンジで、12/12揃っていてオレンジのタマホームを見た人が
+       「データが足りないのか」と読み違えた。1つの色に2つの意味を持たせない。
+       充足度は下の12個のメーター（枠の有無）で表す。 */
     .score-value.high { color: var(--success-color); }
     .score-value.medium { color: var(--warning-color); }
     .score-value.low { color: var(--danger-color); }
-    .score-value.provisional { color: var(--warning-color); }
+
+    /* 12項目の内訳。1マス＝1項目。
+       塗り＝合格／薄い塗り＝不合格／点線の枠＝まだ判定できていない。 */
+    .score-meter {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        margin: 10px 0 6px;
+    }
+    .score-meter i {
+        width: 14px;
+        height: 8px;
+        border-radius: 2px;
+        display: block;
+        background: var(--success-color);
+        border: 1px solid transparent;
+    }
+    .score-meter i.fail { background: #d9dee4; }
+    .score-meter i.unjudged { background: transparent; border: 1px dashed #bcc5ce; }
+    .score-meter-legend {
+        text-align: center;
+        font-size: 0.62rem;
+        color: #a3a3a3;
+        letter-spacing: .02em;
+        margin: 0 0 2px;
+    }
+    .score-meter-legend b { font-weight: 500; color: #737373; }
 
     .score-coverage-note {
         text-align: center;
@@ -1066,6 +1097,10 @@
                 <div class="score-value" id="score-value">--</div>
                 <div class="score-label">/ 100</div>
             </div>
+            {# 12項目の内訳を1行で。色（緑/オレンジ/赤）は点数の話しかしないので、
+               「データが揃っているか」はこの枠の有無で見せる。 #}
+            <div class="score-meter" id="score-meter" role="img" aria-label="12項目の判定状況"></div>
+            <p class="score-meter-legend"><b style="color:#22c55e;">■</b> 合格　<b style="color:#d9dee4;">■</b> 不合格　<b style="color:#bcc5ce;">□</b> 判定できていない</p>
             {# 何項目で判定したかを必ず出す。データ未取得の項目を減点扱いにしないため、
                分母は「判定できた項目数」になる。ここを出さないと、同じ100点でも
                12項目で取れた100点と、8項目しか見ていない100点の区別がつかない。 #}
@@ -2680,6 +2715,8 @@
             updateScoreItem(it.element, it.passed, it.display, it.judged);
         });
 
+        renderScoreMeter(breakdown);
+
         const scoreValue = document.getElementById('score-value');
         const noteEl = document.getElementById('score-judged-note');
         const judged = breakdown.judged;
@@ -2705,8 +2742,8 @@
 
         scoreValue.textContent = breakdown.score;
         scoreValue.className = 'score-value';
-        if (status === 'provisional') scoreValue.classList.add('provisional');
-        else if (breakdown.score >= 58) scoreValue.classList.add('high');
+        // 暫定でも色は点数どおりにする。確度はメーターと下の注記が伝える
+        if (breakdown.score >= 58) scoreValue.classList.add('high');
         else if (breakdown.score >= 33) scoreValue.classList.add('medium');
         else scoreValue.classList.add('low');
         if (noteEl) {
@@ -2717,6 +2754,31 @@
                 noteEl.textContent = `暫定評価：データ充足度 ${coverage}%（${judged}/${total}項目）。未取得項目は適合度の計算から除外しています`;
             }
         }
+    }
+
+    // 12項目を1マスずつ描く。ラベルは既にHTMLにある一覧から読むので、
+    // 「キー → 日本語名」の対応表をJS側に二重に持たない。
+    function renderScoreMeter(breakdown) {
+        const meter = document.getElementById('score-meter');
+        if (!meter) return;
+        meter.innerHTML = '';
+        const items = breakdown.items || [];
+        items.forEach(function (it) {
+            const seg = document.createElement('i');
+            seg.className = it.judged ? (it.passed ? '' : 'fail') : 'unjudged';
+            let label = it.key;
+            const statusEl = it.element ? document.getElementById(it.element) : null;
+            const row = statusEl ? statusEl.closest('.score-item') : null;
+            const labelEl = row ? row.querySelector('.score-item-label') : null;
+            if (labelEl) label = labelEl.textContent.trim();
+            seg.title = label + '：' + (it.judged ? (it.passed ? '合格' : '不合格') : '判定できていない');
+            meter.appendChild(seg);
+        });
+        const judged = breakdown.judged;
+        const total = breakdown.total;
+        const passed = items.filter(function (i) { return i.passed; }).length;
+        meter.setAttribute('aria-label',
+            total + '項目中 ' + judged + '項目を判定、うち ' + passed + '項目が合格');
     }
 
     function applySourceDiagnostics(statusEl, data) {
