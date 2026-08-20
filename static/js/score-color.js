@@ -33,11 +33,15 @@
 
     if (!isNum) {
       var coverage = row.score_coverage;
-      // 充足度が分かっていて100%未満なら、点数に関係なく「暫定」。
-      // coverage が undefined の一覧（充足度を返していないAPI）では
-      // 点数だけで色を付ける。緑が出てしまう場合があるので、
-      // 該当APIには attach_score_quality() を足すこと。
+      // 一覧が渡してくるものは2通りある。どちらでも暫定を判定できる:
+      //   score_coverage / score_status … attach_score_quality() で内訳まで出す。
+      //     件数の少ない一覧向け（ウォッチリスト・お気に入り・高配当）
+      //   score_complete … screened_latest に保存済みの真偽値を1列取るだけ。
+      //     件数の多い一覧向け（テクニカルは3,700件あり、内訳を出すと1.5MB/2.6秒になる）
+      // どちらも無い場合は点数だけで色を付ける（緑が出てしまうので、
+      // 一覧を追加するときはどちらかを必ず渡すこと）。
       if (row.score_status === 'provisional' ||
+          row.score_complete === false ||
           (coverage !== null && coverage !== undefined && coverage < 100)) {
         return 'provisional';
       }
@@ -60,7 +64,12 @@
       return '判定データが不足しています';
     }
     var total = row.score_total;
-    if (row.score_coverage === null || row.score_coverage === undefined) return '';
+    if (row.score_coverage === null || row.score_coverage === undefined) {
+      // 内訳を持たない一覧。真偽値だけは伝えられる
+      if (row.score_complete === false) return '暫定評価：まだ判定できていない項目があります';
+      if (row.score_complete === true) return 'データ充足度 100%';
+      return '';
+    }
     if (row.score_coverage < 100) {
       return '暫定評価：データ充足度 ' + row.score_coverage + '%' +
              '（' + row.score_judged + '/' + total + '項目）';

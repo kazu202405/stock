@@ -201,9 +201,11 @@
        ------------------------------------------------------------------ */
     .score-tone-high        { color: #15803d; font-weight: 600; }
     .score-tone-medium      { color: #a16207; font-weight: 600; }
-    .score-tone-low         { color: #9ca3af; font-weight: 600; }
-    .score-tone-provisional { color: #64748b; font-weight: 600;
-                              border-bottom: 1px dotted #b45309; }
+    /* low（点数が低い）と provisional（まだ判定できていない）はどちらも灰系だが、
+       provisional は青みのあるスレート、low は彩度のない灰にして色味で分ける。
+       点線の下線も試したが、表の中でノイズになるのでやめた。 */
+    .score-tone-low         { color: #b6bcc4; font-weight: 600; }
+    .score-tone-provisional { color: #64748b; font-weight: 600; }
     .score-tone-none        { color: #cbd5e1; font-weight: 400; }
 </style>
 

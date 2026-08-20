@@ -1828,6 +1828,10 @@ def api_get_dividend_stocks():
     """高配当フラグが立っている銘柄を一覧取得。会員限定。"""
     try:
         stocks = get_dividend_stocks()
+        # 一覧の色分けに充足度が要る。付けないと「点数は高いがデータが欠けている」
+        # 銘柄が緑で出てしまう（score-color.js は充足度が無いと点数だけで判定する）
+        for row in stocks:
+            attach_score_quality(row)
         return jsonify({"dividend_stocks": stocks}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1966,6 +1970,8 @@ def api_get_favorite_stocks():
     try:
         user_id = get_or_create_guest_user_id()
         stocks = get_favorite_stocks(user_id)
+        for row in stocks:
+            attach_score_quality(row)
         return jsonify({"favorite_stocks": stocks}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2185,9 +2191,14 @@ def api_get_technical_stocks():
         screened_map = {}
         for i in range(0, len(codes), 100):
             chunk = codes[i:i + 100]
+            # 色分けに要るのは「全項目を判定できたか」だけなので、保存済みの
+            # score_complete を1列取るに留める。
+            # attach_score_quality() を使うには financial_history / cf_history が要り、
+            # この一覧は3,700件あるため応答が 1.5MB / 2.6秒 に膨らんだ（実測）。
+            # worker1本なので、一覧APIをそこまで重くする価値は無い。
             screened = client.table('screened_latest').select(
                 'company_code,company_name,sector,market_cap,stock_price,'
-                'per_forward,pbr,dividend_yield,match_rate,analyzed_at'
+                'per_forward,pbr,dividend_yield,match_rate,analyzed_at,score_complete'
             ).in_('company_code', chunk).execute()
             for x in (screened.data or []):
                 screened_map[x['company_code']] = x
@@ -2211,6 +2222,9 @@ def api_get_technical_stocks():
                 'dc_date': sig.get('dc_date'),
                 'cross_count': sig.get('cross_count'),
                 'analyzed_at': sc.get('analyzed_at') or sig.get('analyzed_at'),
+                # 充足度そのものではなく「全項目そろっているか」だけを渡す。
+                # score-color.js はこれだけで暫定かどうかを判定できる。
+                'score_complete': sc.get('score_complete'),
             })
 
         # 直近でGCした順を既定にする（何もしなくても「今どれがGCしたか」が分かる）
