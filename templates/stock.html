@@ -418,9 +418,7 @@
     .metric-danger { color: var(--danger-color); }
 
     /* スコアの色分け */
-    .match-rate-high { color: var(--success-color); font-weight: 600; }
-    .match-rate-medium { color: var(--warning-color); font-weight: 600; }
-    .match-rate-low { color: var(--danger-color); font-weight: 600; }
+    /* スコアの色は共通クラス .score-tone-*（layout.html + score-color.js）に集約 */
 
     .match-rate-description {
         font-size: 0.75rem;
@@ -1535,7 +1533,7 @@
             const divYield = item.dividend_yield ? `${item.dividend_yield.toFixed(2)}%` : '---';
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
-            const matchRateClass = getMatchRateClass(item.match_rate);
+            const matchRateClass = getMatchRateClass(item);
             const gcDate = formatScrapedDate(item.gc_date);
             const dcDate = formatScrapedDate(item.dc_date);
             const trend = getLatestCross(item.gc_date, item.dc_date);
@@ -1615,12 +1613,12 @@
         return 'metric-danger';
     }
 
-    // スコアの色分けクラスを取得
+    // スコアの色分けクラス。判定は score-color.js が唯一の正。
+    // ⚠️ ここに渡しているのは数値なので、充足度を見た色分けにならない一覧がある。
+    //    行オブジェクトを渡せる一覧（ウォッチリスト＝attach_score_quality済み）は
+    //    行ごと渡すこと。他の一覧APIにも attach_score_quality を足すのが本筋。
     function getMatchRateClass(value) {
-        if (value === null || value === undefined) return '';
-        if (value >= 58) return 'match-rate-high';
-        if (value >= 33) return 'match-rate-medium';
-        return 'match-rate-low';
+        return ScoreColor.toneClass(value);
     }
 
     // ウォッチリストから削除
@@ -2170,7 +2168,7 @@
             const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
-            const matchRateClass = getMatchRateClass(item.match_rate);
+            const matchRateClass = getMatchRateClass(item);
 
             html += `
                 <tr>
@@ -2381,7 +2379,7 @@
             const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
-            const matchRateClass = getMatchRateClass(item.match_rate);
+            const matchRateClass = getMatchRateClass(item);
 
             html += `
                 <tr>
@@ -2637,7 +2635,7 @@
             // 株価は会社名とスコアの間へ。一番よく見る数字なので
             // 指標のマス目に埋もれさせない（スクリーナーと同じ形）。
             price: (r) => r.stock_price ? formatWatchlistPrice(r.stock_price) : '',
-            badge: (r) => `<span class="${getMatchRateClass(r.match_rate)}" style="font-weight:700;">`
+            badge: (r) => `<span class="${getMatchRateClass(r)}" style="font-weight:700;">`
                 + (r.match_rate != null ? r.match_rate : '---') + '</span>',
             // tone は「基準を満たしているか」の色分け（2026-08-15 五島さんと確定）。
             //
@@ -3231,7 +3229,7 @@
             const code = item.company_code || '---';
             const name = item.company_name || '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
-            const matchRateClass = getMatchRateClass(item.match_rate);
+            const matchRateClass = getMatchRateClass(item);
             const sector = item.sector || '---';
             const marketCap = item.market_cap ? formatMarketCapOku(item.market_cap) : '---';
             const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';

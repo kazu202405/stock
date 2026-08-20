@@ -191,6 +191,20 @@
             padding-bottom: 56px;
         }
     }
+
+    /* ------------------------------------------------------------------
+       スコアの色。判定は static/js/score-color.js が唯一の正。
+       緑＝データが全部揃っていて、かつ点数が高い（＝総合評価）。
+       点数が高くても判定できていない項目があれば provisional にする。
+       provisional を medium と別の色にしているのは、
+       「点数が中くらい」と「まだ分からない」を同じ色にすると読み違えるため。
+       ------------------------------------------------------------------ */
+    .score-tone-high        { color: #15803d; font-weight: 600; }
+    .score-tone-medium      { color: #a16207; font-weight: 600; }
+    .score-tone-low         { color: #9ca3af; font-weight: 600; }
+    .score-tone-provisional { color: #64748b; font-weight: 600;
+                              border-bottom: 1px dotted #b45309; }
+    .score-tone-none        { color: #cbd5e1; font-weight: 400; }
 </style>
 
 
@@ -226,6 +240,8 @@
     -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/table-view.css') }}">
     <script src="{{ url_for('static', filename='js/table-view.js') }}"></script>
+    <!-- スコアの色分けは全画面で同じ判定を使う（3画面がバラバラだったため集約） -->
+    <script src="{{ url_for('static', filename='js/score-color.js') }}"></script>
 </head>
 
 <body class="min-h-screen" style="background: #f7f7f5;">

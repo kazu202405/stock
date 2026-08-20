@@ -297,11 +297,10 @@
         font-size: 2rem;
         font-weight: 700;
         line-height: 1;
+        /* 色はここで決めない。共通クラス .score-tone-* が付く */
     }
 
-    .score-value.high { color: #10b981; }
-    .score-value.medium { color: #f59e0b; }
-    .score-value.low { color: #ef4444; }
+    /* 色は共通クラス .score-tone-*（layout.html + score-color.js）に集約 */
 
     .score-label {
         font-size: 0.9rem;
@@ -2951,13 +2950,11 @@
         const matchRate = data.match_rate;
         if (matchRate !== null && matchRate !== undefined) {
             scoreValue.textContent = matchRate;
-            scoreValue.className = 'score-value';
-            if (matchRate >= 58) scoreValue.classList.add('high');
-            else if (matchRate >= 33) scoreValue.classList.add('medium');
-            else scoreValue.classList.add('low');
+            // 一覧・銘柄ページと同じ判定を使う（score-color.js が唯一の正）
+            scoreValue.className = 'score-value ' + ScoreColor.toneClass(data);
         } else {
             scoreValue.textContent = '--';
-            scoreValue.className = 'score-value';
+            scoreValue.className = 'score-value score-tone-none';
         }
 
         const marketCap = data.market_cap;

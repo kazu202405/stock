@@ -333,17 +333,13 @@
     .score-value {
         font-size: 2.5rem;
         font-weight: 700;
-        color: var(--text-primary);
+        /* 色はここで決めない。共通クラス .score-tone-*（layout.html）が付く。
+           ここに color を書くと、後勝ちで共通クラスを潰してしまう。 */
     }
 
-    /* ⚠️ 色は「何項目を満たしたか」だけを表す。データが揃っているかは色で表さない。
-       以前は medium（点数が中くらい）と provisional（判定材料が足りない）が
-       同じオレンジで、12/12揃っていてオレンジのタマホームを見た人が
-       「データが足りないのか」と読み違えた。1つの色に2つの意味を持たせない。
-       充足度は下の12個のメーター（枠の有無）で表す。 */
-    .score-value.high { color: var(--success-color); }
-    .score-value.medium { color: var(--warning-color); }
-    .score-value.low { color: var(--danger-color); }
+    /* 色の判定は score-color.js に集約（スクリーナー・ダッシュボードと共通）。
+       緑＝データが全部揃っていて、かつ点数が高い。
+       「どの項目が埋まっていないか」は下の12マスのメーターで見る。 */
 
     /* 12項目の内訳。1マス＝1項目。
        塗り＝合格／薄い塗り＝不合格／点線の枠＝まだ判定できていない。 */
@@ -2730,7 +2726,7 @@
 
         if (breakdown.score === null || breakdown.score === undefined) {
             scoreValue.textContent = '--';
-            scoreValue.className = 'score-value';
+            scoreValue.className = 'score-value score-tone-none';
             if (noteEl) {
                 noteEl.classList.add('provisional');
                 noteEl.textContent = judged === 0
@@ -2741,11 +2737,12 @@
         }
 
         scoreValue.textContent = breakdown.score;
-        scoreValue.className = 'score-value';
-        // 暫定でも色は点数どおりにする。確度はメーターと下の注記が伝える
-        if (breakdown.score >= 58) scoreValue.classList.add('high');
-        else if (breakdown.score >= 33) scoreValue.classList.add('medium');
-        else scoreValue.classList.add('low');
+        // 一覧と同じ判定を使う。ここで独自に分岐すると、また画面ごとに色が食い違う
+        scoreValue.className = 'score-value ' + ScoreColor.toneClass({
+            match_rate: breakdown.score,
+            score_status: status,
+            score_coverage: coverage,
+        });
         if (noteEl) {
             if (status === 'complete') {
                 noteEl.textContent = `データ充足度 100%（${total}/${total}項目）`;

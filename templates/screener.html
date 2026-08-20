@@ -187,7 +187,7 @@
 
         <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.6;">
             ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
-            ※ <span style="color:#b45309; font-weight:700;">オレンジ色のスコア</span>は、データ充足度100%未満の暫定評価です。<br>
+            ※ スコアの色は総合評価です。<span class="score-tone-high">緑</span>＝12項目すべて判定できて高得点。<span class="score-tone-provisional">点線つき</span>＝まだ判定できていない項目があります（点数は参考値）。<br>
             ※ ROE順で並べ替える際は、自己資本比率5%未満の企業を除外しています（分母が小さいとROEが極端な値になり比較できないため）。
         </p>
 
@@ -384,7 +384,7 @@
 
         <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.5;">
             ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
-            ※ <span style="color:#b45309; font-weight:700;">オレンジ色のスコア</span>は、データ充足度100%未満の暫定評価です。
+            ※ スコアの色は総合評価です。<span class="score-tone-high">緑</span>＝12項目すべて判定できて高得点。<span class="score-tone-provisional">点線つき</span>＝まだ判定できていない項目があります（点数は参考値）。
         </p>
 
         <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
@@ -675,10 +675,8 @@
     .pill-none { background: #f3f4f6; color: #9ca3af; }
 
     .scr-match { font-size: 14px; font-weight: 700; }
-    .match-high { color: #15803d; }
-    .match-medium { color: #a16207; }
-    .match-low { color: #9ca3af; }
-    .match-provisional { color: #b45309; }
+    /* スコアの色は共通クラス .score-tone-* を使う（layout.html + score-color.js）。
+       ここに独自の色を持つと、銘柄ページ・ダッシュボードとまた食い違う。 */
 
     /* ゴールデンクロス。移動平均が上抜けした事実と日付を示すだけで、
        売買を促す表現は付けない。直近がGC状態なら緑、DCが来ていれば灰色。 */
@@ -1005,13 +1003,7 @@
                 return `${p[0].slice(2)}/${parseInt(p[1])}/${parseInt(p[2])}`;
             },
             matchClass(row) {
-                const v = row.match_rate;
-                if (v == null) return 'match-low';
-                if (row.score_status === 'provisional' ||
-                        (row.score_coverage != null && row.score_coverage < 100)) {
-                    return 'match-provisional';
-                }
-                return v >= 70 ? 'match-high' : v >= 40 ? 'match-medium' : 'match-low';
+                return ScoreColor.toneClass(row);
             },
             matchTitle(row) {
                 if (row.match_rate == null) return '判定データが不足しています';
@@ -1109,15 +1101,7 @@
         return num == null ? '---' : `¥${Math.round(num).toLocaleString()}`;
     }
     function getMatchRateClass(item) {
-        const value = item.match_rate;
-        if (value == null) return '';
-        if (item.score_status === 'provisional' ||
-                (item.score_coverage != null && item.score_coverage < 100)) {
-            return 'match-provisional';
-        }
-        if (value >= 70) return 'match-high';
-        if (value >= 40) return 'match-medium';
-        return 'match-low';
+        return ScoreColor.toneClass(item);
     }
 
     function getMatchRateTitle(item) {
