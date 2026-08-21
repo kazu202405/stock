@@ -5,6 +5,7 @@ Yahoo!ファイナンス日本版由来の項目だけを埋める穴埋めパ�
   - 事業概要（日本語）business_summary_jp
   - 業績予想（今期）forecast_revenue / op_income / ordinary_income / net_income / year
   - 代表者名・設立年月日・業種分類・従業員数・本社所在地・市場名
+  - **大株主 major_shareholders_jp（strainer.jp）**
 
 背景:
   全銘柄バックフィル中にYahoo!JPから一時ブロックされたため、本体のバッチでは
@@ -78,7 +79,7 @@ def load_targets(only_missing=True):
         res = (client.table('screened_latest')
                .select('company_code, business_summary_jp, forecast_year, '
                        'forecast_revenue, forecast_op_income, profile_updated_at, '
-                       'source_status')
+                       'major_shareholders_jp, source_status')
                .range(page * 1000, page * 1000 + 999)
                .execute())
         rows = res.data or []
@@ -105,6 +106,7 @@ def load_targets(only_missing=True):
             # どれか欠けていれば対象。会社予想非開示は再取得を繰り返さない。
             if (not r.get('business_summary_jp')
                     or not forecast_ready
+                    or not r.get('major_shareholders_jp')
                     or not r.get('profile_updated_at')):
                 targets.append(r['company_code'])
         if len(rows) < 1000:
@@ -118,7 +120,9 @@ def fill_one(code, analyzer, use_edinet_forecasts=False):
     # 対象は screened_latest から抽出した既存行なので UPDATE を使う。
     # upsert は INSERT ... ON CONFLICT として実行されるため、
     # 部分的な項目だけを渡すと INSERT 側でNOT NULL制約に引っかかる（23502）。
-    from jp_company_scraper import get_yahoo_japan_profile
+    from jp_company_scraper import (
+        get_yahoo_japan_profile, get_shareholders_from_strainer,
+    )
     from supabase_client import (
         get_screened_data, merge_source_status, update_screened_data,
     )
@@ -128,7 +132,11 @@ def fill_one(code, analyzer, use_edinet_forecasts=False):
     existing = get_screened_data(code) or {}
 
     # 1) /profile 由来（事業概要・代表者名・設立・業種・従業員・本社・市場）
-    profile = get_yahoo_japan_profile(code)
+    #    もう揃っているならYahooを叩かない。Yahooは遮断されやすく、
+    #    大株主だけが欲しい銘柄のために枠を使うと本末転倒になる。
+    profile_done = all(existing.get(k) for k in
+                       ('business_summary_jp', 'ceo_name', 'established', 'headquarters'))
+    profile = {} if profile_done else get_yahoo_japan_profile(code)
     summary = profile.get('business_summary_jp')
     segments = profile.get('business_segments')
     if summary and segments:
@@ -180,6 +188,24 @@ def fill_one(code, analyzer, use_edinet_forecasts=False):
                     'forecast_net_income', 'forecast_year', 'source_status'):
             if seed.get(key) is not None:
                 data[key] = seed[key]
+
+    # 4) 大株主（strainer.jp）
+    #    ⚠️ この取得は _get_business_summary() の中にあり、全銘柄バックフィルは
+    #    skip_extras=True で回すため一度も動いていなかった。その結果
+    #    major_shareholders_jp は3,879件中160件（4%）しか埋まっていない。
+    #    strainer は Yahoo とは別ドメインで、実測でも 200 が返る。
+    #    EDINET無料枠（100回/日＝約30銘柄/夜・全件2〜3か月）に頼る必要がない。
+    if not existing.get('major_shareholders_jp'):
+        try:
+            holders, holders_status = get_shareholders_from_strainer(code, with_status=True)
+            if holders:
+                data['major_shareholders_jp'] = json.dumps(holders, ensure_ascii=False)
+            if holders_status:
+                data['source_status'] = merge_source_status(
+                    data.get('source_status') or existing.get('source_status'),
+                    {'strainer_shareholders': holders_status})
+        except Exception as e:
+            print(f'  大株主の取得エラー {code}: {e}')
 
     if len(data) <= 1:
         return 0

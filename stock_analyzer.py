@@ -730,13 +730,22 @@ class StockAnalyzer:
             result["current_liabilities"] = info.get('totalCurrentLiabilities')
             result["cash_and_equivalents"] = info.get('totalCash')
 
-            # firstTradeDateEpochUtc は会社の設立日ではなく取引開始日。
+            # firstTradeDate は会社の設立日ではなく、その市場での取引開始日。
             # JPX由来の上場日が無いときのフォールバックとしてのみ使う。
-            first_trade = info.get('firstTradeDateEpochUtc')
+            #
+            # ⚠️ 2026-08-21: yfinance が返すキーが firstTradeDateEpochUtc（秒）から
+            # firstTradeDateMilliseconds（ミリ秒）に変わっており、旧名だけを見ていたため
+            # **上場日が3,879件中2件しか埋まっていなかった**。両方の名前を見て、
+            # 単位も値の桁で判定する（ミリ秒を秒として渡すと西暦34000年台になる）。
+            first_trade = (info.get('firstTradeDateMilliseconds')
+                           or info.get('firstTradeDateEpochUtc'))
             if first_trade and not result.get('listing_date'):
                 try:
+                    epoch = int(first_trade)
+                    if epoch > 1e11:      # ミリ秒とみなす境界（1e11秒＝西暦5138年）
+                        epoch //= 1000
                     result['listing_date'] = datetime.fromtimestamp(
-                        int(first_trade)).date().isoformat()
+                        epoch).date().isoformat()
                 except (TypeError, ValueError, OSError):
                     pass
 
