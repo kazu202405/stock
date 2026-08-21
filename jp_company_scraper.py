@@ -95,6 +95,43 @@ def get_officers_from_jlic(stock_code: str, with_status: bool = False):
     return (officers, status) if with_status else officers
 
 
+def _split_shares_ratio(cell):
+    """strainerのセルから「株数(千株)」と「保有比率」を取り出す。
+
+    セルの中身は2段に分かれている:
+        <td><span><div><a>580</a></div><div>9.23%</div></span></td>
+    get_text() で読むと "5809.23%" と連結され、**境界が消える**。
+
+    ⚠️ 以前はこの連結文字列を「カンマの後ろ3桁が株数の下位」という規則で
+    分解していたため、株数が千株未満でカンマが無い行（例 "5809.23%"）を
+    すべて捨てていた。手間いらず(2477)のような小型株は保有株数が3桁のため
+    ほぼ全員が消え、大株主が1名しか出ていなかった。
+    大型株はカンマが付くので気づきにくい壊れ方だった。
+
+    返り値: (株数[株], 比率[%]) いずれも取れなければ (None, None)
+    """
+    parts = [d.get_text(strip=True) for d in cell.find_all('div')]
+    parts = [p for p in parts if p]
+
+    ratio_txt = next((p for p in reversed(parts) if p.endswith('%')), None)
+    shares_txt = next((p for p in parts if not p.endswith('%')), None)
+    if ratio_txt is None:
+        return None, None
+
+    try:
+        ratio = float(ratio_txt.rstrip('%').replace(',', ''))
+    except ValueError:
+        return None, None
+
+    shares = None
+    if shares_txt:
+        try:
+            shares = int(shares_txt.replace(',', '')) * 1000   # 千株単位
+        except ValueError:
+            shares = None
+    return shares, ratio
+
+
 def get_shareholders_from_strainer(stock_code: str, with_status: bool = False):
     """
     strainer.jpから大株主情報を取得
@@ -164,35 +201,20 @@ def get_shareholders_from_strainer(stock_code: str, with_status: bool = False):
                     if name == '計':
                         continue
 
-                    # 株数と比率をパース（例: "108,84716.79%", "21,3783.3%"）
-                    # フォーマット: 株数(千株、カンマ区切り)+比率(小数)%
-                    # カンマ後は [3桁の株数下位] + [比率] の構造
+                    # 株数と比率はセル内で別要素になっている。まずそこから読む。
+                    # 連結文字列を規則で割る方式は、カンマが無い小型株を落とす。
+                    shares, ratio = _split_shares_ratio(cells[latest_col_idx])
 
-                    val = latest_value.replace(' ', '').rstrip('%')
-
-                    # 最後のカンマ位置を特定（株数の千の位区切り）
-                    last_comma = val.rfind(',')
-                    if last_comma == -1:
-                        continue
-
-                    # カンマの前後を分離
-                    shares_upper = val[:last_comma].replace(',', '')  # 上位桁
-                    after_comma = val[last_comma+1:]  # "84716.79"
-
-                    # カンマ後の構造: 最初の3桁が株数下位、残りが比率
-                    if len(after_comma) < 4:  # 最低 "XXX.X" の形式
-                        continue
-
-                    shares_lower = after_comma[:3]  # 株数の下位3桁
-                    ratio_str = after_comma[3:]     # 比率部分 "16.79"
-
-                    try:
-                        shares = int(shares_upper + shares_lower) * 1000  # 千株単位
-                        ratio = float(ratio_str)
-
-                        if ratio <= 0 or ratio > 100:
+                    if ratio is None:
+                        # 構造が変わった場合の保険。連結文字列から比率だけ拾う
+                        # （株数は諦める。比率さえあれば大株主表は成立する）
+                        m = re.search(r'(\d+(?:\.\d+)?)%\s*$', latest_value)
+                        if not m:
                             continue
-                    except ValueError:
+                        ratio = float(m.group(1))
+                        shares = None
+
+                    if ratio <= 0 or ratio > 100:
                         continue
 
                     if ratio is not None:

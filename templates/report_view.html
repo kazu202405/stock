@@ -521,19 +521,45 @@
   const valueLabels = {
     id: 'rpValueLabels',
     afterDatasetsDraw(chart) {
-      const { ctx } = chart;
+      const { ctx, chartArea } = chart;
       ctx.save();
       ctx.font = '700 11px "Noto Sans JP", sans-serif';
       ctx.textAlign = 'center';
+
+      // 売上高（左軸・棒）と営業利益（右軸・折れ線）は軸が違うので、
+      // 値によっては同じ高さに来る。固定の位置に書くと数字が重なって読めない
+      // （手間いらず2477で「21.90」と「16.10」が重なっていた）。
+      // 先に置いた矩形と当たらない位置へ、上下に逃がしてから描く。
+      const LINE_H = 12;
+      const placed = [];
+      const hits = (x, y, w) => placed.some(b =>
+        Math.abs(x - b.x) < (w + b.w) / 2 + 2 && Math.abs(y - b.y) < LINE_H);
+
       chart.data.datasets.forEach((ds, di) => {
         if (ds.hideLabels) return;
         const meta = chart.getDatasetMeta(di);
         meta.data.forEach((pt, i) => {
           const v = ds.data[i];
           if (v == null) return;
+          const text = Number(v).toFixed(ds.labelDigits ?? 2);
+          const w = ctx.measureText(text).width;
+          const base = ds.labelBelow ? 15 : -8;
+          const away = base < 0 ? -1 : 1;   // 好みの向き
+
+          // 好みの位置 → 反対側 → さらに外側、の順に空きを探す
+          const candidates = [base, -base,
+                              base + away * 12, -base - away * 12,
+                              base + away * 24, -base - away * 24];
+          let off = candidates.find(o => {
+            const y = pt.y + o;
+            if (chartArea && (y < chartArea.top + 4 || y > chartArea.bottom - 2)) return false;
+            return !hits(pt.x, y, w);
+          });
+          if (off === undefined) off = base;   // どこも空いていなければ元の位置
+
+          placed.push({ x: pt.x, y: pt.y + off, w });
           ctx.fillStyle = ds.labelColor || ds.borderColor || '#333';
-          const offset = ds.labelBelow ? 15 : -8;
-          ctx.fillText(Number(v).toFixed(ds.labelDigits ?? 2), pt.x, pt.y + offset);
+          ctx.fillText(text, pt.x, pt.y + off);
         });
       });
       ctx.restore();

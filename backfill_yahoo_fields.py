@@ -115,7 +115,7 @@ def load_targets(only_missing=True):
     return targets
 
 
-def fill_one(code, analyzer, use_edinet_forecasts=False):
+def fill_one(code, analyzer, use_edinet_forecasts=False, refresh_holders=False):
     """1銘柄のYahoo由来項目を取得して保存する。保存した項目数を返す。"""
     # 対象は screened_latest から抽出した既存行なので UPDATE を使う。
     # upsert は INSERT ... ON CONFLICT として実行されるため、
@@ -195,7 +195,10 @@ def fill_one(code, analyzer, use_edinet_forecasts=False):
     #    major_shareholders_jp は3,879件中160件（4%）しか埋まっていない。
     #    strainer は Yahoo とは別ドメインで、実測でも 200 が返る。
     #    EDINET無料枠（100回/日＝約30銘柄/夜・全件2〜3か月）に頼る必要がない。
-    if not existing.get('major_shareholders_jp'):
+    #    ⚠️ 2026-08-21以前に保存した行は、パーサの不具合で株主が欠けている
+    #    （カンマの無い＝千株未満の保有を捨てていた。小型株ほど消える）。
+    #    既存値があっても直せるよう --refresh-holders で上書きできるようにする。
+    if refresh_holders or not existing.get('major_shareholders_jp'):
         try:
             holders, holders_status = get_shareholders_from_strainer(code, with_status=True)
             if holders:
@@ -231,6 +234,9 @@ def main():
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--no-wait', action='store_true',
                         help='遮断されたら待たずに中断する（従来の挙動）')
+    parser.add_argument('--refresh-holders', action='store_true',
+                        help='大株主が既にある銘柄も取り直す。'
+                             '2026-08-21以前のデータはパーサの不具合で欠けている')
     parser.add_argument('--edinet-forecasts', action='store_true',
                         help='Yahooで取得できない業績予想だけEDINET DBで補完する。'
                              '会社予想非開示では呼ばない')
@@ -292,7 +298,7 @@ def main():
     try:
         for i, code in enumerate(targets, 1):
             try:
-                filled = fill_one(code, analyzer, use_edinet_forecasts=args.edinet_forecasts)
+                filled = fill_one(code, analyzer, use_edinet_forecasts=args.edinet_forecasts, refresh_holders=args.refresh_holders)
                 if filled > 0:
                     ok += 1
                     consecutive_fail = 0
