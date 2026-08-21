@@ -4065,8 +4065,17 @@ def api_create_note():
         data = request.get_json()
         if not data:
             return jsonify({"error": "データが指定されていません"}), 400
-        if not data.get('title') or not data.get('content'):
-            return jsonify({"error": "タイトルと本文は必須です"}), 400
+        # タイトルは任意。銘柄があれば画面側が「◯◯のノート」を入れてくる。
+        # ここでも保険として補い、両方無いときだけ弾く
+        # （一覧で見分けが付かなくなるため）。
+        if not data.get('title'):
+            company = (data.get('company_name') or '').strip()
+            if company:
+                data['title'] = f'{company}のノート'
+        if not data.get('title'):
+            return jsonify({"error": "銘柄かタイトルのどちらかを入れてください"}), 400
+        if not data.get('content'):
+            return jsonify({"error": "本文は必須です"}), 400
 
         note = create_note(user_id, data)
         return jsonify({"note": note}), 201

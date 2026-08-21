@@ -401,7 +401,7 @@
                     <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_public }" @click="noteForm.is_public = !noteForm.is_public"><div class="toggle-dot"></div></div>
                 </div>
                 <div x-show="noteForm.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
-                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p></div>
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">投稿名を非表示にします</p></div>
                     <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_anonymous }" @click="noteForm.is_anonymous = !noteForm.is_anonymous"><div class="toggle-dot"></div></div>
                 </div>
             </div>
@@ -441,7 +441,7 @@
                 </div>
                 <div><label class="cm-form-label">タグ（カンマ区切り）</label><input type="text" class="cm-form-input" x-model="questionForm.tagsInput" placeholder="例: 財務指標, 初心者"></div>
                 <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
-                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p></div>
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">投稿名を非表示にします</p></div>
                     <div class="cm-toggle-switch" :class="{ 'on': questionForm.is_anonymous }" @click="questionForm.is_anonymous = !questionForm.is_anonymous"><div class="toggle-dot"></div></div>
                 </div>
             </div>

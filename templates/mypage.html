@@ -1195,25 +1195,34 @@
                 <div x-show="form.is_public">
                     <label class="form-label">投稿名</label>
                     <input type="text" class="form-input" x-model="form.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
-                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
+                    <p class="text-xs mt-1" style="color:#525252;">この投稿だけの表示名を設定できます</p>
                 </div>
 
-                <!-- タイトル -->
+                <!-- 銘柄。コードを入れると企業名が自動で入る。
+                     ノートは「どの会社の話か」が主役なので、タイトルより先に置く -->
                 <div>
-                    <label class="form-label">タイトル <span style="color:#dc2626;">*</span></label>
-                    <input type="text" class="form-input" x-model="form.title" placeholder="例: キーエンスの営業利益率の秘密">
+                    <label class="form-label">銘柄</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" class="form-input" x-model="form.company_code"
+                               @input="lookupCompany()" placeholder="銘柄コード 例: 6861" maxlength="6">
+                        <input type="text" class="form-input" x-model="form.company_name"
+                               placeholder="企業名（コードを入れると自動で入ります）">
+                    </div>
+                    <p class="text-xs mt-1" style="color:#525252;"
+                       x-show="companyHint" x-text="companyHint"></p>
                 </div>
 
-                <!-- 企業紐づけ（任意） -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="form-label">銘柄コード（任意）</label>
-                        <input type="text" class="form-input" x-model="form.company_code" placeholder="例: 6861">
-                    </div>
-                    <div>
-                        <label class="form-label">企業名（任意）</label>
-                        <input type="text" class="form-input" x-model="form.company_name" placeholder="例: キーエンス">
-                    </div>
+                <!-- タイトル。銘柄があれば企業名から作れるので必須にしない -->
+                <div>
+                    <label class="form-label">
+                        タイトル
+                        <span class="text-xs font-normal" style="color:#737373;">（任意）</span>
+                    </label>
+                    <input type="text" class="form-input" x-model="form.title"
+                           :placeholder="form.company_name ? form.company_name + 'のノート' : '例: キーエンスの営業利益率の秘密'">
+                    <p class="text-xs mt-1" style="color:#525252;"
+                       x-show="!form.title.trim() && form.company_name"
+                       x-text="'空欄なら「' + form.company_name + 'のノート」になります'"></p>
                 </div>
 
                 <!-- 本文 -->
@@ -1244,7 +1253,7 @@
                 <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                     <div>
                         <p class="text-xs font-bold" style="color:#1a1a1a;">コミュニティに公開</p>
-                        <p class="text-xs" style="color:#a3a3a3;">他のユーザーがあなたのノートを閲覧できます</p>
+                        <p class="text-xs" style="color:#525252;">他のユーザーがあなたのノートを閲覧できます</p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_public }" @click="form.is_public = !form.is_public">
                         <div class="toggle-dot"></div>
@@ -1255,7 +1264,7 @@
                 <div x-show="form.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                     <div>
                         <p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p>
-                        <p class="text-xs" style="color:#a3a3a3;">投稿名を非表示にします</p>
+                        <p class="text-xs" style="color:#525252;">投稿名を非表示にします</p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_anonymous }" @click="form.is_anonymous = !form.is_anonymous">
                         <div class="toggle-dot"></div>
@@ -1595,6 +1604,9 @@ function mypageApp() {
         editingNote: null,
         deletingNote: null,
         saving: false,
+        // 銘柄コードから企業名を引くための状態
+        companyHint: '',
+        _companies: null,     // /static/companies.json を一度だけ読む
         // 投稿名（ノートフォーム用）
         displayName: '',
         form: {
@@ -1807,9 +1819,44 @@ function mypageApp() {
             this.showModal = true;
         },
 
+        // 銘柄コードから企業名を引く。一覧は /static/companies.json（JPX由来）。
+        // 手で企業名を打たせると表記ゆれ（「トヨタ」「トヨタ自動車」）が混ざり、
+        // あとで銘柄ごとに集めるときに繋がらなくなる。
+        async lookupCompany() {
+            const raw = (this.form.company_code || '').trim().toUpperCase();
+            this.companyHint = '';
+            if (!raw) return;
+
+            if (!this._companies) {
+                try {
+                    const r = await fetch('/static/companies.json');
+                    this._companies = await r.json();
+                } catch (e) { return; }
+            }
+            const hit = this._companies.find(c => c.c.toUpperCase() === raw);
+            if (hit) {
+                this.form.company_name = hit.n;
+                this.companyHint = '';
+                return;
+            }
+            // 4桁そろっているのに見つからない場合だけ知らせる。
+            // 打っている途中で毎回赤字を出すと邪魔になる
+            if (raw.length >= 4) {
+                this.companyHint = 'このコードは上場銘柄の一覧にありません（企業名は手で入れられます）';
+            }
+        },
+
         async saveNote() {
-            if (!this.form.title.trim() || !this.form.content.trim()) {
-                showErrorModal('タイトルと本文は必須です');
+            // タイトルは任意。銘柄があれば「◯◯のノート」で代用する。
+            // 銘柄もタイトルも無いと一覧で見分けが付かないので、そのときだけ求める。
+            const title = this.form.title.trim()
+                || (this.form.company_name.trim() ? this.form.company_name.trim() + 'のノート' : '');
+            if (!title) {
+                showErrorModal('銘柄かタイトルのどちらかを入れてください');
+                return;
+            }
+            if (!this.form.content.trim()) {
+                showErrorModal('本文を入れてください');
                 return;
             }
             this.saving = true;
@@ -1818,7 +1865,7 @@ function mypageApp() {
                 .map(t => t.trim())
                 .filter(t => t.length > 0);
             const payload = {
-                title: this.form.title.trim(),
+                title: title,
                 content: this.form.content.trim(),
                 company_code: this.form.company_code.trim() || null,
                 company_name: this.form.company_name.trim() || null,
