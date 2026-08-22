@@ -1,0 +1,196 @@
+{# 過去シミュレーションの本体。/simulator とマイノートのタブで共用する。
+   Alpineの関数は static/js/simulator-panel.js（読み込みは各ページの責任）。 #}
+<style>
+  .sim-wrap { max-width: 900px; margin: 0 auto; padding: 24px 20px 64px; }
+  .sim-head { margin-bottom: 20px; }
+  .sim-head h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 0 0 6px; }
+  .sim-head p { font-size: 13px; color: #737373; margin: 0; line-height: 1.8; }
+
+  .sim-card { background: #fff; border: 1px solid #ebebeb; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+
+  .sim-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .sim-tab {
+    flex: 1; padding: 9px 12px; font-size: 13px; font-weight: 600;
+    background: #fff; color: #525252; border: 1px solid #ebebeb;
+    border-radius: 8px; cursor: pointer;
+  }
+  .sim-tab.on { background: #1b4332; color: #fff; border-color: #1b4332; }
+
+  .sim-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  @media (max-width: 640px) { .sim-grid { grid-template-columns: minmax(0,1fr); } }
+
+  .sim-label { display: block; font-size: 12px; font-weight: 600; color: #525252; margin-bottom: 5px; }
+  .sim-input {
+    width: 100%; padding: 9px 11px; font-size: 14px; color: #1a1a1a;
+    border: 1px solid #d4d4d4; border-radius: 8px; background: #fff;
+  }
+  .sim-input:focus { outline: 2px solid #1b4332; outline-offset: 1px; border-color: #1b4332; }
+  .sim-hint { font-size: 11.5px; color: #737373; margin-top: 4px; line-height: 1.6; }
+
+  .sim-run {
+    width: 100%; margin-top: 18px; padding: 12px; font-size: 14.5px; font-weight: 700;
+    background: #1b4332; color: #fff; border: 0; border-radius: 8px; cursor: pointer;
+  }
+  .sim-run:disabled { background: #a3a3a3; cursor: default; }
+
+  /* 結果 */
+  .sim-result-top { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 640px) { .sim-result-top { grid-template-columns: minmax(0,1fr); } }
+  .sim-stat { border: 1px solid #ebebeb; border-radius: 10px; padding: 14px; text-align: center; }
+  .sim-stat .k { font-size: 11.5px; color: #737373; margin-bottom: 4px; }
+  .sim-stat .v { font-size: 22px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+  .sim-stat .v.plus { color: #15803d; }
+  .sim-stat .v.minus { color: #dc2626; }
+  .sim-stat .sub { font-size: 11.5px; color: #737373; margin-top: 3px; }
+
+  .sim-meta { font-size: 12.5px; color: #525252; line-height: 1.9; margin-top: 14px; }
+  .sim-meta b { color: #1a1a1a; }
+
+  .sim-note {
+    margin-top: 16px; padding: 11px 13px; background: #fffaf0;
+    border: 1px solid #f0d9a8; border-left: 3px solid #d99a2b; border-radius: 8px;
+    font-size: 12px; color: #6b5a35; line-height: 1.85;
+  }
+
+  .sim-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 14px; }
+  .sim-table th, .sim-table td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; text-align: right; white-space: nowrap; }
+  .sim-table th { color: #737373; font-weight: 500; border-bottom: 1px solid #d4d4d4; }
+  .sim-table td:first-child, .sim-table th:first-child { text-align: left; }
+  .sim-table td { font-variant-numeric: tabular-nums; }
+  .sim-scroll { overflow-x: auto; }
+
+  .sim-error { padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
+</style>
+
+<div class="sim-wrap" x-data="simulator()">
+
+  <div class="sim-head">
+    <h1>過去シミュレーション</h1>
+    <p>「あのとき買っていたら、いまいくらになっていたか」を、公開されている株価から計算します。</p>
+  </div>
+
+  <div class="sim-card">
+    <div class="sim-tabs">
+      <button class="sim-tab" :class="{ 'on': mode === 'lump' }" @click="mode = 'lump'">一括で買う</button>
+      <button class="sim-tab" :class="{ 'on': mode === 'monthly' }" @click="mode = 'monthly'">積み立てる</button>
+    </div>
+
+    <div class="sim-grid">
+      <div>
+        <label class="sim-label">銘柄コード</label>
+        <input class="sim-input" x-model="code" @input="lookup()" placeholder="例: 7203" maxlength="6">
+        <p class="sim-hint" x-text="companyName || 'コードを入れると企業名が出ます'"></p>
+      </div>
+      <div>
+        <label class="sim-label" x-text="mode === 'lump' ? '購入金額（円）' : '毎回の金額（円）'"></label>
+        <input class="sim-input" type="number" x-model.number="amount" min="1000" step="1000">
+        <p class="sim-hint" x-text="mode === 'lump' ? '一度に投じる金額' : '1回あたりに積み立てる金額'"></p>
+      </div>
+      <div>
+        <label class="sim-label" x-text="mode === 'lump' ? '買った日' : '開始日'"></label>
+        <input class="sim-input" type="date" x-model="start">
+      </div>
+      <div>
+        <label class="sim-label" x-text="mode === 'lump' ? '売った日（評価日）' : '終了日（評価日）'"></label>
+        <input class="sim-input" type="date" x-model="end">
+      </div>
+
+      <template x-if="mode === 'monthly'">
+        <div>
+          <label class="sim-label">何ヶ月ごとに買うか</label>
+          <select class="sim-input" x-model.number="intervalMonths">
+            <template x-for="n in [1,2,3,6,12]" :key="n">
+              <option :value="n" x-text="n + 'ヶ月ごと'"></option>
+            </template>
+          </select>
+        </div>
+      </template>
+      <template x-if="mode === 'monthly'">
+        <div>
+          <label class="sim-label">毎月何日に買うか</label>
+          <input class="sim-input" type="number" x-model.number="dayOfMonth" min="1" max="31">
+          <p class="sim-hint">その日が休みなら直前の営業日の終値で計算します</p>
+        </div>
+      </template>
+    </div>
+
+    <button class="sim-run" @click="run()" :disabled="loading">
+      <span x-show="!loading">計算する</span>
+      <span x-show="loading">計算中...</span>
+    </button>
+  </div>
+
+  <div class="sim-card" x-show="error" x-cloak>
+    <div class="sim-error" x-text="error"></div>
+  </div>
+
+  <template x-if="result">
+  <div class="sim-card">
+    <div class="sim-result-top">
+      <div class="sim-stat">
+        <div class="k">投じた金額</div>
+        <div class="v" x-text="yen(result.invested)"></div>
+        <div class="sub" x-show="result.mode === 'monthly'" x-text="result.times + '回'"></div>
+      </div>
+      <div class="sim-stat">
+        <div class="k">評価額</div>
+        <div class="v" x-text="yen(result.value)"></div>
+        <div class="sub" x-text="result.sell_date + ' 時点'"></div>
+      </div>
+      <div class="sim-stat">
+        <div class="k">損益</div>
+        <div class="v" :class="result.profit >= 0 ? 'plus' : 'minus'"
+             x-text="(result.profit >= 0 ? '+' : '') + yen(result.profit)"></div>
+        <div class="sub" x-text="(result.return_pct >= 0 ? '+' : '') + result.return_pct + '%'"></div>
+      </div>
+    </div>
+
+    <div class="sim-meta">
+      <template x-if="result.mode === 'lump'">
+        <div>
+          <b x-text="result.company_name || result.company_code"></b> を
+          <b x-text="result.buy_date"></b> の <b x-text="yen(result.buy_price)"></b> で
+          <b x-text="result.shares"></b>株ぶん買い、
+          <b x-text="result.sell_date"></b> の <b x-text="yen(result.sell_price)"></b> で評価しました。
+        </div>
+      </template>
+      <template x-if="result.mode === 'monthly'">
+        <div>
+          <b x-text="result.company_name || result.company_code"></b> を
+          <b x-text="result.times"></b>回に分けて買いました。
+          平均取得単価は <b x-text="yen(result.avg_cost)"></b>、
+          <b x-text="result.sell_date"></b> の株価は <b x-text="yen(result.sell_price)"></b> です。
+          <span x-show="result.skipped" x-text="'（株価が無く買えなかった回: ' + result.skipped + '回）'"></span>
+        </div>
+      </template>
+    </div>
+
+    <div class="sim-note">
+      ※ <b>あくまで概算のシミュレーションです。</b>
+      手数料・税金・配当は含みません。単元株（100株単位）ではなく金額どおりに買えたものとして計算しています。
+      <span x-show="result.grain === 'monthly'">1年より前の期間は月足の株価を使うため、実際に買えた価格とはずれます。</span>
+      過去の値動きであり、将来を示すものではありません。
+    </div>
+
+    <div class="sim-scroll" x-show="result.buys && result.buys.length > 1">
+      <table class="sim-table">
+        <thead>
+          <tr><th>買った日</th><th>株価</th><th>金額</th><th>株数</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="b in result.buys" :key="b.date">
+            <tr>
+              <td x-text="b.date"></td>
+              <td x-text="yen(b.price)"></td>
+              <td x-text="yen(b.amount)"></td>
+              <td x-text="b.shares"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <p class="sim-hint" x-show="result.buys_truncated"
+         x-text="'（全' + result.buys_truncated + '回のうち200回まで表示しています）'"></p>
+    </div>
+  </div>
+  </template>
+</div>

@@ -680,6 +680,9 @@
             <button class="section-tab-btn" :class="{ 'active': activeSection === 'demo' }" @click="switchSection('demo')">
                 <i class="fas fa-flask" style="font-size:12px;"></i> デモ売買
             </button>
+            <button class="section-tab-btn" :class="{ 'active': activeSection === 'simulator' }" @click="switchSection('simulator')">
+                <i class="fas fa-clock-rotate-left" style="font-size:12px;"></i> 過去シミュレーション
+            </button>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -1178,6 +1181,10 @@
                 </div>
             </template>
         </div>
+
+            <div class="lg:col-span-12" x-show="activeSection === 'simulator'" x-cloak>
+                {% include "_simulator_panel.html" %}
+            </div>
     </div>
 
     <!-- ===== ノート作成/編集モーダル ===== -->
@@ -1680,7 +1687,7 @@ function mypageApp() {
             // 前回開いていたタブを復元（初回はマイノート）
             try {
                 var savedSection = localStorage.getItem('mypage_active_section');
-                if (savedSection === 'notes' || savedSection === 'demo') {
+                if (['notes', 'demo', 'simulator'].includes(savedSection)) {
                     this.activeSection = savedSection;
                 }
             } catch (e) { /* localStorage不可の環境では既定値のまま */ }
@@ -2834,4 +2841,6 @@ function mypageApp() {
     } catch (e) {}
 })();
 </script>
+<!-- 過去シミュレーション（タブ）のAlpineコンポーネント。/simulator と共用 -->
+<script src="{{ url_for('static', filename='js/simulator-panel.js') }}"></script>
 {% endblock %}

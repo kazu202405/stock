@@ -524,7 +524,15 @@ def api_referral_code():
     """自分の紹介コード＋紹介リンク取得"""
     try:
         user = get_current_user()
-        code = user['referral_code']
+        # @login_required_api を通っていても、セッションのIDが app_users に
+        # 無いことがある（ゲスト・動作確認用セッション・移行前の古いID）。
+        # None を素通りさせると TypeError で 500 になり、マイページの
+        # 初期化がそこで止まってデモ売買まで読み込まれない。
+        if not user:
+            return jsonify({"error": "ログインし直してください"}), 401
+        code = user.get('referral_code')
+        if not code:
+            return jsonify({"error": "紹介コードがまだ発行されていません"}), 404
         link = f"{request.host_url}register?ref={code}"
         return jsonify({
             "referral_code": code,
@@ -4028,6 +4036,8 @@ def api_simulate():
     （日足1年・月足10年）だけで計算するので速い。
     """
     import json as _json
+    from datetime import date, timedelta
+
     import simulator
 
     try:
@@ -4066,6 +4076,22 @@ def api_simulate():
             v = row.get(key)
             history[key] = _json.loads(v) if isinstance(v, str) else v
 
+        # 月足は「閲覧されたときに取得してキャッシュする」設計なので、
+        # ほとんどの銘柄でまだ空（実測 1,200件中1件しか持っていなかった）。
+        # 日足は1年ぶんしか無いため、それより前を指定されたらここで取りに行く。
+        # チャートと同じ get_long_term() を使うので、取得したぶんは保存され
+        # 次回以降は即返る。全銘柄を先回りで持つとDBが重くなるため増やさない。
+        needs_long = str(start) < str(date.today() - timedelta(days=330))
+        long_fetch_failed = False
+        if needs_long and not history.get('monthly_10y'):
+            try:
+                import price_history
+                history['monthly_10y'] = price_history.get_long_term(code, 'monthly') or []
+                long_fetch_failed = not history['monthly_10y']
+            except Exception as e:
+                print(f'長期株価の取得に失敗 {code}: {e}')
+                long_fetch_failed = True
+
         if mode == 'monthly':
             result = simulator.simulate_monthly(
                 history, start, end, amount,
@@ -4075,6 +4101,14 @@ def api_simulate():
             result = simulator.simulate_lump(history, start, end, amount)
 
         if not result.get('ok'):
+            # 長期データを取りに行って失敗した場合は、そう言う。
+            # 「その時期の株価がありません」だと、銘柄が上場していなかったのか
+            # こちらが取得できなかったのかが読み手に区別できない。
+            if long_fetch_failed:
+                return jsonify({
+                    "error": "この銘柄の長期の株価をまだ取得できていません。"
+                             "1年以内の期間なら計算できます。時間をおくと取得できることがあります。",
+                }), 200
             return jsonify({"error": result.get('reason', '計算できませんでした'),
                             "available_from": result.get('available_from')}), 200
 
