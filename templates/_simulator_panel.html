@@ -60,6 +60,21 @@
   .sim-scroll { overflow-x: auto; }
 
   .sim-error { padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px; }
+
+  /* 銘柄のサジェスト。検索欄と同じ操作感にする（コードを覚えていなくても選べる） */
+  .sim-find { position: relative; }
+  .sim-hits {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 40;
+    margin: 0; padding: 4px; list-style: none; background: #fff;
+    border: 1px solid #d4d4d4; border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.10); max-height: 240px; overflow-y: auto;
+  }
+  .sim-hits li {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13.5px;
+  }
+  .sim-hits li.on, .sim-hits li:hover { background: #f0fdf4; }
+  .sim-hits .c { font-size: 11.5px; color: #737373; font-family: ui-monospace, monospace; }
 </style>
 
 <div class="sim-wrap" x-data="simulator()">
@@ -76,10 +91,21 @@
     </div>
 
     <div class="sim-grid">
-      <div>
-        <label class="sim-label">銘柄コード</label>
-        <input class="sim-input" x-model="code" @input="lookup()" placeholder="例: 7203" maxlength="6">
-        <p class="sim-hint" x-text="companyName || 'コードを入れると企業名が出ます'"></p>
+      <div class="sim-find" @click.outside="hits = []">
+        <label class="sim-label">銘柄</label>
+        <input class="sim-input" x-model="query" @input="suggest()" @focus="suggest()"
+               @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)"
+               @keydown.enter.prevent="choose(hits[cursor] || hits[0])"
+               @keydown.escape="hits = []"
+               placeholder="銘柄コード または 会社名（例: 7203 / トヨタ）" autocomplete="off">
+        <ul class="sim-hits" x-show="hits.length" x-cloak>
+          <template x-for="(h, i) in hits" :key="h.c">
+            <li :class="{ 'on': i === cursor }" @mousedown.prevent="choose(h)">
+              <span x-text="h.n"></span><span class="c" x-text="h.c"></span>
+            </li>
+          </template>
+        </ul>
+        <p class="sim-hint" x-text="companyName ? (companyName + '（' + code + '）') : '会社名でも探せます'"></p>
       </div>
       <div>
         <label class="sim-label" x-text="mode === 'lump' ? '購入金額（円）' : '毎回の金額（円）'"></label>
@@ -160,7 +186,13 @@
           <b x-text="result.times"></b>回に分けて買いました。
           平均取得単価は <b x-text="yen(result.avg_cost)"></b>、
           <b x-text="result.sell_date"></b> の株価は <b x-text="yen(result.sell_price)"></b> です。
-          <span x-show="result.skipped" x-text="'（株価が無く買えなかった回: ' + result.skipped + '回）'"></span>
+          <template x-if="result.skipped">
+            <span style="display:block; margin-top:6px; color:#8a5a00;">
+              ⚠ 指定した期間のうち <b x-text="result.skipped"></b>回ぶんは株価データが無く、買えませんでした。
+              実際に積み立てたのは <b x-text="result.first_buy"></b> 〜 <b x-text="result.last_buy"></b> の
+              <b x-text="result.times"></b>回ぶんです。
+            </span>
+          </template>
         </div>
       </template>
     </div>

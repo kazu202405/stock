@@ -120,6 +120,33 @@ def purchase_dates(start, end, interval_months=1, day_of_month=1):
     return dates
 
 
+def evaluation_price(history, end):
+    """評価日の株価。**買付とは別に、いちばん新しい系列から探す。**
+
+    買付は期間全体を賄える系列（多くは月足）で行うが、評価まで月足で
+    引くと、月足の最終バーから数十日空いたときに「その日の株価がありません」
+    となる。実際には日足に最新の株価がある。
+
+    さらに、評価日が持っているデータより後（今日を指定した等）なら、
+    いちばん新しいバーに寄せる。エラーで止めるより、いつ時点で評価したかを
+    返して画面に出すほうが読み手の役に立つ。
+    """
+    end = _to_date(end)
+    for key, lookback in (('daily_1y', MAX_LOOKBACK_DAYS), ('monthly_10y', 40)):
+        series = normalize_series((history or {}).get(key))
+        got = price_on(series, end, lookback)
+        if got:
+            return got
+
+    # どの系列でも指定日に届かない場合は、持っている中で最も新しいバー
+    latest = None
+    for key in ('daily_1y', 'monthly_10y'):
+        series = normalize_series((history or {}).get(key))
+        if series and (latest is None or series[-1][0] > latest[0]):
+            latest = series[-1]
+    return latest
+
+
 def simulate_lump(history, start, end, amount):
     """一括購入。start に amount 円ぶん買って end まで持つ。"""
     series, grain = pick_series(history, start, end)
@@ -128,7 +155,7 @@ def simulate_lump(history, start, end, amount):
         return {'ok': False, 'reason': 'この銘柄の株価履歴がありません'}
 
     buy = price_on(series, start, lookback)
-    sell = price_on(series, end, lookback)
+    sell = evaluation_price(history, end)
     if not buy:
         return {'ok': False, 'reason': f'{_to_date(start)} 時点の株価がありません',
                 'available_from': series[0][0].isoformat()}
@@ -158,7 +185,7 @@ def simulate_monthly(history, start, end, amount, interval_months=1, day_of_mont
     if not series:
         return {'ok': False, 'reason': 'この銘柄の株価履歴がありません'}
 
-    sell = price_on(series, end, lookback)
+    sell = evaluation_price(history, end)
     if not sell:
         return {'ok': False, 'reason': f'{_to_date(end)} 時点の株価がありません'}
 
@@ -183,6 +210,11 @@ def simulate_monthly(history, start, end, amount, interval_months=1, day_of_mont
     avg_cost = invested / shares_total if shares_total else 0
     return {
         'ok': True, 'mode': 'monthly', 'grain': grain,
+        # 指定した期間より前のデータが無いことは普通に起きる（月足は10年ぶん）。
+        # 「1984年から」と指定して実際は直近10年だけ、というズレを黙って
+        # 損益に混ぜないよう、実際に買えた期間を返して画面に出す。
+        'first_buy': buys[0]['date'],
+        'last_buy': buys[-1]['date'],
         'invested': round(invested),
         'value': round(value),
         'profit': round(value - invested),

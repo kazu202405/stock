@@ -142,5 +142,44 @@ class TestSeriesSelection(unittest.TestCase):
         self.assertEqual(grain, 'daily')
 
 
+class TestEvaluationPrice(unittest.TestCase):
+    """評価は買付と別に、いちばん新しい系列から引く。
+
+    月足の最終バーから数十日空いていると、月足だけを見ていた頃は
+    「2026-08-21 時点の株価がありません」になっていた（実際に踏んだ）。
+    """
+
+    def setUp(self):
+        self.hist = {
+            'daily_1y': [bar('2026-08-20', 3100)],
+            'monthly_10y': [bar('2016-01-31', 800), bar('2026-06-30', 3000)],
+        }
+
+    def test_uses_daily_even_when_buying_from_monthly(self):
+        got = sim.evaluation_price(self.hist, '2026-08-21')
+        self.assertEqual(got[1], 3100)
+        self.assertEqual(got[0].isoformat(), '2026-08-20')
+
+    def test_falls_back_to_latest_bar_when_end_is_in_the_future(self):
+        """評価日が持っているデータより後でも、最新バーで評価する。"""
+        got = sim.evaluation_price(self.hist, '2030-01-01')
+        self.assertEqual(got[1], 3100)
+
+    def test_monthly_only(self):
+        got = sim.evaluation_price({'monthly_10y': [bar('2026-06-30', 3000)]}, '2026-08-21')
+        self.assertEqual(got[1], 3000)
+
+    def test_empty(self):
+        self.assertIsNone(sim.evaluation_price({}, '2026-08-21'))
+
+    def test_long_range_lump_does_not_fail_on_stale_monthly(self):
+        """1984年開始・今日評価。以前はここで落ちていた。"""
+        r = sim.simulate_lump(self.hist, '2016-01-31', '2026-08-21', 1000000)
+        self.assertTrue(r['ok'], r.get('reason'))
+        self.assertEqual(r['buy_date'], '2016-01-31')
+        self.assertEqual(r['sell_date'], '2026-08-20')
+        self.assertEqual(r['sell_price'], 3100)
+
+
 if __name__ == '__main__':
     unittest.main()

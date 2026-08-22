@@ -11,6 +11,7 @@ function simulator() {
   return {
     mode: 'lump',
     code: '', companyName: '',
+    query: '', hits: [], cursor: -1,
     amount: 1000000,
     start: yearsAgo(5), end: iso(today),
     intervalMonths: 1, dayOfMonth: 1,
@@ -22,22 +23,60 @@ function simulator() {
       return '¥' + Math.round(v).toLocaleString();
     },
 
-    // 銘柄コード → 企業名。ノート作成と同じく companies.json を使う
-    async lookup() {
-      const raw = (this.code || '').trim().toUpperCase();
-      this.companyName = '';
-      if (!raw) return;
-      if (!this._companies) {
-        try { this._companies = await (await fetch('/static/companies.json')).json(); }
-        catch (e) { return; }
+    async _load() {
+      if (this._companies) return this._companies;
+      try { this._companies = await (await fetch('/static/companies.json')).json(); }
+      catch (e) { this._companies = []; }
+      return this._companies;
+    },
+
+    // 全角の英数字を半角に寄せる。「７２０３」でも引けるように
+    _norm(v) {
+      return (v || '')
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/[\s　]/g, '').toUpperCase();
+    },
+
+    // コードでも会社名でも探せるようにする。検索欄と同じで、
+    // 前方一致を先に出す（「トヨタ」で「トヨタ自動車」が下に沈むと探した気がしない）
+    async suggest() {
+      const q = this._norm(this.query);
+      this.cursor = -1;
+      if (!q) { this.hits = []; this.companyName = ''; this.code = ''; return; }
+
+      const list = await this._load();
+      const starts = [], contains = [];
+      for (const c of list) {
+        const n = this._norm(c.n);
+        if (c.c.toUpperCase().startsWith(q) || n.startsWith(q)) starts.push(c);
+        else if (n.includes(q)) contains.push(c);
+        if (starts.length >= 8) break;
       }
-      const hit = this._companies.find(c => c.c.toUpperCase() === raw);
-      this.companyName = hit ? hit.n : (raw.length >= 4 ? '（一覧にないコードです）' : '');
+      this.hits = starts.concat(contains).slice(0, 8);
+
+      // コードそのものを打ち切った場合は、選ばなくても確定させる
+      const exact = list.find(c => c.c.toUpperCase() === q);
+      if (exact) { this.code = exact.c; this.companyName = exact.n; }
+      else { this.code = ''; this.companyName = ''; }
+    },
+
+    move(step) {
+      if (!this.hits.length) return;
+      this.cursor = (this.cursor + step + this.hits.length) % this.hits.length;
+    },
+
+    choose(h) {
+      if (!h) return;
+      this.code = h.c;
+      this.companyName = h.n;
+      this.query = h.n;
+      this.hits = [];
+      this.cursor = -1;
     },
 
     async run() {
       this.error = ''; this.result = null;
-      if (!this.code.trim()) { this.error = '銘柄コードを入れてください'; return; }
+      if (!this.code.trim()) { this.error = '銘柄を選んでください（候補から選ぶか、4桁のコードを入れてください）'; return; }
       if (!this.amount || this.amount <= 0) { this.error = '金額を入れてください'; return; }
       if (this.start > this.end) { this.error = '開始日が終了日より後になっています'; return; }
 
