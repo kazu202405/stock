@@ -1264,7 +1264,13 @@
                 <div x-show="form.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                     <div>
                         <p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p>
-                        <p class="text-xs" style="color:#525252;">投稿名を非表示にします</p>
+                        <!-- 「非表示にします／表示します」と文言を入れ替える案は採らない。
+                             それが今の状態なのか押した後の状態なのか読めなくなるため。
+                             代わりに結果（実際にどう表示されるか）をそのまま出す。 -->
+                        <p class="text-xs" style="color:#525252;">
+                            いまの表示名：<span style="font-weight:600;"
+                                x-text="form.is_anonymous ? '匿名ユーザー' : ((form.poster_name || '').trim() || displayName || 'あなたの名前')"></span>
+                        </p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_anonymous }" @click="form.is_anonymous = !form.is_anonymous">
                         <div class="toggle-dot"></div>
