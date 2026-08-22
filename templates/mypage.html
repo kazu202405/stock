@@ -1138,8 +1138,16 @@
                         </div>
             </div>
 
-            <!-- ===== 紹介コードカード ===== -->
-            <template x-if="referralCode">
+            <!-- ===== 過去シミュレーション ===== -->
+            <div class="lg:col-span-12" x-show="activeSection === 'simulator'" x-cloak>
+                {% include "_simulator_panel.html" %}
+            </div>
+
+            <!-- ===== 紹介コードカード =====
+                 タブの中身ではなくマイページ全体の付属物なので、
+                 マイノートのタブにいるときだけ出す。デモ売買や
+                 シミュレーションの上に出ると、そのタブの一部に見えてしまう。 -->
+            <template x-if="referralCode && activeSection === 'notes'">
                 <div class="lg:col-span-12 mp-card p-4">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="section-head mb-0"><i class="fas fa-share-alt"></i>紹介リンク</h2>
@@ -1182,9 +1190,6 @@
             </template>
         </div>
 
-            <div class="lg:col-span-12" x-show="activeSection === 'simulator'" x-cloak>
-                {% include "_simulator_panel.html" %}
-            </div>
     </div>
 
     <!-- ===== ノート作成/編集モーダル ===== -->

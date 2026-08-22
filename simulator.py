@@ -147,8 +147,31 @@ def evaluation_price(history, end):
     return latest
 
 
-def simulate_lump(history, start, end, amount):
-    """一括購入。start に amount 円ぶん買って end まで持つ。"""
+# 買い方。実際には小数株は買えないので、既定は1株単位。
+#   'fraction' … 端数も買える。ドルコスト平均法の理論値を見るとき用
+#   'carry'    … 1株単位。買えなかった端数は次回に回す（口座に残るので現実的）
+#   'floor'    … 1株単位。端数はその回では使わない（現金として積み上がる）
+#
+# 単元株(100株)は入れていない。単元未満株（S株・かぶミニ等）で1株から
+# 買えるため、100株単位を出しても選ぶ理由がない。
+BUY_MODES = ('fraction', 'carry', 'floor')
+
+
+def buyable_shares(cash, price, buy_mode):
+    """その金額で実際に買える株数。小数株は買えないので切り捨てる。"""
+    if price <= 0:
+        return 0.0
+    if buy_mode == 'fraction':
+        return cash / price
+    return float(int(cash // price))
+
+
+def simulate_lump(history, start, end, amount, buy_mode='carry'):
+    """一括購入。start に amount 円ぶん買って end まで持つ。
+
+    一括なので carry と floor に差は出ない（次回が無い）。買えなかった
+    端数は現金として残し、総資産に含める。
+    """
     series, grain = pick_series(history, start, end)
     lookback = 40 if grain == 'monthly' else MAX_LOOKBACK_DAYS
     if not series:
@@ -162,24 +185,43 @@ def simulate_lump(history, start, end, amount):
     if not sell:
         return {'ok': False, 'reason': f'{_to_date(end)} 時点の株価がありません'}
 
-    shares = amount / buy[1]
+    shares = buyable_shares(amount, buy[1], buy_mode)
+    spent = shares * buy[1]
+    cash = amount - spent
     value = shares * sell[1]
+    # 買えなかったぶんは消えるわけではない。現金として総資産に入れる。
+    # ここを外すと、切り捨てを選んだときだけ成績が良く見えてしまう。
+    total = value + cash
     return {
-        'ok': True, 'mode': 'lump', 'grain': grain,
-        'invested': round(amount),
+        'ok': True, 'mode': 'lump', 'grain': grain, 'buy_mode': buy_mode,
+        'deposited': round(amount),
+        'invested': round(spent),
+        'cash': round(cash),
         'value': round(value),
-        'profit': round(value - amount),
-        'return_pct': round((value / amount - 1) * 100, 1) if amount else 0.0,
+        'total': round(total),
+        'profit': round(total - amount),
+        'return_pct': round((total / amount - 1) * 100, 1) if amount else 0.0,
         'shares': round(shares, 3),
-        'buys': [{'date': buy[0].isoformat(), 'price': buy[1],
-                  'amount': round(amount), 'shares': round(shares, 3)}],
+        'buys': ([{'date': buy[0].isoformat(), 'price': buy[1],
+                   'amount': round(spent), 'shares': round(shares, 3)}]
+                 if shares > 0 else []),
         'buy_price': buy[1], 'buy_date': buy[0].isoformat(),
         'sell_price': sell[1], 'sell_date': sell[0].isoformat(),
     }
 
 
-def simulate_monthly(history, start, end, amount, interval_months=1, day_of_month=1):
-    """積立。●ヶ月ごとの●日に amount 円ずつ買い、end 時点で評価する。"""
+def simulate_monthly(history, start, end, amount, interval_months=1, day_of_month=1,
+                     buy_mode='carry'):
+    """積立。●ヶ月ごとの●日に amount 円ずつ積み、end 時点で評価する。
+
+    buy_mode で端数の扱いが変わる:
+      fraction … 端数も買う。ドルコスト平均法の理論値
+      carry    … 1株単位。買えなかった端数を次回に回す。口座に残るので現実的
+      floor    … 1株単位。端数はその回では使わず、現金として積み上がる
+
+    どのモードでも**積み立てた総額を分母にする**。端数を勘定から外すと、
+    切り捨てを選んだときだけ成績が良く見えてしまうため。
+    """
     series, grain = pick_series(history, start, end)
     lookback = 40 if grain == 'monthly' else MAX_LOOKBACK_DAYS
     if not series:
@@ -189,38 +231,60 @@ def simulate_monthly(history, start, end, amount, interval_months=1, day_of_mont
     if not sell:
         return {'ok': False, 'reason': f'{_to_date(end)} 時点の株価がありません'}
 
-    buys, shares_total, invested = [], 0.0, 0
+    buys, shares_total, spent_total = [], 0.0, 0.0
+    deposited = 0        # 積み立てた総額
+    cash = 0.0           # まだ株になっていない現金
+    deposits = 0         # 積み立てた回数（買えた回数とは別）
     skipped = 0
     for d in purchase_dates(start, end, interval_months, day_of_month):
         p = price_on(series, d, lookback)
         if not p:
             skipped += 1
             continue
-        s = amount / p[1]
-        shares_total += s
-        invested += amount
+
+        deposited += amount
+        deposits += 1
+        # carry は前回までの余りに足して買う。floor はその回の金額だけで買う
+        budget = (cash + amount) if buy_mode == 'carry' else amount
+        sh = buyable_shares(budget, p[1], buy_mode)
+        spent = sh * p[1]
+        cash = cash + amount - spent      # 使わなかったぶんは現金として残る
+
+        if sh <= 0:
+            continue                      # 今回は買えなかった（現金は残る）
+        shares_total += sh
+        spent_total += spent
         buys.append({'date': p[0].isoformat(), 'price': p[1],
-                     'amount': round(amount), 'shares': round(s, 3)})
+                     'amount': round(spent), 'shares': round(sh, 3)})
 
     if not buys:
-        return {'ok': False, 'reason': 'この期間に買える株価データがありませんでした',
+        reason = 'この期間に買える株価データがありませんでした'
+        if deposits:
+            reason = ('積み立てた金額では1回も買えませんでした。'
+                      '1回の金額を増やすか、買い方を「端数も買う」にしてください')
+        return {'ok': False, 'reason': reason,
                 'available_from': series[0][0].isoformat()}
 
     value = shares_total * sell[1]
-    avg_cost = invested / shares_total if shares_total else 0
+    total = value + cash
+    avg_cost = spent_total / shares_total if shares_total else 0
     return {
-        'ok': True, 'mode': 'monthly', 'grain': grain,
+        'ok': True, 'mode': 'monthly', 'grain': grain, 'buy_mode': buy_mode,
         # 指定した期間より前のデータが無いことは普通に起きる（月足は10年ぶん）。
         # 「1984年から」と指定して実際は直近10年だけ、というズレを黙って
         # 損益に混ぜないよう、実際に買えた期間を返して画面に出す。
         'first_buy': buys[0]['date'],
         'last_buy': buys[-1]['date'],
-        'invested': round(invested),
-        'value': round(value),
-        'profit': round(value - invested),
-        'return_pct': round((value / invested - 1) * 100, 1) if invested else 0.0,
+        'deposited': round(deposited),      # 積み立てた総額（これを分母にする）
+        'invested': round(spent_total),     # 実際に株を買った金額
+        'cash': round(cash),                # まだ株になっていない現金
+        'value': round(value),              # 株の評価額
+        'total': round(total),              # 総資産＝株＋現金
+        'profit': round(total - deposited),
+        'return_pct': (round((total / deposited - 1) * 100, 1) if deposited else 0.0),
         'shares': round(shares_total, 3),
-        'times': len(buys),
+        'times': len(buys),                 # 実際に買えた回数
+        'deposits': deposits,               # 積み立てた回数
         'skipped': skipped,
         'avg_cost': round(avg_cost, 1),
         'buys': buys,

@@ -43,6 +43,15 @@
   .sim-stat .v.minus { color: #dc2626; }
   .sim-stat .sub { font-size: 11.5px; color: #737373; margin-top: 3px; }
 
+  /* 株と現金の内訳。端数を切り捨てると現金が積み上がるので、
+     そこが見えないと「ドルコストになっていない」ことに気づけない */
+  .sim-cash {
+    margin-top: 12px; padding: 9px 12px; background: #f6f8fa;
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    font-size: 12.5px; color: #334155; line-height: 1.8;
+  }
+  .sim-cash b { color: #0f172a; }
+
   .sim-meta { font-size: 12.5px; color: #525252; line-height: 1.9; margin-top: 14px; }
   .sim-meta b { color: #1a1a1a; }
 
@@ -131,6 +140,16 @@
           </select>
         </div>
       </template>
+      <div>
+        <label class="sim-label">買い方</label>
+        <select class="sim-input" x-model="buyMode">
+          <option value="carry">1株単位・余りは次回に回す（現実的）</option>
+          <option value="floor">1株単位・余りは使わない（切り捨て）</option>
+          <option value="fraction">端数も買う（理論値）</option>
+        </select>
+        <p class="sim-hint" x-text="buyModeHint()"></p>
+      </div>
+
       <template x-if="mode === 'monthly'">
         <div>
           <label class="sim-label">毎月何日に買うか</label>
@@ -154,14 +173,14 @@
   <div class="sim-card">
     <div class="sim-result-top">
       <div class="sim-stat">
-        <div class="k">投じた金額</div>
-        <div class="v" x-text="yen(result.invested)"></div>
-        <div class="sub" x-show="result.mode === 'monthly'" x-text="result.times + '回'"></div>
+        <div class="k">積み立てた金額</div>
+        <div class="v" x-text="yen(result.deposited)"></div>
+        <div class="sub" x-show="result.mode === 'monthly'" x-text="result.deposits + '回'"></div>
       </div>
       <div class="sim-stat">
-        <div class="k">評価額</div>
-        <div class="v" x-text="yen(result.value)"></div>
-        <div class="sub" x-text="result.sell_date + ' 時点'"></div>
+        <div class="k">いまの総資産</div>
+        <div class="v" x-text="yen(result.total)"></div>
+        <div class="sub" x-text="result.sell_date + ' 時点（株＋現金）'"></div>
       </div>
       <div class="sim-stat">
         <div class="k">損益</div>
@@ -169,6 +188,15 @@
              x-text="(result.profit >= 0 ? '+' : '') + yen(result.profit)"></div>
         <div class="sub" x-text="(result.return_pct >= 0 ? '+' : '') + result.return_pct + '%'"></div>
       </div>
+    </div>
+
+    <div class="sim-cash" x-show="result.cash > 0" x-cloak>
+      内訳：株 <b x-text="yen(result.value)"></b>
+      ／ まだ株になっていない現金 <b x-text="yen(result.cash)"></b>
+      <template x-if="result.mode === 'monthly' && result.deposits !== result.times">
+        <span>　積み立て <b x-text="result.deposits"></b>回 に対して
+          実際に買えたのは <b x-text="result.times"></b>回です。</span>
+      </template>
     </div>
 
     <div class="sim-meta">

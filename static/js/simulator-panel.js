@@ -12,11 +12,22 @@ function simulator() {
     mode: 'lump',
     code: '', companyName: '',
     query: '', hits: [], cursor: -1,
-    amount: 1000000,
+    amount: 10000,          // 積立の1回ぶんとして自然な額。一括のときは適宜変える
     start: yearsAgo(5), end: iso(today),
     intervalMonths: 1, dayOfMonth: 1,
+    buyMode: 'carry',
     loading: false, error: '', result: null,
     _companies: null,
+
+    buyModeHint() {
+      if (this.buyMode === 'fraction') {
+        return '実際には小数株は買えません。ドルコスト平均法の理論値を見るとき用です';
+      }
+      if (this.buyMode === 'floor') {
+        return '買えなかった端数は使いません。現金として積み上がります';
+      }
+      return '単元未満株（S株・かぶミニ等）を想定。余りは次回に足して買います';
+    },
 
     yen(v) {
       if (v === null || v === undefined) return '—';
@@ -93,6 +104,7 @@ function simulator() {
             amount: this.amount,
             interval_months: this.intervalMonths,
             day_of_month: this.dayOfMonth,
+            buy_mode: this.buyMode,
           }),
         });
         const j = await r.json();

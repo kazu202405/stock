@@ -4116,13 +4116,20 @@ def api_simulate():
                 print(f'長期株価の取得に失敗 {code}: {e}')
                 long_fetch_failed = True
 
+        # 端数の扱い。実際には小数株を買えないので既定は1株単位の繰り越し
+        buy_mode = data.get('buy_mode') or 'carry'
+        if buy_mode not in simulator.BUY_MODES:
+            buy_mode = 'carry'
+
         if mode == 'monthly':
             result = simulator.simulate_monthly(
                 history, start, end, amount,
                 interval_months=data.get('interval_months') or 1,
-                day_of_month=data.get('day_of_month') or 1)
+                day_of_month=data.get('day_of_month') or 1,
+                buy_mode=buy_mode)
         else:
-            result = simulator.simulate_lump(history, start, end, amount)
+            result = simulator.simulate_lump(history, start, end, amount,
+                                             buy_mode=buy_mode)
 
         if not result.get('ok'):
             # 長期データを取りに行って失敗した場合は、そう言う。
