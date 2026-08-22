@@ -332,6 +332,18 @@ def market():
     return render_template('market.html', indexes=md.INDEXES)
 
 
+@app.route('/simulator')
+def simulator_page():
+    """過去シミュレーション（いつ買っていたらいくらになっていたか）。会員限定。
+
+    銘柄を横断して条件を変えながら試す機能なので、スクリーナーと同じ扱いにする。
+    計算は保存済みの株価履歴だけで完結し、外部へは取りに行かない。
+    """
+    guard = _require_member()
+    if guard: return guard
+    return render_template('simulator.html')
+
+
 @app.route('/earnings')
 def earnings():
     """決算情報（決算月ごとの銘柄一覧）

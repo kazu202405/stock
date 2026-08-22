@@ -4016,6 +4016,82 @@ def get_or_create_guest_user_id():
 
 
 # =============================================
+# 過去シミュレーション
+# =============================================
+
+@app.route('/api/simulate', methods=['POST'])
+@member_required_api
+def api_simulate():
+    """「いつ買っていたらいくらになっていたか」を計算する。会員限定。
+
+    外部アクセスはしない。stock_price_history に入っている調整後の株価
+    （日足1年・月足10年）だけで計算するので速い。
+    """
+    import json as _json
+    import simulator
+
+    try:
+        data = request.get_json() or {}
+        code = normalize_code(data.get('company_code') or '')
+        if not code:
+            return jsonify({"error": "銘柄コードを指定してください"}), 400
+
+        mode = data.get('mode') or 'lump'
+        start = data.get('start')
+        end = data.get('end')
+        if not start or not end:
+            return jsonify({"error": "開始日と終了日を指定してください"}), 400
+        if str(start) > str(end):
+            return jsonify({"error": "開始日が終了日より後になっています"}), 400
+
+        try:
+            amount = int(data.get('amount') or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        if amount <= 0:
+            return jsonify({"error": "金額を入力してください"}), 400
+        # 上限を置く。桁を1つ間違えたまま結果を見て誤解するのを防ぐ
+        if amount > 1_000_000_000:
+            return jsonify({"error": "金額が大きすぎます（10億円まで）"}), 400
+
+        client = get_supabase_client()
+        row = (client.table('stock_price_history')
+               .select('company_code, daily_1y, monthly_10y')
+               .eq('company_code', code).limit(1).execute().data or [None])[0]
+        if not row:
+            return jsonify({"error": "この銘柄の株価履歴がありません"}), 404
+
+        history = {}
+        for key in ('daily_1y', 'monthly_10y'):
+            v = row.get(key)
+            history[key] = _json.loads(v) if isinstance(v, str) else v
+
+        if mode == 'monthly':
+            result = simulator.simulate_monthly(
+                history, start, end, amount,
+                interval_months=data.get('interval_months') or 1,
+                day_of_month=data.get('day_of_month') or 1)
+        else:
+            result = simulator.simulate_lump(history, start, end, amount)
+
+        if not result.get('ok'):
+            return jsonify({"error": result.get('reason', '計算できませんでした'),
+                            "available_from": result.get('available_from')}), 200
+
+        name = (get_screened_data(code) or {}).get('company_name')
+        result['company_code'] = code
+        result['company_name'] = name
+        # 明細が長くなりすぎないように上限を置く（画面で全部は読まない）
+        if len(result.get('buys') or []) > 200:
+            result['buys_truncated'] = len(result['buys'])
+            result['buys'] = result['buys'][:200]
+        return jsonify(result), 200
+    except Exception as e:
+        print(f'シミュレーションエラー: {e}')
+        return jsonify({"error": "計算できませんでした"}), 500
+
+
+# =============================================
 # ノートAPI
 # =============================================
 
