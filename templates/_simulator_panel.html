@@ -190,9 +190,11 @@
       </div>
     </div>
 
-    <div class="sim-cash" x-show="result.cash > 0" x-cloak>
-      内訳：株 <b x-text="yen(result.value)"></b>
-      ／ まだ株になっていない現金 <b x-text="yen(result.cash)"></b>
+    <div class="sim-cash">
+      内訳：株 <b x-text="shares(result.shares)"></b>（<b x-text="yen(result.value)"></b>）
+      <template x-if="result.cash > 0">
+        <span>／ まだ株になっていない現金 <b x-text="yen(result.cash)"></b></span>
+      </template>
       <template x-if="result.mode === 'monthly' && result.deposits !== result.times">
         <span>　積み立て <b x-text="result.deposits"></b>回 に対して
           実際に買えたのは <b x-text="result.times"></b>回です。</span>

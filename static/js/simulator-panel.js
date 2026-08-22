@@ -29,6 +29,14 @@ function simulator() {
       return '単元未満株（S株・かぶミニ等）を想定。余りは次回に足して買います';
     },
 
+    // 株数。1株単位なら整数、端数モードのときだけ小数を出す
+    shares(v) {
+      if (v === null || v === undefined) return '—';
+      const n = Number(v);
+      return (Number.isInteger(n) ? n.toLocaleString()
+                                  : n.toLocaleString(undefined, { maximumFractionDigits: 3 })) + '株';
+    },
+
     yen(v) {
       if (v === null || v === undefined) return '—';
       return '¥' + Math.round(v).toLocaleString();
