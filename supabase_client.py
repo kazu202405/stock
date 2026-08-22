@@ -888,8 +888,31 @@ def authenticate_user(email: str, password: str) -> dict:
     return user
 
 
+import uuid as _uuid
+
+
+def _looks_like_uuid(value) -> bool:
+    """uuid列に渡してよい文字列か。ゲストIDなどを弾くために使う。"""
+    try:
+        _uuid.UUID(str(value))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 def get_user_by_id(user_id: str) -> dict:
-    """IDでユーザー取得"""
+    """IDでユーザー取得。見つからなければ None。
+
+    ⚠️ app_users.id は uuid 型なので、UUIDでない文字列を渡すと
+    Postgres が 22P02 を投げ、呼び出し元が 500 になる。
+    セッションには UUID でない user_id が入りうる:
+      - ゲスト（get_or_create_guest_user_id が "guest_xxxxxxxx" を作る）
+      - 動作確認用に手で入れたセッション（実際に "layout-check" が入っていた）
+    どちらも「app_users には居ない」だけなので、例外ではなく None を返す。
+    ここで落ちると /api/auth/me が 500 になり、画面が読み込み中のまま止まる。
+    """
+    if not user_id or not _looks_like_uuid(user_id):
+        return None
     client = get_supabase_client()
     result = client.table('app_users').select('*').eq('id', user_id).execute()
     return result.data[0] if result.data else None
