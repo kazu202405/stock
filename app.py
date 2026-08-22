@@ -4753,6 +4753,68 @@ def scheduled_update_daily_and_crosses():
           f"/ 保存{daily_update_status.get('saved')}件")
 
 
+# 1晩に処理する上限。Yahooは実測で約50件連続すると遮断するので、その手前。
+NIGHTLY_PROFILE_LIMIT = 60
+NIGHTLY_PROFILE_SLEEP = 5.0
+
+
+def scheduled_backfill_yahoo_profile():
+    """定期実行: Yahoo日本版由来の項目（大株主・設立日・業績予想など）を少しずつ埋める。
+
+    手で `backfill_yahoo_fields.py` を回すと400件で約3時間かかる（遮断17回ぶんの
+    待ちが効く）。残り3,300件だと8〜9回＝約27時間になり、PCを点けている時間に
+    縛られる。**急ぐ理由は無い**（未取得の銘柄はスクリーナーで暫定表示になるだけで、
+    間違った数字が出るわけではない）ので、毎晩少しずつ進める。
+
+    ⚠️ ここでは遮断されても**待たない**。web プロセスの中で走るので、
+    冷却の10〜60分をスレッドが抱えると他の定期実行とかち合う。
+    Yahooは実測で約50件連続すると遮断するため、その手前で自然に止まる。
+    残りは翌晩に回せばよい。急ぎたいときは手で回す（そちらは待って続ける）。
+    """
+    from datetime import datetime
+    import time as _time
+
+    print(f"[Scheduler] Yahoo項目バックフィル開始: {datetime.now()}")
+    try:
+        import yahoo_jp_guard
+        from backfill_yahoo_fields import load_targets, fill_one
+        from stock_analyzer import StockAnalyzer
+    except Exception as e:
+        print(f"[Scheduler] Yahoo項目バックフィル: 読み込み失敗 {e}")
+        return
+
+    snap = yahoo_jp_guard.status_snapshot()
+    if snap.get('tripped') or snap.get('force_disabled'):
+        print(f"[Scheduler] Yahoo項目バックフィル: いま遮断中なのでスキップ {snap}")
+        return
+
+    try:
+        targets = load_targets()[:NIGHTLY_PROFILE_LIMIT]
+    except Exception as e:
+        print(f"[Scheduler] Yahoo項目バックフィル: 対象の抽出に失敗 {e}")
+        return
+    if not targets:
+        print("[Scheduler] Yahoo項目バックフィル: 対象なし（すべて取得済み）")
+        return
+
+    analyzer = StockAnalyzer()
+    ok = fail = 0
+    for i, code in enumerate(targets):
+        if yahoo_jp_guard.status_snapshot().get('tripped'):
+            print(f"[Scheduler] Yahoo項目バックフィル: 遮断されたので{i}件で切り上げます")
+            break
+        try:
+            if fill_one(analyzer=analyzer, code=code):
+                ok += 1
+        except Exception as e:
+            fail += 1
+            print(f"[Scheduler] {code} バックフィル失敗: {str(e)[:80]}")
+        _time.sleep(NIGHTLY_PROFILE_SLEEP)
+
+    print(f"[Scheduler] Yahoo項目バックフィル終了: 保存{ok}件 / 失敗{fail}件 "
+          f"/ 残り対象は次回に持ち越し")
+
+
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
@@ -4765,6 +4827,9 @@ scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='ea
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
+# Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
+scheduler.add_job(scheduled_backfill_yahoo_profile, 'cron', hour=2, minute=0,
+                  id='yahoo_profile_backfill')
 
 # 株主・役員のバックフィルは23:00。
 # **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
@@ -4779,7 +4844,8 @@ ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'true').lower() not in ('false'
 if ENABLE_SCHEDULER:
     scheduler.start()
     print("[Scheduler] スケジューラ起動（GC/DC取得: 9:15/17:15, 株価更新: 9:25/11:45/15:20, "
-          "決算検知: 15:30/21:00, 日足＋GC/DC再計算: 3:30 JST）")
+          "決算検知: 15:30/21:00, Yahoo項目バックフィル: 2:00, "
+          "日足＋GC/DC再計算: 3:30, 株主・役員バックフィル: 23:00 JST）")
     # アプリ終了時にスケジューラも停止
     atexit.register(lambda: scheduler.shutdown(wait=False))
 else:
