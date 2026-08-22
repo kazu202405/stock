@@ -117,11 +117,35 @@ def health_db():
 # =============================================
 
 def get_current_user():
-    """sessionからログインユーザーを取得。未ログインならNone"""
+    """sessionからログインユーザーを取得。未ログインならNone。
+
+    ⚠️ 「セッションはあるが app_users に居ない」状態が実際に起きる
+    （認証統一の前後で発行されたID、動作確認用に手で入れたセッション、
+    ユーザー行を消したあとの残りなど）。
+
+    この状態を放置すると**ゾンビセッション**になる:
+      - ヘッダーには session['user_name'] があるので名前が出る＝ログイン中に見える
+      - しかし get_current_user() は None なので API は 401 を返す
+      - デモ売買は session['user_id'] をそのまま使うため、実在しないIDで
+        新しい口座（100万円・保有0件）を勝手に作ってしまい、
+        「売買したのにデータが無い」ように見える
+    名前だけ出て何も動かないので、利用者からは原因が全く分からない。
+
+    そこで、解決できないセッションはここで捨てる。次のリクエストで
+    ログイン画面に戻り、入り直せば正しいIDが入る。
+    """
     user_id = session.get('user_id')
     if not user_id:
         return None
-    return get_user_by_id(user_id)
+
+    user = get_user_by_id(user_id)
+    if user:
+        return user
+
+    print(f'[session] app_usersに存在しないIDのセッションを破棄します: {user_id}')
+    for key in ('user_id', 'user_name', 'user_email', 'user_role'):
+        session.pop(key, None)
+    return None
 
 
 def _resolve_display_name(item, user_map):
@@ -5083,14 +5107,21 @@ def api_market_comment_save():
 # =============================================
 
 def _get_demo_user_id():
-    """デモ売買用のユーザーIDを取得（セッションベース）"""
-    user_id = session.get('user_id')
-    if not user_id:
-        # ゲストユーザーの場合はセッションIDを使用
-        if not session.get('demo_user_id'):
-            session['demo_user_id'] = str(uuid.uuid4())
-        user_id = session['demo_user_id']
-    return user_id
+    """デモ売買用のユーザーIDを取得（セッションベース）。
+
+    ⚠️ session['user_id'] をそのまま信用しない。app_users に居ないIDのまま
+    ここを通すと、実在しないユーザーの口座を作ってしまう。
+    実際に `layout-check` や素性の分からないUUIDの demo_account 行が残っていた。
+    get_current_user() は解決できないセッションを破棄するので、それを通す。
+    """
+    user = get_current_user()
+    if user:
+        return user['id']
+
+    # 未ログイン（ゲスト）。デモ売買は試せるようにしておく
+    if not session.get('demo_user_id'):
+        session['demo_user_id'] = str(uuid.uuid4())
+    return session['demo_user_id']
 
 
 def _get_or_create_demo_account(user_id, initial_amount=1000000):
