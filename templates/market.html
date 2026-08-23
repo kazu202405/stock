@@ -304,9 +304,7 @@
         </div>
 
         <div class="mk-val-now" id="mkValNow"></div>
-        <div class="mk-chart" id="mkValChart" style="height:300px; position:relative;">
-          <div id="mkValTip" class="mk-tip" style="display:none;"></div>
-        </div>
+        <div class="mk-chart" id="mkValChart" style="height:300px; position:relative;"></div>
         <div class="mk-legend" id="mkValLegend"></div>
         <div class="mk-note" id="mkValLongNote" style="display:none;"></div>
 
@@ -872,8 +870,14 @@
             valSeries[k] = line;
         });
 
-        // ホバーした月の値を、線ごとに名前つきで出す
-        const tip = document.getElementById('mkValTip');
+        // ホバーした月の値を、線ごとに名前つきで出す。
+        // ⚠️ この関数は最初に container.innerHTML = '' でコンテナを空にするので、
+        // ツールチップをHTML側に静的に置くと描画のたびに消える（実際に消えて
+        // crosshair のたびに null 参照で落ちた）。ここで作って入れ直す。
+        const tip = document.createElement('div');
+        tip.className = 'mk-tip';
+        tip.style.display = 'none';
+        container.appendChild(tip);
         valChart.subscribeCrosshairMove(param => {
             if (!param || !param.time || !param.point ||
                 param.point.x < 0 || param.point.y < 0) {
