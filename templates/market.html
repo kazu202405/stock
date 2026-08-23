@@ -147,6 +147,19 @@
     .mk-period-btn.active { background: #fff; color: #1b4332; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 
     .mk-chart { width: 100%; height: 420px; margin-top: 14px; }
+    /* PERは2本の線を重ねているので、右端に出るクロスヘアの値だけだと
+       その数字が日本なのか米国なのか分からない。両方まとめて出す。 */
+    .mk-tip {
+        position: absolute; z-index: 5; pointer-events: none;
+        background: rgba(255,255,255,0.97); border: 1px solid #e5e5e5;
+        border-radius: 8px; padding: 7px 10px; font-size: 11.5px;
+        line-height: 1.7; color: #1a1a1a; white-space: nowrap;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.10);
+    }
+    .mk-tip .m { color: #737373; font-size: 10.5px; margin-bottom: 2px; }
+    .mk-tip .r { display: flex; align-items: center; gap: 6px; }
+    .mk-tip .d { width: 8px; height: 2px; border-radius: 1px; flex: 0 0 auto; }
+    .mk-tip .v { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
     .mk-chart-empty {
         display: flex; align-items: center; justify-content: center;
         height: 100%; color: #a3a3a3; font-size: 13px;
@@ -291,7 +304,9 @@
         </div>
 
         <div class="mk-val-now" id="mkValNow"></div>
-        <div class="mk-chart" id="mkValChart" style="height:300px;"></div>
+        <div class="mk-chart" id="mkValChart" style="height:300px; position:relative;">
+          <div id="mkValTip" class="mk-tip" style="display:none;"></div>
+        </div>
         <div class="mk-legend" id="mkValLegend"></div>
         <div class="mk-note" id="mkValLongNote" style="display:none;"></div>
 
@@ -827,7 +842,11 @@
             crosshair: {
                 mode: LightweightCharts.CrosshairMode.Magnet,
                 vertLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
-                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelBackgroundColor: '#1b4332' },
+                // ⚠️ 縦軸側のラベルは出さない。線が2本あるので、カーソルの高さに
+                // 出る数字が日本なのか米国なのか読み手に区別できない
+                // （Magnetでどちらかの線に吸い付くため、余計に紛らわしい）。
+                // 代わりに下のツールチップで両方の値をまとめて出す。
+                horzLine: { color: '#d4d4d4', width: 1, style: 2, labelVisible: false },
             },
             rightPriceScale: {
                 borderVisible: false,
@@ -841,14 +860,49 @@
             localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1) + '倍' },
         });
 
+        const valSeries = {};
         keys.forEach(k => {
-            const s = valChart.addLineSeries({
+            const line = valChart.addLineSeries({
                 color: markets[k].color, lineWidth: 2,
                 priceLineVisible: false, lastValueVisible: true, title: markets[k].short_name,
             });
-            s.setData(series[k]
+            line.setData(series[k]
                 .filter(r => r.per != null && r.month >= commonStart)
                 .map(r => ({ time: r.month, value: r.per })));
+            valSeries[k] = line;
+        });
+
+        // ホバーした月の値を、線ごとに名前つきで出す
+        const tip = document.getElementById('mkValTip');
+        valChart.subscribeCrosshairMove(param => {
+            if (!param || !param.time || !param.point ||
+                param.point.x < 0 || param.point.y < 0) {
+                tip.style.display = 'none';
+                return;
+            }
+            const rows = keys.map(k => {
+                const d = param.seriesData.get(valSeries[k]);
+                if (!d || d.value == null) return '';
+                return `<div class="r"><span class="d" style="background:${markets[k].color};"></span>`
+                     + `<span>${markets[k].name}</span>`
+                     + `<span class="v">${d.value.toFixed(1)}倍</span></div>`;
+            }).filter(Boolean).join('');
+            if (!rows) { tip.style.display = 'none'; return; }
+
+            const t = param.time;
+            const label = (typeof t === 'string') ? t.slice(0, 7)
+                        : `${t.year}-${String(t.month).padStart(2, '0')}`;
+            tip.innerHTML = `<div class="m">${label}</div>${rows}`;
+            tip.style.display = 'block';
+
+            // 枠からはみ出さない位置に置く
+            const w = tip.offsetWidth, h = tip.offsetHeight;
+            let x = param.point.x + 14;
+            if (x + w > container.clientWidth) x = param.point.x - w - 14;
+            let y = param.point.y - h - 10;
+            if (y < 0) y = param.point.y + 14;
+            tip.style.left = Math.max(0, x) + 'px';
+            tip.style.top = Math.max(0, y) + 'px';
         });
 
         valChart.timeScale().fitContent();
