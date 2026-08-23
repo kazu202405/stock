@@ -884,13 +884,19 @@
                 tip.style.display = 'none';
                 return;
             }
+            // 値の大きい順に並べる。線の上下とツールチップの並びが一致していないと
+            // 目で追うときに読み替えが要る。米国が上、日本が下になるのが通常だが、
+            // 交差した月でも自動で入れ替わるように、固定順ではなく値で並べる。
             const rows = keys.map(k => {
                 const d = param.seriesData.get(valSeries[k]);
-                if (!d || d.value == null) return '';
-                return `<div class="r"><span class="d" style="background:${markets[k].color};"></span>`
-                     + `<span>${markets[k].name}</span>`
-                     + `<span class="v">${d.value.toFixed(1)}倍</span></div>`;
-            }).filter(Boolean).join('');
+                return (!d || d.value == null) ? null : { k, v: d.value };
+            }).filter(Boolean)
+              .sort((a, b) => b.v - a.v)
+              .map(({ k, v }) =>
+                `<div class="r"><span class="d" style="background:${markets[k].color};"></span>`
+              + `<span>${markets[k].name}</span>`
+              + `<span class="v">${v.toFixed(1)}倍</span></div>`)
+              .join('');
             if (!rows) { tip.style.display = 'none'; return; }
 
             const t = param.time;
