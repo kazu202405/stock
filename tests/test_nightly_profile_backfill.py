@@ -107,5 +107,59 @@ class TestNightlyProfileBackfill(unittest.TestCase):
         self.assertFalse(kwargs.get('use_edinet_forecasts', False))
 
 
+
+class TestScoreCompleteRefresh(unittest.TestCase):
+    """夜間バックフィルの後に score_complete を計算し直すこと。
+
+    保存は update_screened_data() を通るため score_complete が更新されない。
+    放置すると「予想が埋まったのにスクリーナーは灰色のまま」になり、
+    実際に毎回そうなって手で流し直していた。
+    """
+
+    def setUp(self):
+        import app
+        self.app = app
+
+    def test_refreshes_only_the_touched_codes(self):
+        """全3,879件を読み直さず、さわった銘柄だけを見る。"""
+        with patch('yahoo_jp_guard.status_snapshot',
+                   return_value={'tripped': False, 'force_disabled': False}), \
+             patch('backfill_yahoo_fields.load_targets',
+                   return_value=['1001', '1002', '1003']), \
+             patch('backfill_yahoo_fields.fill_one', side_effect=[3, 0, 5]), \
+             patch('stock_analyzer.StockAnalyzer'), \
+             patch('time.sleep'), \
+             patch('backfill_score_complete.refresh_score_complete',
+                   return_value=([], {})) as refresh, \
+             patch('backfill_score_complete.apply_updates', return_value=(0, 0)):
+            self.app.scheduled_backfill_yahoo_profile()
+
+        refresh.assert_called_once()
+        # 保存できた銘柄だけ（1002 は fill_one が 0 を返したので対象外）
+        self.assertEqual(refresh.call_args.kwargs['codes'], ['1001', '1003'])
+
+    def test_skipped_when_nothing_was_saved(self):
+        with patch('yahoo_jp_guard.status_snapshot',
+                   return_value={'tripped': False, 'force_disabled': False}), \
+             patch('backfill_yahoo_fields.load_targets', return_value=['1001']), \
+             patch('backfill_yahoo_fields.fill_one', return_value=0), \
+             patch('stock_analyzer.StockAnalyzer'), \
+             patch('time.sleep'), \
+             patch('backfill_score_complete.refresh_score_complete') as refresh:
+            self.app.scheduled_backfill_yahoo_profile()
+        refresh.assert_not_called()
+
+    def test_failure_here_does_not_break_the_job(self):
+        """再計算で落ちても、バックフィル自体は済んでいる。握って続ける。"""
+        with patch('yahoo_jp_guard.status_snapshot',
+                   return_value={'tripped': False, 'force_disabled': False}), \
+             patch('backfill_yahoo_fields.load_targets', return_value=['1001']), \
+             patch('backfill_yahoo_fields.fill_one', return_value=3), \
+             patch('stock_analyzer.StockAnalyzer'), \
+             patch('time.sleep'), \
+             patch('backfill_score_complete.refresh_score_complete',
+                   side_effect=RuntimeError('boom')):
+            self.app.scheduled_backfill_yahoo_profile()   # 例外が外に出ないこと
+
 if __name__ == '__main__':
     unittest.main()

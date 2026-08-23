@@ -4806,6 +4806,7 @@ def scheduled_backfill_yahoo_profile():
 
     analyzer = StockAnalyzer()
     ok = fail = 0
+    touched = []
     for i, code in enumerate(targets):
         if yahoo_jp_guard.status_snapshot().get('tripped'):
             print(f"[Scheduler] Yahoo項目バックフィル: 遮断されたので{i}件で切り上げます")
@@ -4813,6 +4814,7 @@ def scheduled_backfill_yahoo_profile():
         try:
             if fill_one(analyzer=analyzer, code=code):
                 ok += 1
+                touched.append(code)
         except Exception as e:
             fail += 1
             print(f"[Scheduler] {code} バックフィル失敗: {str(e)[:80]}")
@@ -4820,6 +4822,20 @@ def scheduled_backfill_yahoo_profile():
 
     print(f"[Scheduler] Yahoo項目バックフィル終了: 保存{ok}件 / 失敗{fail}件 "
           f"/ 残り対象は次回に持ち越し")
+
+    # ⚠️ ここまでの保存は update_screened_data() を通るため、score_complete が
+    # 更新されない（あれを書くのは upsert_screened_data_with_match_rate だけ）。
+    # 放置すると「予想が埋まったのにスクリーナーは灰色のまま」になり、
+    # 実際に毎回そうなって手で流し直していた。さわった銘柄だけ計算し直す。
+    if touched:
+        try:
+            from backfill_score_complete import refresh_score_complete, apply_updates
+            from supabase_client import get_supabase_client as _client
+            updates, _ = refresh_score_complete(_client(), codes=touched)
+            written, failed = apply_updates(_client(), updates)
+            print(f"[Scheduler] score_complete 更新: {written}件 / 失敗{failed}件")
+        except Exception as e:
+            print(f"[Scheduler] score_complete の更新に失敗: {str(e)[:100]}")
 
 
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
