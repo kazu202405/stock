@@ -94,7 +94,13 @@ class TestDetailPageTellsTheReader(unittest.TestCase):
         with open(os.path.join(here, 'templates', 'stock_detail.html'),
                   encoding='utf-8') as f:
             html = f.read()
-        self.assertIn('{% if delisted_on %}', html)
+        # 日付が分からない銘柄でもバナーは出すこと。印の有無と日付は別物
+        # （分けていなかったため 2692 伊藤忠食品でバナーが丸ごと消えた）
+        self.assertIn('{% if is_delisted %}', html)
+        notice = html.index('この会社は上場廃止になっています')
+        guard = html.rindex('{% if is_delisted %}', 0, notice)
+        self.assertNotIn('{% if delisted_on %}', html[guard:notice],
+                         'バナー全体が日付の有無で消える作りになっている')
         self.assertIn('上場廃止', html)
 
     def test_the_route_passes_the_flag(self):
@@ -102,6 +108,7 @@ class TestDetailPageTellsTheReader(unittest.TestCase):
         with open(os.path.join(here, 'models', 'root.py'), encoding='utf-8') as f:
             src = f.read()
         self.assertIn('delisted_on=delisted_on', src)
+        self.assertIn('is_delisted=is_delisted', src)
 
 
 if __name__ == '__main__':

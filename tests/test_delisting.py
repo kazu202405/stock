@@ -79,13 +79,41 @@ class TestDelistedTimestamp(unittest.TestCase):
 
 
 class TestDescribe(unittest.TestCase):
+    TODAY = date(2026, 8, 24)
+
     def test_date_only(self):
         self.assertEqual(
-            delisting.describe('2026-06-15T15:00:00+09:00'), '2026-06-15')
+            delisting.describe('2026-06-15T15:00:00+09:00', today=self.TODAY),
+            '2026-06-15')
 
     def test_none_stays_none(self):
         self.assertIsNone(delisting.describe(None))
         self.assertIsNone(delisting.describe(''))
+
+    def test_a_recent_date_is_not_a_last_trading_day(self):
+        """日足が1本も無い銘柄は、印を付けた時刻がそのまま入る。
+        それを最終売買日として出すと「今日まで売買されていた会社が上場廃止」
+        という嘘になる（7420 佐鳥電機・2692 伊藤忠食品で実際に出た）。"""
+        self.assertIsNone(
+            delisting.describe('2026-08-24T09:00:00+09:00', today=self.TODAY))
+        self.assertIsNone(
+            delisting.describe('2026-08-10T09:00:00+09:00', today=self.TODAY))
+
+    def test_garbage_is_not_shown(self):
+        self.assertIsNone(delisting.describe('not-a-date'))
+
+
+class TestProbePeriod(unittest.TestCase):
+    """売買が少ないだけの銘柄を廃止扱いにしないこと。
+
+    TOKYO PRO Market は売買が年に数回しかなく、直近5日に足が無いのが普通。
+    5日で判定したとき、動力・横浜ライト工業・サトウ産業など約40社が一斉に
+    「2026-07-17 上場廃止」と出た（そんな日は無い）。
+    """
+
+    def test_probe_looks_at_a_year(self):
+        import detect_delisted
+        self.assertEqual(detect_delisted.PROBE_PERIOD, '1y')
 
 
 class TestRealCases(unittest.TestCase):

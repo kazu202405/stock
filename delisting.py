@@ -65,8 +65,25 @@ def delisted_timestamp(bars, today=None):
                     15, 0, tzinfo=JST).isoformat()
 
 
-def describe(delisted_at):
-    """画面に出す一言。'2026-06-15' のような日付だけを取り出す。"""
+def describe(delisted_at, today=None):
+    """画面に出す最終売買日。'2026-06-15' のような日付だけを取り出す。
+
+    ⚠️ **最近の日付は返さない。** 日足が1本も無い銘柄は最終売買日が分からず、
+    印を付けた時刻がそのまま入る。それを「最終売買日」として出すと
+    「今日まで売買されていた会社が上場廃止」という嘘になる（実際に
+    7420 佐鳥電機・2692 伊藤忠食品で出た）。
+
+    候補にする条件が「STALE_CHART_DAYS より長く足が付いていない」なので、
+    本物の最終売買日は必ずそれより古い。新しければ印を付けた時刻とみなせる。
+    """
     if not delisted_at:
         return None
-    return str(delisted_at)[:10]
+    text = str(delisted_at)[:10]
+    try:
+        day = datetime.strptime(text, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+    today = today or datetime.now(JST).date()
+    if (today - day).days <= STALE_CHART_DAYS:
+        return None          # 印を付けた時刻＝最終売買日は分からない
+    return text

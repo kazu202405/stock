@@ -231,6 +231,9 @@ class EarningsPageTest(unittest.TestCase):
         chain = Mock()
         chain.select.return_value = chain
         chain.eq.return_value = chain
+        # 上場廃止を外す条件（exclude_delisted）もチェーンに乗る
+        chain.is_.return_value = chain
+        chain.not_ = chain
         chain.order.return_value = chain
         chain.range.return_value = chain
         chain.execute.return_value = Mock(
@@ -253,7 +256,8 @@ class EarningsPageTest(unittest.TestCase):
         """per_pageで大量取得させない"""
         self._login()
         chain = Mock()
-        for name in ('select', 'eq', 'order', 'range'):
+        # is_ は上場廃止を外す条件（exclude_delisted）
+        for name in ('select', 'eq', 'order', 'range', 'is_'):
             getattr(chain, name).return_value = chain
         chain.execute.return_value = Mock(count=0, data=[])
         client = Mock()

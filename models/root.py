@@ -707,6 +707,10 @@ def stock_detail(code):
     # 上場廃止。株価は最終売買日で凍結されているので、そう書かずに数字だけ出すと
     # 「いまの株価」だと読まれる。2026年のTOB・MBOで5〜7月だけで22社あった。
     import delisting
+    # 印の有無と最終売買日は別物。日足が1本も無い銘柄は日付が分からないが、
+    # それでも「上場廃止である」ことは伝えなければならない
+    # （分けていなかったため 2692 伊藤忠食品でバナーが丸ごと消えていた）。
+    is_delisted = bool(company.get('delisted_at'))
     delisted_on = delisting.describe(company.get('delisted_at'))
 
     return render_template(
@@ -715,6 +719,7 @@ def stock_detail(code):
         company=company,
         tags=tags,
         is_fund=is_fund,
+        is_delisted=is_delisted,
         delisted_on=delisted_on,
         is_logged_in=bool(session.get('user_id')),
         is_admin=session.get('user_role') == 'admin',

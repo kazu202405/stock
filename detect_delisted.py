@@ -106,17 +106,28 @@ def _codes_with_history(client):
     return codes
 
 
-def probe_is_alive(code):
-    """いま値が取れるか。取れれば上場中。
+# 上場しているかを確かめるときに見る期間。
+#
+# ⚠️ **5日で見てはいけない。** TOKYO PRO Market の銘柄は売買が年に数回しかなく、
+# 直近5日に足が無いのが普通。実測で1年に1本しか付いていない銘柄が多数あり、
+# 5日判定だと動力・横浜ライト工業・サトウ産業など約40社を一斉に
+# 「2026-07-17 上場廃止」と誤判定した（そんな日は無い）。
+#
+# 1年で見ると差がはっきり出る:
+#   本当に廃止   6670 MCJ / 6201 豊田自動織機 / 4384 ラクスル → 1年でも 0本
+#   売買が少ない 1432 動力 / 1452 横浜ライト工業 / 5135 AIR-U → 1年で 1本
+PROBE_PERIOD = '1y'
 
-    例外は「取れなかった」側に倒す。上場中の会社を消す方が、
-    廃止銘柄を残すよりずっと悪い……のだが、ここで True に倒すと
-    永遠に印が付かない。呼び出し側で「取れない」が続くことを見ているので、
-    ここは素直に取れたかどうかだけを返す。
+
+def probe_is_alive(code):
+    """いま Yahoo にこの銘柄が存在するか。1本でも足があれば上場中。
+
+    例外は「取れなかった」側に倒す。ここで True に倒すと永遠に印が付かない。
+    取得に失敗しただけの銘柄は、翌週の検出でまた確かめられる。
     """
     import yfinance as yf
     try:
-        hist = yf.Ticker(f'{code}.T').history(period='5d')
+        hist = yf.Ticker(f'{code}.T').history(period=PROBE_PERIOD)
         return len(hist) > 0
     except Exception:
         return False

@@ -937,14 +937,14 @@
 
     {# 上場廃止。株価は最終売買日で凍結されているので、そう書かずに数字だけ出すと
        「いまの株価」だと読まれる。ETFの案内より上に出す（こちらの方が誤解が実害になる）。 #}
-    {% if delisted_on %}
+    {% if is_delisted %}
     <div style="margin-bottom:16px; padding:12px 16px; background:#fdf2f2; border:1px solid #f0c2c2; border-left:3px solid #c0392b; border-radius:8px;">
         <div style="font-size:0.9rem; font-weight:600; color:#8c2f24; margin-bottom:4px;">
-            <i class="fas fa-ban" style="margin-right:6px;"></i>この会社は上場廃止になっています（最終売買 {{ delisted_on }}）
+            <i class="fas fa-ban" style="margin-right:6px;"></i>この会社は上場廃止になっています{% if delisted_on %}（最終売買 {{ delisted_on }}）{% endif %}
         </div>
         <div style="font-size:0.82rem; color:#7a4038; line-height:1.7;">
             いま市場では売買されていません。
-            このページの<strong>株価・時価総額・PER・PBR は {{ delisted_on }} 時点で止まっています</strong>。
+            このページの<strong>株価・時価総額・PER・PBR は{% if delisted_on %} {{ delisted_on }} 時点で{% else %}最終売買日で{% endif %}止まっています</strong>。
             財務の数字は当時のもので、その後の決算は反映されません。
             記録として残していますが、いまの会社の姿ではありません。
         </div>
