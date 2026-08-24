@@ -3339,8 +3339,12 @@ def api_screen_stocks():
 
         # ETF・REIT等は事業会社でないのでスクリーナーに出さない。
         # DBの行は消していない（security_filter.EXCLUDED_CODES から外せば戻る）
-        from security_filter import exclude_non_operating
+        from security_filter import exclude_delisted, exclude_non_operating
         query = exclude_non_operating(query)
+
+        # 上場廃止も出さない。株価が最終売買日で凍結されており、
+        # スコアや割安さを他社と並べても意味がない
+        query = exclude_delisted(query)
 
         # 数値の絞り込み
         for param, (column, op) in SCREEN_FILTERS.items():
@@ -3965,12 +3969,15 @@ def api_earnings_by_month(month):
         return jsonify({"error": "データベースに接続できません"}), 503
 
     try:
-        result = (client.table('screened_latest')
-                  .select('company_code, company_name, sector, industry_jp, '
-                          'market_segment, market_cap, per_forward, pbr, roe, '
-                          'equity_ratio, match_rate, fiscal_month',
-                          count='exact')
-                  .eq('fiscal_month', month)
+        from security_filter import exclude_delisted
+        q = (client.table('screened_latest')
+             .select('company_code, company_name, sector, industry_jp, '
+                     'market_segment, market_cap, per_forward, pbr, roe, '
+                     'equity_ratio, match_rate, fiscal_month',
+                     count='exact')
+             .eq('fiscal_month', month))
+        # 上場廃止は決算一覧にも出さない。次の決算が来ることはない
+        result = (exclude_delisted(q)
                   .order('company_code')
                   .range(offset, offset + per_page - 1)
                   .execute())
@@ -4606,6 +4613,56 @@ def scheduled_enqueue_earnings():
         print(f"[Scheduler] 決算検知エラー: {e}")
 
 
+def scheduled_detect_delisted():
+    """定期実行: 上場廃止になった銘柄に印を付ける（週1回）。
+
+    2026年のTOB・MBOの波で、5〜7月だけで22社が上場廃止になっていた。
+    印が無いと、株価が最終売買日で凍結されたままスクリーナーにも検索にも出続け、
+    上場廃止だとどこにも書かれない。
+
+    毎日ではなく週1回にしてある。候補を出すのに全銘柄の日足を読む必要があり
+    （daily_updated_at は当てにならない。廃止銘柄でも新しい日付が入っている）、
+    web プロセスで毎日やるには重い。上場廃止は事前に開示されるうえ、
+    数日遅れて印が付いても実害は小さい。
+    """
+    from datetime import datetime
+
+    print(f"[Scheduler] 上場廃止の検出開始: {datetime.now()}")
+    try:
+        import detect_delisted
+        import supabase_client as sc
+        if not sc.has_column('screened_latest', 'delisted_at'):
+            print("[Scheduler] 上場廃止の検出: delisted_at 列が未適用のためスキップ")
+            return
+
+        client = sc.get_supabase_client()
+        candidates, all_rows = detect_delisted.find_candidates(client)
+        marked = {r['company_code'] for r in all_rows if r.get('delisted_at')}
+        todo = [c for c in candidates if c[0] not in marked]
+        print(f"[Scheduler] 上場廃止の検出: 候補{len(candidates)}件 / 未判定{len(todo)}件")
+
+        import time as _time
+        marked_now = 0
+        for code, _name, last, _ in todo:
+            if detect_delisted.probe_is_alive(code):
+                continue
+            stamp = detect_delisted.delisting.delisted_timestamp(
+                [{'time': int(datetime(last.year, last.month, last.day, 15, 0,
+                                       tzinfo=detect_delisted.delisting.JST
+                                       ).timestamp())}]) if last else None
+            try:
+                (client.table('screened_latest')
+                 .update({'delisted_at': stamp or datetime.now().isoformat()})
+                 .eq('company_code', code).execute())
+                marked_now += 1
+            except Exception as e:
+                print(f"[Scheduler] 上場廃止の印付け {code} 失敗: {e}")
+            _time.sleep(detect_delisted.PROBE_SLEEP)
+        print(f"[Scheduler] 上場廃止の検出終了: {marked_now}件に印を付けました")
+    except Exception as e:
+        print(f"[Scheduler] 上場廃止の検出エラー: {e}")
+
+
 # 1晩に再分析する決算銘柄の上限と、かける時間の上限。
 #
 # 決算期（2月・5月・8月・11月の上旬）は1日1,000件を超える。全部やろうとすると
@@ -5007,6 +5064,10 @@ scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='ear
 # 検知した銘柄の再分析。21:00の検知が終わってから動かす
 scheduler.add_job(scheduled_process_earnings_queue, 'cron', hour=22, minute=0,
                   id='earnings_process_queue')
+
+# 上場廃止の検出。全銘柄の日足を読むので週1回、他が動いていない時間に
+scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
+                  hour=4, minute=30, id='detect_delisted')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）

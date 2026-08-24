@@ -1301,3 +1301,27 @@ def get_user_likes(user_id: str, target_type: str, target_ids: list) -> set:
         'user_id', user_id
     ).eq('target_type', target_type).in_('target_id', target_ids).execute()
     return set(r['target_id'] for r in result.data)
+
+
+# 列がまだ無いかもしれない場面のための確認。結果は覚えておく（毎回聞かない）。
+#
+# migration は運用側が手で適用するため、コードの方が先に出る期間がある。
+# その間に新しい列を条件に入れると、クエリが400で落ちて画面全体が壊れる。
+_column_cache = {}
+
+
+def has_column(table: str, column: str) -> bool:
+    """その列が実在するか。1度だけ問い合わせて覚える。
+
+    migration 未適用の間は False を返し、呼び出し側は条件を足さずに動く。
+    ⚠️ 覚えるので、migration を当てた後はプロセスの再起動が要る。
+    """
+    key = (table, column)
+    if key in _column_cache:
+        return _column_cache[key]
+    try:
+        get_supabase_client().table(table).select(column).limit(1).execute()
+        _column_cache[key] = True
+    except Exception:
+        _column_cache[key] = False
+    return _column_cache[key]

@@ -89,3 +89,16 @@ def is_non_operating(name=None, market_segment=None) -> bool:
     if market_segment is not None and str(market_segment).strip():
         return is_non_operating_segment(market_segment)
     return is_non_operating_name(name)
+
+
+def exclude_delisted(query, column='delisted_at'):
+    """上場廃止の銘柄を一覧から外す条件を足す。
+
+    行は消さない。印を消せば戻る（ETFの EXCLUDED_CODES と同じ考え方）。
+    列がまだ無い（migration 未適用）ときは何もしない。条件を足すと
+    クエリが400で落ちて一覧が丸ごと表示されなくなるため。
+    """
+    import supabase_client as sc
+    if sc.has_column('screened_latest', column):
+        query = query.is_(column, 'null')
+    return query

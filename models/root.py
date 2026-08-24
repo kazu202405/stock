@@ -704,12 +704,18 @@ def stock_detail(code):
     is_fund = (normalized in EXCLUDED_CODES
                or is_non_operating_name(company.get('company_name')))
 
+    # 上場廃止。株価は最終売買日で凍結されているので、そう書かずに数字だけ出すと
+    # 「いまの株価」だと読まれる。2026年のTOB・MBOで5〜7月だけで22社あった。
+    import delisting
+    delisted_on = delisting.describe(company.get('delisted_at'))
+
     return render_template(
         'stock_detail.html',
         stock_code=code,
         company=company,
         tags=tags,
         is_fund=is_fund,
+        delisted_on=delisted_on,
         is_logged_in=bool(session.get('user_id')),
         is_admin=session.get('user_role') == 'admin',
     )
@@ -817,10 +823,14 @@ def theme_detail(name):
             total = len(codes)
             if codes:
                 # 時価総額の大きい順。知られた会社が上に来るほうが読み手に親切
-                res = (client.table('screened_latest')
-                       .select(THEME_COLUMNS)
-                       .in_('company_code', codes[:2000])
-                       .not_.is_('company_name', 'null')
+                from security_filter import exclude_delisted
+                q = (client.table('screened_latest')
+                     .select(THEME_COLUMNS)
+                     .in_('company_code', codes[:2000])
+                     .not_.is_('company_name', 'null'))
+                # 上場廃止はテーマ一覧にも出さない（株価が凍結されており、
+                # 時価総額順に並べると実態と合わない位置に居座る）
+                res = (exclude_delisted(q)
                        .order('market_cap', desc=True)
                        .limit(THEME_PAGE_LIMIT)
                        .execute())
