@@ -65,3 +65,6 @@ z.md
 
 # 計測スクリプトの出力（結論は contexts の company_note.md に残す）
 claudedocs/*.jsonl
+
+# 使い捨ての確認スクリプト
+_*.py
