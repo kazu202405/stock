@@ -4693,9 +4693,24 @@ def scheduled_backfill_holders_officers():
           f" / {elapsed}秒" + (f" / 中断={stopped}" if stopped else ""))
 
 
+# 株価と一緒に伸縮させる列。ここだけ読めば足りるので financial_history は取らない
+# （全銘柄ぶんのJSONを1日3回読むと重い）。スコアの計算し直しは深夜の
+# scheduled_update_daily_and_crosses でまとめて行う。
+PRICE_SYNC_COLUMNS = ('company_code, stock_price, per_forward, pbr, '
+                      'market_cap, dividend_yield, dividend_yield_forward')
+
+
 def scheduled_update_stock_prices():
-    """定期実行: screened_latest全銘柄の株価を更新する"""
+    """定期実行: screened_latest全銘柄の株価を更新する。
+
+    ⚠️ 株価だけを書き換えないこと。PER・PBR・時価総額・配当利回りは
+    分析した日の株価で計算されており、株価だけ毎日動かすと画面上で
+    「今日の株価」と「1か月前のPER」が並ぶ。2026-08-24 に実測したところ
+    PERが5%以上ずれている銘柄が64%、20%以上が31%あった。
+    multiples.rescale() で5つを一緒に更新する。
+    """
     from datetime import datetime
+    import multiples
     print(f"[Scheduler] 株価バッチ更新開始: {datetime.now()}")
     try:
         client = get_supabase_client()
@@ -4703,35 +4718,49 @@ def scheduled_update_stock_prices():
         # 1000行ずつページングして全件取得する。
         # Supabaseは1回のselectで既定1000行までしか返さないため、
         # ページングしないと先頭1000件しか更新されない。
-        codes = []
+        rows = []
         page = 0
         while page < 20:
             res = (client.table('screened_latest')
-                   .select('company_code')
+                   .select(PRICE_SYNC_COLUMNS)
                    .range(page * 1000, page * 1000 + 999)
                    .execute())
-            rows = res.data or []
-            codes.extend(r['company_code'] for r in rows)
-            if len(rows) < 1000:
+            batch = res.data or []
+            rows.extend(batch)
+            if len(batch) < 1000:
                 break
             page += 1
 
-        print(f"[Scheduler] 対象銘柄数: {len(codes)}件")
-        prices = fetch_prices_batch(codes)
+        by_code = {r['company_code']: r for r in rows}
+        print(f"[Scheduler] 対象銘柄数: {len(by_code)}件")
+        prices = fetch_prices_batch(list(by_code))
 
-        # 取得できた分だけ更新する
         success_count = 0
+        split_count = 0
         for code, price in prices.items():
+            row = by_code.get(code) or {}
             try:
-                client.table('screened_latest').update(
-                    {'stock_price': price}
-                ).eq('company_code', code).execute()
+                updates = multiples.rescale(row, price)
+            except multiples.ImplausibleRatio as e:
+                # 株式分割・併合の疑い。分割では株価もEPSも同じ比で動くので
+                # PERは変わらない。指標を触らず株価だけ入れるのが正しい。
+                split_count += 1
+                print(f"[Scheduler] {code} 株価が飛んでいます（分割の疑い）: {e}")
+                updates = {'stock_price': price}
+
+            if not updates:
+                success_count += 1      # 変化なし＝更新の必要なし
+                continue
+            try:
+                (client.table('screened_latest').update(updates)
+                 .eq('company_code', code).execute())
                 success_count += 1
             except Exception as e:
                 print(f"[Scheduler] {code} 保存エラー: {e}")
 
-        fail_count = len(codes) - success_count
-        print(f"[Scheduler] 株価バッチ更新完了: 成功{success_count}件, 失敗{fail_count}件")
+        fail_count = len(by_code) - success_count
+        print(f"[Scheduler] 株価バッチ更新完了: 成功{success_count}件, "
+              f"失敗{fail_count}件, 分割の疑い{split_count}件")
     except Exception as e:
         print(f"[Scheduler] 株価バッチ更新エラー: {e}")
 
@@ -4758,6 +4787,54 @@ def scheduled_update_daily_and_crosses():
     _update_daily_and_recalc_background()
     print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: {daily_update_status.get('phase')} "
           f"/ 保存{daily_update_status.get('saved')}件")
+    _recalculate_scores_after_price_move()
+
+
+def _recalculate_scores_after_price_move():
+    """株価が動いたぶんスコアを計算し直す。
+
+    日中の株価cronは PER・PBR を伸縮させるが、match_rate と score_complete までは
+    触らない（判定には financial_history が要るので、全銘柄ぶんのJSONを1日3回
+    読むことになり重い）。PERが不合格ラインをまたぐと点数が変わるため、
+    1日1回ここでまとめて計算し直す。
+
+    外部へは一切アクセスしない。DBの中だけで完結する。
+    """
+    from datetime import datetime
+    try:
+        import backfill_score_complete as bsc
+        from supabase_client import score_breakdown
+        client = get_supabase_client()
+
+        rows = bsc.load_rows(client)
+        updates = []
+        for row in rows:
+            breakdown = score_breakdown(row)
+            score = breakdown['score']
+            complete = breakdown['status'] == 'complete'
+            changed = {}
+            if row.get('match_rate') != score:
+                changed['match_rate'] = score
+            if row.get('score_complete') != complete:
+                changed['score_complete'] = complete
+            if changed:
+                updates.append((row['company_code'], changed))
+
+        written = failed = 0
+        for code, changed in updates:
+            try:
+                (client.table('screened_latest').update(changed)
+                 .eq('company_code', code).execute())
+                written += 1
+            except Exception as e:
+                failed += 1
+                if failed <= 3:
+                    print(f"[Scheduler] スコア再計算 {code} 失敗: {e}")
+        print(f"[Scheduler] スコア再計算 {datetime.now()}: "
+              f"対象{len(rows)}件 / 更新{written}件 / 失敗{failed}件")
+    except Exception as e:
+        # ここで落ちても日足とGC/DCは済んでいる。握って翌日に回す
+        print(f"[Scheduler] スコア再計算エラー: {e}")
 
 
 # 1晩に処理する上限。Yahooは実測で約50件連続すると遮断するので、その手前。
