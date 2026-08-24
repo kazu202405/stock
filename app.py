@@ -2407,11 +2407,16 @@ earnings_status = {"running": False, "done": 0, "total": 0, "errors": 0,
                    "codes": [], "stop_requested": False, "finished_at": None, "error": None}
 
 
-def _update_earnings_background(codes):
+def _update_earnings_background(codes, deadline_at=None):
     """決算発表があった銘柄だけを再分析する。
 
     財務データは1銘柄10回のAPI呼び出しが必要で全件やり直すと約4.5時間かかるが、
     決算を出した銘柄だけなら平常日は数件〜数十件で済む。
+
+    deadline_at を渡すと、その時刻を過ぎたところで**次の銘柄に進まない**。
+    夜間の自動実行で使う。決算期は1日1,000件を超えることがあり、
+    上限が無いと朝まで走り続けて他の定期実行とかち合う。
+    処理済みの印は1件ごとに付けるので、途中で切り上げても翌晩に続きから進む。
     """
     global earnings_status
     analyzer = StockAnalyzer()
@@ -2419,6 +2424,9 @@ def _update_earnings_background(codes):
 
     for i, code in enumerate(codes):
         if earnings_status["stop_requested"]:
+            break
+        if deadline_at is not None and _time.monotonic() >= deadline_at:
+            print(f'決算更新: 時間切れのため{i}件で切り上げます（残り{len(codes) - i}件）')
             break
         try:
             result = _analyze_stock_and_save(analyzer, code)
@@ -4592,6 +4600,70 @@ def scheduled_enqueue_earnings():
         print(f"[Scheduler] 決算検知エラー: {e}")
 
 
+# 1晩に再分析する決算銘柄の上限と、かける時間の上限。
+#
+# 決算期（2月・5月・8月・11月の上旬）は1日1,000件を超える。全部やろうとすると
+# 朝まで走り、深夜2:00のYahoo項目バックフィルや3:30の日足更新とかち合う。
+# 1銘柄あたり実測で約4秒なので、400件で約28分。決算期の山は数晩かけて崩す。
+EARNINGS_NIGHTLY_LIMIT = 400
+EARNINGS_NIGHTLY_MINUTES = 120
+
+
+def load_unprocessed_earnings(client, limit):
+    """未処理の決算銘柄を古い順に返す。発表日の古いものから片づける。"""
+    rows = (client.table('earnings_queue')
+            .select('company_code, announced_date')
+            .eq('processed', False)
+            .order('announced_date')
+            .limit(limit)
+            .execute().data or [])
+    return [r['company_code'] for r in rows]
+
+
+def scheduled_process_earnings_queue():
+    """定期実行: 決算発表のあった銘柄の財務データを取り直す。
+
+    2026-08-24 まで、検知（15:30・21:00）は自動なのに**再分析は /earnings の
+    ボタンからしか動かなかった**。押し忘れると決算をまたいでも古い財務データが
+    残り続ける。決算をまたいだ数字を出しているのに気づけないので自動化する。
+
+    21:00の検知の後に走らせる。引け後の発表が出そろうのを待つため。
+    """
+    global earnings_status
+    from datetime import datetime
+    import time as _time
+
+    if earnings_status["running"] or daily_update_status["running"]:
+        print("[Scheduler] 決算再分析: すでに実行中のためスキップ")
+        return
+
+    print(f"[Scheduler] 決算再分析開始: {datetime.now()}")
+    try:
+        codes = load_unprocessed_earnings(get_supabase_client(),
+                                          EARNINGS_NIGHTLY_LIMIT)
+    except Exception as e:
+        print(f"[Scheduler] 決算再分析: キューの読み取りに失敗 {e}")
+        return
+
+    if not codes:
+        print("[Scheduler] 決算再分析: 未処理なし")
+        return
+
+    earnings_status = {"running": True, "done": 0, "total": len(codes),
+                       "errors": 0, "codes": codes, "stop_requested": False,
+                       "finished_at": None, "error": None}
+    deadline = _time.monotonic() + EARNINGS_NIGHTLY_MINUTES * 60
+    try:
+        _update_earnings_background(codes, deadline_at=deadline)
+    except Exception as e:
+        earnings_status["running"] = False
+        earnings_status["error"] = str(e)
+        print(f"[Scheduler] 決算再分析エラー: {e}")
+        return
+    print(f"[Scheduler] 決算再分析終了: {earnings_status['done']}/{len(codes)}件 "
+          f"/ 失敗{earnings_status['errors']}件")
+
+
 # 株主・役員のバックフィルで狙う銘柄の条件。
 #
 # 「経営陣が株主か」を見たいのは**オーナー系の中小型株**。プライムの
@@ -4925,6 +4997,10 @@ scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id=
 # 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='earnings_detect_afternoon')
 scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
+
+# 検知した銘柄の再分析。21:00の検知が終わってから動かす
+scheduler.add_job(scheduled_process_earnings_queue, 'cron', hour=22, minute=0,
+                  id='earnings_process_queue')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
