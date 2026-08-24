@@ -1411,6 +1411,9 @@ def _save_analysis_to_screened(symbol, stock_data):
         'financial_history': history_json_or_none(financial_history, _convert_timestamps),
         'cf_history': history_json_or_none(cf_history, _convert_timestamps),
         'analyzed_at': now,
+        # 株価と倍率を同じ snapshot から書くので、この時点で揃っている。
+        # multiples.py の不変条件（派生値は同じ行の stock_price と同時点）の印。
+        'price_updated_at': now,
         'data_source': analysis_data_source_name(stock_data),
         'source_status': stock_data.get('source_status'),
         'data_status': analysis_data_status(financial_history, cf_history)
@@ -1532,6 +1535,9 @@ def _analyze_stock_and_save(analyzer, company_code):
         'payout_ratio': get_latest_completed_value(stock_data.get('payout_ratio')),
         'roe': get_latest_value(stock_data.get('roe')),
         'analyzed_at': now,
+        # 株価と倍率を同じ snapshot から書くので、この時点で揃っている。
+        # multiples.py の不変条件（派生値は同じ行の stock_price と同時点）の印。
+        'price_updated_at': now,
         'forecast_revenue': stock_data.get('forecast_revenue'),
         'forecast_op_income': stock_data.get('forecast_op_income'),
         'forecast_ordinary_income': stock_data.get('forecast_ordinary_income'),

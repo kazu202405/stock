@@ -164,5 +164,22 @@ class TestRescaleWithScore(unittest.TestCase):
                         'PERが不合格になったのにスコアが下がっていない')
 
 
+class TestAnalysisStampsTheInvariant(unittest.TestCase):
+    """分析で保存する経路も、株価と一緒に印を付けること。
+
+    印が無いと、さかのぼって直すバックフィルが「まだ揃えていない行」と
+    見なして、揃っているものをもう一度伸縮させかねない。
+    """
+
+    def test_both_save_paths_stamp_price_updated_at(self):
+        import re
+        with open(os.path.join(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__))), 'app.py'), encoding='utf-8') as f:
+            src = f.read()
+        # screened_latest に stock_price と per_forward を書く payload は2か所
+        self.assertEqual(len(re.findall(r"'price_updated_at': now,", src)), 2,
+                         '分析の保存経路で印を付け忘れている')
+
+
 if __name__ == '__main__':
     unittest.main()
