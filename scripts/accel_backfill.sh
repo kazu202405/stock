@@ -2,7 +2,8 @@
 # 400件×2回 → score_complete 再計算。
 # 1回の実行は待ち時間合計4時間で自動停止するので、区切って2回まわす。
 # スクリプトは未取得だけを拾うので、続けて実行すれば続きから進む。
-cd "$(dirname "$0")"
+# リポジトリのルートへ。scripts/ の中で走らせるとPythonファイルが見つからない
+cd "$(dirname "$0")/.."
 for i in 1 2; do
   echo "===== ラウンド $i 開始: $(date) ====="
   python backfill_yahoo_fields.py --max-per-run 400 --sleep 5.0
