@@ -18,7 +18,11 @@
 
 {% block head_extra %}
 <style>
-    .asd-wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 96px; }
+    {# 決算期ごとの表は 決算期100px + 7列×約126px ≒ 980px 要る。
+       1000px に収めていたので、カードと外周の余白のぶん必ず横スクロールが出ていた。
+       この画面は「表を横に見る」のが仕事なので、外周は詰めて幅を使う。 #}
+    .asd-wrap { max-width: 1320px; margin: 0 auto; padding: 24px 12px 96px; }
+    @media (min-width: 900px) { .asd-wrap { padding-left: 20px; padding-right: 20px; } }
 
     .asd-head { margin-bottom: 20px; }
     .asd-head h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 0 0 6px; }
@@ -28,7 +32,7 @@
         background: #fff;
         border: 1px solid #ebebeb;
         border-radius: 12px;
-        padding: 20px;
+        padding: 20px 16px;
         margin-bottom: 16px;
     }
     .asd-card-title {
@@ -102,7 +106,7 @@
         font-size: 13px;
     }
     .asd-table th, .asd-table td {
-        padding: 7px 8px;
+        padding: 7px 6px;
         border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
         text-align: right;
@@ -124,7 +128,7 @@
         border-bottom: 1px solid #d4d4d4;
     }
     .asd-table td input {
-        width: 110px;
+        width: 104px;
         height: 28px;
         padding: 0 7px;
         font-size: 12.5px;

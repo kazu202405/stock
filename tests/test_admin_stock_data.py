@@ -12,6 +12,7 @@
 """
 
 import os
+import re
 import sys
 import json
 import unittest
@@ -130,6 +131,45 @@ class SaveMergesHistoryTest(unittest.TestCase):
         res = client.post('/api/watchlist/update', json={
             'company_code': '367A', 'edited_data': {'pbr': 1.0}})
         self.assertEqual(res.status_code, 403)
+
+
+class TableFitsTest(unittest.TestCase):
+    """決算期ごとの表が、ページの幅に収まること。
+
+    最初 max-width を 1000px にしていたため、7列の表がカードと外周の余白を
+    足すと必ずはみ出し、横スクロールバーが出ていた。この画面は「表を横に
+    見る」のが仕事なので、幅は表に合わせる。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'admin_stock_data.html')
+
+    def _one(self, pattern):
+        found = re.findall(pattern, self.html)
+        self.assertTrue(found, '見つからない: ' + pattern)
+        return int(found[0])
+
+    def test_列の数は7つ(self):
+        """列が増えたら必要な幅も変わる。数を固定して気づけるようにする。"""
+        cols = re.findall(r"\{ key: '\w+', +label: '[^']+', +amount:", self.html)
+        self.assertEqual(len(cols), 7)
+
+    def test_表が横スクロールせずに収まる(self):
+        wrap = self._one(r'\.asd-wrap \{ max-width: (\d+)px')
+        wrap_pad = self._one(r'\.asd-wrap \{ padding-left: (\d+)px')
+        input_w = self._one(r'width: (\d+)px;[^}]*?/\* input \*/') if '/* input */' in self.html             else int(re.findall(r'\.asd-table td input \{[^}]*?width: (\d+)px', self.html, re.S)[0])
+        cell_pad = int(re.findall(r'\.asd-table th, \.asd-table td \{[^}]*?padding: \d+px (\d+)px',
+                                  self.html, re.S)[0])
+        first_w = int(re.findall(r'\.asd-table th:first-child[^}]*?width: (\d+)px',
+                                 self.html, re.S)[0])
+        card_pad = int(re.findall(r'\.asd-card \{[^}]*?padding: \d+px (\d+)px',
+                                  self.html, re.S)[0])
+
+        needed = first_w + 7 * (input_w + cell_pad * 2) + card_pad * 2 + wrap_pad * 2
+        self.assertLessEqual(
+            needed, wrap,
+            '表に %dpx 要るのにページは %dpx しかない（横スクロールが出る）'
+            % (needed, wrap))
 
 
 class EditorSendsOnlyChangesTest(unittest.TestCase):

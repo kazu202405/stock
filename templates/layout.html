@@ -372,7 +372,10 @@
 <body class="min-h-screen" style="background: #f7f7f5;">
     <!-- ナビゲーション -->
     <nav class="bg-white site-header" style="border-bottom: 1px solid #ebebeb;">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {# 中央の 1280px（max-w-7xl）に収めていたため、検索窓を足すと横幅が
+           足りず、窓の中の文字が切れていた。ヘッダーだけは画面の端まで使う。
+           ロゴは左端、名前とアカウントは右端。本文の幅は各ページ側が決める。 #}
+        <div class="px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-14">
                 <!-- ロゴ・ブランド -->
                 {# 幅が足りないと「Company/Note」「～企業分析アプ/リ～」と
@@ -394,10 +397,12 @@
                    全画面で開く）。ナビが7項目あり、窓を入れると折り返す。 #}
                 {# ログイン不要。/stock/<code> は公開ページなので、検索で来た人が
                    そのまま別の会社も見に行ける方が入口として素直。 #}
-                <div class="hidden lg:block cs-wrap" style="width: 186px; margin-left: 20px;">
+                <div class="hidden lg:block cs-wrap" style="width: 220px; margin-left: 22px;">
                     <i class="fas fa-search cs-icon"></i>
+                    {# placeholder は窓に入る長さにする。長いと途中で切れて
+                       「会社名・銘柄コードで探…」になり、かえって読みにくい。 #}
                     <input type="text" id="hdrCompanySearch" class="cs-input"
-                           placeholder="会社名・銘柄コードで探す"
+                           placeholder="会社名・銘柄コード"
                            autocomplete="off" aria-label="会社名・銘柄コードで探す">
                     <div id="hdrCompanySuggest" class="cs-list" role="listbox"></div>
                 </div>
