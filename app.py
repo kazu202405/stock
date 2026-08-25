@@ -4850,6 +4850,72 @@ def load_unprocessed_earnings(client, limit):
     return [r['company_code'] for r in rows]
 
 
+# 見つけた取りこぼしを一晩に積む上限。全部いっぺんに積むと、翌日の再分析が
+# 何百件も走って外部を叩きすぎる。少しずつ拾えば数日で追いつく。
+STALE_ENQUEUE_LIMIT = 20
+
+
+def scheduled_check_earnings_freshness():
+    """決算の取りこぼしを見つけて、同じキューに積み直す。
+
+    決算の検知は kabutan のスクレイピング頼み。サイトの構造が変わる・遮断される・
+    その銘柄が載らない、のどれかが起きると**その銘柄は決算が出ても古い財務のまま
+    残る**。しかもエラーは出ない（「検知しなかった」だけで処理は正常に終わる）。
+
+    決算月は98%の銘柄で分かっているので、「期末から猶予を過ぎたのに最終分析日が
+    その期末より前」の銘柄を数えれば漏れが見える。見えたら拾って積み直す。
+
+    ⚠️ 鮮度は analyzed_at で見る。updated_at は一部の保存経路でしか書かれて
+       おらず、中身が新しくても2月のまま止まっている行がある。
+    """
+    from datetime import datetime, timezone
+    import earnings_freshness as ef
+
+    try:
+        client = get_supabase_client()
+        rows, offset = [], 0
+        while True:
+            page = (client.table('screened_latest')
+                    .select('company_code, company_name, fiscal_month, '
+                            'analyzed_at, delisted_at')
+                    .order('company_code')
+                    .range(offset, offset + 499).execute().data)
+            if not page:
+                break
+            rows.extend(page)
+            if len(page) < 500:
+                break
+            offset += 500
+
+        stale = ef.find_stale(rows)
+        if not stale:
+            print('[Scheduler] 決算の取りこぼし: なし')
+            return
+
+        print(f'[Scheduler] ⚠️ 決算の取りこぼし {len(stale)}件 '
+              f'（例: {", ".join(s["company_code"] for s in stale[:5])}）')
+
+        # 検知そのものが壊れている可能性があるので、見つけたぶんは
+        # 同じキューに積んで翌日の再分析に拾わせる
+        now = datetime.now(timezone.utc).isoformat()
+        payload = [{
+            'company_code': s['company_code'],
+            'company_name': s['company_name'],
+            'announced_date': s['fiscal_end'],
+            'source': '決算の取りこぼし検知',
+            'processed': False,
+            'updated_at': now,
+        } for s in stale[:STALE_ENQUEUE_LIMIT]]
+        try:
+            client.table('earnings_queue').upsert(payload).execute()
+            print(f'[Scheduler] 取りこぼし {len(payload)}件をキューに積んだ')
+        except Exception as e:
+            print(f'[Scheduler] 取りこぼしのキュー登録に失敗: {e}')
+    except Exception as e:
+        # ここで落ちても決算の再分析そのものは済んでいる
+        print(f'[Scheduler] 決算の取りこぼし検知でエラー: {e}')
+
+
 def scheduled_process_earnings_queue():
     """定期実行: 決算発表のあった銘柄の財務データを取り直す。
 
@@ -5282,6 +5348,10 @@ scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30,
 # JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
 scheduler.add_job(scheduled_update_margin_balances, 'cron', day_of_week='thu',
                   hour=4, minute=10, id='margin_weekly')
+# 決算の再分析（22:00）が終わったころに、拾えていない銘柄が無いか数える。
+# 見つかったぶんは翌日のキューに積むので、次の晩に取り直される。
+scheduler.add_job(scheduled_check_earnings_freshness, 'cron', hour=23, minute=30,
+                  id='earnings_freshness')
 # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
 scheduler.add_job(scheduled_backfill_yahoo_profile, 'cron', hour=2, minute=0,
                   id='yahoo_profile_backfill')
