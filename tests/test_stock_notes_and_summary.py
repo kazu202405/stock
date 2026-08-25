@@ -105,5 +105,29 @@ class StockNotesSectionTest(unittest.TestCase):
         self.assertIn('white-space: pre-wrap', self.html)
 
 
+class PublishConsentTest(unittest.TestCase):
+    """公開の同意文が、実際に出る範囲と合っていること。
+
+    2026-08-25、公開ノートは銘柄ページ（/stock/<code>）にも出るようになった。
+    銘柄ページは**ログインしていない人にも見える公開ページ**で、検索エンジンにも
+    載る。ところがマイノートの同意文は「他のユーザーが閲覧できます」のままで、
+    書いた人が同意した範囲と実際に出る範囲がずれていた。
+
+    ⚠️ 出る場所を増やしたら、同意文も一緒に直す。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'mypage.html')
+
+    def test_銘柄ページに出ることを書いてある(self):
+        self.assertIn('銘柄ページ', self.html)
+
+    def test_ログインしていない人にも見えると書いてある(self):
+        self.assertIn('ログインしていない人にも見えます', self.html)
+
+    def test_コミュニティだけと書いていない(self):
+        self.assertNotIn('他のユーザーがあなたのノートを閲覧できます', self.html)
+
+
 if __name__ == '__main__':
     unittest.main()

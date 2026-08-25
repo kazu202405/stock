@@ -1262,10 +1262,18 @@
                 </div>
 
                 <!-- 公開設定 -->
+                {# ⚠️ 2026-08-25、公開ノートは銘柄ページ（/stock/<code>）にも
+                   出るようになった。銘柄ページは**ログインしていない人にも
+                   見える公開ページ**で、検索エンジンにも載る。
+                   「他のユーザーが閲覧できます」のままだと、書いた人が同意した
+                   範囲と実際に出る範囲がずれる。どこに出るかを正確に書く。 #}
                 <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                     <div>
-                        <p class="text-xs font-bold" style="color:#1a1a1a;">コミュニティに公開</p>
-                        <p class="text-xs" style="color:#525252;">他のユーザーがあなたのノートを閲覧できます</p>
+                        <p class="text-xs font-bold" style="color:#1a1a1a;">公開する</p>
+                        <p class="text-xs" style="color:#525252;">
+                            コミュニティと、その会社の銘柄ページに出ます。<br>
+                            <b style="color:#a16207;">銘柄ページはログインしていない人にも見えます。</b>
+                        </p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_public }" @click="form.is_public = !form.is_public">
                         <div class="toggle-dot"></div>
