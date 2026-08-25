@@ -1,0 +1,392 @@
+{% extends "layout.html" %}
+
+{#
+  勉強会の資料・動画（管理者専用）。
+
+  企業分析の勉強会そのものを Company Note の中で提供するための器。
+  動画は外部（YouTubeの限定公開など）のURL、スライドや画像は Supabase Storage の
+  非公開バケットに置く。
+
+  ⚠️ 動画をバケットに置かない。1本1GBを50人が見れば50GBの転送になり、費用が
+     読めなくなる。限定公開のURLなら転送は無料。
+#}
+
+{% block title %}勉強会の資料 - Company Note{% endblock %}
+
+{% block head_extra %}
+<style>
+    .sm-wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 96px; }
+    .sm-head h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 0 0 6px; }
+    .sm-head p { font-size: 13px; color: #737373; margin: 0 0 20px; line-height: 1.7; }
+
+    .sm-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    .sm-card-title {
+        font-size: 13px; font-weight: 700; color: #1a1a1a;
+        margin: 0 0 14px; padding-left: 9px; border-left: 3px solid #1b4332;
+    }
+
+    .sm-field { margin-bottom: 12px; }
+    .sm-field label { display: block; font-size: 12px; color: #737373; margin-bottom: 4px; }
+    .sm-field input[type=text], .sm-field input[type=url], .sm-field input[type=date],
+    .sm-field input[type=number], .sm-field textarea, .sm-field select {
+        width: 100%; padding: 7px 10px; font-size: 13px; color: #1a1a1a;
+        background: #fff; border: 1px solid #ebebeb; border-radius: 7px;
+        outline: none; font-family: inherit; box-sizing: border-box;
+    }
+    .sm-field textarea { min-height: 70px; line-height: 1.7; resize: vertical; }
+    .sm-field input:focus, .sm-field textarea:focus, .sm-field select:focus { border-color: #1b4332; }
+    .sm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 620px) { .sm-row { grid-template-columns: 1fr; } }
+
+    .sm-btn {
+        height: 34px; padding: 0 16px; font-size: 13px; font-weight: 600;
+        color: #fff; background: #1b4332; border: none; border-radius: 8px; cursor: pointer;
+    }
+    .sm-btn:disabled { background: #cbd5c8; cursor: not-allowed; }
+    .sm-btn-ghost { background: #fff; color: #525252; border: 1px solid #ebebeb; }
+    .sm-btn-danger { background: #fff; color: #b91c1c; border: 1px solid #fecaca; }
+
+    .sm-item {
+        display: flex; align-items: flex-start; gap: 12px;
+        padding: 14px 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .sm-item:last-child { border-bottom: none; }
+    .sm-item-body { flex: 1; min-width: 0; }
+    .sm-item-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .sm-item-meta { font-size: 11.5px; color: #a3a3a3; margin-top: 3px; }
+    .sm-item-desc { font-size: 12.5px; color: #525252; margin-top: 5px; line-height: 1.7; white-space: pre-wrap; }
+    .sm-badge {
+        font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 20px;
+        margin-right: 6px; display: inline-block;
+    }
+    .sm-badge.kind { background: #f0fdf4; color: #1b4332; border: 1px solid #dcfce7; }
+    .sm-badge.draft { background: #fffbeb; color: #a16207; border: 1px solid #fde68a; }
+
+    .sm-status { font-size: 13px; margin-left: 10px; }
+    .sm-status.ok { color: #15803d; }
+    .sm-status.ng { color: #b91c1c; }
+
+    .sm-note {
+        font-size: 12px; color: #737373; line-height: 1.8;
+        background: #fafaf8; border: 1px solid #f1f1ef;
+        border-radius: 8px; padding: 12px 14px; margin-top: 12px;
+    }
+    .sm-note b { color: #1a1a1a; }
+    .sm-warn {
+        background: #fffbeb; border-color: #fde68a; color: #7a6c2a;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sm-wrap">
+    <div class="sm-head">
+        <h1>勉強会の資料</h1>
+        <p>企業分析の勉強会の動画と資料を、<b>有料会員（4,980円〜）</b>に配ります。無料会員には出ません。</p>
+    </div>
+
+    <div id="smNotReady" class="sm-note sm-warn" style="display:none;">
+        <b>まだ使えません。</b>データベースの準備（migration）が済んでいません。<br>
+        Supabase の SQL エディタで <code>supabase/migration_study_materials.sql</code> を実行してください。
+        実行するとこの案内は消えます。
+    </div>
+
+    <div class="sm-card">
+        <p class="sm-card-title" id="smFormTitle">新しく登録する</p>
+
+        <div class="sm-field">
+            <label>種別</label>
+            <select id="smKind" onchange="onKindChange()">
+                <option value="video">動画（URLを貼る）</option>
+                <option value="file">資料（スライド・画像・PDF）</option>
+            </select>
+        </div>
+
+        <div class="sm-field">
+            <label>タイトル</label>
+            <input type="text" id="smTitle" placeholder="例: 第3回 決算書の読み方（前編）">
+        </div>
+
+        <div class="sm-field">
+            <label>説明</label>
+            <textarea id="smDescription" placeholder="何が分かるようになるか、を1〜3文で"></textarea>
+        </div>
+
+        <div id="smVideoField" class="sm-field">
+            <label>動画のURL</label>
+            <input type="url" id="smVideoUrl" placeholder="https://www.youtube.com/watch?v=...">
+            <div class="sm-note" style="margin-top:8px;">
+                <b>YouTubeの「限定公開」</b>を勧めます。転送量が無料で、URLを知っている人だけが見られます。<br>
+                ⚠️ 限定公開は<b>URLが漏れれば誰でも見られます</b>。厳密に会員限定にしたいなら Vimeo（有料・ドメイン制限）が要ります。
+            </div>
+        </div>
+
+        <div id="smFileField" class="sm-field" style="display:none;">
+            <label>ファイル</label>
+            <input type="file" id="smFile" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.ppt,.pptx,.xlsx"
+                   onchange="uploadFile()">
+            <div id="smFileInfo" style="font-size:12px; color:#525252; margin-top:6px;"></div>
+            <div class="sm-note" style="margin-top:8px;">
+                PDF・画像・PowerPoint・Excel に対応。<b>上限50MB</b>。<br>
+                非公開の置き場所に入り、<b>会員が開くたびに1時間で切れるURL</b>を発行します。退会した人は開けません。<br>
+                ⚠️ <b>動画はここに置かないでください。</b>1本1GBを50人が見れば50GBの転送になり、費用が読めなくなります。
+            </div>
+        </div>
+
+        <div class="sm-row">
+            <div class="sm-field">
+                <label>開催日・収録日</label>
+                <input type="date" id="smHeldOn">
+            </div>
+            <div class="sm-field">
+                <label>並び順（大きいほど上）</label>
+                <input type="number" id="smSortOrder" value="0">
+            </div>
+        </div>
+
+        <div class="sm-field">
+            <label>
+                <input type="checkbox" id="smPublished" style="width:auto; margin-right:6px;">
+                会員に公開する（外すと下書き。自分にだけ見えます）
+            </label>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button class="sm-btn" id="smSaveBtn" onclick="saveMaterial()">登録する</button>
+            <button class="sm-btn sm-btn-ghost" id="smCancelBtn" onclick="resetForm()" style="display:none;">やめる</button>
+            <span class="sm-status" id="smStatus"></span>
+        </div>
+    </div>
+
+    <div class="sm-card">
+        <p class="sm-card-title">登録済み <span id="smCount" style="font-weight:400; color:#a3a3a3;"></span></p>
+        <div id="smList"></div>
+    </div>
+</div>
+
+<script>
+    /*
+     * 動画は外部URL、資料は非公開バケット。
+     * ⚠️ ファイルのURLは保存しない。開くたびに期限つきURLを発行する。
+     *    保存すると、退会したあとも生きているURLを配ることになる。
+     */
+    let editingId = null;
+    let uploaded = null;      // { file_path, file_name, file_size, content_type }
+
+    function setStatus(text, kind) {
+        const el = document.getElementById('smStatus');
+        el.textContent = text || '';
+        el.className = 'sm-status' + (kind ? ' ' + kind : '');
+    }
+
+    function onKindChange() {
+        const kind = document.getElementById('smKind').value;
+        document.getElementById('smVideoField').style.display = kind === 'video' ? '' : 'none';
+        document.getElementById('smFileField').style.display = kind === 'file' ? '' : 'none';
+    }
+
+    function formatSize(bytes) {
+        if (!bytes) return '';
+        return bytes >= 1024 * 1024
+            ? (bytes / 1024 / 1024).toFixed(1) + 'MB'
+            : Math.round(bytes / 1024) + 'KB';
+    }
+
+    async function uploadFile() {
+        const input = document.getElementById('smFile');
+        const info = document.getElementById('smFileInfo');
+        if (!input.files || !input.files[0]) return;
+        info.textContent = 'アップロード中...';
+        const body = new FormData();
+        body.append('file', input.files[0]);
+        try {
+            const res = await fetch('/api/admin/study-materials/upload', { method: 'POST', body });
+            const data = await res.json();
+            if (!res.ok) {
+                info.textContent = data.error || 'アップロードできませんでした';
+                info.style.color = '#b91c1c';
+                uploaded = null;
+                return;
+            }
+            uploaded = data;
+            info.textContent = `${data.file_name}（${formatSize(data.file_size)}）を置きました`;
+            info.style.color = '#15803d';
+            // タイトルが空ならファイル名から埋める
+            const title = document.getElementById('smTitle');
+            if (!title.value.trim()) title.value = (data.file_name || '').replace(/\.[^.]+$/, '');
+        } catch (e) {
+            info.textContent = 'アップロードできませんでした。通信を確認してください';
+            info.style.color = '#b91c1c';
+            uploaded = null;
+        }
+    }
+
+    function resetForm() {
+        editingId = null;
+        uploaded = null;
+        document.getElementById('smFormTitle').textContent = '新しく登録する';
+        document.getElementById('smSaveBtn').textContent = '登録する';
+        document.getElementById('smCancelBtn').style.display = 'none';
+        ['smTitle', 'smDescription', 'smVideoUrl', 'smHeldOn'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('smSortOrder').value = '0';
+        document.getElementById('smPublished').checked = false;
+        document.getElementById('smKind').value = 'video';
+        document.getElementById('smFile').value = '';
+        document.getElementById('smFileInfo').textContent = '';
+        onKindChange();
+        setStatus('');
+    }
+
+    function collect() {
+        const kind = document.getElementById('smKind').value;
+        const payload = {
+            kind: kind,
+            title: document.getElementById('smTitle').value.trim(),
+            description: document.getElementById('smDescription').value.trim() || null,
+            held_on: document.getElementById('smHeldOn').value || null,
+            sort_order: parseInt(document.getElementById('smSortOrder').value || '0', 10),
+            is_published: document.getElementById('smPublished').checked,
+        };
+        if (kind === 'video') {
+            payload.video_url = document.getElementById('smVideoUrl').value.trim();
+        } else if (uploaded) {
+            Object.assign(payload, uploaded);
+        }
+        return payload;
+    }
+
+    async function saveMaterial() {
+        const payload = collect();
+        if (!payload.title) { setStatus('タイトルを入れてください', 'ng'); return; }
+        if (payload.kind === 'video' && !payload.video_url) {
+            setStatus('動画のURLを入れてください', 'ng'); return;
+        }
+        if (payload.kind === 'file' && !editingId && !uploaded) {
+            setStatus('ファイルをアップロードしてください', 'ng'); return;
+        }
+
+        const btn = document.getElementById('smSaveBtn');
+        btn.disabled = true;
+        setStatus('保存中...');
+        try {
+            const url = editingId
+                ? '/api/admin/study-materials/' + editingId
+                : '/api/admin/study-materials';
+            const res = await fetch(url, {
+                method: editingId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) { setStatus(data.error || '保存できませんでした', 'ng'); return; }
+            setStatus('保存しました', 'ok');
+            resetForm();
+            loadList();
+        } catch (e) {
+            setStatus('保存できませんでした。通信を確認してください', 'ng');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function startEdit(item) {
+        editingId = item.id;
+        uploaded = null;
+        document.getElementById('smFormTitle').textContent = '編集する';
+        document.getElementById('smSaveBtn').textContent = '更新する';
+        document.getElementById('smCancelBtn').style.display = '';
+        document.getElementById('smKind').value = item.kind;
+        document.getElementById('smTitle').value = item.title || '';
+        document.getElementById('smDescription').value = item.description || '';
+        document.getElementById('smVideoUrl').value = item.video_url || '';
+        document.getElementById('smHeldOn').value = item.held_on || '';
+        document.getElementById('smSortOrder').value = item.sort_order || 0;
+        document.getElementById('smPublished').checked = !!item.is_published;
+        document.getElementById('smFileInfo').textContent = item.file_name
+            ? `いま置いてあるもの: ${item.file_name}（差し替えるときだけ選び直してください）` : '';
+        document.getElementById('smFileInfo').style.color = '#525252';
+        onKindChange();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function removeMaterial(item) {
+        // ⚠️ confirm() はモーダルでページを止めるので使わない。2度押しで確かめる。
+        const btn = document.getElementById('del-' + item.id);
+        if (btn.dataset.armed !== '1') {
+            btn.dataset.armed = '1';
+            btn.textContent = 'もう一度押すと削除';
+            setTimeout(() => { btn.dataset.armed = '0'; btn.textContent = '削除'; }, 4000);
+            return;
+        }
+        try {
+            const res = await fetch('/api/admin/study-materials/' + item.id, { method: 'DELETE' });
+            if (res.ok) { setStatus('削除しました', 'ok'); loadList(); }
+            else setStatus('削除できませんでした', 'ng');
+        } catch (e) {
+            setStatus('削除できませんでした', 'ng');
+        }
+    }
+
+    function escapeText(value) {
+        const el = document.createElement('div');
+        el.textContent = String(value === null || value === undefined ? '' : value);
+        return el.innerHTML;
+    }
+
+    async function loadList() {
+        const list = document.getElementById('smList');
+        try {
+            const res = await fetch('/api/admin/study-materials');
+            const data = await res.json();
+            document.getElementById('smNotReady').style.display = data.ready ? 'none' : '';
+            const items = data.materials || [];
+            document.getElementById('smCount').textContent = items.length ? `${items.length}件` : '';
+            if (!items.length) {
+                list.innerHTML = '<p style="color:#a3a3a3; font-size:13px; padding:12px 0;">まだありません。</p>';
+                return;
+            }
+            list.innerHTML = items.map(function (item) {
+                const kindLabel = item.kind === 'video' ? '動画' : '資料';
+                const draft = item.is_published ? '' : '<span class="sm-badge draft">下書き</span>';
+                const meta = [
+                    item.held_on || '',
+                    item.kind === 'file' ? `${escapeText(item.file_name || '')}（${formatSize(item.file_size)}）` : '',
+                    item.kind === 'video' ? escapeText(item.video_url || '') : '',
+                ].filter(Boolean).join(' ・ ');
+                return `<div class="sm-item">
+                    <div class="sm-item-body">
+                        <div>
+                            <span class="sm-badge kind">${kindLabel}</span>${draft}
+                            <span class="sm-item-title">${escapeText(item.title || '')}</span>
+                        </div>
+                        <div class="sm-item-meta">${meta}</div>
+                        ${item.description ? `<div class="sm-item-desc">${escapeText(item.description)}</div>` : ''}
+                    </div>
+                    <div style="display:flex; gap:6px; flex:0 0 auto;">
+                        <button class="sm-btn sm-btn-ghost" style="height:28px; padding:0 12px; font-size:12px;"
+                                onclick='startEdit(${JSON.stringify(item).replace(/'/g, "&#39;")})'>編集</button>
+                        <button class="sm-btn sm-btn-danger" id="del-${item.id}" data-armed="0"
+                                style="height:28px; padding:0 12px; font-size:12px;"
+                                onclick='removeMaterial(${JSON.stringify({id: item.id}).replace(/'/g, "&#39;")})'>削除</button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = '<p style="color:#b91c1c; font-size:13px;">一覧を読み込めませんでした。</p>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        onKindChange();
+        loadList();
+    });
+</script>
+{% endblock %}

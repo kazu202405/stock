@@ -4153,6 +4153,124 @@ def api_earnings_by_month(month):
     }), 200
 
 
+# =============================================
+# 勉強会の資料・動画
+#
+# 見せる相手は**有料会員（4,980円〜）**。無料会員は見られない。
+# 段による出し分けはしない（2026-08-25 五島さん判断）ので、既存の
+# member_required_api をそのまま使う。**段の判定を新しく作らない。**
+# =============================================
+
+@app.route('/api/study-materials', methods=['GET'])
+@member_required_api
+def api_list_study_materials():
+    """会員向けの一覧。公開しているものだけ。
+
+    ⚠️ ファイルのURLは保存せず、**ここで期限つきURLを都度発行する**。
+    保存すると、退会したあとも生きているURLを配ることになる。
+    """
+    import study_materials as sm
+    try:
+        items = sm.list_materials(published_only=True)
+        for item in items:
+            if item.get('kind') == 'file':
+                item['download_url'] = sm.signed_url(item.get('file_path'))
+            item.pop('file_path', None)   # 内部のパスは画面に出さない
+        return jsonify({'materials': items, 'ready': sm.table_ready()}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/study-materials', methods=['GET'])
+@admin_required_api
+def api_admin_list_study_materials():
+    """管理用。下書きも含めて全部返す。"""
+    import study_materials as sm
+    try:
+        return jsonify({'materials': sm.list_materials(published_only=False),
+                        'ready': sm.table_ready()}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/study-materials', methods=['POST'])
+@admin_required_api
+def api_admin_create_study_material():
+    import study_materials as sm
+    data = request.get_json(silent=True) or {}
+    error = _validate_study_material(data)
+    if error:
+        return jsonify({'error': error}), 400
+    try:
+        return jsonify({'material': sm.create_material(data)}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/study-materials/<material_id>', methods=['PUT'])
+@admin_required_api
+def api_admin_update_study_material(material_id):
+    import study_materials as sm
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify({'material': sm.update_material(material_id, data)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/study-materials/<material_id>', methods=['DELETE'])
+@admin_required_api
+def api_admin_delete_study_material(material_id):
+    import study_materials as sm
+    try:
+        if not sm.delete_material(material_id):
+            return jsonify({'error': '見つかりませんでした'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/study-materials/upload', methods=['POST'])
+@admin_required_api
+def api_admin_upload_study_material():
+    """スライド・画像・PDFを非公開バケットへ置く。
+
+    ⚠️ 動画はここに置かない。1本1GBを50人が見れば50GBの転送になり、費用が
+    読めなくなる。動画は限定公開のURLを貼る（kind='video'）。
+    """
+    import study_materials as sm
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'ファイルが選ばれていません'}), 400
+    try:
+        return jsonify(sm.upload(file)), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': 'アップロードできませんでした: %s' % e}), 500
+
+
+def _validate_study_material(data):
+    """種別ごとに、必要なものが埋まっているか。
+
+    ⚠️ ここで弾かないと「動画なのにURLが空」の資料が作れてしまい、
+    画面には見出しだけが並ぶ（登録した本人も気づけない）。DB側にも
+    同じ CHECK 制約を置いてある。
+    """
+    if not (data.get('title') or '').strip():
+        return 'タイトルを入れてください'
+    kind = data.get('kind')
+    if kind == 'video':
+        if not (data.get('video_url') or '').strip():
+            return '動画のURLを入れてください'
+    elif kind == 'file':
+        if not (data.get('file_path') or '').strip():
+            return 'ファイルをアップロードしてください'
+    else:
+        return '種別が正しくありません'
+    return None
+
+
 @app.route('/api/stock/screened/<company_code>', methods=['GET'])
 def api_get_screened_stock(company_code):
     """screened_latestから単一銘柄のキャッシュデータ取得（GC/DC日付付き）。

@@ -980,6 +980,14 @@ def admin_stock_data():
     return render_template('admin_stock_data.html')
 
 
+@app.route('/admin/study-materials')
+def admin_study_materials():
+    """勉強会の資料・動画（管理者専用）。"""
+    guard = _require_admin()
+    if guard: return guard
+    return render_template('admin_study_materials.html')
+
+
 @app.route('/admin/themes')
 def admin_themes():
     """テーマ運用画面（admin専用）。

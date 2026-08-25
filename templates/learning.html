@@ -14,6 +14,35 @@
     }
 
     /* タブバー */
+    /* 勉強会 */
+    .study-item {
+        background: #fff; border: 1px solid #ebebeb; border-radius: 12px;
+        padding: 20px; margin-bottom: 14px;
+    }
+    .study-item-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+    .study-kind {
+        font-size: 10.5px; font-weight: 600; color: #1b4332;
+        background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 20px; padding: 1px 8px;
+    }
+    .study-title { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+    .study-date { font-size: 11.5px; color: #a3a3a3; margin-left: auto; }
+    .study-desc {
+        font-size: 13px; color: #525252; line-height: 1.85;
+        margin: 8px 0 12px; white-space: pre-wrap;
+    }
+    /* 動画は幅に合わせて16:9を保つ。高さを固定すると端末で黒帯が出る */
+    .study-video { position: relative; padding-top: 56.25%; border-radius: 8px; overflow: hidden; }
+    .study-video iframe {
+        position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+    }
+    .study-link {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 9px 16px; background: #f7f7f5; border: 1px solid #ebebeb;
+        border-radius: 8px; font-size: 13px; font-weight: 600;
+        color: #1b4332; text-decoration: none;
+    }
+    .study-link:hover { background: #f0fdf4; border-color: #dcfce7; }
+
     .learning-tabs {
         display: flex;
         gap: 24px;
@@ -416,7 +445,41 @@
                     <i class="fas fa-chart-pie" style="font-size: 13px;"></i>
                     セクターの特徴
                 </button>
+                {# 勉強会。動画と資料は有料会員（4,980円〜）限定。
+                   無料会員には見出しだけ出して、中身は出さない。 #}
+                <button class="learning-tab-btn"
+                        :class="{ 'active': activeTab === 'study' }"
+                        @click="activeTab = 'study'; loadStudyMaterials()">
+                    <i class="fas fa-graduation-cap" style="font-size: 13px;"></i>
+                    勉強会
+                </button>
             </div>
+        </div>
+    </div>
+
+    {# ===== 勉強会タブ =====
+       動画は外部（YouTubeの限定公開など）を埋め込み、資料は非公開の置き場所から
+       期限つきURLで渡す。**URLは保存しない**（退会後も生きたURLを配らないため）。 #}
+    <div x-show="activeTab === 'study'" x-cloak>
+        <div class="max-w-3xl mx-auto px-6 py-8">
+            <div id="studyGate" style="display:none; background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:28px 24px; text-align:center;">
+                <i class="fas fa-lock" style="font-size:22px; color:#a3a3a3; display:block; margin-bottom:10px;"></i>
+                <p style="font-size:14px; font-weight:700; color:#1a1a1a; margin:0 0 6px;">勉強会は会員限定です</p>
+                <p style="font-size:13px; color:#525252; line-height:1.8; margin:0 0 16px;">
+                    企業分析の勉強会の動画と資料をご覧いただけます。
+                </p>
+                <a href="https://gia2018.com/plans" target="_blank" rel="noopener"
+                   style="display:inline-block; padding:9px 22px; background:#1b4332; color:#fff; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none;">
+                    会員について見る
+                </a>
+            </div>
+
+            <div id="studyEmpty" style="display:none; text-align:center; padding:40px 20px; color:#a3a3a3; font-size:13px;">
+                <i class="fas fa-graduation-cap" style="font-size:24px; display:block; margin-bottom:10px;"></i>
+                まだ公開されている勉強会はありません。
+            </div>
+
+            <div id="studyList"></div>
         </div>
     </div>
 
@@ -836,6 +899,92 @@
 </div>
 
 <script>
+    /*
+     * 勉強会の資料・動画。有料会員（4,980円〜）だけに出す。
+     *
+     * ⚠️ ファイルのURLはサーバーが**開くたびに発行する期限つきURL**。
+     *    画面側で保存し直したり、リンクを共有できる形で見せたりしない
+     *    （退会した人に生きたURLが渡る）。
+     * ⚠️ 動画は外部の埋め込み。ここで再生できるのは限定公開のURLを
+     *    知っている人だけ、という前提。
+     */
+    let studyLoaded = false;
+
+    function studyEscape(value) {
+        const el = document.createElement('div');
+        el.textContent = String(value === null || value === undefined ? '' : value);
+        return el.innerHTML;
+    }
+
+    function youtubeEmbed(url) {
+        // watch?v= / youtu.be / shorts のどれで来ても埋め込みに直す
+        const m = String(url || '').match(
+            /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+        return m ? 'https://www.youtube.com/embed/' + m[1] : null;
+    }
+
+    function studyFileSize(bytes) {
+        if (!bytes) return '';
+        return bytes >= 1024 * 1024
+            ? (bytes / 1024 / 1024).toFixed(1) + 'MB'
+            : Math.round(bytes / 1024) + 'KB';
+    }
+
+    async function loadStudyMaterials() {
+        if (studyLoaded) return;
+        const list = document.getElementById('studyList');
+        const gate = document.getElementById('studyGate');
+        const empty = document.getElementById('studyEmpty');
+        try {
+            const res = await fetch('/api/study-materials');
+            if (res.status === 401 || res.status === 403) {
+                // 無料会員・未ログイン。中身は送られてこない（サーバーが止める）
+                gate.style.display = '';
+                studyLoaded = true;
+                return;
+            }
+            const data = await res.json();
+            const items = data.materials || [];
+            studyLoaded = true;
+            if (!items.length) { empty.style.display = ''; return; }
+
+            list.innerHTML = items.map(function (item) {
+                const held = item.held_on
+                    ? String(item.held_on).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1年$2月$3日')
+                    : '';
+                let body = '';
+                if (item.kind === 'video') {
+                    const embed = youtubeEmbed(item.video_url);
+                    body = embed
+                        ? `<div class="study-video"><iframe src="${embed}" title="${studyEscape(item.title)}"
+                             allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
+                             allowfullscreen loading="lazy"></iframe></div>`
+                        : `<a href="${studyEscape(item.video_url)}" target="_blank" rel="noopener"
+                             class="study-link"><i class="fas fa-play"></i>動画を開く</a>`;
+                } else if (item.download_url) {
+                    body = `<a href="${item.download_url}" target="_blank" rel="noopener"
+                              class="study-link"><i class="fas fa-file-arrow-down"></i>
+                              ${studyEscape(item.file_name || '資料を開く')}
+                              <span style="color:#a3a3a3; font-weight:400;">${studyFileSize(item.file_size)}</span></a>`;
+                } else {
+                    body = '<p style="font-size:12.5px; color:#a3a3a3;">資料を用意できませんでした。</p>';
+                }
+                return `<article class="study-item">
+                    <div class="study-item-head">
+                        <span class="study-kind">${item.kind === 'video' ? '動画' : '資料'}</span>
+                        <span class="study-title">${studyEscape(item.title || '')}</span>
+                        ${held ? `<span class="study-date">${held}</span>` : ''}
+                    </div>
+                    ${item.description ? `<p class="study-desc">${studyEscape(item.description)}</p>` : ''}
+                    ${body}
+                </article>`;
+            }).join('');
+        } catch (e) {
+            console.error('勉強会の取得エラー:', e);
+            studyLoaded = true;
+        }
+    }
+
 function learningApp() {
     return {
         openTerms: [],
