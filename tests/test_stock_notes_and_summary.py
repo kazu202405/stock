@@ -134,22 +134,20 @@ class PosterNameTest(unittest.TestCase):
 
     def test_投稿ごとの名前を保存しない(self):
         source = read('app.py')
-        block = source.split('def api_create_note', 1)[1].split('
-def ', 1)[0]
+        block = source.split('def api_create_note', 1)[1].split(chr(10) + 'def ', 1)[0]
         self.assertIn("data.pop('poster_name', None)", block)
 
     def test_投稿名の入力欄を置かない(self):
         for name in ('mypage.html', 'stock_detail.html'):
             html = read('templates', name)
             self.assertNotIn('この投稿だけの表示名', html, name)
-            self.assertNotIn('noteFormPosterName', html) if name == 'stock_detail.html' else None
+        self.assertNotIn('noteFormPosterName', read('templates', 'stock_detail.html'))
 
     def test_読むときにアカウントから引く(self):
         source = read('app.py')
         self.assertIn('_resolve_display_name', source)
         # ノートの一覧で解決していること
-        block = source.split('def api_get_notes', 1)[1].split('
-def ', 1)[0]
+        block = source.split('def api_get_notes', 1)[1].split(chr(10) + 'def ', 1)[0]
         self.assertIn('_resolve_display_name(note, user_map)', block)
 
 
