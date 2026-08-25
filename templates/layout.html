@@ -208,6 +208,110 @@
     .score-tone-provisional { color: #64748b; font-weight: 600; }
     .score-tone-none        { color: #cbd5e1; font-weight: 400; }
 
+    /* ------------------------------------------------------------------
+       会社名・銘柄コードの検索窓。どのページからでも銘柄ページへ飛べる。
+       判定は static/js/company-search.js が唯一の正。
+       ------------------------------------------------------------------ */
+    .cs-wrap { position: relative; }
+    .cs-input {
+        width: 100%;
+        height: 34px;
+        padding: 0 12px 0 32px;
+        font-size: 13px;
+        color: #1a1a1a;
+        background: #f7f7f5;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        outline: none;
+    }
+    .cs-input::placeholder { color: #a3a3a3; }
+    .cs-input:focus { border-color: #1b4332; background: #fff; }
+    .cs-icon {
+        position: absolute;
+        left: 11px; top: 50%;
+        transform: translateY(-50%);
+        font-size: 12px;
+        color: #a3a3a3;
+        pointer-events: none;
+    }
+    .cs-list {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px); left: 0; right: 0;
+        max-height: 320px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+        z-index: 60;
+        padding: 4px;
+    }
+    .cs-item {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        width: 100%;
+        padding: 7px 10px;
+        border: none;
+        background: none;
+        border-radius: 6px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 13px;
+    }
+    .cs-item:hover, .cs-item.is-active { background: #f1f5f2; }
+    .cs-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1b4332;
+        flex: 0 0 auto;
+        min-width: 38px;
+    }
+    .cs-name {
+        color: #1a1a1a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* スマホは下タブから全画面で開く。ヘッダーに窓を置く幅が無いため。 */
+    .cs-sheet {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #fff;
+        z-index: 200;
+        padding: 14px 16px;
+    }
+    .cs-sheet.is-open { display: block; }
+    .cs-sheet-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .cs-sheet-head .cs-wrap { flex: 1 1 auto; }
+    .cs-sheet-close {
+        flex: 0 0 auto;
+        border: none;
+        background: none;
+        font-size: 14px;
+        color: #525252;
+        padding: 6px 4px;
+        cursor: pointer;
+    }
+    .cs-sheet .cs-list {
+        position: static;
+        max-height: none;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+    }
+    .cs-sheet .cs-item { padding: 11px 8px; border-bottom: 1px solid #f4f4f2; border-radius: 0; }
+    .cs-sheet-hint { font-size: 12px; color: #a3a3a3; margin-top: 4px; }
+
     /* 配当利回りが実績に落ちたときの印。判定は static/js/dividend-basis.js が唯一の正。
        主役は予想なので、予想には印を付けず、例外（実績）にだけ付ける。 */
     .div-basis-mark {
@@ -261,6 +365,8 @@
     <script src="{{ url_for('static', filename='js/score-color.js') }}"></script>
     <!-- 配当利回りを予想で出すか実績で出すか。一覧と銘柄ページで食い違っていたため集約 -->
     <script src="{{ url_for('static', filename='js/dividend-basis.js') }}"></script>
+    <!-- 会社名から銘柄ページへ飛ぶ検索窓。ヘッダーとスマホの全画面で共用 -->
+    <script src="{{ url_for('static', filename='js/company-search.js') }}"></script>
 </head>
 
 <body class="min-h-screen" style="background: #f7f7f5;">
@@ -281,6 +387,19 @@
                             <span class="text-xs" style="color: #a3a3a3; letter-spacing: 0.02em; white-space: nowrap;">～企業分析アプリ～</span>
                         </div>
                     </a>
+                </div>
+
+                {# 会社名を打てばどのページからでも銘柄ページへ行ける。
+                   lg 未満では横幅が足りないので出さない（スマホは下タブから
+                   全画面で開く）。ナビが7項目あり、窓を入れると折り返す。 #}
+                {# ログイン不要。/stock/<code> は公開ページなので、検索で来た人が
+                   そのまま別の会社も見に行ける方が入口として素直。 #}
+                <div class="hidden lg:block cs-wrap" style="width: 260px; margin-left: 24px;">
+                    <i class="fas fa-search cs-icon"></i>
+                    <input type="text" id="hdrCompanySearch" class="cs-input"
+                           placeholder="会社名・銘柄コードで探す"
+                           autocomplete="off" aria-label="会社名・銘柄コードで探す">
+                    <div id="hdrCompanySuggest" class="cs-list" role="listbox"></div>
                 </div>
 
                 <!-- メインナビゲーション -->
@@ -432,10 +551,12 @@
             <i class="fas fa-home"></i>
             <span>ホーム</span>
         </a>
-        <a href="/search" class="bottom-tab-item" data-tab-path="/search">
+        {# 以前は /search（検索窓＋銘柄ページと同じ内容）へ飛ばしていた。
+           窓だけをここで開き、選んだらそのまま銘柄ページへ行く。 #}
+        <button type="button" class="bottom-tab-item" onclick="openCompanySearchSheet()">
             <i class="fas fa-search"></i>
             <span>検索</span>
-        </a>
+        </button>
         <a href="/community" class="bottom-tab-item" data-tab-path="/community">
             <i class="fas fa-users"></i>
             <span>コミュニティ</span>
@@ -448,6 +569,22 @@
             <i class="fas fa-file-alt"></i>
             <span>マイノート</span>
         </a>
+    </div>
+
+    {# スマホの検索。下タブから全画面で開く。
+       ヘッダーに窓を置く幅が無いため、専用ページではなくここで完結させる。 #}
+    <div id="companySearchSheet" class="cs-sheet md:hidden" role="dialog" aria-label="銘柄を探す">
+        <div class="cs-sheet-head">
+            <div class="cs-wrap">
+                <i class="fas fa-search cs-icon"></i>
+                <input type="text" id="sheetCompanySearch" class="cs-input"
+                       placeholder="会社名・銘柄コードで探す"
+                       autocomplete="off" aria-label="会社名・銘柄コードで探す">
+            </div>
+            <button type="button" class="cs-sheet-close" onclick="closeCompanySearchSheet()">閉じる</button>
+        </div>
+        <div class="cs-sheet-hint">会社名の一部でも探せます。選ぶとその会社のページへ移ります。</div>
+        <div id="sheetCompanySuggest" class="cs-list"></div>
     </div>
 
     <!-- スライドメニュー（モバイル専用） -->
@@ -718,6 +855,31 @@
 
     <!-- Alpine.js for interactive components -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+    // スマホの検索シート。開いたら入力欄へフォーカスし、
+    // 背後のページはスクロールさせない。
+    function openCompanySearchSheet() {
+        var sheet = document.getElementById('companySearchSheet');
+        if (!sheet) return;
+        sheet.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+        var input = document.getElementById('sheetCompanySearch');
+        if (input) { input.value = ''; input.focus(); }
+        var list = document.getElementById('sheetCompanySuggest');
+        if (list) list.style.display = 'none';
+    }
+
+    function closeCompanySearchSheet() {
+        var sheet = document.getElementById('companySearchSheet');
+        if (!sheet) return;
+        sheet.classList.remove('is-open');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeCompanySearchSheet();
+    });
+</script>
 </body>
 
 </html>
@@ -810,6 +972,18 @@
             }
         });
         // ボトムタブのアクティブ状態
+        // 検索窓（ヘッダー・スマホの全画面）。判定は company-search.js に集約。
+        if (window.CompanySearch) {
+            CompanySearch.mount({
+                input: document.getElementById('hdrCompanySearch'),
+                list: document.getElementById('hdrCompanySuggest'),
+            });
+            CompanySearch.mount({
+                input: document.getElementById('sheetCompanySearch'),
+                list: document.getElementById('sheetCompanySuggest'),
+            });
+        }
+
         document.querySelectorAll('.bottom-tab-item[data-tab-path]').forEach(function(tab) {
             const tabPath = tab.getAttribute('data-tab-path');
             if (path === tabPath || (tabPath !== '/' && path.startsWith(tabPath))) {

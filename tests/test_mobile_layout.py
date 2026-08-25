@@ -176,9 +176,26 @@ class MobileNavPlacementTest(unittest.TestCase):
         self.assertNotIn('toggleSlideMenu', self.bottom_tabs)
 
     def test_every_bottom_tab_marks_active_state(self):
-        """data-tab-path が無いタブは現在地が光らない"""
-        self.assertEqual(self.bottom_tabs.count('class="bottom-tab-item"'),
-                         self.bottom_tabs.count('data-tab-path='))
+        """ページへ飛ぶタブに data-tab-path が無いと現在地が光らない。
+
+        2026-08-25: 「検索」だけ button になった（ページへ飛ばず、その場で
+        全画面の検索を開く）。開いている「現在地」が無いので data-tab-path は
+        持たない。**リンクのタブだけ**を数える。
+        """
+        links = re.findall(r'<a [^>]*class="bottom-tab-item"[^>]*>', self.bottom_tabs)
+        self.assertGreater(len(links), 0, 'リンクのタブが見つからない')
+        for tag in links:
+            self.assertIn('data-tab-path=', tag, tag)
+
+    def test_search_tab_opens_in_place(self):
+        """検索は専用ページを開かず、その場で窓を出す。
+
+        /search は検索窓のほかに事業概要・財務5年・CF・財務健全性・株主役員を
+        持っており、その5つは /stock/<code> と同じだった。検索するためだけに
+        同じ内容のページをもう1つ開く形になっていた。
+        """
+        self.assertIn('openCompanySearchSheet()', self.bottom_tabs)
+        self.assertNotIn('data-tab-path="/search"', self.bottom_tabs)
 
 
 class ScreenerLayoutTest(unittest.TestCase):
