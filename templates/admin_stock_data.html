@@ -21,7 +21,7 @@
     {# 決算期ごとの表は 決算期100px + 7列×約126px ≒ 980px 要る。
        1000px に収めていたので、カードと外周の余白のぶん必ず横スクロールが出ていた。
        この画面は「表を横に見る」のが仕事なので、外周は詰めて幅を使う。 #}
-    .asd-wrap { max-width: 1320px; margin: 0 auto; padding: 24px 12px 96px; }
+    .asd-wrap { max-width: 1400px; margin: 0 auto; padding: 24px 12px 96px; }
     @media (min-width: 900px) { .asd-wrap { padding-left: 20px; padding-right: 20px; } }
 
     .asd-head { margin-bottom: 20px; }
@@ -127,6 +127,8 @@
         font-weight: 600;
         border-bottom: 1px solid #d4d4d4;
     }
+    /* 列数の多い表（CF・財務指標は11列）は入力欄を細くしないと収まらない。 */
+    .asd-table.is-wide td input { width: 96px; }
     .asd-table td input {
         width: 104px;
         height: 28px;
@@ -204,9 +206,9 @@
         </div>
 
         <div class="asd-card">
-            <p class="asd-card-title">決算期ごとの数字</p>
+            <p class="asd-card-title">財務データ</p>
             <div class="asd-scroll">
-                <table class="asd-table">
+                <table class="asd-table" id="asdTableFinancial">
                     <thead><tr id="asdYearHead"></tr></thead>
                     <tbody id="asdYearBody"></tbody>
                 </table>
@@ -215,6 +217,23 @@
                 <b>金額は億円で入力します</b>（売上高・営業利益・経常利益・純利益）。1株あたりの値と配当性向はそのままの単位です。<br>
                 <b>行は取得済みの決算期だけ</b>出ます。取得できていない期は欄を作れないので、その場合はまず銘柄ページの「更新」で分析し直してください。<br>
                 並びは<b>銘柄ページの「財務データ（直近5年）」と同じ</b>にしてあります。
+            </div>
+        </div>
+
+        <div class="asd-card">
+            <p class="asd-card-title">キャッシュフロー・財務指標</p>
+            <div class="asd-scroll">
+                <table class="asd-table is-wide" id="asdTableCf">
+                    <thead><tr id="asdCfHead"></tr></thead>
+                    <tbody id="asdCfBody"></tbody>
+                </table>
+            </div>
+            <div class="asd-note">
+                左の8列は銘柄ページの「キャッシュフロー・財務指標」と同じ並びです。
+                右の3列（流動資産・有利子負債・利益剰余金）は<b>銘柄ページの
+                「資金・売買状況」カード</b>に出ている値です。<br>
+                ⚠️ 自己資本比率・ROE・ROA は決算期ごとの値です。カード（主要指標）に
+                出ている自己資本比率は別に持っているので、直すなら両方見てください。
             </div>
         </div>
 
@@ -248,9 +267,17 @@
         { key: 'market_cap',             label: '時価総額',     unit: '億円' },
     ];
 
-    // 列の順と見出しは銘柄ページの「財務データ（直近5年）」に合わせてある。
-    // 並びが違うと、銘柄ページを見ながら直すときに目が滑る。
-    // amount=true は億円で入れて円で保存する。
+    /*
+     * 表は2つ。列の順と見出しは銘柄ページに合わせてある。
+     * 並びが違うと、銘柄ページを見ながら直すときに目が滑る。
+     * amount=true は億円で入れて円で保存する。
+     *
+     * ⚠️ key は **cf_history / financial_history の実際のキー名**。
+     *    銘柄ページの data-type は current_liabilities_list / equity_ratio_list
+     *    という別名になっているが、保存先のキーは _list の付かない方。
+     *    以前の編集画面は data-type をそのままキーにして書き込んでいたため、
+     *    流動負債と自己資本比率を直しても画面に反映されなかった。
+     */
     const YEAR_COLS = [
         { key: 'revenue',          label: '売上高(億円)',   amount: true },
         { key: 'op_income',        label: '営業利益(億円)', amount: true },
@@ -259,6 +286,29 @@
         { key: 'eps',              label: '1株益(円)',      amount: false },
         { key: 'dps',              label: '1株配(円)',      amount: false },
         { key: 'payout_ratio',     label: '配当性向(%)',    amount: false },
+    ];
+
+    const CF_COLS = [
+        { key: 'operating_cf',         label: '営業CF(億円)',     amount: true },
+        { key: 'investing_cf',         label: '投資CF(億円)',     amount: true },
+        { key: 'financing_cf',         label: '財務CF(億円)',     amount: true },
+        { key: 'cash',                 label: '現金等(億円)',     amount: true },
+        { key: 'current_liabilities',  label: '流動負債(億円)',   amount: true },
+        { key: 'equity_ratio',         label: '自己資本比率(%)',  amount: false },
+        { key: 'roe',                  label: 'ROE(%)',           amount: false },
+        { key: 'roa',                  label: 'ROA(%)',           amount: false },
+        // 2026-08-25 に足した3つ。銘柄ページの「資金・売買状況」に出る
+        { key: 'current_assets',       label: '流動資産(億円)',   amount: true },
+        { key: 'interest_bearing_debt', label: '有利子負債(億円)', amount: true },
+        { key: 'retained_earnings',    label: '利益剰余金(億円)', amount: true },
+    ];
+
+    // 表の設定。描く仕組みは1つにして、設定だけ差し替える。
+    const TABLES = [
+        { cols: YEAR_COLS, source: 'financial_history',
+          head: 'asdYearHead', body: 'asdYearBody' },
+        { cols: CF_COLS, source: 'cf_history',
+          head: 'asdCfHead', body: 'asdCfBody' },
     ];
 
     function asObject(value) {
@@ -322,38 +372,41 @@
         }).join('');
 
         // 決算期が行、項目が列。**銘柄ページと同じ向き**にそろえてある。
-        const history = asObject(row.financial_history);
+        TABLES.forEach(function (t) { renderTable(t, asObject(row[t.source]), t.source); });
+
+        document.getElementById('asdEditor').style.display = 'block';
+        watchChanges();
+    }
+
+    function renderTable(table, history, source) {
         const dates = new Set();
-        YEAR_COLS.forEach(function (c) {
+        table.cols.forEach(function (c) {
             (history[c.key] || []).forEach(function (d) {
                 if (d && d.date) dates.add(d.date);
             });
         });
         const periods = Array.from(dates).sort().reverse().slice(0, 6);
 
-        document.getElementById('asdYearHead').innerHTML =
-            '<th>決算期</th>' + YEAR_COLS.map(function (c) {
+        document.getElementById(table.head).innerHTML =
+            '<th>決算期</th>' + table.cols.map(function (c) {
                 return `<th>${c.label}</th>`;
             }).join('');
 
-        document.getElementById('asdYearBody').innerHTML = periods.map(function (d) {
-            const cells = YEAR_COLS.map(function (c) {
-                const row_ = (history[c.key] || []).find(function (x) { return x.date === d; });
-                let v = row_ ? row_.value : null;
+        document.getElementById(table.body).innerHTML = periods.map(function (d) {
+            const cells = table.cols.map(function (c) {
+                const found = (history[c.key] || []).find(function (x) { return x.date === d; });
+                let v = found ? found.value : null;
                 if (v !== null && v !== undefined && c.amount) v = v / 1e8;
                 const shown = (v === null || v === undefined) ? ''
                     : (c.amount ? Math.round(v * 10) / 10 : v);
                 return `<td><input type="number" step="any"
-                           data-type="${c.key}" data-date="${d}"
+                           data-source="${source}" data-type="${c.key}" data-date="${d}"
                            data-amount="${c.amount ? '1' : '0'}"
                            value="${shown}" data-original="${shown}"></td>`;
             }).join('');
             const label = d.slice(0, 7).replace('-', '年') + '月期';
             return `<tr><td>${label}</td>${cells}</tr>`;
         }).join('');
-
-        document.getElementById('asdEditor').style.display = 'block';
-        watchChanges();
     }
 
     // 触った欄に印を付ける。どこを直したか分からないまま保存させない。
@@ -381,6 +434,8 @@
             payload[input.dataset.metric] = v === '' ? null : parseFloat(v);
         });
 
+        // 表は2つ（financial_history と cf_history）。どちらの履歴かは
+        // data-source で分ける。混ぜると片方が相手のキーを上書きする。
         document.querySelectorAll('#asdEditor input[data-type]').forEach(function (input) {
             if (String(input.value) === String(input.dataset.original)) return;
             const v = input.value.trim();
@@ -388,29 +443,34 @@
             let num = parseFloat(v);
             if (isNaN(num)) return;
             if (input.dataset.amount === '1') num = num * 1e8;
+            const source = input.dataset.source;
             const key = input.dataset.type;
-            if (!history[key]) history[key] = [];
-            history[key].push({ date: input.dataset.date, value: num });
+            if (!history[source]) history[source] = {};
+            if (!history[source][key]) history[source][key] = [];
+            history[source][key].push({ date: input.dataset.date, value: num });
         });
 
         // 履歴は「そのキーの全期」を送る必要がある（サーバーはキー単位で
         // 差し替えるため）。触った期だけを送ると同じキーの他の期が消える。
-        const stored = asObject(loadedRow.financial_history);
-        Object.keys(history).forEach(function (key) {
-            const edited = {};
-            history[key].forEach(function (d) { edited[d.date] = d.value; });
-            const merged = (stored[key] || []).map(function (d) {
-                return { date: d.date, value: (d.date in edited) ? edited[d.date] : d.value };
+        Object.keys(history).forEach(function (source) {
+            const stored = asObject(loadedRow[source]);
+            const built = history[source];
+            Object.keys(built).forEach(function (key) {
+                const edited = {};
+                built[key].forEach(function (d) { edited[d.date] = d.value; });
+                const merged = (stored[key] || []).map(function (d) {
+                    return { date: d.date, value: (d.date in edited) ? edited[d.date] : d.value };
+                });
+                const known = new Set(merged.map(function (d) { return d.date; }));
+                built[key].forEach(function (d) {
+                    if (!known.has(d.date)) merged.push(d);
+                });
+                merged.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+                built[key] = merged;
             });
-            const known = new Set(merged.map(function (d) { return d.date; }));
-            history[key].forEach(function (d) {
-                if (!known.has(d.date)) merged.push(d);
-            });
-            merged.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-            history[key] = merged;
+            payload[source] = built;
         });
 
-        if (Object.keys(history).length) payload.financial_history = history;
         return payload;
     }
 

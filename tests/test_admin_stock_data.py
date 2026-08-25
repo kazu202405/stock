@@ -134,7 +134,7 @@ class SaveMergesHistoryTest(unittest.TestCase):
 
 
 class TableFitsTest(unittest.TestCase):
-    """決算期ごとの表が、ページの幅に収まること。
+    """2つの表が、ページの幅に収まること。
 
     最初 max-width を 1000px にしていたため、7列の表がカードと外周の余白を
     足すと必ずはみ出し、横スクロールバーが出ていた。この画面は「表を横に
@@ -144,32 +144,67 @@ class TableFitsTest(unittest.TestCase):
     def setUp(self):
         self.html = read('templates', 'admin_stock_data.html')
 
-    def _one(self, pattern):
-        found = re.findall(pattern, self.html)
+    def _num(self, pattern, flags=0):
+        found = re.findall(pattern, self.html, flags)
         self.assertTrue(found, '見つからない: ' + pattern)
         return int(found[0])
 
-    def test_列の数は7つ(self):
+    def _count_cols(self, const_name):
+        block = self.html.split('const ' + const_name + ' = [', 1)[1].split('];', 1)[0]
+        return len(re.findall(r"\{ *key: '", block))
+
+    def test_列の数を固定する(self):
         """列が増えたら必要な幅も変わる。数を固定して気づけるようにする。"""
-        cols = re.findall(r"\{ key: '\w+', +label: '[^']+', +amount:", self.html)
-        self.assertEqual(len(cols), 7)
+        self.assertEqual(self._count_cols('YEAR_COLS'), 7)
+        self.assertEqual(self._count_cols('CF_COLS'), 11)
 
-    def test_表が横スクロールせずに収まる(self):
-        wrap = self._one(r'\.asd-wrap \{ max-width: (\d+)px')
-        wrap_pad = self._one(r'\.asd-wrap \{ padding-left: (\d+)px')
-        input_w = self._one(r'width: (\d+)px;[^}]*?/\* input \*/') if '/* input */' in self.html             else int(re.findall(r'\.asd-table td input \{[^}]*?width: (\d+)px', self.html, re.S)[0])
-        cell_pad = int(re.findall(r'\.asd-table th, \.asd-table td \{[^}]*?padding: \d+px (\d+)px',
-                                  self.html, re.S)[0])
-        first_w = int(re.findall(r'\.asd-table th:first-child[^}]*?width: (\d+)px',
-                                 self.html, re.S)[0])
-        card_pad = int(re.findall(r'\.asd-card \{[^}]*?padding: \d+px (\d+)px',
-                                  self.html, re.S)[0])
+    def test_どちらの表も横スクロールせずに収まる(self):
+        wrap = self._num(r'\.asd-wrap \{ max-width: (\d+)px')
+        wrap_pad = self._num(r'\.asd-wrap \{ padding-left: (\d+)px')
+        cell_pad = self._num(r'\.asd-table th, \.asd-table td \{[^}]*?padding: \d+px (\d+)px', re.S)
+        first_w = self._num(r'\.asd-table th:first-child[^}]*?width: (\d+)px', re.S)
+        card_pad = self._num(r'\.asd-card \{[^}]*?padding: \d+px (\d+)px', re.S)
+        narrow = self._num(r'\.asd-table\.is-wide td input \{ width: (\d+)px')
+        normal = self._num(r'\.asd-table td input \{[^}]*?width: (\d+)px', re.S)
 
-        needed = first_w + 7 * (input_w + cell_pad * 2) + card_pad * 2 + wrap_pad * 2
-        self.assertLessEqual(
-            needed, wrap,
-            '表に %dpx 要るのにページは %dpx しかない（横スクロールが出る）'
-            % (needed, wrap))
+        outer = card_pad * 2 + wrap_pad * 2
+        for name, cols, input_w in (('財務データ', self._count_cols('YEAR_COLS'), normal),
+                                    ('CF・財務指標', self._count_cols('CF_COLS'), narrow)):
+            needed = first_w + cols * (input_w + cell_pad * 2) + outer
+            self.assertLessEqual(
+                needed, wrap,
+                '%s の表に %dpx 要るのにページは %dpx しかない' % (name, needed, wrap))
+
+
+class CfHistoryKeyTest(unittest.TestCase):
+    """CF表のキーは cf_history の実際のキー名を使う。
+
+    銘柄ページの data-type は current_liabilities_list / equity_ratio_list と
+    いう別名だが、保存先のキーは _list の付かない方。以前の編集画面は
+    data-type をそのままキーにして書き込んでいたため、流動負債と
+    自己資本比率を直しても**画面に反映されなかった**。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'admin_stock_data.html')
+        self.block = self.html.split('const CF_COLS = [', 1)[1].split('];', 1)[0]
+
+    def test_別名を使っていない(self):
+        for alias in ('current_liabilities_list', 'equity_ratio_list'):
+            self.assertNotIn(alias, self.block, alias + ' は cf_history のキーではない')
+
+    def test_実際のキーを使っている(self):
+        for key in ('operating_cf', 'investing_cf', 'financing_cf', 'cash',
+                    'current_liabilities', 'equity_ratio', 'roe', 'roa',
+                    'current_assets', 'interest_bearing_debt', 'retained_earnings'):
+            self.assertIn("key: '%s'" % key, self.block, key)
+
+    def test_保存先を取り違えない(self):
+        """表が2つあるので、どちらの履歴かを持たせて送る。
+        混ぜると片方が相手のキーを上書きする。"""
+        self.assertIn('data-source="${source}"', self.html)
+        self.assertIn('const source = input.dataset.source;', self.html)
+        self.assertIn('payload[source] = built;', self.html)
 
 
 class EditorSendsOnlyChangesTest(unittest.TestCase):
@@ -205,8 +240,8 @@ class EditorSendsOnlyChangesTest(unittest.TestCase):
 
     def test_同じキーの他の期を消さない(self):
         """サーバーはキー単位で差し替えるので、触った期だけ送ると
-        同じキーの他の期が消える。"""
-        self.assertIn('const stored = asObject(loadedRow.financial_history);', self.html)
+        同じキーの他の期が消える。表が2つあるので履歴ごとに組み立てる。"""
+        self.assertIn('const stored = asObject(loadedRow[source]);', self.html)
         self.assertIn('merged.push(d)', self.html)
 
 
