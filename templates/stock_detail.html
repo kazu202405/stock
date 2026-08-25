@@ -2286,8 +2286,21 @@
             }
         });
 
-        // 会社予想データを追加
-        if (data.forecast_year) {
+        // 会社予想データを追加。
+        //
+        // ⚠️ **売上高・営業利益・純利益の3つがそろったときだけ出す。**
+        //    1つ2つしか無い予想の行は、他が空欄のまま並んで「減収に見える」
+        //    「利益が消えたように見える」を作る。取れていないだけなのに。
+        //
+        // ⚠️ 経常利益は条件に入れない。IFRSを適用している会社には経常利益と
+        //    いう区分が無く、実測160社（トヨタを含む）が売上・営業・純利益だけ
+        //    持っている。4つ必須にするとその会社の予想が消える。
+        const forecastReady = data.forecast_year
+            && data.forecast_revenue != null
+            && data.forecast_op_income != null
+            && data.forecast_net_income != null;
+
+        if (forecastReady) {
             const fd = new Date(data.forecast_year);
             const fYear = fd.getFullYear();
             const fMonth = fd.getMonth() + 1;

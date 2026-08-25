@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import base64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -1004,6 +1005,20 @@ def api_update_watchlist():
         if 'market_cap' in edited_data:
             # 億円単位に変換
             update_data['market_cap'] = edited_data['market_cap'] / 1e8 if edited_data['market_cap'] else None
+
+        # 今期の会社予想。取得元に無くても決算短信を見れば分かるので手で入れられる。
+        # 単位は億円（列の単位に合わせる。ここで換算しない）。
+        for key in ('forecast_revenue', 'forecast_op_income',
+                    'forecast_ordinary_income', 'forecast_net_income'):
+            if key in edited_data:
+                update_data[key] = edited_data[key]
+
+        # 決算期は日付の文字列（'2027-03-31'）。数値の列と混ぜない。
+        if 'forecast_year' in edited_data:
+            value = (edited_data['forecast_year'] or '').strip() or None
+            if value and not re.match(r'^\d{4}-\d{2}-\d{2}$', value):
+                return jsonify({"error": "決算期は 2027-03-31 の形式で入れてください"}), 400
+            update_data['forecast_year'] = value
 
         # 履歴は**キー単位でマージする。丸ごと置き換えない。**
         #

@@ -9,6 +9,17 @@
 取る項目（yfinance の貸借対照表から。追加のリクエストは1銘柄1回）:
   - interest_bearing_debt … 'Total Debt'（短期借入金＋長期借入金＋リース債務）
   - retained_earnings     … 'Retained Earnings'
+  - total_assets          … 'Total Assets'（総資産・億円）
+  - equity                … 'Stockholders Equity'（純資産・億円）
+
+総資産と純資産は cf_history ではなく **screened_latest の列**に入れる。
+理由は2つ:
+  1. PBRの検算に使う。3939 でPBRが 48.65倍と 5.26倍で食い違ったとき、
+     「時価総額 ÷ 純資産なら株数を経由しないので検出できるが、equity 列は
+     全件で空」という理由で**どちらが正しいか機械的に決められなかった**。
+  2. 自己資本比率のフォールバックが正しく効く。総資産が取れない銘柄で
+     総負債を足して求める経路があり、そこに有利子負債が混ざっていた
+     （2026-08-25 修正）。総資産を持てばフォールバックに落ちない。
 
   ⚠️ yfinance の 'Total Debt' は**総負債ではない**。総負債は
      'Total Liabilities Net Minority Interest'。混同すると自己資本比率が狂う。
@@ -57,6 +68,14 @@ BALANCE_ROWS = (
 )
 YEARS = 5
 
+# 直近の1点だけを screened_latest の列に入れるもの。単位は**億円**
+# （market_cap と同じ。時価総額÷純資産をそのまま計算できるようにする）。
+SCALAR_ROWS = (
+    ('total_assets', ('Total Assets',)),
+    ('equity', ('Stockholders Equity', 'Total Stockholders Equity',
+                'Total Equity Gross Minority Interest')),
+)
+
 
 def _as_obj(value):
     if isinstance(value, str):
@@ -72,9 +91,14 @@ def _has_debt(cf_history):
     return bool(rows) and any(r.get('value') is not None for r in rows)
 
 
+def _needs_scalars(row):
+    return any(row.get(name) is None for name, _ in SCALAR_ROWS)
+
+
 def load_targets(client, only_missing, code=None):
     """cf_history を持つ銘柄を取り切る（1000行上限にかからないようページング）"""
-    select = 'company_code, cf_history, delisted_at'
+    select = ('company_code, cf_history, delisted_at, '
+              + ', '.join(name for name, _ in SCALAR_ROWS))
     if code:
         return (client.table('screened_latest').select(select)
                 .eq('company_code', code).execute().data)
@@ -95,7 +119,25 @@ def load_targets(client, only_missing, code=None):
     rows = [r for r in rows if not r.get('delisted_at')]
     if not only_missing:
         return rows
-    return [r for r in rows if not _has_debt(_as_obj(r.get('cf_history')))]
+    return [r for r in rows
+            if not _has_debt(_as_obj(r.get('cf_history'))) or _needs_scalars(r)]
+
+
+def extract_scalars(balance_sheet):
+    """直近の決算期の総資産・純資産（億円）。取れなければ入れない。"""
+    out = {}
+    if balance_sheet is None or balance_sheet.empty:
+        return out
+    col = balance_sheet.columns[0]
+    for key, candidates in SCALAR_ROWS:
+        for name in candidates:
+            if name not in balance_sheet.index:
+                continue
+            value = balance_sheet.loc[name, col]
+            if pd.notna(value):
+                out[key] = round(float(value) / 1e8, 2)
+            break
+    return out
 
 
 def extract_series(balance_sheet):
@@ -140,6 +182,7 @@ def main():
         return 0
 
     updated = debt_filled = retained_filled = empty = failed = 0
+    assets_filled = equity_filled = 0
     consecutive_fail = 0
 
     def _notify_wait(seconds, attempt):
@@ -152,11 +195,12 @@ def main():
         code = row['company_code']
         cf_history = _as_obj(row.get('cf_history'))
         try:
-            series = guard.run(
-                lambda: extract_series(yf.Ticker(f'{code}.T').balance_sheet))
+            balance_sheet = guard.run(lambda: yf.Ticker(f'{code}.T').balance_sheet)
+            series = extract_series(balance_sheet)
+            scalars = extract_scalars(balance_sheet)
 
             got = {k: v for k, v in series.items() if v}
-            if not got:
+            if not got and not scalars:
                 # Yahooに貸借対照表が無い銘柄。失敗ではないので連続失敗に数えない
                 empty += 1
                 consecutive_fail = 0
@@ -168,11 +212,17 @@ def main():
                 debt_filled += 1
             if 'retained_earnings' in got:
                 retained_filled += 1
+            if 'total_assets' in scalars:
+                assets_filled += 1
+            if 'equity' in scalars:
+                equity_filled += 1
 
-            # cf_history 列だけを更新する。他の列は同時に走る別のバッチが
+            # 触る列だけを更新する。他の列は同時に走る別のバッチが
             # 書いていることがあるので、行ごと上書きしない。
-            (client.table('screened_latest')
-             .update({'cf_history': json.dumps(cf_history, ensure_ascii=False)})
+            payload = dict(scalars)
+            if got:
+                payload['cf_history'] = json.dumps(cf_history, ensure_ascii=False)
+            (client.table('screened_latest').update(payload)
              .eq('company_code', code).execute())
             updated += 1
             consecutive_fail = 0
@@ -196,7 +246,8 @@ def main():
         guard.pause()
 
     print(f'\n更新 {updated}件 / 有利子負債 {debt_filled}件 '
-          f'/ 利益剰余金 {retained_filled}件 / BS無し {empty}件 / 失敗 {failed}件')
+          f'/ 利益剰余金 {retained_filled}件 / 総資産 {assets_filled}件 '
+          f'/ 純資産 {equity_filled}件 / BS無し {empty}件 / 失敗 {failed}件')
     print(guard.summary())
     print('途中で止まっても、再実行すれば未取得の銘柄から続きを処理します。')
     return 0

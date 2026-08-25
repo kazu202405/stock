@@ -222,6 +222,19 @@
         </div>
 
         <div class="asd-card">
+            <p class="asd-card-title">今期の会社予想</p>
+            <div class="asd-grid" id="asdForecast"></div>
+            <div class="asd-note">
+                取得元に無くても、決算短信を見れば分かる数字です。手で入れられます。<br>
+                <b>決算期は 2027-03-31 の形式</b>で入れてください。金額は億円。<br>
+                ⚠️ <b>経常利益は空欄でかまいません。</b>IFRSを適用している会社には
+                経常利益という区分がありません（トヨタを含め160社）。
+                銘柄ページは<b>売上高・営業利益・純利益の3つがそろったとき</b>に
+                予想の行を出します。
+            </div>
+        </div>
+
+        <div class="asd-card">
             <p class="asd-card-title">キャッシュフロー・財務指標</p>
             <div class="asd-scroll">
                 <table class="asd-table is-wide" id="asdTableCf">
@@ -304,6 +317,23 @@
         { key: 'retained_earnings',    label: '利益剰余金(億円)', amount: true },
     ];
 
+    /*
+     * 今期の会社予想。履歴ではなく screened_latest の列に入っている。
+     * 取得できるのは6割ほどなので、決算短信を見て手で埋められるようにする。
+     *
+     * ⚠️ 経常利益は必須にしない。IFRSを適用している会社には経常利益という
+     *    区分が無い（実測160社が売上・営業・純利益だけ持っている）。
+     *    必須にするとトヨタの予想が画面から消える。
+     */
+    const FORECAST_FIELDS = [
+        { key: 'forecast_year',            label: '決算期', type: 'date',
+          placeholder: '2027-03-31' },
+        { key: 'forecast_revenue',         label: '売上高',   unit: '億円' },
+        { key: 'forecast_op_income',       label: '営業利益', unit: '億円' },
+        { key: 'forecast_ordinary_income', label: '経常利益', unit: '億円（任意）' },
+        { key: 'forecast_net_income',      label: '純利益',   unit: '億円' },
+    ];
+
     // 表の設定。描く仕組みは1つにして、設定だけ差し替える。
     const TABLES = [
         { cols: YEAR_COLS, source: 'financial_history',
@@ -369,6 +399,20 @@
                         <input type="number" step="any" data-metric="${m.key}"
                                value="${v === null || v === undefined ? '' : v}"
                                data-original="${v === null || v === undefined ? '' : v}">
+                    </div>`;
+        }).join('');
+
+        // 今期の会社予想
+        document.getElementById('asdForecast').innerHTML = FORECAST_FIELDS.map(function (f) {
+            const v = row[f.key];
+            const shown = (v === null || v === undefined) ? '' : v;
+            const attrs = f.type === 'date'
+                ? `type="text" placeholder="${f.placeholder}"`
+                : 'type="number" step="any"';
+            return `<div class="asd-field">
+                        <label>${f.label}<span class="asd-unit">${f.unit || ''}</span></label>
+                        <input ${attrs} data-forecast="${f.key}"
+                               value="${shown}" data-original="${shown}">
                     </div>`;
         }).join('');
 
@@ -464,6 +508,16 @@
 
         // 表は2つ（financial_history と cf_history）。どちらの履歴かは
         // data-source で分ける。混ぜると片方が相手のキーを上書きする。
+        document.querySelectorAll('#asdEditor input[data-forecast]').forEach(function (input) {
+            if (String(input.value) === String(input.dataset.original)) return;
+            const v = input.value.trim();
+            const key = input.dataset.forecast;
+            // 決算期は日付の文字列。数値に変えない
+            payload[key] = (key === 'forecast_year')
+                ? v
+                : (v === '' ? null : parseFloat(v));
+        });
+
         document.querySelectorAll('#asdEditor input[data-type]').forEach(function (input) {
             if (String(input.value) === String(input.dataset.original)) return;
             const v = input.value.trim();
