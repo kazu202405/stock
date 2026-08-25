@@ -35,6 +35,31 @@ def history_json_or_none(history, converter=None):
     return json.dumps(value, ensure_ascii=False)
 
 
+def build_cf_history(stock_data) -> dict:
+    """保存する cf_history を組み立てる。**3つの保存パスで同じものを使う。**
+
+    以前はこの辞書が app.py の3箇所に同じ形で書かれていた。項目を足すときに
+    どれか1つを直し忘れると、通った保存パスによって銘柄ごとに項目の有無が
+    変わる（実際に cash / current_liabilities がそうなっていた）。
+
+    名前が「CF履歴」だが、中身は貸借対照表の年度推移も含む。
+    """
+    return {
+        'operating_cf': stock_data.get('operating_cf', []),
+        'investing_cf': stock_data.get('investing_cf', []),
+        'financing_cf': stock_data.get('financing_cf', []),
+        'cash': stock_data.get('cash', []),
+        'current_liabilities': stock_data.get('current_liabilities_list', []),
+        'current_assets': stock_data.get('current_assets_list', []),
+        # 有利子負債・利益剰余金は流動負債とも現預金とも別の行の数字
+        'interest_bearing_debt': stock_data.get('interest_bearing_debt', []),
+        'retained_earnings': stock_data.get('retained_earnings', []),
+        'equity_ratio': stock_data.get('equity_ratio_list', []),
+        'roe': stock_data.get('roe', []),
+        'roa': stock_data.get('roa', []),
+    }
+
+
 def analysis_data_status(financial_history, cf_history) -> str:
     """主要な財務履歴とCF履歴が両方取れたときだけfreshとする。"""
     return ('fresh' if history_has_values(financial_history)

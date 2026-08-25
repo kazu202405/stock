@@ -1416,6 +1416,11 @@
     function applyFilterAndSort() {
         let list = [...watchlistCache];
 
+        // 配当利回りは予想を主に出す。並べ替え・絞り込みも表示と同じ値を見るため、
+        // ここで dividend_yield_display を持たせる（static/js/dividend-basis.js が唯一の正）。
+        DividendBasis.normalize(list);
+
+
         // フィルタリング
         const matchMin = parseFloat(document.getElementById('filterMatchMin')?.value);
         const matchMax = parseFloat(document.getElementById('filterMatchMax')?.value);
@@ -1445,8 +1450,8 @@
         if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
         if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
         if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
-        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
-        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display <= divMax);
 
         // ソート
         if (currentSort.key) {
@@ -1512,7 +1517,7 @@
                         <th class="sortable" onclick="sortWatchlist('equity_ratio')">自己資本比率${sortIcon('equity_ratio')}</th>
                         <th class="sortable" onclick="sortWatchlist('per_forward')">PER${sortIcon('per_forward')}</th>
                         <th class="sortable" onclick="sortWatchlist('pbr')">PBR${sortIcon('pbr')}</th>
-                        <th class="sortable" onclick="sortWatchlist('dividend_yield')">配当利回り${sortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortWatchlist('dividend_yield_display')">配当利回り(予想)${sortIcon('dividend_yield_display')}</th>
                         <th class="sortable" onclick="sortWatchlist('payout_ratio')">配当性向${sortIcon('payout_ratio')}</th>
                         <th>GC</th>
                         <th>DC</th>
@@ -1530,7 +1535,7 @@
             const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
             const per = item.per_forward ? `${item.per_forward.toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${item.pbr.toFixed(2)}倍` : '---';
-            const divYield = item.dividend_yield ? `${item.dividend_yield.toFixed(2)}%` : '---';
+            const divYield = DividendBasis.cell(item);
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item);
@@ -1549,7 +1554,7 @@
                     <td class="${toneCell(toneEquity(item.equity_ratio))}">${equityRatioText(item.equity_ratio)}</td>
                     <td class="${toneCell(toneLower(item.per_forward, 30, 40))}">${per}</td>
                     <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
-                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
+                    <td class="${toneCell(item.dividend_yield_display != null && item.dividend_yield_display >= 3 ? 'good' : null)}">${divYield}</td>
                     <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
                     <td>${gcDate}</td>
                     <td>${dcDate}</td>
@@ -2041,6 +2046,11 @@
 
         let list = [...favoriteCache];
 
+        // 配当利回りは予想を主に出す。並べ替え・絞り込みも表示と同じ値を見るため、
+        // ここで dividend_yield_display を持たせる（static/js/dividend-basis.js が唯一の正）。
+        DividendBasis.normalize(list);
+
+
         const matchMin = parseFloat(document.getElementById('favFilterMatchMin')?.value);
         const matchMax = parseFloat(document.getElementById('favFilterMatchMax')?.value);
         const capMin = parseFloat(document.getElementById('favFilterCapMin')?.value);
@@ -2069,8 +2079,8 @@
         if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
         if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
         if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
-        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
-        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display <= divMax);
 
         // ソート
         if (favSort.key) {
@@ -2142,7 +2152,7 @@
                         <th class="sortable" onclick="sortFavColumn('equity_ratio')">自己資本比率${favSortIcon('equity_ratio')}</th>
                         <th class="sortable" onclick="sortFavColumn('per_forward')">PER${favSortIcon('per_forward')}</th>
                         <th class="sortable" onclick="sortFavColumn('pbr')">PBR${favSortIcon('pbr')}</th>
-                        <th class="sortable" onclick="sortFavColumn('dividend_yield')">配当利回り${favSortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortFavColumn('dividend_yield_display')">配当利回り(予想)${favSortIcon('dividend_yield_display')}</th>
                         <th class="sortable" onclick="sortFavColumn('payout_ratio')">配当性向${favSortIcon('payout_ratio')}</th>
                         <th>操作</th>
                     </tr>
@@ -2165,7 +2175,7 @@
             const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
             const per = item.per_forward ? `${Number(item.per_forward).toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
-            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const divYield = DividendBasis.cell(item);
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item);
@@ -2181,7 +2191,7 @@
                     <td class="${toneCell(toneEquity(item.equity_ratio))}">${equityRatioText(item.equity_ratio)}</td>
                     <td class="${toneCell(toneLower(item.per_forward, 30, 40))}">${per}</td>
                     <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
-                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
+                    <td class="${toneCell(item.dividend_yield_display != null && item.dividend_yield_display >= 3 ? 'good' : null)}">${divYield}</td>
                     <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
                     <td><button class="delete-btn" onclick="removeFavoriteStock('${code}')">解除</button></td>
                 </tr>
@@ -2214,7 +2224,7 @@
 
     let dividendLoaded = false;
     let dividendCache = [];
-    let divSort = { key: 'dividend_yield', dir: 'desc' };
+    let divSort = { key: 'dividend_yield_display', dir: 'desc' };
 
     async function loadDividendStocks() {
         dividendLoaded = true;
@@ -2246,6 +2256,11 @@
 
         let list = [...dividendCache];
 
+        // 配当利回りは予想を主に出す。並べ替え・絞り込みも表示と同じ値を見るため、
+        // ここで dividend_yield_display を持たせる（static/js/dividend-basis.js が唯一の正）。
+        DividendBasis.normalize(list);
+
+
         const matchMin = parseFloat(document.getElementById('divFilterMatchMin')?.value);
         const matchMax = parseFloat(document.getElementById('divFilterMatchMax')?.value);
         const capMin = parseFloat(document.getElementById('divFilterCapMin')?.value);
@@ -2274,8 +2289,8 @@
         if (!isNaN(perMax)) list = list.filter(i => i.per_forward != null && i.per_forward <= perMax);
         if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
         if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
-        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
-        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display <= divMax);
 
         // ソート
         if (divSort.key) {
@@ -2306,7 +2321,7 @@
             divSort.dir = divSort.dir === 'asc' ? 'desc' : 'asc';
         } else {
             divSort.key = key;
-            divSort.dir = key === 'dividend_yield' ? 'desc' : 'asc';
+            divSort.dir = key === 'dividend_yield_display' ? 'desc' : 'asc';
         }
         applyDivFilters();
     }
@@ -2353,7 +2368,7 @@
                         <th class="sortable" onclick="sortDivColumn('equity_ratio')">自己資本比率${divSortIcon('equity_ratio')}</th>
                         <th class="sortable" onclick="sortDivColumn('per_forward')">PER${divSortIcon('per_forward')}</th>
                         <th class="sortable" onclick="sortDivColumn('pbr')">PBR${divSortIcon('pbr')}</th>
-                        <th class="sortable" onclick="sortDivColumn('dividend_yield')">配当利回り${divSortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortDivColumn('dividend_yield_display')">配当利回り(予想)${divSortIcon('dividend_yield_display')}</th>
                         <th class="sortable" onclick="sortDivColumn('payout_ratio')">配当性向${divSortIcon('payout_ratio')}</th>
                         ${IS_ADMIN ? '<th>操作</th>' : ''}
                     </tr>
@@ -2376,7 +2391,7 @@
             const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
             const per = item.per_forward ? `${Number(item.per_forward).toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
-            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const divYield = DividendBasis.cell(item);
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item);
@@ -2662,8 +2677,8 @@
                   tone: (r) => toneLower(r.per_forward, 30, 40) },
                 { key: 'pbr',            label: 'PBR',            value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---',
                   tone: (r) => toneLower(r.pbr, 3, 10) },
-                { key: 'dividend_yield', label: '配当利回り(実績)', value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---',
-                  tone: (r) => (r.dividend_yield != null && r.dividend_yield >= 3) ? 'good' : null },
+                { key: 'dividend_yield_display', label: '配当利回り(予想)', value: (r) => DividendBasis.cell(r),
+                  tone: (r) => (r.dividend_yield_display != null && r.dividend_yield_display >= 3) ? 'good' : null },
                 { key: 'payout_ratio',   label: '配当性向',        value: (r) => r.payout_ratio != null ? Number(r.payout_ratio).toFixed(1) + '%' : '---',
                   tone: (r) => (r.payout_ratio != null && r.payout_ratio >= 85) ? 'low' : null },
             ],
@@ -2710,7 +2725,8 @@
                 { key: 'market_cap',     label: '時価総額',    value: (r) => r.market_cap != null ? Number(r.market_cap).toLocaleString() + '億' : '---' },
                 { key: 'per',            label: 'PER',        value: (r) => r.per != null ? Number(r.per).toFixed(1) + '倍' : '---' },
                 { key: 'pbr',            label: 'PBR',        value: (r) => r.pbr != null ? Number(r.pbr).toFixed(2) + '倍' : '---' },
-                { key: 'dividend_yield', label: '配当利回り',  value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                // gc_stocks は kabutan 由来で今期予想を持たない。ここだけ実績のままなので明記する
+                { key: 'dividend_yield', label: '配当利回り(実績)',  value: (r) => r.dividend_yield != null ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
                 { key: 'cross_count',    label: 'クロス回数',  value: (r) => r.cross_count != null ? r.cross_count + '回' : '---' },
             ],
         };
@@ -2759,7 +2775,7 @@
                         <th>株価</th>
                         <th>PER</th>
                         <th>PBR</th>
-                        <th>配当利回り</th>
+                        <th>配当利回り(実績)</th>
                         <th>GC形成日</th>
                     </tr>
                 </thead>
@@ -3098,6 +3114,11 @@
 
         let list = [...technicalStocksCache];
 
+        // 配当利回りは予想を主に出す。並べ替え・絞り込みも表示と同じ値を見るため、
+        // ここで dividend_yield_display を持たせる（static/js/dividend-basis.js が唯一の正）。
+        DividendBasis.normalize(list);
+
+
         const matchMin = parseFloat(document.getElementById('techFilterMatchMin')?.value);
         const matchMax = parseFloat(document.getElementById('techFilterMatchMax')?.value);
         const capMin = parseFloat(document.getElementById('techFilterCapMin')?.value);
@@ -3127,8 +3148,8 @@
         if (!isNaN(perMax)) list = list.filter(i => i.per != null && i.per <= perMax);
         if (!isNaN(pbrMin)) list = list.filter(i => i.pbr != null && i.pbr >= pbrMin);
         if (!isNaN(pbrMax)) list = list.filter(i => i.pbr != null && i.pbr <= pbrMax);
-        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield >= divMin);
-        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield != null && i.dividend_yield <= divMax);
+        if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display >= divMin);
+        if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display <= divMax);
 
         if (trendFilter === 'gc' || trendFilter === 'dc') {
             list = list.filter(i => getLatestCross(i.gc_date, i.dc_date).type === trendFilter);
@@ -3209,7 +3230,7 @@
                         <th class="sortable" onclick="sortTechColumn('stock_price')">株価${techSortIcon('stock_price')}</th>
                         <th class="sortable" onclick="sortTechColumn('per')">PER${techSortIcon('per')}</th>
                         <th class="sortable" onclick="sortTechColumn('pbr')">PBR${techSortIcon('pbr')}</th>
-                        <th class="sortable" onclick="sortTechColumn('dividend_yield')">配当利回り${techSortIcon('dividend_yield')}</th>
+                        <th class="sortable" onclick="sortTechColumn('dividend_yield_display')">配当利回り(予想)${techSortIcon('dividend_yield_display')}</th>
                         <th class="sortable" onclick="sortTechColumn('gc_date')">GC発生日${techSortIcon('gc_date')}</th>
                         <th class="sortable" onclick="sortTechColumn('dc_date')">DC発生日${techSortIcon('dc_date')}</th>
                         <th>取得</th>
@@ -3235,7 +3256,7 @@
             const price = item.stock_price ? formatWatchlistPrice(item.stock_price) : '---';
             const per = item.per ? `${Number(item.per).toFixed(1)}倍` : '---';
             const pbr = item.pbr ? `${Number(item.pbr).toFixed(2)}倍` : '---';
-            const divYield = item.dividend_yield ? `${Number(item.dividend_yield).toFixed(2)}%` : '---';
+            const divYield = DividendBasis.cell(item);
             const gcDate = formatScrapedDate(item.gc_date);
             const dcDate = formatScrapedDate(item.dc_date);
             const trend = getLatestCross(item.gc_date, item.dc_date);
@@ -3250,7 +3271,7 @@
                     <td>${price}</td>
                     <td class="${toneCell(toneLower(item.per, 30, 40))}">${per}</td>
                     <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
-                    <td class="${toneCell(item.dividend_yield != null && item.dividend_yield >= 3 ? 'good' : null)}">${divYield}</td>
+                    <td class="${toneCell(item.dividend_yield_display != null && item.dividend_yield_display >= 3 ? 'good' : null)}">${divYield}</td>
                     <td>${gcDate}${daysAgo(item.gc_date)}</td>
                     <td>${dcDate}${daysAgo(item.dc_date)}</td>
                     <td><button class="delete-btn" style="color: var(--accent-color); border-color: var(--accent-color);" id="tech-btn-${code}" onclick="refreshTechnicalStock('${code}')"><i class="fas ${item.analyzed_at ? 'fa-sync-alt' : 'fa-download'}" style="font-size: 0.7rem;"></i></button></td>

@@ -16,8 +16,8 @@ from models.chatbot import *
 from models.business_plan_preparation import *
 from stock_analyzer import StockAnalyzer, batch_analyze
 from analysis_quality import (
-    analysis_data_status, derive_fiscal_month, history_json_or_none,
-    normalize_analysis_symbol,
+    analysis_data_status, build_cf_history, derive_fiscal_month,
+    history_json_or_none, normalize_analysis_symbol,
 )
 from supabase_client import (
     get_supabase_client,
@@ -797,17 +797,7 @@ def api_add_to_watchlist():
             }
 
             # CF履歴をJSON形式で保存
-            cf_history = {
-                'operating_cf': stock_data.get('operating_cf', []),
-                'investing_cf': stock_data.get('investing_cf', []),
-                'financing_cf': stock_data.get('financing_cf', []),
-                'cash': stock_data.get('cash', []),
-                'current_liabilities': stock_data.get('current_liabilities_list', []),
-                'current_assets': stock_data.get('current_assets_list', []),
-                'equity_ratio': stock_data.get('equity_ratio_list', []),
-                'roe': stock_data.get('roe', []),
-                'roa': stock_data.get('roa', [])
-            }
+            cf_history = build_cf_history(stock_data)
 
             # Noneのフィールドを除外して構築（既存データをnullで上書きしない）
             screened_data_full = {
@@ -1340,17 +1330,7 @@ def _save_analysis_to_screened(symbol, stock_data):
         'payout_ratio': stock_data.get('payout_ratio', [])
     }
 
-    cf_history = {
-        'operating_cf': stock_data.get('operating_cf', []),
-        'investing_cf': stock_data.get('investing_cf', []),
-        'financing_cf': stock_data.get('financing_cf', []),
-        'cash': stock_data.get('cash', []),
-        'current_liabilities': stock_data.get('current_liabilities_list', []),
-        'current_assets': stock_data.get('current_assets_list', []),
-        'equity_ratio': stock_data.get('equity_ratio_list', []),
-        'roe': stock_data.get('roe', []),
-        'roa': stock_data.get('roa', [])
-    }
+    cf_history = build_cf_history(stock_data)
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
@@ -1484,17 +1464,7 @@ def _analyze_stock_and_save(analyzer, company_code):
         'payout_ratio': stock_data.get('payout_ratio', [])
     }
 
-    cf_history = {
-        'operating_cf': stock_data.get('operating_cf', []),
-        'investing_cf': stock_data.get('investing_cf', []),
-        'financing_cf': stock_data.get('financing_cf', []),
-        'cash': stock_data.get('cash', []),
-        'current_liabilities': stock_data.get('current_liabilities_list', []),
-        'current_assets': stock_data.get('current_assets_list', []),
-        'equity_ratio': stock_data.get('equity_ratio_list', []),
-        'roe': stock_data.get('roe', []),
-        'roa': stock_data.get('roa', [])
-    }
+    cf_history = build_cf_history(stock_data)
 
     # 財務健全性カード用のスカラー列。
     # 以前はcf_historyにしか入れていなかったため、この保存パスだけを通った銘柄
@@ -2792,7 +2762,10 @@ def api_report(source, key):
 # 並べ替えに使ってよいカラム（任意の文字列を order に渡さないためのホワイトリスト）
 SCREEN_SORTABLE = {
     'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
-    'roe', 'roa', 'equity_ratio', 'operating_margin', 'dividend_yield',
+    'roe', 'roa', 'equity_ratio', 'operating_margin',
+    # 配当利回りは予想が主（2026-08-25）。実績も並べ替えられるようには
+    # しておくが、画面のヘッダーからは予想だけを押せるようにしてある。
+    'dividend_yield_forward', 'dividend_yield',
     'company_code', 'analyzed_at', 'gc_date',
 }
 
@@ -2806,7 +2779,12 @@ SCREEN_FILTERS = {
     'roa_min': ('roa', 'gte'),
     'equity_ratio_min': ('equity_ratio', 'gte'),
     'operating_margin_min': ('operating_margin', 'gte'),
-    'dividend_yield_min': ('dividend_yield', 'gte'),
+    # 「高配当を探す」で期待されているのは予想利回り。実績で絞ると、
+    # 決算期をまたいで期末＋翌期中間が同じ12か月に入った銘柄が
+    # 実力以上の利回りで並ぶ（367A: 実績5.93% / 予想4.08%）。
+    # ⚠️ 予想を持たない銘柄はこの絞り込みから外れる。2026-08-25 時点で
+    #    実績はあるが予想が無いのは38件（全体の1%）。
+    'dividend_yield_min': ('dividend_yield_forward', 'gte'),
     'market_cap_min': ('market_cap', 'gte'),
     'market_cap_max': ('market_cap', 'lte'),
     'match_rate_min': ('match_rate', 'gte'),

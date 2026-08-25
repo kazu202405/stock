@@ -160,7 +160,7 @@
                     <input type="number" x-model.number="filters.pbr_max" @change="search(1)" placeholder="例: 1.5" step="0.1">
                 </div>
                 <div class="scr-field">
-                    <label>配当利回り 下限(%)</label>
+                    <label>配当利回り(予想) 下限(%)</label>
                     <input type="number" x-model.number="filters.dividend_yield_min" @change="search(1)" placeholder="例: 3" step="0.1">
                 </div>
                 <div class="scr-field">
@@ -239,9 +239,12 @@
                             <div class="tv-card-cell"
                                  :class="[m.key === sort ? 'is-sorted' : '', m.tone && m.tone(row) ? 'tone-' + m.tone(row) : '']">
                                 <div class="tv-card-label" x-text="m.label"></div>
-                                <div class="tv-card-value"
+                                <div class="tv-card-value" x-show="!m.html"
                                      :class="m.tone ? 'tv-' + (m.tone(row) || '') : ''"
-                                     x-text="m.format(row[m.key])"></div>
+                                     x-text="m.format(row[m.key], row)"></div>
+                                <div class="tv-card-value" x-show="m.html"
+                                     :class="m.tone ? 'tv-' + (m.tone(row) || '') : ''"
+                                     x-html="m.format(row[m.key], row)"></div>
                             </div>
                         </template>
                     </div>
@@ -326,10 +329,12 @@
                                     x-text="fmtMultiple(row.per_forward)"></td>
                                 <td class="scr-td-num" :class="toneCell(toneLower(row.pbr, 3, 10))"
                                     x-text="fmtMultiple(row.pbr, 2)"></td>
+                                <!-- 予想が主。実績は隣に置いて見比べられるようにするが、
+                                     絞り込みも並べ替えも緑の色も予想側に付ける。 -->
                                 <td class="scr-td-num"
-                                    :class="toneCell(row.dividend_yield != null && row.dividend_yield >= 3 ? 'good' : null)"
-                                    x-text="fmtPct(row.dividend_yield, 2)"></td>
-                                <td class="scr-td-num" x-text="fmtPct(row.dividend_yield_forward, 2)"></td>
+                                    :class="toneCell(row.dividend_yield_forward != null && row.dividend_yield_forward >= 3 ? 'good' : null)"
+                                    x-text="fmtPct(row.dividend_yield_forward, 2)"></td>
+                                <td class="scr-td-num" style="color:#737373;" x-text="fmtPct(row.dividend_yield, 2)"></td>
                             </tr>
                         </template>
 
@@ -404,11 +409,10 @@
                             <th class="scr-th scr-th-sortable sortable" data-sort="operating_margin">営業利益率 <i class="fas fa-sort"></i></th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="per">PER <i class="fas fa-sort"></i></th>
                             <th class="scr-th scr-th-sortable sortable" data-sort="pbr">PBR <i class="fas fa-sort"></i></th>
-                            <!-- この列は実績（直近12か月に支払われた配当÷株価）。
-                                 銘柄ページは予想を主に出すので、どちらの数字かを
-                                 書かないと開いた瞬間に値が変わったように見える。
-                                 並べ替えキーは data-sort なので表示文字は変えてよい。 -->
-                            <th class="scr-th scr-th-sortable sortable" data-sort="dividend_yield">配当利回り(実績) <i class="fas fa-sort"></i></th>
+                            <!-- 予想を主に出す。予想が取れない銘柄だけ実績に落ちるので、
+                                 落ちた行にはセル側で「実」の印が付く
+                                 （判定は static/js/dividend-basis.js）。 -->
+                            <th class="scr-th scr-th-sortable sortable" data-sort="dividend_yield_display">配当利回り(予想) <i class="fas fa-sort"></i></th>
                             <th class="scr-th">アクション</th>
                         </tr>
                     </thead>
@@ -814,17 +818,21 @@
                 // 値が変わったように見える。
                 //   実績 = 直近12か月に実際に支払われた配当 ÷ 株価
                 //   予想 = 決算年度で数えた年間配当 ÷ 株価
-                { key: 'dividend_yield',         label: '配当利回り(実績)' },
-                // 予想は並べ替えキーにしない。並べ替えは値が空の行を除外する
-                // ため、予想の無い銘柄（無配など748件）が一覧から消える。
-                // 消えたことは画面から見えないので、列としてだけ出す。
-                { key: 'dividend_yield_forward', label: '配当利回り(予想)', noSort: true },
+                // 2026-08-25: 主役を予想に入れ替えた。以前は「予想の無い銘柄が
+                // 並べ替えから消える」ことを理由に実績を主にしていたが、予想の
+                // バックフィルが進み、実績はあるが予想が無い銘柄は38件（全体の1%）
+                // まで減った。実績だけを主に出すほうが誤解が大きい
+                // （決算期をまたぐと期末＋翌期中間が同じ12か月に入って跳ね上がる）。
+                { key: 'dividend_yield_forward', label: '配当利回り(予想)' },
+                // 実績は並べ替えキーにしない。同じ意味の列が2つ並ぶと、
+                // どちらで並べたのか画面から分からなくなる。
+                { key: 'dividend_yield',         label: '配当利回り(実績)', noSort: true },
             ],
 
             presets: [
                 { key: 'quality',  label: '財務が堅い',   filters: { equity_ratio_min: 50, operating_margin_min: 10 }, sort: 'match_rate', order: 'desc' },
                 { key: 'value',    label: '割安',        filters: { per_max: 15, pbr_max: 1.5 },                     sort: 'per_forward', order: 'asc' },
-                { key: 'dividend', label: '高配当',      filters: { dividend_yield_min: 3 },                          sort: 'dividend_yield', order: 'desc' },
+                { key: 'dividend', label: '高配当',      filters: { dividend_yield_min: 3 },                          sort: 'dividend_yield_forward', order: 'desc' },
                 { key: 'roe',      label: '稼ぐ力が高い', filters: { roe_min: 15, equity_ratio_min: 30 },              sort: 'roe', order: 'desc' },
                 { key: 'large',    label: '大企業',      filters: { market_cap_min: 1000 },                           sort: 'market_cap', order: 'desc' },
             ],
@@ -858,9 +866,10 @@
              *   左: 時価総額 / PER / 配当利回り
              *   右: 自己資本比率 / PBR / 配当性向
              *
-             * 配当利回りは**実績**を出す。実際に支払われた配当÷株価で、
-             * 誰でも検算できる。予想は直近配当の年換算＝推計なので、
-             * 一覧で並べるならこちらの方が手堅い（銘柄ページでは両方出す）。
+             * 配当利回りは**予想**を出す（2026-08-25に実績から入れ替えた）。
+             * 実績は決算期をまたぐと期末配当と翌期の中間配当が同じ12か月の窓に
+             * 入って跳ね上がり、銘柄ページの表示とも食い違っていた。
+             * 判定は static/js/dividend-basis.js が唯一の正。
              */
             cardMetrics() {
                 const pct = (v) => this.fmtPct(v);
@@ -877,8 +886,9 @@
                       tone: (r) => this.toneLower(r.per_forward, 30, 40) },
                     { key: 'pbr',            label: 'PBR',            format: (v) => this.fmtMultiple(v, 2),
                       tone: (r) => this.toneLower(r.pbr, 3, 10) },
-                    { key: 'dividend_yield', label: '配当利回り(実績)', format: pct2,
-                      tone: (r) => (r.dividend_yield != null && r.dividend_yield >= 3) ? 'good' : null },
+                    { key: 'dividend_yield_forward', label: '配当利回り(予想)', html: true,
+                      format: (v, r) => DividendBasis.cell(r),
+                      tone: (r) => (DividendBasis.value(r) != null && DividendBasis.value(r) >= 3) ? 'good' : null },
                     { key: 'payout_ratio',   label: '配当性向',        format: pct,
                       tone: (r) => (r.payout_ratio != null && r.payout_ratio >= 85) ? 'low' : null },
                 ];
@@ -1079,7 +1089,8 @@
             const response = await fetch('/api/watchlist');
             if (!response.ok) throw new Error('データの取得に失敗しました');
             const data = await response.json();
-            favorites = data.watchlist || [];
+            // 表示・並べ替えに使う配当利回り（予想が主・無ければ実績）を持たせる
+            favorites = DividendBasis.normalize(data.watchlist || []);
         } catch (err) {
             console.error('ウォッチリスト取得エラー:', err);
             favorites = [];
@@ -1144,7 +1155,7 @@
                     { key: 'market_cap',       label: '時価総額',     value: (r) => formatMarketCapOku(r.market_cap) },
                     { key: 'per_forward',      label: 'PER',         value: (r) => r.per_forward ? Number(r.per_forward).toFixed(1) + '倍' : '---' },
                     { key: 'pbr',              label: 'PBR',         value: (r) => r.pbr ? Number(r.pbr).toFixed(2) + '倍' : '---' },
-                    { key: 'dividend_yield',   label: '配当利回り',   value: (r) => r.dividend_yield ? Number(r.dividend_yield).toFixed(2) + '%' : '---' },
+                    { key: 'dividend_yield_display', label: '配当利回り(予想)', value: (r) => DividendBasis.cell(r) },
                     { key: 'equity_ratio',     label: '自己資本比率', value: (r) => r.equity_ratio != null ? r.equity_ratio + '%' : '---' },
                 ],
                 actions: (r) => `<button onclick="removeFavorite('${r.company_code}')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><i class="fas fa-trash-alt mr-1"></i>削除</button>`,
@@ -1180,7 +1191,7 @@
                     <td class="scr-td-num"><span class="scr-pill ${opClass}">${opMargin != null ? opMargin + '%' : '---'}</span></td>
                     <td class="scr-td-num">${item.per_forward ? Number(item.per_forward).toFixed(1) + '倍' : '---'}</td>
                     <td class="scr-td-num">${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}</td>
-                    <td class="scr-td-num">${item.dividend_yield ? Number(item.dividend_yield).toFixed(2) + '%' : '---'}</td>
+                    <td class="scr-td-num">${DividendBasis.cell(item)}</td>
                     <td class="px-4 py-3 whitespace-nowrap">
                         <button onclick="event.stopPropagation(); removeFavorite('${item.company_code}')"
                                 class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">

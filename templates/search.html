@@ -1251,10 +1251,10 @@
                         <div class="metric-label">配当利回り</div>
                         <div class="metric-value">2.8%</div>
                         <div class="metric-sub">5年連続増配</div>
-                        <!-- 予想利回りではなく、直近12か月に実際に支払われた
-                             配当÷株価。決算期をまたぐことがあるため明示する。
+                        <!-- 予想（年換算した1株配当÷株価）を主に出す。予想が取れない
+                             銘柄だけ実績に落ちる。どちらの数字かは必ず書くこと。
                              ラベル本文は updateMetric() の探索キーなので変えない。 -->
-                        <div style="font-size:10px; color:#a3a3a3; margin-top:4px; line-height:1.4;">直近12か月の実績</div>
+                        <div id="dividend-basis-note" style="font-size:10px; color:#a3a3a3; margin-top:4px; line-height:1.4;">予想（年換算）</div>
                     </div>
                     <div class="metric-item good">
                         <div class="metric-label">時価総額</div>
@@ -1875,11 +1875,11 @@
                                     </template>
                                 </tr>
                                 <tr>
-                                    <td>配当利回り（%）</td>
+                                    <td>配当利回り（%・予想）</td>
                                     <template x-for="(co, ci) in companies" :key="'divy-'+ci">
                                         <td
-                                            :class="cellClass('dividend_yield', ci, 'higher')"
-                                            x-text="formatNum(co.dividend_yield, 2)"
+                                            :class="cellClass('dividend_yield_forward', ci, 'higher')"
+                                            x-text="formatNum(co.dividend_yield_forward, 2)"
                                         ></td>
                                     </template>
                                 </tr>
@@ -2146,7 +2146,10 @@
         updateMetric('op-margin', data.op_margin_pct, '%', '営業利益率', industryForPER);
         updateMetric('per', data.per, '倍', 'PER', industryForPER);
         updateMetric('pbr', data.pbr, '倍', 'PBR', industryForPER);
-        updateMetric('dividend-yield', data.dividend_yield, '%', '配当利回り', industryForPER);
+        // 予想を主に出す。判定は static/js/dividend-basis.js が唯一の正
+        const dividendInfo = DividendBasis.pick(data);
+        updateMetric('dividend-yield', dividendInfo.value, '%', '配当利回り', industryForPER);
+        updateDividendBasisNote(dividendInfo);
         updateMetric('market-cap', data.market_cap, data.currency, '時価総額', industryForPER);
 
         // 財務指標テーブル更新（四季報スタイル）
@@ -2298,6 +2301,20 @@
     }
 
     // 指標を更新する関数（業種情報を追加）- 編集可能版
+    /** 出している利回りが予想か実績かを注記する（基準を書かずに数字を出さない）。 */
+    function updateDividendBasisNote(info) {
+        const note = document.getElementById('dividend-basis-note');
+        if (!note) return;
+        if (info.value === null || info.value === undefined) { note.textContent = ''; return; }
+        if (info.basis === 'forward') {
+            const dps = info.dpsForecast != null ? `年${formatNumber(info.dpsForecast)}円・` : '';
+            const trailing = info.trailing != null ? ` ／ 実績 ${formatNumber(info.trailing)}%` : '';
+            note.textContent = `予想（${dps}直近配当の年換算）${trailing}`;
+        } else {
+            note.textContent = '直近12か月の実績（今期予想は取得できていません）';
+        }
+    }
+
     function updateMetric(className, value, suffix, label, industryInfo = null) {
         const elements = document.querySelectorAll('.metric-item');
         for (const elem of elements) {
@@ -2538,8 +2555,9 @@
             const label = row.querySelector('.detail-label');
             const value = row.querySelector('.detail-value');
             if (label && value) {
-                if (label.textContent === '配当利回り' && data.dividend_yield !== null) {
-                    value.textContent = `${data.dividend_yield.toFixed(2)}%`;
+                if (label.textContent === '配当利回り') {
+                    const dy = DividendBasis.value(data);
+                    if (dy !== null) value.textContent = `${dy.toFixed(2)}%`;
                 }
             }
         }
@@ -3151,7 +3169,10 @@
             if (metric && value !== null) {
                 const keyMap = {
                     '自己資本比率': 'equity_ratio', '営業利益率': 'operating_margin',
-                    'per': 'per_forward', 'pbr': 'pbr', '配当利回り': 'dividend_yield', '時価総額': 'market_cap'
+                    'per': 'per_forward', 'pbr': 'pbr',
+                    // カードに出しているのは予想利回り。実績の列に書き戻すと
+                    // 「直した数字が画面に反映されない」ように見える
+                    '配当利回り': 'dividend_yield_forward', '時価総額': 'market_cap'
                 };
                 const dbKey = keyMap[metric] || metric;
                 data[dbKey] = value;
@@ -3423,7 +3444,7 @@ function compareApp() {
                 { key: 'stock_price',      label: '株価',       dir: 'neutral' },
                 { key: 'per_forward',      label: 'PER',        dir: 'lower' },
                 { key: 'pbr',              label: 'PBR',        dir: 'lower' },
-                { key: 'dividend_yield',   label: '配当利回り', dir: 'higher' },
+                { key: 'dividend_yield_forward', label: '配当利回り(予想)', dir: 'higher' },
                 { key: 'payout_ratio',     label: '配当性向',   dir: 'neutral' },
                 { key: 'roe',              label: 'ROE',        dir: 'higher' },
                 { key: 'roa',              label: 'ROA',        dir: 'higher' },

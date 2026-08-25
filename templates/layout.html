@@ -207,6 +207,21 @@
     .score-tone-low         { color: #b6bcc4; font-weight: 600; }
     .score-tone-provisional { color: #64748b; font-weight: 600; }
     .score-tone-none        { color: #cbd5e1; font-weight: 400; }
+
+    /* 配当利回りが実績に落ちたときの印。判定は static/js/dividend-basis.js が唯一の正。
+       主役は予想なので、予想には印を付けず、例外（実績）にだけ付ける。 */
+    .div-basis-mark {
+        display: inline-block;
+        margin-left: 3px;
+        padding: 0 3px;
+        font-size: 0.6rem;
+        line-height: 1.4;
+        vertical-align: top;
+        color: #64748b;
+        background: #f1f5f9;
+        border-radius: 3px;
+        font-weight: 600;
+    }
 </style>
 
 
@@ -244,6 +259,8 @@
     <script src="{{ url_for('static', filename='js/table-view.js') }}"></script>
     <!-- スコアの色分けは全画面で同じ判定を使う（3画面がバラバラだったため集約） -->
     <script src="{{ url_for('static', filename='js/score-color.js') }}"></script>
+    <!-- 配当利回りを予想で出すか実績で出すか。一覧と銘柄ページで食い違っていたため集約 -->
+    <script src="{{ url_for('static', filename='js/dividend-basis.js') }}"></script>
 </head>
 
 <body class="min-h-screen" style="background: #f7f7f5;">

@@ -1354,6 +1354,21 @@
                     <span class="detail-label">流動比率</span>
                     <span class="detail-value" id="current-ratio-display">---</span>
                 </div>
+                {# 有利子負債は流動負債の一部ではない。1年以内に返す借入金に加えて
+                   固定負債側の長期借入金・社債・リース債務も足したもの。
+                   純有利子負債＝有利子負債−現預金で、マイナスなら実質無借金。 #}
+                <div class="detail-row">
+                    <span class="detail-label" title="利息の付く負債（短期・長期の借入金＋社債＋リース債務）。買掛金などは含みません">有利子負債</span>
+                    <span class="detail-value" id="debt-display">---</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" title="有利子負債 − 現預金。マイナスなら手元資金で借金を返せる状態（実質無借金）">純有利子負債</span>
+                    <span class="detail-value" id="net-debt-display">---</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" title="創業から積み上げてきた利益の残り。純資産の中身であって負債ではありません">利益剰余金</span>
+                    <span class="detail-value" id="retained-display">---</span>
+                </div>
                 <div class="detail-row">
                     <span class="detail-label">配当性向</span>
                     <span class="detail-value" id="payout-ratio-display">---</span>
@@ -2314,6 +2329,47 @@
             latestCurrentLiab = { value: data.current_liabilities };
             if (currentLiabDisplay) currentLiabDisplay.textContent = formatAmount(data.current_liabilities, window.currentCurrency);
         }
+        // 有利子負債・純有利子負債・利益剰余金（分析し直した直後の経路）。
+        // 上の displayCachedData 側と同じ中身を出す。片方だけ足すと
+        // 「分析し直すと項目が消える／増える」ように見える。
+        const latestByDate = (arr) => {
+            if (!Array.isArray(arr) || arr.length === 0) return null;
+            const rows = arr.filter(x => x && x.value !== null && x.value !== undefined)
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+            return rows[0] || null;
+        };
+        const latestDebtRow = latestByDate(data.interest_bearing_debt);
+        const latestCashRow = latestByDate(data.cash);
+        const debtDisplay = document.getElementById('debt-display');
+        if (debtDisplay && latestDebtRow) {
+            debtDisplay.textContent = formatAmount(latestDebtRow.value, window.currentCurrency);
+        }
+        const netDebtDisplay = document.getElementById('net-debt-display');
+        // **同じ決算期の値どうしでだけ引く**（期がずれると符号が実態と逆になる）
+        if (netDebtDisplay && latestDebtRow && latestCashRow
+                && latestDebtRow.date === latestCashRow.date) {
+            const netDebt = latestDebtRow.value - latestCashRow.value;
+            netDebtDisplay.textContent = formatAmount(netDebt, window.currentCurrency);
+            netDebtDisplay.style.color = netDebt <= 0 ? 'var(--success-color)' : '';
+            if (netDebt <= 0) netDebtDisplay.title = '手元の現預金で有利子負債を返せる状態（実質無借金）';
+        }
+        // 貸借対照表は取れたのに 'Total Debt' の行が無い銘柄がある（実測で1割強）。
+        // 「まだ取っていない」のと区別できるので、---のままにせずそう書く。
+        // ⚠️「無借金」とは書かない。取得元に行が無いことしか分かっていない。
+        if (debtDisplay && !latestDebtRow && (data.retained_earnings || []).length) {
+            debtDisplay.textContent = '取得元に収録されていません';
+            debtDisplay.style.color = '#a3a3a3';
+            debtDisplay.style.fontSize = '0.72rem';
+            debtDisplay.style.fontWeight = '400';
+        }
+
+        const latestRetainedRow = latestByDate(data.retained_earnings);
+        const retainedDisplay = document.getElementById('retained-display');
+        if (retainedDisplay && latestRetainedRow) {
+            retainedDisplay.textContent = formatAmount(latestRetainedRow.value, window.currentCurrency);
+            if (latestRetainedRow.value < 0) retainedDisplay.style.color = 'var(--danger-color)';
+        }
+
         const currentRatioDisplay = document.getElementById('current-ratio-display');
         if (currentRatioDisplay && latestCurrentLiab) {
             const currentAssetsList = data.current_assets_list || [];
@@ -2873,18 +2929,17 @@
     /**
      * カードに出す配当利回りと、それが何の数字かを決める。
      *
-     * 予想（直近配当の年換算）を主に出す。日本で「配当利回り」として
-     * 見慣れているのは予想ベースで、他社サイトの表示とも一致するため。
-     * 予想が無い銘柄は実績を出す。どちらを出しているかは必ず注記する。
+     * 予想を主・実績を控えにする判定そのものは static/js/dividend-basis.js が
+     * 唯一の正（一覧とこのページで基準が食い違っていたため集約した）。
+     * ここでやるのは「利回りが欠損でもDPS=0なら無配と分かる」という
+     * このページ専用の補完だけ。
      */
     function dividendForDisplay(data) {
-        const forward = data.dividend_yield_forward;
         const trailing = resolvedDividendYield(data);
-        if (forward !== null && forward !== undefined) {
-            return { value: forward, basis: 'forward', trailing: trailing,
-                     dpsForecast: data.dps_forecast };
-        }
-        return { value: trailing, basis: 'trailing', trailing: trailing };
+        const picked = DividendBasis.pick(
+            Object.assign({}, data, { dividend_yield: trailing }));
+        return { value: picked.value, basis: picked.basis, trailing: trailing,
+                 dpsForecast: picked.dpsForecast };
     }
 
     function updateDividendBasisNote(info) {
@@ -3032,6 +3087,41 @@
         const liabYen = latestLiab ? latestLiab.value : (data.current_liabilities ? data.current_liabilities * 1e8 : null);
         const currentLiabDisplay = document.getElementById('current-liab-display');
         if (currentLiabDisplay) currentLiabDisplay.textContent = liabYen !== null ? formatAmount(liabYen, 'JPY') : '---';
+
+        // 有利子負債・利益剰余金。cf_history にしか入らない項目なので
+        // スカラー列のフォールバックは無い（分析し直すと入る）。
+        const latestDebt = latestOf((cfHistory && cfHistory.interest_bearing_debt) || []);
+        const debtDisplay = document.getElementById('debt-display');
+        if (debtDisplay && latestDebt) debtDisplay.textContent = formatAmount(latestDebt.value, 'JPY');
+
+        // 純有利子負債＝有利子負債−現預金。**同じ決算期の値どうしでだけ引く。**
+        // 期がずれた数字を引くと、増資や大型返済のあった年に実態と逆の符号が出る。
+        const netDebtDisplay = document.getElementById('net-debt-display');
+        if (netDebtDisplay && latestDebt && latestCash && latestDebt.date === latestCash.date) {
+            const netDebt = latestDebt.value - latestCash.value;
+            netDebtDisplay.textContent = formatAmount(netDebt, 'JPY');
+            // マイナス＝手元資金で借金を返せる。ここだけは色を付ける価値がある
+            netDebtDisplay.style.color = netDebt <= 0 ? 'var(--success-color)' : '';
+            if (netDebt <= 0) netDebtDisplay.title = '手元の現預金で有利子負債を返せる状態（実質無借金）';
+        }
+
+        // 貸借対照表は取れたのに 'Total Debt' の行が無い銘柄がある（実測で1割強）。
+        // 「まだ取っていない」のと区別できるので、---のままにせずそう書く。
+        // ⚠️「無借金」とは書かない。取得元に行が無いことしか分かっていない。
+        if (debtDisplay && !latestDebt && (cfHistory && (cfHistory.retained_earnings || []).length)) {
+            debtDisplay.textContent = '取得元に収録されていません';
+            debtDisplay.style.color = '#a3a3a3';
+            debtDisplay.style.fontSize = '0.72rem';
+            debtDisplay.style.fontWeight = '400';
+        }
+
+        const latestRetained = latestOf((cfHistory && cfHistory.retained_earnings) || []);
+        const retainedDisplay = document.getElementById('retained-display');
+        if (retainedDisplay && latestRetained) {
+            retainedDisplay.textContent = formatAmount(latestRetained.value, 'JPY');
+            // 利益剰余金がマイナス＝過去の累積赤字が残っている（繰越欠損）
+            if (latestRetained.value < 0) retainedDisplay.style.color = 'var(--danger-color)';
+        }
 
         // 流動比率は流動資産÷流動負債で算出する。同じ決算期の値どうしでだけ割る。
         const latestAssets = latestOf(assetsSeries);

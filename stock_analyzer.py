@@ -475,6 +475,12 @@ class StockAnalyzer:
             "cash": [],  # 現金等
             "current_assets_list": [],  # 流動資産（5年分）
             "current_liabilities_list": [],  # 流動負債（5年分）
+            # 有利子負債と利益剰余金は流動負債とは別物。
+            #   流動負債     … 1年以内に払うもの全部（買掛金・未払金も入る）
+            #   有利子負債   … そのうち利息が付くものだけ＋固定負債側の長期借入金
+            #   利益剰余金   … 負債ではなく純資産の中身（過去の利益の積み上げ）
+            "interest_bearing_debt": [],  # 有利子負債（5年分・リース債務を含む）
+            "retained_earnings": [],  # 利益剰余金（5年分）
             "equity_ratio_list": [],  # 自己資本比率（5年分）
             "roe": [],  # ROE
             "roa": [],  # ROA
@@ -881,7 +887,13 @@ class StockAnalyzer:
                 equity_keys = ['Total Stockholder Equity', 'Total Stockholders Equity', 
                               'Total Equity', "Total shareholders' equity", 'Stockholder Equity']
                 assets_keys = ['Total Assets', 'Total Asset']
-                liab_keys = ['Total Liabilities', 'Total Liab', 'Total Debt']
+                # ⚠️ 候補に 'Total Debt' を混ぜないこと。yfinance の Total Debt は
+                # **有利子負債**（借入金＋社債＋リース）であって総負債ではない。
+                # 混ぜると 総資産＝自己資本＋有利子負債 という小さすぎる分母になり、
+                # 自己資本比率が実際より高く出る（367A なら 39% が 50% になる）。
+                # yfinance の総負債の行名は 'Total Liabilities Net Minority Interest'。
+                liab_keys = ['Total Liabilities Net Minority Interest',
+                             'Total Liabilities', 'Total Liab']
                 
                 total_equity = _get_balance_sheet_value(equity_keys, balance_sheet, balance_sheet.columns[0])
                 total_assets = _get_balance_sheet_value(assets_keys, balance_sheet, balance_sheet.columns[0])
@@ -1365,6 +1377,32 @@ class StockAnalyzer:
                                 })
                                 break
                     
+                    # 有利子負債。yfinance の 'Total Debt' は
+                    # 短期借入金＋長期借入金＋リース債務。
+                    # ⚠️ 総負債ではない。総負債は 'Total Liabilities Net Minority Interest'。
+                    debt_keys = ['Total Debt']
+                    for key in debt_keys:
+                        if key in balance_sheet.index:
+                            value = balance_sheet.loc[key, col]
+                            if pd.notna(value):
+                                result["interest_bearing_debt"].append({
+                                    "date": date_str,
+                                    "value": float(value)
+                                })
+                                break
+
+                    # 利益剰余金（純資産の中身。稼いだ利益をどれだけ残してきたか）
+                    retained_keys = ['Retained Earnings']
+                    for key in retained_keys:
+                        if key in balance_sheet.index:
+                            value = balance_sheet.loc[key, col]
+                            if pd.notna(value):
+                                result["retained_earnings"].append({
+                                    "date": date_str,
+                                    "value": float(value)
+                                })
+                                break
+
                     # ROE, ROA, 自己資本比率計算用のデータ
                     equity_keys = ['Total Equity', 'Total Stockholder Equity', 
                                   'Total Stockholders Equity', "Total shareholders' equity"]
@@ -1404,7 +1442,9 @@ class StockAnalyzer:
                     equity_keys_5y = ['Total Stockholder Equity', 'Total Stockholders Equity', 
                                      'Total Equity', "Total shareholders' equity", 'Stockholder Equity']
                     assets_keys_5y = ['Total Assets', 'Total Asset']
-                    liab_keys_5y = ['Total Liabilities', 'Total Liab', 'Total Debt']
+                    # 'Total Debt' は有利子負債であって総負債ではない（上の注記と同じ）
+                    liab_keys_5y = ['Total Liabilities Net Minority Interest',
+                                    'Total Liabilities', 'Total Liab']
                     
                     equity_5y = _get_bs_value(equity_keys_5y, balance_sheet, col)
                     assets_5y = _get_bs_value(assets_keys_5y, balance_sheet, col)
