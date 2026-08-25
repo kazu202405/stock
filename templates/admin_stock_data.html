@@ -216,7 +216,8 @@
             <div class="asd-note">
                 <b>金額は億円で入力します</b>（売上高・営業利益・経常利益・純利益）。1株あたりの値と配当性向はそのままの単位です。<br>
                 <b>行は取得済みの決算期だけ</b>出ます。取得できていない期は欄を作れないので、その場合はまず銘柄ページの「更新」で分析し直してください。<br>
-                並びは<b>銘柄ページの「財務データ（直近5年）」と同じ</b>にしてあります。
+                並びは<b>銘柄ページの「財務データ（直近5年）」と同じ</b>（古い期が上）にしてあります。
+                1株配当と配当性向は権利落ち日ベースで日付が数日ずれますが、同じ決算期の行にまとめています。
             </div>
         </div>
 
@@ -378,33 +379,60 @@
         watchChanges();
     }
 
+    /**
+     * 決算期でまとめて1行にする。
+     *
+     * ⚠️ **日付そのものでまとめない。** 1株配当と配当性向だけは権利落ち日
+     *    ベースで、他の項目（期末日）と数日ずれる。トヨタなら売上高が
+     *    2026-03-31、1株配当が 2026-03-28。日付で分けると同じ「2026年03月期」が
+     *    2行に割れ、上の行に売上、下の行に配当という表になる。
+     *    銘柄ページは年でまとめているので、そちらと同じ1行にそろえる。
+     *
+     * ⚠️ 並びは**古い期が上**。銘柄ページの「財務データ（直近5年）」が
+     *    昇順なので合わせる。見比べながら直すときに目が滑らないように。
+     */
+    function periodKey(date) {
+        return String(date || '').slice(0, 7);   // 'YYYY-MM'
+    }
+
     function renderTable(table, history, source) {
-        const dates = new Set();
+        const periods = new Set();
         table.cols.forEach(function (c) {
             (history[c.key] || []).forEach(function (d) {
-                if (d && d.date) dates.add(d.date);
+                if (d && d.date) periods.add(periodKey(d.date));
             });
         });
-        const periods = Array.from(dates).sort().reverse().slice(0, 6);
+        const rows = Array.from(periods).sort().slice(-6);   // 古い順・直近6期
 
         document.getElementById(table.head).innerHTML =
             '<th>決算期</th>' + table.cols.map(function (c) {
                 return `<th>${c.label}</th>`;
             }).join('');
 
-        document.getElementById(table.body).innerHTML = periods.map(function (d) {
+        document.getElementById(table.body).innerHTML = rows.map(function (period) {
             const cells = table.cols.map(function (c) {
-                const found = (history[c.key] || []).find(function (x) { return x.date === d; });
+                const series = history[c.key] || [];
+                const found = series.find(function (x) { return periodKey(x.date) === period; });
+
+                // 空欄に打ち込まれたときの保存先の日付。**その項目の流儀に合わせる。**
+                // 配当は権利落ち日（28日など）、他は期末日。期末日で書くと
+                // 同じ項目の中で日付の流儀が混ざる。
+                let date = found ? found.date : null;
+                if (!date) {
+                    const sample = series[0];
+                    date = sample ? period + sample.date.slice(7) : period + '-31';
+                }
+
                 let v = found ? found.value : null;
                 if (v !== null && v !== undefined && c.amount) v = v / 1e8;
                 const shown = (v === null || v === undefined) ? ''
                     : (c.amount ? Math.round(v * 10) / 10 : v);
                 return `<td><input type="number" step="any"
-                           data-source="${source}" data-type="${c.key}" data-date="${d}"
+                           data-source="${source}" data-type="${c.key}" data-date="${date}"
                            data-amount="${c.amount ? '1' : '0'}"
                            value="${shown}" data-original="${shown}"></td>`;
             }).join('');
-            const label = d.slice(0, 7).replace('-', '年') + '月期';
+            const label = period.replace('-', '年') + '月期';
             return `<tr><td>${label}</td>${cells}</tr>`;
         }).join('');
     }

@@ -176,6 +176,40 @@ class TableFitsTest(unittest.TestCase):
                 '%s の表に %dpx 要るのにページは %dpx しかない' % (name, needed, wrap))
 
 
+class PeriodGroupingTest(unittest.TestCase):
+    """決算期でまとめて1行にする。
+
+    1株配当と配当性向だけは権利落ち日ベースで、他の項目（期末日）と数日ずれる。
+    トヨタなら売上高が 2026-03-31、1株配当が 2026-03-28。日付そのもので
+    まとめると**同じ「2026年03月期」が2行に割れ**、上の行に売上、下の行に
+    配当という表になっていた。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'admin_stock_data.html')
+
+    def test_日付ではなく決算期でまとめる(self):
+        self.assertIn('function periodKey(date)', self.html)
+        self.assertIn("String(date || '').slice(0, 7)", self.html)
+        self.assertIn('periods.add(periodKey(d.date))', self.html)
+
+    def test_古い期が上(self):
+        """銘柄ページの「財務データ（直近5年）」が昇順なので合わせる。
+        見比べながら直すときに目が滑らないように。"""
+        self.assertIn('Array.from(periods).sort().slice(-6)', self.html)
+        self.assertNotIn('.sort().reverse()', self.html)
+
+    def test_銘柄ページも昇順であること(self):
+        """片方だけ直しても意味がない。並びが逆だと見比べられない。"""
+        detail = read('templates', 'stock_detail.html')
+        self.assertIn('.sort((a, b) => a - b)', detail)
+
+    def test_空欄の保存先はその項目の流儀に合わせる(self):
+        """配当は権利落ち日（28日など）、他は期末日。期末日で書くと
+        同じ項目の中で日付の流儀が混ざる。"""
+        self.assertIn("date = sample ? period + sample.date.slice(7)", self.html)
+
+
 class CfHistoryKeyTest(unittest.TestCase):
     """CF表のキーは cf_history の実際のキー名を使う。
 
