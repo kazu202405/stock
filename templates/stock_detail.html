@@ -1342,16 +1342,29 @@
         <div class="detail-card{% if not is_member %} members-only{% endif %}">
             <div class="detail-header">財務健全性</div>
             <div class="detail-content">
+                {# 並びは貸借対照表の読み順にしてある。
+                   左（持っているもの）→ 右の1年以内 → その比率 →
+                   右の借金 → 差し引き → 純資産、と上から降りられる。
+
+                   ⚠️ 流動資産の行を省かないこと。省くと画面には
+                   「現預金37億／流動負債100億／流動比率125%」が並び、
+                   読んだ人が 37÷100 で検算して合わない。
+                   分子（流動資産125億）が画面に無いのが原因だった。
+                   隣に並ぶ数字は検算できる状態にしておく。 #}
                 <div class="detail-row">
                     <span class="detail-label">現預金</span>
                     <span class="detail-value" id="cash-display">---</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" title="1年以内に現金化できる資産（現預金・売掛金・在庫など）">流動資産</span>
+                    <span class="detail-value" id="current-assets-display">---</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">流動負債</span>
                     <span class="detail-value" id="current-liab-display">---</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">流動比率</span>
+                    <span class="detail-label" title="流動資産 ÷ 流動負債。1年以内に入るお金で、1年以内に払うお金をまかなえるか">流動比率</span>
                     <span class="detail-value" id="current-ratio-display">---</span>
                 </div>
                 {# 有利子負債は流動負債の一部ではない。1年以内に返す借入金に加えて
@@ -1369,13 +1382,18 @@
                     <span class="detail-label" title="創業から積み上げてきた利益の残り。純資産の中身であって負債ではありません">利益剰余金</span>
                     <span class="detail-value" id="retained-display">---</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">配当性向</span>
-                    <span class="detail-value" id="payout-ratio-display">---</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">信用倍率</span>
-                    <span class="detail-value" id="margin-ratio-display">---</span>
+                {# ここから下は貸借対照表の項目ではない
+                   （配当性向は損益と配当、信用倍率は需給）。
+                   上のBSの塊と地続きに見えないよう線で切る。 #}
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+                    <div class="detail-row">
+                        <span class="detail-label">配当性向</span>
+                        <span class="detail-value" id="payout-ratio-display">---</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">信用倍率</span>
+                        <span class="detail-value" id="margin-ratio-display">---</span>
+                    </div>
                 </div>
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
                     <div class="detail-row">
@@ -2370,13 +2388,15 @@
             if (latestRetainedRow.value < 0) retainedDisplay.style.color = 'var(--danger-color)';
         }
 
+        // 流動資産。流動比率の分子なので、比率だけ出して分子を隠さない
+        const latestCurrentAssets = latestByDate(data.current_assets_list);
+        const currentAssetsDisplay = document.getElementById('current-assets-display');
+        if (currentAssetsDisplay && latestCurrentAssets) {
+            currentAssetsDisplay.textContent = formatAmount(latestCurrentAssets.value, window.currentCurrency);
+        }
+
         const currentRatioDisplay = document.getElementById('current-ratio-display');
         if (currentRatioDisplay && latestCurrentLiab) {
-            const currentAssetsList = data.current_assets_list || [];
-            let latestCurrentAssets = null;
-            if (currentAssetsList.length > 0) {
-                latestCurrentAssets = [...currentAssetsList].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-            }
             if (latestCurrentAssets && latestCurrentLiab.value > 0) {
                 const currentRatio = (latestCurrentAssets.value / latestCurrentLiab.value) * 100;
                 currentRatioDisplay.textContent = `${currentRatio.toFixed(1)}%`;
@@ -3125,6 +3145,11 @@
 
         // 流動比率は流動資産÷流動負債で算出する。同じ決算期の値どうしでだけ割る。
         const latestAssets = latestOf(assetsSeries);
+        // 分子も画面に出す。出さないと流動比率が検算できない
+        const currentAssetsDisplay = document.getElementById('current-assets-display');
+        if (currentAssetsDisplay && latestAssets) {
+            currentAssetsDisplay.textContent = formatAmount(latestAssets.value, 'JPY');
+        }
         let currentRatio = null;
         if (latestAssets && latestLiab && latestAssets.date === latestLiab.date && latestLiab.value > 0) {
             currentRatio = (latestAssets.value / latestLiab.value) * 100;

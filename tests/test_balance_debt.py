@@ -146,5 +146,44 @@ class BuildCfHistoryTest(unittest.TestCase):
         self.assertEqual(source.count('cf_history = build_cf_history(stock_data)'), 3)
 
 
+class FinancialHealthCardTest(unittest.TestCase):
+    """財務健全性カードは、並ぶ数字どうしで検算できる状態にしておく。
+
+    2026-08-25: 「現預金37億 / 流動負債100億 / 流動比率125%」が並んでいて、
+    読んだ人が 37÷100 で検算すると合わなかった。分子の流動資産125億が
+    画面に無かったため。同じカードの純有利子負債は 181−37=143 と検算できる
+    ので、片方だけ合わないことがかえって混乱を生んでいた。
+    """
+
+    def setUp(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, 'templates', 'stock_detail.html'),
+                  encoding='utf-8') as f:
+            self.html = f.read()
+
+    def test_流動比率を出すなら分子も出す(self):
+        self.assertIn('id="current-assets-display"', self.html)
+        self.assertLess(self.html.index('id="current-assets-display"'),
+                        self.html.index('id="current-ratio-display"'),
+                        '流動資産は流動比率より前に置く')
+
+    def test_純有利子負債の材料が同じカードに揃っている(self):
+        for element in ('cash-display', 'debt-display', 'net-debt-display'):
+            self.assertIn('id="%s"' % element, self.html, element)
+
+    def test_並びは貸借対照表の読み順(self):
+        order = ['cash-display', 'current-assets-display', 'current-liab-display',
+                 'current-ratio-display', 'debt-display', 'net-debt-display',
+                 'retained-display']
+        positions = [self.html.index('id="%s"' % e) for e in order]
+        self.assertEqual(positions, sorted(positions),
+                         '左の資産 → 1年以内 → 借金 → 差し引き → 純資産 の順')
+
+    def test_両方の描画経路が流動資産を埋める(self):
+        """キャッシュから描く経路と分析し直した直後の経路の2つがある。
+        片方だけ足すと「分析し直すと項目が消える」ように見える。"""
+        self.assertEqual(self.html.count("getElementById('current-assets-display')"), 2)
+
+
 if __name__ == '__main__':
     unittest.main()
