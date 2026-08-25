@@ -250,8 +250,40 @@ def member_required_api(f):
     return decorated
 
 
+def admin_required_api(f):
+    """API用 管理者必須デコレータ。
+
+    運用系（全銘柄の再取得・スクレイピング・再計算）と、利用者ごとに
+    分かれていない共有データ（ウォッチリスト・高配当フラグ）を守る。
+
+    2026-08-25 の点検で、これらが**認証なしで叩ける**状態だと分かった。
+    漏洩ではなく「外から起動される」ことが実害で、
+      - 全3,880銘柄の再取得が走り、Yahooから遮断される
+      - EDINET DBの無料枠（100回/日）を使い切られる
+    という形で出る。実際この日、別件でYahoo!JPから3時間遮断されている。
+
+    ⚠️ 判定は session['user_role'] を使う。_require_admin()（ページ側）と
+    /api/admin/stock/safe-refresh が同じものを見ており、これは
+    GIA_ADMIN_EMAILS でも app_users.role でも admin になる。
+    role_required('admin') は app_users.role しか見ないため、メール基準の
+    管理者だと「管理画面は開けるのにボタンだけ403」になる。
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_id'):
+            return jsonify({"error": "ログインが必要です"}), 401
+        if session.get('user_role') != 'admin':
+            return jsonify({"error": "管理者権限が必要です"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 def role_required(*roles):
-    """指定ロール必須デコレータ（例: @role_required('agent', 'admin')）"""
+    """指定ロール必須デコレータ（例: @role_required('agent', 'admin')）
+
+    ⚠️ role は app_users.role。メール基準（GIA_ADMIN_EMAILS）の管理者は
+    ここを通らないので、管理者向けAPIには admin_required_api を使うこと。
+    """
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -729,6 +761,7 @@ def api_get_watchlist():
 
 
 @app.route('/api/watchlist/add', methods=['POST'])
+@admin_required_api
 def api_add_to_watchlist():
     """銘柄をウォッチリストに登録"""
     try:
@@ -895,6 +928,7 @@ def api_add_to_watchlist():
 
 
 @app.route('/api/watchlist/remove/<company_code>', methods=['DELETE'])
+@admin_required_api
 def api_remove_from_watchlist(company_code):
     """銘柄をウォッチリストから削除"""
     try:
@@ -906,6 +940,7 @@ def api_remove_from_watchlist(company_code):
 
 
 @app.route('/api/watchlist/remove-all', methods=['DELETE'])
+@admin_required_api
 def api_remove_all_from_watchlist():
     """ウォッチリストを全件削除"""
     try:
@@ -999,6 +1034,7 @@ def api_update_watchlist():
 ANALYZE_TIMEOUT = 60
 
 @app.route('/api/stock/analyze', methods=['POST'])
+@member_required_api
 def analyze_stock():
     """
     株式データを分析してJSON形式で返す
@@ -1272,6 +1308,7 @@ def _fetch_and_save_dc_stocks():
 
 
 @app.route('/api/gc-stocks/scrape', methods=['POST'])
+@admin_required_api
 def api_scrape_gc_stocks():
     """kabutan.jpからGC銘柄をスクレイピングしてsignal_stocksに保存"""
     try:
@@ -1658,6 +1695,7 @@ def _analyze_wl_background(codes):
 
 
 @app.route('/api/gc-stocks/analyze', methods=['POST'])
+@admin_required_api
 def api_analyze_gc_stocks():
     """GC銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
     global gc_analyze_status
@@ -1703,6 +1741,7 @@ def api_analyze_gc_stocks():
 
 
 @app.route('/api/gc-stocks/analyze/stop', methods=['POST'])
+@admin_required_api
 def api_gc_analyze_stop():
     """GC分析を停止"""
     global gc_analyze_status
@@ -1720,6 +1759,7 @@ def api_gc_analyze_status():
 
 # ウォッチリスト一括分析API
 @app.route('/api/watchlist/analyze', methods=['POST'])
+@admin_required_api
 def api_analyze_watchlist():
     """ウォッチリスト銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
     global wl_analyze_status
@@ -1771,6 +1811,7 @@ def api_analyze_watchlist():
 
 
 @app.route('/api/watchlist/analyze/stop', methods=['POST'])
+@admin_required_api
 def api_wl_analyze_stop():
     """ウォッチリスト分析を停止"""
     global wl_analyze_status
@@ -1787,6 +1828,7 @@ def api_wl_analyze_status():
 
 
 @app.route('/api/watchlist/recalculate', methods=['POST'])
+@admin_required_api
 def api_recalculate_match_rates():
     """ウォッチリスト全銘柄の合致度を既存データから再計算"""
     try:
@@ -1857,6 +1899,7 @@ def api_get_dividend_stocks():
 
 
 @app.route('/api/dividend-stocks/add', methods=['POST'])
+@admin_required_api
 def api_add_dividend_stock():
     """銘柄に高配当フラグを設定"""
     try:
@@ -1873,6 +1916,7 @@ def api_add_dividend_stock():
 
 
 @app.route('/api/dividend-stocks/remove/<company_code>', methods=['DELETE'])
+@admin_required_api
 def api_remove_dividend_stock(company_code):
     """高配当フラグを解除"""
     try:
@@ -1913,6 +1957,7 @@ def _analyze_div_background(codes):
 
 
 @app.route('/api/dividend-stocks/analyze', methods=['POST'])
+@admin_required_api
 def api_analyze_dividend_stocks():
     """高配当銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
     global div_analyze_status
@@ -1964,6 +2009,7 @@ def api_analyze_dividend_stocks():
 
 
 @app.route('/api/dividend-stocks/analyze/stop', methods=['POST'])
+@admin_required_api
 def api_div_analyze_stop():
     """高配当分析を停止"""
     global div_analyze_status
@@ -2082,6 +2128,7 @@ def _analyze_tech_background(codes):
 
 
 @app.route('/api/technical-stocks/analyze', methods=['POST'])
+@admin_required_api
 def api_analyze_technical_stocks():
     """テクニカル銘柄の詳細分析をバックグラウンドで開始（未分析のみ）"""
     global tech_analyze_status
@@ -2261,6 +2308,7 @@ def _translate_summary_to_jp(english_text):
 
 
 @app.route('/api/stock/summary-jp/<company_code>', methods=['POST'])
+@member_required_api
 def api_retry_summary_jp(company_code):
     """日本語事業概要を無料ソース優先で再取得し、最後にEDINET DBで補完する。"""
     try:
@@ -2526,6 +2574,7 @@ def api_earnings_announced():
 
 
 @app.route('/api/earnings/update', methods=['POST'])
+@admin_required_api
 def api_update_earnings():
     """決算発表のあった銘柄（未処理分すべて）の財務データを更新する"""
     global earnings_status
@@ -2556,6 +2605,7 @@ def api_earnings_status():
 
 
 @app.route('/api/earnings/update/stop', methods=['POST'])
+@admin_required_api
 def api_stop_earnings():
     earnings_status["stop_requested"] = True
     return jsonify({"stopping": True}), 200
@@ -2651,6 +2701,7 @@ def _update_daily_and_recalc_background():
 
 
 @app.route('/api/price-history/update', methods=['POST'])
+@admin_required_api
 def api_update_daily_prices():
     """日足を更新し、続けてGC/DCを再計算する（バックグラウンド）"""
     global daily_update_status
@@ -2669,12 +2720,14 @@ def api_update_daily_status():
 
 
 @app.route('/api/price-history/update/stop', methods=['POST'])
+@admin_required_api
 def api_stop_daily_update():
     daily_update_status["stop_requested"] = True
     return jsonify({"stopping": True}), 200
 
 
 @app.route('/api/ma-crosses/recalculate', methods=['POST'])
+@admin_required_api
 def api_recalc_ma_crosses():
     """保存済みの日足からGC/DC発生日を再計算する（バックグラウンド）"""
     global ma_cross_status
@@ -2693,6 +2746,7 @@ def api_ma_crosses_status():
 
 
 @app.route('/api/ma-crosses/stop', methods=['POST'])
+@admin_required_api
 def api_stop_ma_crosses():
     ma_cross_status["stop_requested"] = True
     return jsonify({"stopping": True}), 200
@@ -3884,7 +3938,26 @@ def api_fetch_holders_officers(company_code):
     全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
     EDINET DBのFree枠（100回/日）を閲覧された銘柄に優先して使う設計。
     画面はキャッシュで先に描画され、この呼び出しは後追いで走る。
+
+    ⚠️ ここは**公開ページが自動で叩く**ので会員限定にできない。
+    会員限定にすると /stock/<code> の株主欄が非会員に出なくなり、
+    公開ページのSEOごと落ちる。代わりに
+    「非会員には保存済みだけ返し、外部へは取りに行かない」にする。
+    無料枠（100回/日）を外から使い切られる経路を塞ぐのが目的なので、
+    枠を使う側だけを止めれば足りる。
     """
+    if not is_member_session():
+        code = normalize_code(company_code)
+        row = get_screened_data(code) or {}
+        return jsonify({
+            'company_code': code,
+            'major_shareholders_jp': row.get('major_shareholders_jp') or [],
+            'major_holders': row.get('major_holders'),
+            'institutional_holders': row.get('institutional_holders'),
+            'company_officers': row.get('company_officers'),
+            'fetched': False,
+        }), 200
+
     payload, status = fetch_and_store_holders_officers(company_code)
     return jsonify(payload), status
 
@@ -5110,6 +5183,7 @@ def api_scheduler_status():
 
 
 @app.route('/api/scheduler/trigger', methods=['POST'])
+@admin_required_api
 def api_scheduler_trigger():
     """GC/DC取得を今すぐ手動実行（テスト用）"""
     try:
@@ -5124,6 +5198,7 @@ def api_scheduler_trigger():
 
 
 @app.route('/api/scheduler/trigger-price-update', methods=['POST'])
+@admin_required_api
 def api_scheduler_trigger_price_update():
     """株価バッチ更新を今すぐ手動実行（テスト用）"""
     try:

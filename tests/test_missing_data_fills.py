@@ -278,6 +278,12 @@ class HoldersOnDemandTest(unittest.TestCase):
         self.app_module = app_module
         app_module.app.config['TESTING'] = True
         self.client = app_module.app.test_client()
+        # 2026-08-25: 外部への取得は会員だけになった。非会員には保存済みだけを
+        # 返す（EDINET DBの無料枠を外から使い切られないため）。ここで見たいのは
+        # 取得の作法そのものなので、会員としてログインした状態で叩く。
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 'test-member'
+            sess['user_role'] = 'admin'
 
     def _status(self, status, hours_ago):
         from datetime import datetime, timezone, timedelta
