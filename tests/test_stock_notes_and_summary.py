@@ -87,10 +87,27 @@ class StockNotesSectionTest(unittest.TestCase):
         self.assertIn('escapeText(n.content', self.html)
         self.assertIn('escapeText(n.title', self.html)
 
-    def test_無いときは見出しごと出さない(self):
-        self.assertIn("if (!notes.length) return;", self.html)
+    def test_読むだけの人には空の見出しを出さない(self):
+        """書ける人（ログイン中）には0件でもセクションを出す。
+        「自分もノートを書く」の導線がここにしか無いため。"""
+        self.assertIn('const canWrite = !!document.querySelector', self.html)
+        self.assertIn('if (!canWrite) return;', self.html)
         self.assertIn('id="stock-notes-card" style="grid-column: 1 / -1; display: none;"',
                       self.html)
+
+    def test_上のボタンに件数を出す(self):
+        """ページ下部に置くと気づかれない。**下に何かあることを数字で伝える**
+        のがその唯一の仕掛け。0件ならボタンごと隠す。"""
+        self.assertIn('notesJumpCount', self.html)
+        self.assertIn("jump.style.display = 'none'", self.html)
+
+    def test_モーダルをやめて移動にする(self):
+        """同じ中身をモーダルとページの両方に持っていて二重だった。
+        ノートは長文なので、狭いモーダルより本文の流れで読むほうが読みやすい。"""
+        self.assertNotIn('notesModal', self.html)
+        self.assertNotIn('loadCommunityNotes', self.html)
+        self.assertIn('function jumpToNotes()', self.html)
+        self.assertIn("scrollIntoView({ behavior: 'smooth'", self.html)
 
     def test_書いた人の名前を出す(self):
         """「運営の見解」ではなく一意見として見せる。"""
@@ -103,6 +120,37 @@ class StockNotesSectionTest(unittest.TestCase):
     def test_改行が潰れない(self):
         """長文を1段落に潰さない。"""
         self.assertIn('white-space: pre-wrap', self.html)
+
+
+class PosterNameTest(unittest.TestCase):
+    """投稿者名はアカウントの表示名に一本化する（2026-08-25）。
+
+    以前は投稿した時点の名前を1件ずつ焼き付けていた（poster_name）。
+    表示名を変えると過去のノートは古い名前のまま残り、**同じ人が何人も
+    いるように見えた**。会員が5人しかいない場では、これは実態を誤って見せる。
+
+    名前は読むときにアカウントから引く。変えれば過去の投稿も一緒に変わる。
+    """
+
+    def test_投稿ごとの名前を保存しない(self):
+        source = read('app.py')
+        block = source.split('def api_create_note', 1)[1].split('
+def ', 1)[0]
+        self.assertIn("data.pop('poster_name', None)", block)
+
+    def test_投稿名の入力欄を置かない(self):
+        for name in ('mypage.html', 'stock_detail.html'):
+            html = read('templates', name)
+            self.assertNotIn('この投稿だけの表示名', html, name)
+            self.assertNotIn('noteFormPosterName', html) if name == 'stock_detail.html' else None
+
+    def test_読むときにアカウントから引く(self):
+        source = read('app.py')
+        self.assertIn('_resolve_display_name', source)
+        # ノートの一覧で解決していること
+        block = source.split('def api_get_notes', 1)[1].split('
+def ', 1)[0]
+        self.assertIn('_resolve_display_name(note, user_map)', block)
 
 
 class PublishConsentTest(unittest.TestCase):

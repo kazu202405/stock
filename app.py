@@ -4405,6 +4405,13 @@ def api_create_note():
         if not data.get('content'):
             return jsonify({"error": "本文は必須です"}), 400
 
+        # ⚠️ 投稿ごとの表示名は保存しない（2026-08-25）。
+        # 以前は投稿した時点の名前を1件ずつ焼き付けていたため、表示名を変えると
+        # 過去のノートは古い名前のまま残り、**同じ人が何人もいるように見えた**。
+        # 会員が5人しかいない場では、これは実態を誤って見せることになる。
+        # 名前は読むときにアカウントから引く（_resolve_display_name）。
+        data.pop('poster_name', None)
+
         note = create_note(user_id, data)
         return jsonify({"note": note}), 201
     except Exception as e:

@@ -1203,12 +1203,11 @@
             </div>
 
             <div class="space-y-4">
-                <!-- 投稿名 -->
-                <div x-show="form.is_public">
-                    <label class="form-label">投稿名</label>
-                    <input type="text" class="form-input" x-model="form.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
-                    <p class="text-xs mt-1" style="color:#525252;">この投稿だけの表示名を設定できます</p>
-                </div>
+                {# 投稿ごとの表示名はやめた（2026-08-25）。
+                   投稿した時点の名前を1件ずつ焼き付けていたため、表示名を変えると
+                   過去のノートは古い名前のまま残り、**同じ人が何人もいるように
+                   見えた**。名前はアカウントの表示名（ヘッダーの「投稿名を変更」）
+                   に一本化し、読むときに引く。変えれば過去の投稿も一緒に変わる。 #}
 
                 <!-- 銘柄。コードを入れると企業名が自動で入る。
                      ノートは「どの会社の話か」が主役なので、タイトルより先に置く -->
@@ -1289,7 +1288,7 @@
                              代わりに結果（実際にどう表示されるか）をそのまま出す。 -->
                         <p class="text-xs" style="color:#525252;">
                             いまの表示名：<span style="font-weight:600;"
-                                x-text="form.is_anonymous ? '匿名ユーザー' : ((form.poster_name || '').trim() || displayName || 'あなたの名前')"></span>
+                                x-text="form.is_anonymous ? '匿名ユーザー' : (displayName || 'あなたの名前')"></span>
                         </p>
                     </div>
                     <div class="toggle-switch" :class="{ 'on': form.is_anonymous }" @click="form.is_anonymous = !form.is_anonymous">
@@ -1824,7 +1823,7 @@ function mypageApp() {
             this.form = {
                 title: '', content: '', company_code: '', company_name: '',
                 stars: 0, tagsInput: '', is_public: false, is_anonymous: false,
-                poster_name: this.displayName,
+
             };
             this.showModal = true;
         },
@@ -1840,7 +1839,7 @@ function mypageApp() {
                 tagsInput: (note.tags || []).join(', '),
                 is_public: note.is_public || false,
                 is_anonymous: note.is_anonymous || false,
-                poster_name: note.poster_name || this.displayName,
+
             };
             this.showModal = true;
         },
@@ -1899,7 +1898,7 @@ function mypageApp() {
                 tags: tags,
                 is_public: this.form.is_public,
                 is_anonymous: this.form.is_anonymous,
-                poster_name: (this.form.poster_name || '').trim() || null,
+
             };
             try {
                 let res;

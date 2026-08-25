@@ -992,8 +992,14 @@
         {# ここもインラインstyleだと折り返せず、スマホでお気に入りボタンが切れる #}
         <div class="detail-header-nav">
             <a href="/dashboard/admin" class="back-link">← 一覧に戻る</a>
-            <button onclick="openNotesModal()" style="padding: 6px 14px; background: white; color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
+            {# モーダルではなくページ下部の「この会社のノート」へ移動する。
+               同じ中身をモーダルとページの両方に持っていて二重だった。
+               ノートは長文なので、狭いモーダルより本文の流れで読むほうが
+               読みやすい（ページに置けば検索エンジンにも載る）。
+               ノートが無いときはボタンごと隠す（押しても何も無い所へ飛ぶだけ）。 #}
+            <button id="notesJumpBtn" onclick="jumpToNotes()" style="display:none; padding: 6px 14px; background: white; color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
                 <i class="fas fa-comments" style="margin-right: 4px;"></i>みんなのノート
+                <span id="notesJumpCount" style="margin-left:2px;"></span>
             </button>
             <button id="favoriteBtn" onclick="toggleFavorite()" style="padding: 6px 14px; background: white; color: #525252; border: 1px solid #d4d4d4; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.2s;" title="お気に入り">
                 <span id="favoriteBtnText">☆ お気に入りに登録</span>
@@ -1502,6 +1508,17 @@
         </div>
         <div class="detail-content">
             <div id="stock-notes-list"></div>
+            <div id="stock-notes-empty" style="display:none; text-align:center; padding:28px 20px; color:#a3a3a3; font-size:0.82rem;">
+                <i class="fas fa-sticky-note" style="font-size:22px; display:block; margin-bottom:8px;"></i>
+                この会社のノートはまだありません
+            </div>
+            {% if is_logged_in %}
+            <div style="margin-top:14px; text-align:center;">
+                <button onclick="openWriteNoteModal()" style="padding:8px 24px; background:#1b4332; color:#fff; border:none; border-radius:6px; font-size:0.8rem; font-weight:500; cursor:pointer;">
+                    自分もノートを書く
+                </button>
+            </div>
+            {% endif %}
             <p style="margin-top:14px; font-size:11.5px; color:#a3a3a3; line-height:1.7;">
                 ノートは書いた人の見方であって、会社の公式見解でも売買の勧めでもありません。
             </p>
@@ -2794,7 +2811,31 @@
             if (!res.ok) return;
             const data = await res.json();
             const notes = data.notes || [];
-            if (!notes.length) return;   // 無いときは見出しごと出さない
+
+            // 上のボタンにも件数を出す。**下に何かあることを数字で伝える**のが
+            // 「ページ下部だと気づかない」を消す唯一の仕掛け。0件なら出さない。
+            const jump = document.getElementById('notesJumpBtn');
+            const jumpCount = document.getElementById('notesJumpCount');
+            if (jump && notes.length) {
+                if (jumpCount) jumpCount.textContent = `${notes.length}件`;
+                jump.style.display = '';
+            } else if (jump) {
+                jump.style.display = 'none';
+            }
+
+            const empty = document.getElementById('stock-notes-empty');
+            if (!notes.length) {
+                // 書ける人には空でもセクションを出す（書く導線がここにしか無い）。
+                // 読むだけの人には出さない（空の見出しだけが並ぶのを避ける）
+                const canWrite = !!document.querySelector('#stock-notes-card button');
+                if (!canWrite) return;
+                if (empty) empty.style.display = '';
+                list.innerHTML = '';
+                document.getElementById('stock-notes-count').textContent = '';
+                card.style.display = '';
+                return;
+            }
+            if (empty) empty.style.display = 'none';
 
             document.getElementById('stock-notes-count').textContent = `${notes.length}件`;
             list.innerHTML = notes.map(function (n) {
@@ -3693,89 +3734,14 @@
     // =============================================
     // みんなのノート モーダル
     // =============================================
-    let notesLoaded = false;
-
-    function openNotesModal() {
-        document.getElementById('notesModal').style.display = 'flex';
-        if (!notesLoaded) {
-            loadCommunityNotes();
-        }
+    // ノートはページ下部の「この会社のノート」に出す。ここは移動するだけ。
+    function jumpToNotes() {
+        const card = document.getElementById('stock-notes-card');
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function closeNotesModal() {
-        document.getElementById('notesModal').style.display = 'none';
-    }
-
-    async function loadCommunityNotes() {
-        const container = document.getElementById('notesListContainer');
-        container.innerHTML = '<div style="text-align:center; padding:24px; color:#a3a3a3;">読み込み中...</div>';
-
-        try {
-            const res = await fetch('/api/notes?company_code=' + encodeURIComponent(STOCK_CODE));
-            const data = await res.json();
-            const notes = data.notes || [];
-
-            if (notes.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:40px 20px; color:#a3a3a3;"><i class="fas fa-sticky-note" style="font-size:24px; margin-bottom:8px; display:block;"></i>この銘柄のノートはまだありません</div>';
-            } else {
-                container.innerHTML = notes.map(function(note) {
-                    // const stars = note.stars ? '★'.repeat(note.stars) + '☆'.repeat(5 - note.stars) : '';
-                    const stars = ''; // 理解度非表示
-                    const date = note.created_at ? new Date(note.created_at).toLocaleDateString('ja-JP') : '';
-                    const authorName = note.is_anonymous ? '匿名' : (note.user_name || note.user_id || '');
-                    const tags = (note.tags || []).map(function(t) {
-                        return '<span style="display:inline-block; padding:2px 8px; background:#f3f3f1; border-radius:4px; font-size:0.7rem; color:#737373; margin-right:4px;">' + t + '</span>';
-                    }).join('');
-                    return '<div style="padding:16px; border-bottom:1px solid #f3f3f1;">' +
-                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
-                            '<span style="font-size:0.85rem; font-weight:600; color:#1a1a1a;">' + (note.title || '') + '</span>' +
-                            (stars ? '<span style="color:#f59e0b; font-size:0.75rem; letter-spacing:1px;">' + stars + '</span>' : '') +
-                        '</div>' +
-                        '<p style="font-size:0.8rem; color:#525252; line-height:1.6; margin-bottom:8px; white-space:pre-line;">' + (note.content || '') + '</p>' +
-                        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-                            '<div>' + tags + '</div>' +
-                            '<span style="font-size:0.7rem; color:#a3a3a3;">' + authorName + ' · ' + date + '</span>' +
-                        '</div>' +
-                    '</div>';
-                }).join('');
-            }
-            notesLoaded = true;
-
-            // ノート件数をバッジに反映
-            const badge = document.getElementById('notesBadge');
-            if (badge) badge.textContent = notes.length;
-
-        } catch (e) {
-            container.innerHTML = '<div style="text-align:center; padding:24px; color:#dc2626;">ノートの取得に失敗しました</div>';
-        }
-    }
 </script>
-
-<!-- みんなのノート モーダル -->
-<div id="notesModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;" onclick="if(event.target===this)closeNotesModal()">
-    <div style="background:#fff; border-radius:12px; max-width:560px; width:92%; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.12);">
-        <!-- ヘッダー -->
-        <div style="padding:20px 24px 16px; border-bottom:1px solid #ebebeb; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <h2 style="font-size:1rem; font-weight:600; color:#1a1a1a; margin:0;">みんなのノート</h2>
-                <p style="font-size:0.75rem; color:#a3a3a3; margin:4px 0 0;" id="notesModalCompany"></p>
-            </div>
-            <button onclick="closeNotesModal()" style="background:none; border:none; cursor:pointer; color:#a3a3a3; padding:4px 8px; font-size:1.1rem;">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <!-- ノート一覧 -->
-        <div id="notesListContainer" style="flex:1; overflow-y:auto; min-height:200px;">
-            <div style="text-align:center; padding:24px; color:#a3a3a3;">読み込み中...</div>
-        </div>
-        <!-- フッター -->
-        <div style="padding:12px 24px; border-top:1px solid #ebebeb; text-align:center;">
-            <button onclick="closeNotesModal(); openWriteNoteModal();" style="display:inline-block; padding:8px 24px; background:#1b4332; color:white; border:none; border-radius:6px; font-size:0.8rem; font-weight:500; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#2d6a4f'" onmouseout="this.style.background='#1b4332'">
-                自分もノートを書く
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- ===== ノート作成モーダル ===== -->
 <div id="writeNoteModal" class="demo-modal-overlay" style="display:none;" onclick="if(event.target===this)closeWriteNoteModal()">
@@ -3788,12 +3754,10 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:14px;">
-            <!-- 投稿名（公開時のみ） -->
-            <div id="noteFieldPosterName" style="display:none;">
-                <label class="note-form-label">投稿名</label>
-                <input type="text" class="note-form-input" id="noteFormPosterName" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
-                <p style="font-size:11px; color:#a3a3a3; margin-top:3px;">この投稿だけの表示名を設定できます</p>
-            </div>
+            {# 投稿ごとの表示名はやめた（2026-08-25）。投稿した時点の名前を
+               1件ずつ焼き付けていたため、表示名を変えると過去のノートは古い名前の
+               まま残り、**同じ人が何人もいるように見えた**。名前はアカウントの
+               表示名に一本化し、読むときに引く。 #}
 
             <!-- タイトル -->
             <div>
@@ -3873,14 +3837,6 @@
 </div>
 
 <script>
-    // モーダル内の企業名を設定
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(function() {
-            const name = document.getElementById('companyName');
-            const modal = document.getElementById('notesModalCompany');
-            if (name && modal) modal.textContent = name.textContent;
-        }, 1000);
-    });
 </script>
 
 <script>
@@ -3901,7 +3857,6 @@
         document.getElementById('noteFormTitle').value = '';
         document.getElementById('noteFormContent').value = '';
         document.getElementById('noteFormTags').value = '';
-        document.getElementById('noteFormPosterName').value = '';
 
         /* 銘柄情報を自動入力 */
         var code = (typeof STOCK_CODE !== 'undefined') ? STOCK_CODE.replace('.T', '') : '';
@@ -3954,16 +3909,13 @@
         var pubToggle = document.getElementById('noteTogglePublic');
         var anonField = document.getElementById('noteFieldAnonymous');
         var anonToggle = document.getElementById('noteToggleAnonymous');
-        var posterField = document.getElementById('noteFieldPosterName');
 
         if (noteState.isPublic) {
             pubToggle.classList.add('on');
             anonField.style.display = '';
-            posterField.style.display = '';
         } else {
             pubToggle.classList.remove('on');
             anonField.style.display = 'none';
-            posterField.style.display = 'none';
             noteState.isAnonymous = false;
         }
 
@@ -3994,7 +3946,6 @@
             tags: tags,
             is_public: noteState.isPublic,
             is_anonymous: noteState.isAnonymous,
-            poster_name: (document.getElementById('noteFormPosterName').value || '').trim() || null,
         };
 
         noteState.saving = true;
@@ -4012,10 +3963,8 @@
             if (res.ok) {
                 closeWriteNoteModal();
                 showSuccessModal('ノートを作成しました');
-                /* みんなのノート一覧を次回開いた時にリロードするため再取得 */
-                if (typeof loadCommunityNotes === 'function') {
-                    loadCommunityNotes();
-                }
+                /* 書いたものがその場で下のセクションに出るよう読み直す */
+                loadStockNotes(STOCK_CODE);
             } else {
                 showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。');
             }
