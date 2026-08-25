@@ -1325,7 +1325,19 @@
 
     // ウォッチリストを描画
     // ソート状態
-    let currentSort = { key: null, asc: true };
+    /*
+     * 「好調企業」タブの並び。**既定はスコアの高い順。**
+     *
+     * 以前は並べ替えを設定しておらず、サーバーが返す順（＝登録した順）の
+     * まま出ていた。タブ名は「好調企業」なのに中身は「最近登録した順」で、
+     * 名前と中身がずれていた。開いた人が期待するのは「良い順」のほう。
+     *
+     * 同点のときはGC（ゴールデンクロス）の新しい順。スコアが並んだときに、
+     * 直近で5日線が25日線を上抜けた銘柄を上に出す。
+     * ⚠️ GCは「いつ交差したか」という事実であって、買い時の合図ではない。
+     *    同点の並べ替えに使うだけで、これ自体を推奨の理由にしない。
+     */
+    let currentSort = { key: 'match_rate', asc: false };
 
     // ===== 一覧の表示件数（全タブ共通） =====
     // 数千行を一度に描画すると重いため、既定100件・ボタンで100件ずつ追加する。
@@ -1450,15 +1462,23 @@
         if (!isNaN(divMin)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display >= divMin);
         if (!isNaN(divMax)) list = list.filter(i => i.dividend_yield_display != null && i.dividend_yield_display <= divMax);
 
-        // ソート
+        // ソート。値が無い行は常に最後（昇順でも降順でも）。
+        // 「未取得」を「一番小さい値」として上に出さないため。
+        const compare = (va, vb, asc) => {
+            if (va == null && vb == null) return 0;
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return asc ? va - vb : vb - va;
+        };
         if (currentSort.key) {
             list.sort((a, b) => {
-                let va = a[currentSort.key], vb = b[currentSort.key];
-                if (va == null && vb == null) return 0;
-                if (va == null) return 1;
-                if (vb == null) return -1;
-                if (typeof va === 'string') return currentSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                return currentSort.asc ? va - vb : vb - va;
+                const primary = compare(a[currentSort.key], b[currentSort.key], currentSort.asc);
+                if (primary !== 0) return primary;
+                // 同点はGCの新しい順。スコアが並んだときの並びを毎回変えない
+                // （安定して同じ順に出す）意味もある。
+                if (currentSort.key === 'gc_date') return 0;
+                return compare(a.gc_date, b.gc_date, false);
             });
         }
 

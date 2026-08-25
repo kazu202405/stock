@@ -114,5 +114,32 @@ class DisplayedFieldsTest(unittest.TestCase):
         self.assertNotIn("key: 'dividend_yield',", source)
 
 
+class WatchlistDefaultSortTest(unittest.TestCase):
+    """「好調企業」タブの既定の並び（2026-08-25）。
+
+    以前は並べ替えを設定しておらず、サーバーが返す順（＝登録した順）のまま
+    出ていた。タブ名は「好調企業」なのに中身は「最近登録した順」で、名前と
+    中身がずれていた。開いた人が期待するのは「良い順」のほう。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'stock.html')
+
+    def test_既定はスコアの高い順(self):
+        self.assertIn("let currentSort = { key: 'match_rate', asc: false };", self.html)
+
+    def test_同点はGCの新しい順(self):
+        self.assertIn('return compare(a.gc_date, b.gc_date, false);', self.html)
+
+    def test_GCで並べているときは二重に見ない(self):
+        self.assertIn("if (currentSort.key === 'gc_date') return 0;", self.html)
+
+    def test_値の無い行は常に最後(self):
+        """「未取得」を「一番小さい値」として上に出さない。"""
+        block = self.html.split('const compare = (va, vb, asc)', 1)[1][:400]
+        self.assertIn('if (va == null) return 1;', block)
+        self.assertIn('if (vb == null) return -1;', block)
+
+
 if __name__ == '__main__':
     unittest.main()
