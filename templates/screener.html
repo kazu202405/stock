@@ -168,6 +168,93 @@
                     <input type="number" x-model.number="filters.market_cap_min" @change="search(1)" placeholder="例: 100">
                 </div>
             </div>
+
+            {# よく使う10項目は常に出し、残りは開いたときだけ出す。
+                 全部を最初から出すと、スマホでは絞り込みだけで画面が埋まる。 #}
+            <button type="button" class="scr-advanced-toggle" @click="advancedOpen = !advancedOpen">
+                <i class="fas" :class="advancedOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                <span x-text="advancedOpen ? '詳細な絞り込みを閉じる' : '詳細な絞り込み'"></span>
+                <span class="scr-advanced-count" x-show="advancedCount > 0" x-text="advancedCount + '件つかっています'"></span>
+            </button>
+
+            <div class="scr-filter-grid scr-advanced" x-show="advancedOpen" x-cloak>
+                <div class="scr-field">
+                    <label>スコア 上限</label>
+                    <input type="number" x-model.number="filters.match_rate_max" @change="search(1)" placeholder="例: 90" min="0" max="100">
+                </div>
+                <div class="scr-field">
+                    <label>自己資本比率 上限(%)</label>
+                    <input type="number" x-model.number="filters.equity_ratio_max" @change="search(1)" placeholder="例: 90">
+                </div>
+                <div class="scr-field">
+                    <label>営業利益率 上限(%)</label>
+                    <input type="number" x-model.number="filters.operating_margin_max" @change="search(1)" placeholder="例: 40">
+                </div>
+                <div class="scr-field">
+                    <label>ROE 上限(%)</label>
+                    <input type="number" x-model.number="filters.roe_max" @change="search(1)" placeholder="例: 40">
+                </div>
+                <div class="scr-field">
+                    <label>ROA 下限(%)</label>
+                    <input type="number" x-model.number="filters.roa_min" @change="search(1)" placeholder="例: 5">
+                </div>
+                <div class="scr-field">
+                    <label>ROA 上限(%)</label>
+                    <input type="number" x-model.number="filters.roa_max" @change="search(1)" placeholder="例: 30">
+                </div>
+                <div class="scr-field">
+                    <label>PER 下限(倍)</label>
+                    <input type="number" x-model.number="filters.per_min" @change="search(1)" placeholder="例: 5">
+                </div>
+                <div class="scr-field">
+                    <label>PBR 下限(倍)</label>
+                    <input type="number" x-model.number="filters.pbr_min" @change="search(1)" placeholder="例: 0.5" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>配当利回り(予想) 上限(%)</label>
+                    <input type="number" x-model.number="filters.dividend_yield_max" @change="search(1)" placeholder="例: 8" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>配当性向 下限(%)</label>
+                    <input type="number" x-model.number="filters.payout_ratio_min" @change="search(1)" placeholder="例: 20">
+                </div>
+                {# 配当性向が高すぎる＝利益以上に配っている。中央値は35%、
+                   上位10%が81%（2026-08-25 実測）。 #}
+                <div class="scr-field">
+                    <label>配当性向 上限(%)</label>
+                    <input type="number" x-model.number="filters.payout_ratio_max" @change="search(1)" placeholder="例: 80">
+                </div>
+                <div class="scr-field">
+                    <label>営業CF 下限(億円)</label>
+                    <input type="number" x-model.number="filters.operating_cf_min" @change="search(1)" placeholder="例: 0">
+                </div>
+                <div class="scr-field">
+                    <label>フリーCF 下限(億円)</label>
+                    <input type="number" x-model.number="filters.free_cf_min" @change="search(1)" placeholder="例: 0">
+                </div>
+                <div class="scr-field">
+                    <label>時価総額 上限(億円)</label>
+                    <input type="number" x-model.number="filters.market_cap_max" @change="search(1)" placeholder="例: 700">
+                </div>
+                <div class="scr-field">
+                    <label>決算月</label>
+                    <select x-model="filters.fiscal_month" @change="search(1)">
+                        <option value="">すべて</option>
+                        <template x-for="m in 12" :key="m">
+                            <option :value="m" x-text="m + '月期'"></option>
+                        </template>
+                    </select>
+                </div>
+                {# 判定できていない項目があるとスコアは分母が小さくなるので、
+                   点数の比較が同じ土俵にならない。 #}
+                <div class="scr-field">
+                    <label>データの揃い方</label>
+                    <select x-model="filters.score_complete" @change="search(1)">
+                        <option value="">すべて</option>
+                        <option value="1">12項目すべて判定できた銘柄だけ</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- 件数・注記 -->
@@ -623,6 +710,37 @@
     }
     .scr-field input:focus, .scr-field select:focus { border-color: #2d6a4f; }
 
+    /* 詳細な絞り込みの開閉。閉じていても条件は効くので、
+       いくつ入っているかをボタンに出す。 */
+    .scr-advanced-toggle {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 12px;
+        padding: 6px 2px 0;
+        background: none;
+        border: none;
+        border-top: 1px solid #f1f1ef;
+        width: 100%;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #2d6a4f;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .scr-advanced-toggle i { font-size: 10px; }
+    .scr-advanced-count {
+        margin-left: auto;
+        font-size: 11.5px;
+        font-weight: 500;
+        color: #a16207;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 20px;
+        padding: 1px 9px;
+    }
+    .scr-advanced { margin-top: 12px; }
+
     .scr-th {
         padding: 10px 14px;
         text-align: left;
@@ -794,11 +912,48 @@
             // 1社ずつ読むため。スマホでどちらが向くかは場面によるので選べるようにする。
             view: 'table',
             activePreset: '',
+            /*
+             * 絞り込みの条件。サーバー側の SCREEN_FILTERS と対応する。
+             *
+             * ⚠️ 条件どうしは**すべて AND**。OR は用意しない。
+             *    「PER15以下 or PBR1.5以下」は実務でほとんど使わないうえ、
+             *    どの条件同士がORなのかを画面で表す必要が出て一気に難しくなる。
+             *    組み合わせで探したいときはプリセットを増やす方が効く。
+             */
             filters: {
                 q: '', industry: '', market: '', business: '',
-                match_rate_min: '', equity_ratio_min: '',
-                operating_margin_min: '', roe_min: '', per_max: '', pbr_max: '',
-                dividend_yield_min: '', market_cap_min: '',
+                match_rate_min: '', match_rate_max: '',
+                equity_ratio_min: '', equity_ratio_max: '',
+                operating_margin_min: '', operating_margin_max: '',
+                roe_min: '', roe_max: '', roa_min: '', roa_max: '',
+                per_min: '', per_max: '', pbr_min: '', pbr_max: '',
+                dividend_yield_min: '', dividend_yield_max: '',
+                payout_ratio_min: '', payout_ratio_max: '',
+                operating_cf_min: '', free_cf_min: '',
+                market_cap_min: '', market_cap_max: '',
+                fiscal_month: '', score_complete: '',
+            },
+
+            // 詳細な絞り込みを開いているか。全部を最初から出すと、スマホでは
+            // 絞り込みだけで画面が埋まる。
+            advancedOpen: false,
+
+            // 常に見えている10項目。詳細の判定に使う。
+            basicFilterKeys: ['q', 'industry', 'market', 'business',
+                'match_rate_min', 'equity_ratio_min', 'operating_margin_min',
+                'roe_min', 'per_max', 'pbr_max', 'dividend_yield_min',
+                'market_cap_min'],
+
+            /**
+             * 詳細のうち、いくつ条件が入っているか。
+             * **閉じたままでも効き続ける**ので、隠れている条件があることを
+             * ボタンに出す。出さないと「絞ったつもりのない絞り込み」が残り、
+             * 件数が合わない理由が画面から分からなくなる。
+             */
+            get advancedCount() {
+                return Object.entries(this.filters).filter(([k, v]) =>
+                    !this.basicFilterKeys.includes(k)
+                    && v !== '' && v !== null && v !== undefined).length;
             },
 
             // 並べ替え可能な列（APIのホワイトリストと対応）
@@ -835,6 +990,10 @@
                 { key: 'dividend', label: '高配当',      filters: { dividend_yield_min: 3 },                          sort: 'dividend_yield_forward', order: 'desc' },
                 { key: 'roe',      label: '稼ぐ力が高い', filters: { roe_min: 15, equity_ratio_min: 30 },              sort: 'roe', order: 'desc' },
                 { key: 'large',    label: '大企業',      filters: { market_cap_min: 1000 },                           sort: 'market_cap', order: 'desc' },
+                // 詳細の条件を使う組み合わせ。ORを用意しない代わりに、
+                // よく使う組み合わせはここから1押しで出せるようにする。
+                { key: 'cash',     label: '現金が残る',   filters: { operating_cf_min: 0, free_cf_min: 0 },            sort: 'free_cf', order: 'desc' },
+                { key: 'sustain',  label: '無理のない配当', filters: { dividend_yield_min: 3, payout_ratio_max: 70 },   sort: 'dividend_yield_forward', order: 'desc' },
             ],
 
             async init() {

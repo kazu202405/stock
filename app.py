@@ -2850,6 +2850,7 @@ def api_report(source, key):
 SCREEN_SORTABLE = {
     'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
     'roe', 'roa', 'equity_ratio', 'operating_margin',
+    'payout_ratio', 'operating_cf', 'free_cf',
     # 配当利回りは予想が主（2026-08-25）。実績も並べ替えられるようには
     # しておくが、画面のヘッダーからは予想だけを押せるようにしてある。
     'dividend_yield_forward', 'dividend_yield',
@@ -2858,14 +2859,28 @@ SCREEN_SORTABLE = {
 
 # クエリパラメータ名 -> (カラム, 比較方向)
 SCREEN_FILTERS = {
+    # ⚠️ 足すときは、その列が実際に埋まっているか確かめること。
+    # 2026-08-25 の実測では revenue_growth_* / op_growth_* / total_assets /
+    # equity / current_ratio / margin_trading_ratio が**ほぼ空**で、
+    # 絞り込みに出しても該当ゼロになる（列があることと使えることは別）。
     'per_min': ('per_forward', 'gte'),
     'per_max': ('per_forward', 'lte'),
     'pbr_min': ('pbr', 'gte'),
     'pbr_max': ('pbr', 'lte'),
     'roe_min': ('roe', 'gte'),
+    'roe_max': ('roe', 'lte'),
     'roa_min': ('roa', 'gte'),
+    'roa_max': ('roa', 'lte'),
     'equity_ratio_min': ('equity_ratio', 'gte'),
+    'equity_ratio_max': ('equity_ratio', 'lte'),
     'operating_margin_min': ('operating_margin', 'gte'),
+    'operating_margin_max': ('operating_margin', 'lte'),
+    'payout_ratio_min': ('payout_ratio', 'gte'),
+    'payout_ratio_max': ('payout_ratio', 'lte'),
+    'operating_cf_min': ('operating_cf', 'gte'),
+    'free_cf_min': ('free_cf', 'gte'),
+    'match_rate_max': ('match_rate', 'lte'),
+    'dividend_yield_max': ('dividend_yield_forward', 'lte'),
     # 「高配当を探す」で期待されているのは予想利回り。実績で絞ると、
     # 決算期をまたいで期末＋翌期中間が同じ12か月に入った銘柄が
     # 実力以上の利回りで並ぶ（367A: 実績5.93% / 予想4.08%）。
@@ -3421,6 +3436,17 @@ def api_screen_stocks():
             except ValueError:
                 continue
             query = query.gte(column, value) if op == 'gte' else query.lte(column, value)
+
+        # 決算月とデータ充足度は数値の大小ではないので、上の一括処理と分ける。
+        # fiscal_month は 1〜12、score_complete は真偽値。
+        fiscal_month = (request.args.get('fiscal_month') or '').strip()
+        if fiscal_month.isdigit() and 1 <= int(fiscal_month) <= 12:
+            query = query.eq('fiscal_month', int(fiscal_month))
+
+        # 「12項目すべて判定できた銘柄だけ」。判定できていない項目があると
+        # スコアは分母が小さくなるので、点数の比較が同じ土俵にならない。
+        if (request.args.get('score_complete') or '').lower() in ('1', 'true', 'yes'):
+            query = query.eq('score_complete', True)
 
         # 業種はJPXの33業種（industry_jp）で絞る。
         # sector は旧来の粗い分類。保存済みURLが壊れないよう受け付けは残すが、
