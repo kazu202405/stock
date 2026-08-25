@@ -730,9 +730,11 @@
     {% endif %}
 
     <div class="market-comment-card" id="marketCommentCard" style="display:none;">
+        {# 日付は出さない（2026-08-25 五島さん判断）。
+           編集側には「最終更新」を残してあるので、いつ書いたかは
+           書いた本人には分かる。 #}
         <div class="market-comment-header">
             <span class="market-comment-label"><i class="fas fa-chart-line" style="margin-right:6px; font-size:11px;"></i>マーケット所感</span>
-            <span class="market-comment-date" id="commentDisplayDate"></span>
         </div>
         <div class="market-comment-body" id="commentDisplayBody"></div>
     </div>
@@ -1220,12 +1222,7 @@
                 // 閲覧用カードに表示
                 const card = document.getElementById('marketCommentCard');
                 const body = document.getElementById('commentDisplayBody');
-                const date = document.getElementById('commentDisplayDate');
                 if (body) body.textContent = data.content;
-                if (date) {
-                    const d = new Date(data.updated_at || data.created_at);
-                    date.textContent = d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
-                }
                 if (card) card.style.display = '';
 
                 // 管理者：編集エリアにも反映
