@@ -5092,6 +5092,26 @@ def scheduled_update_daily_and_crosses():
     _recalculate_growth_columns()
 
 
+def scheduled_update_margin_balances():
+    """JPXの週次信用残高を全銘柄に流し込む。
+
+    JPXは毎週、前週末の残高をPDFで出す（公開は火曜〜水曜あたり）。
+    以前は銘柄ページを開いたときの後追い取得しか経路が無く、開かれた銘柄
+    だけが埋まる形だったので、3,859銘柄のうち22件（0.6%）しか無かった。
+
+    ⚠️ **外部へのリクエストは1回だけ。** PDFに全銘柄が載っており、
+    jpx_margin がキャッシュする。銘柄ごとに叩く必要はない。
+    """
+    from datetime import datetime
+    try:
+        import backfill_margin as bm
+        print(f'[Scheduler] 信用残高の更新 開始: {datetime.now()}')
+        updated = bm.run(get_supabase_client())
+        print(f'[Scheduler] 信用残高の更新 終了: 更新{updated}件')
+    except Exception as e:
+        print(f'[Scheduler] 信用残高の更新エラー: {e}')
+
+
 def _recalculate_growth_columns():
     """増減率・流動比率など、絞り込みに使う派生列を作り直す。
 
@@ -5258,6 +5278,9 @@ scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
                   hour=4, minute=30, id='detect_delisted')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
+# JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
+scheduler.add_job(scheduled_update_margin_balances, 'cron', day_of_week='thu',
+                  hour=4, minute=10, id='margin_weekly')
 # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
 scheduler.add_job(scheduled_backfill_yahoo_profile, 'cron', hour=2, minute=0,
                   id='yahoo_profile_backfill')
