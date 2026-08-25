@@ -2555,10 +2555,13 @@
         const marginRatioDisplay = document.getElementById('margin-ratio-display');
         if (marginRatioDisplay) {
             if (data.margin_trading_ratio !== null && data.margin_trading_ratio !== undefined) {
+                // 色は付けない（2026-08-25 五島さん判断）。
+                // 1倍未満=赤／1〜3倍=緑／それ以上=黄 という色分けは、実質
+                // 「この水準なら良い／悪い」という**売買タイミングの判断**を
+                // 色で言っていた。このアプリは「儲かった」ではなく「賢くなった」
+                // を見せる設計なので、需給の数字に良し悪しの色を当てない。
+                // 数字だけ出して、読み方は本人に委ねる。
                 marginRatioDisplay.textContent = `${data.margin_trading_ratio.toFixed(2)}倍`;
-                if (data.margin_trading_ratio < 1) marginRatioDisplay.style.color = 'var(--danger-color)';
-                else if (data.margin_trading_ratio <= 3) marginRatioDisplay.style.color = 'var(--success-color)';
-                else marginRatioDisplay.style.color = 'var(--warning-color)';
                 if (data.margin_trading_buy) {
                     marginBuyShares = data.margin_trading_buy;
                     renderTurnoverDays();

@@ -96,5 +96,36 @@ class ScheduleTest(unittest.TestCase):
         self.assertIn('except Exception', block)
 
 
+class NoJudgementColorTest(unittest.TestCase):
+    """信用倍率に良し悪しの色を当てない（2026-08-25 五島さん判断）。
+
+    1倍未満=赤／1〜3倍=緑／それ以上=黄 という色分けは、実質
+    「この水準なら良い／悪い」という**売買タイミングの判断**を色で言っていた。
+    このアプリは「儲かった」ではなく「賢くなった」を見せる設計なので、
+    需給の数字に良し悪しの色を当てない。数字だけ出して読み方は本人に委ねる。
+
+    ⚠️ 22件しか埋まっていなかった頃は誰も気づけなかった。全銘柄に入れると
+       トヨタ7.14倍・極洋45.54倍のように大半が3倍超で、ほぼ全部が同じ色に
+       なる（＝色が何も区別していない）。
+    """
+
+    def setUp(self):
+        self.html = read('templates', 'stock_detail.html')
+
+    def test_倍率で色を変えていない(self):
+        for line in self.html.splitlines():
+            if 'margin_trading_ratio' not in line:
+                continue
+            for word in ('danger-color', 'success-color', 'warning-color'):
+                self.assertNotIn(word, line, '信用倍率に良し悪しの色が付いている')
+
+    def test_数字は出す(self):
+        self.assertIn("margin_trading_ratio.toFixed(2)", self.html)
+
+    def test_理由を書き残している(self):
+        """次に触る人が「色が無いのは手抜き」と思って戻さないように。"""
+        self.assertIn('売買タイミングの判断', self.html)
+
+
 if __name__ == '__main__':
     unittest.main()
