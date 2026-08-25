@@ -76,6 +76,9 @@ def fetch_ohlc(symbol, period='1y', timeout=FETCH_TIMEOUT_SECONDS):
             'high': float(row['High']) if pd.notna(row['High']) else None,
             'low': float(row['Low']) if pd.notna(row['Low']) else None,
             'close': float(row['Close']),
+            # 出来高は取得元のレスポンスに最初から入っている。
+            # 読まずに捨てていたため、流動性を測る術が無かった。
+            'volume': int(row['Volume']) if pd.notna(row.get('Volume')) else None,
         })
     return rows
 
@@ -115,6 +118,9 @@ def fetch_ohlc_batch(codes, period='1y', chunk_size=100):
                         'high': float(row['High']) if pd.notna(row['High']) else None,
                         'low': float(row['Low']) if pd.notna(row['Low']) else None,
                         'close': float(row['Close']),
+                        # 出来高は取得元のレスポンスに最初から入っている。
+                        # 読まずに捨てていたため、流動性を測る術が無かった。
+                        'volume': int(row['Volume']) if pd.notna(row.get('Volume')) else None,
                     })
                 if rows:
                     result[code] = rows
@@ -126,6 +132,7 @@ def fetch_ohlc_batch(codes, period='1y', chunk_size=100):
 def downsample(rows, granularity):
     """日足を週足/月足に集約する。
     open=期間最初の始値 / high=期間最高値 / low=期間最安値 / close=期間最後の終値
+    volume=期間の合計（平均でも最後の値でもない。週の商いの総量を見るため）
     """
     if granularity == 'daily' or not rows:
         return rows
@@ -147,6 +154,7 @@ def downsample(rows, granularity):
                 'high': r['high'],
                 'low': r['low'],
                 'close': r['close'],
+                'volume': r.get('volume'),
             }
             order.append(key)
             continue
@@ -157,8 +165,56 @@ def downsample(rows, granularity):
         if r['low'] is not None:
             b['low'] = r['low'] if b['low'] is None else min(b['low'], r['low'])
         b['close'] = r['close']
+        if r.get('volume') is not None:
+            b['volume'] = r['volume'] if b.get('volume') is None else b['volume'] + r['volume']
 
     return [buckets[k] for k in order]
+
+
+# 流動性を測る窓。1か月ぶんの営業日。
+# 1日だけの値では決算発表や指数入れ替えの日を拾ってしまい、
+# 「普段どれだけ売買されている銘柄か」が分からない。
+LIQUIDITY_WINDOW_DAYS = 20
+
+
+def liquidity_summary(rows, days=LIQUIDITY_WINDOW_DAYS):
+    """日足から流動性の目安を出す。取れなければ None。
+
+    - avg_volume   … 1日あたりの平均出来高（株）
+    - avg_turnover … 1日あたりの平均売買代金（円・概算）
+    - days         … 実際に使った営業日数
+
+    ⚠️ 売買代金は**概算**。正しくは約定ごとの価格で積み上げるが、ここでは
+    その日の出来高×終値で代用している。「機関投資家が入れる規模か」を
+    見るのが目的なので、この粒度で足りる。画面にも概算と書く。
+    """
+    if not rows:
+        return None
+    usable = [r for r in rows
+              if r.get('volume') is not None and r.get('close') is not None]
+    if not usable:
+        return None
+    window = usable[-days:]
+    volumes = [r['volume'] for r in window]
+    turnovers = [r['volume'] * r['close'] for r in window]
+    n = len(window)
+    return {
+        'avg_volume': sum(volumes) / n,
+        'avg_turnover': sum(turnovers) / n,
+        'days': n,
+    }
+
+
+def margin_turnover_days(margin_buy_shares, avg_volume):
+    """信用買残が平均何日分の出来高にあたるか（回転日数）。
+
+    信用倍率だけでは「重いのか軽いのか」が決まらない。買残10万株でも
+    1日の出来高が500万株なら1時間で消化される。出来高と比べてはじめて
+    上値の重さの目安になる。
+    """
+    if not margin_buy_shares or not avg_volume or avg_volume <= 0:
+        return None
+    return margin_buy_shares / avg_volume
 
 
 # ---------------------------------------------------------------

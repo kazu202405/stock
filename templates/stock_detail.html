@@ -1340,7 +1340,7 @@
     <div class="detail-grid-3">
         <!-- 財務健全性 -->
         <div class="detail-card{% if not is_member %} members-only{% endif %}">
-            <div class="detail-header">財務健全性</div>
+            <div class="detail-header">資金・売買状況</div>
             <div class="detail-content">
                 {# 並びは貸借対照表の読み順にしてある。
                    左（持っているもの）→ 右の1年以内 → その比率 →
@@ -1383,7 +1383,7 @@
                     <span class="detail-value" id="retained-display">---</span>
                 </div>
                 {# ここから下は貸借対照表の項目ではない
-                   （配当性向は損益と配当、信用倍率は需給）。
+                   （配当性向は損益と配当、信用倍率から下は市場での売買）。
                    上のBSの塊と地続きに見えないよう線で切る。 #}
                 <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
                     <div class="detail-row">
@@ -1391,9 +1391,25 @@
                         <span class="detail-value" id="payout-ratio-display">---</span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">信用倍率</span>
+                        <span class="detail-label" title="信用買残 ÷ 信用売残。買残は6か月以内に売って決済するため、高いほど将来の売り圧力が大きいと言われます">信用倍率</span>
                         <span class="detail-value" id="margin-ratio-display">---</span>
                     </div>
+                    {# 出来高・売買代金は信用倍率の下に置く。回転日数が
+                       「信用買残 ÷ 平均出来高」なので、材料が並んでいないと
+                       検算できない（流動比率で同じことが起きた）。 #}
+                    <div class="detail-row">
+                        <span class="detail-label" title="直近20営業日の1日あたり平均。1日だけの値は決算発表日などを拾ってしまうため均します">出来高</span>
+                        <span class="detail-value" id="volume-display">---</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label" title="出来高 × 終値の20営業日平均（概算）。その銘柄に1日どれだけの資金が出入りしているか">売買代金</span>
+                        <span class="detail-value" id="turnover-display">---</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label" title="信用買残 ÷ 平均出来高。買残を消化するのに何日分の商いが要るか">回転日数</span>
+                        <span class="detail-value" id="turnover-days-display">---</span>
+                    </div>
+                    <div id="liquidity-note" style="margin-top: 8px; font-size: 0.68rem; color: #a3a3a3; line-height: 1.6; display: none;"></div>
                 </div>
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
                     <div class="detail-row">
@@ -1409,7 +1425,7 @@
                 </div>
             </div>
         
-            {% if not is_member %}{% set cta_text = '財務健全性の詳細は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
+            {% if not is_member %}{% set cta_text = '資金・売買状況の詳細は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
             </div>
 
         <!-- 主要株主 -->
@@ -1972,11 +1988,70 @@
             if (data.gc_date || data.dc_date) {
                 updateCrossInfo(data.gc_date, data.dc_date);
             }
+            // 出来高・売買代金は日足のレスポンスに相乗りしてくる（追加の取得なし）。
+            // 期間を10年などに切り替えると週足・月足になり liquidity は null で
+            // 返るので、そのときは既に出ている値を消さない。
+            if (data.liquidity) updateLiquidity(data.liquidity);
             return data.rows || [];
         } catch (e) {
             console.error('株価履歴の取得エラー:', e);
             return null;
         }
+    }
+
+    /**
+     * 出来高・売買代金・回転日数。
+     *
+     * 「その銘柄が1日どれくらい売買されているか」を出す。売買代金が
+     * 1日1,000万円しかない銘柄には、まとまった資金は入ってこられない
+     * ＝会社の規模と、株主になれる人の顔ぶれが見える数字。
+     *
+     * ⚠️ 20営業日の平均を出す。1日だけの値は決算発表日や指数入れ替えを
+     *    拾ってしまい、普段の姿にならない。
+     * ⚠️ 売買代金は出来高×終値の概算。画面にもそう書く。
+     */
+    let liquidityCache = null;
+    let marginBuyShares = null;
+
+    function formatVolume(shares) {
+        if (shares === null || shares === undefined) return '---';
+        if (shares >= 1e4) return `${Math.round(shares / 1e4).toLocaleString()}万株`;
+        return `${Math.round(shares).toLocaleString()}株`;
+    }
+
+    function formatTurnover(yen) {
+        if (yen === null || yen === undefined) return '---';
+        if (yen >= 1e8) return `${(yen / 1e8).toFixed(1)}億円`;
+        return `${Math.round(yen / 1e4).toLocaleString()}万円`;
+    }
+
+    function updateLiquidity(liquidity) {
+        liquidityCache = liquidity;
+        const volEl = document.getElementById('volume-display');
+        const turnEl = document.getElementById('turnover-display');
+        if (volEl) volEl.textContent = formatVolume(liquidity.avg_volume);
+        if (turnEl) turnEl.textContent = formatTurnover(liquidity.avg_turnover);
+
+        const note = document.getElementById('liquidity-note');
+        if (note) {
+            note.textContent = `出来高・売買代金は直近${liquidity.days}営業日の1日平均`
+                + '（売買代金は出来高×終値の概算）';
+            note.style.display = 'block';
+        }
+        renderTurnoverDays();
+    }
+
+    // 回転日数 = 信用買残 ÷ 平均出来高。
+    // 材料が2つのAPIに分かれているので、どちらが後に届いても計算できるよう
+    // 両方が揃ったときだけ描く。
+    function renderTurnoverDays() {
+        const el = document.getElementById('turnover-days-display');
+        if (!el || !liquidityCache || !marginBuyShares) return;
+        const days = marginBuyShares / liquidityCache.avg_volume;
+        if (!isFinite(days)) return;
+        el.textContent = `${days.toFixed(1)}日`;
+        el.title = `信用買残 ${Math.round(marginBuyShares).toLocaleString()}株 `
+            + `÷ 平均出来高 ${Math.round(liquidityCache.avg_volume).toLocaleString()}株`;
     }
 
     // 数値フォーマット
@@ -2412,6 +2487,10 @@
                 if (data.margin_trading_ratio < 1) marginRatioDisplay.style.color = 'var(--danger-color)';
                 else if (data.margin_trading_ratio <= 3) marginRatioDisplay.style.color = 'var(--success-color)';
                 else marginRatioDisplay.style.color = 'var(--warning-color)';
+                if (data.margin_trading_buy) {
+                    marginBuyShares = data.margin_trading_buy;
+                    renderTurnoverDays();
+                }
                 if (data.margin_trading_buy && data.margin_trading_sell) {
                     marginRatioDisplay.title = `買残: ${data.margin_trading_buy.toLocaleString()}株 / 売残: ${data.margin_trading_sell.toLocaleString()}株`;
                 }
@@ -3197,6 +3276,12 @@
                 marginText += `（JPX週次${asOf ? ` ${asOf}` : ''}）`;
             }
             marginRatioDisplay.textContent = marginText;
+        }
+        // 回転日数の材料。出来高は日足のAPIから別便で届くので、
+        // 先に届いたほうが後から届いたほうを待てるようにしておく。
+        if (data.margin_trading_buy) {
+            marginBuyShares = data.margin_trading_buy;
+            renderTurnoverDays();
         }
         // 現預金推移（最古 → 最新）。cf_historyがあれば推移を出せる。
         const cashNew = document.getElementById('cash-new');

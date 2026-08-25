@@ -926,10 +926,17 @@ def sitemap_xml():
 
 @app.route('/search')
 def search():
-    """企業情報ページ（銘柄検索・企業比較）"""
+    """企業情報ページ（銘柄検索・企業比較）
+
+    ⚠️ 2026-08-25: is_admin=True を固定で渡していた。ログインしていれば
+    誰にでも数値の編集欄と「変更を保存」ボタンが出ており、保存先の
+    /api/watchlist/update には認証が一切無かった（＝会員なら誰でも
+    全銘柄の財務データを書き換えられる状態）。他の画面と同じ判定に戻す。
+    """
     guard = _require_login()
     if guard: return guard
-    return render_template('search.html', is_admin=True)
+    return render_template('search.html',
+                           is_admin=session.get('user_role') == 'admin')
 
 
 @app.route('/dashboard/admin')

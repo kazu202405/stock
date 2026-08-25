@@ -929,7 +929,18 @@ def api_check_watchlist(company_code):
 
 @app.route('/api/watchlist/update', methods=['POST'])
 def api_update_watchlist():
-    """screened_latestのデータを更新（編集機能用）"""
+    """screened_latestのデータを手で書き換える（管理者専用）。
+
+    ⚠️ 2026-08-25 まで認証が無く、未ログインでも POST するだけで
+    任意の銘柄の自己資本比率・PER・PBR・配当利回り・時価総額・
+    財務履歴を上書きできた。書き換えると match_rate も再計算されるので、
+    スコアごと汚染される。
+
+    判定は /api/admin/stock/safe-refresh と同じ session['user_role'] を使う。
+    """
+    if not session.get('user_id') or session.get('user_role') != 'admin':
+        return jsonify({"error": "管理者権限が必要です"}), 403
+
     try:
         data = request.get_json()
         if not data or 'company_code' not in data:
@@ -3465,11 +3476,17 @@ def api_price_history(company_code):
         else:
             rows = ph.get_long_term(code, granularity)
 
+        # 流動性は日足からしか出さない。週足・月足に集約したあとの出来高は
+        # 1本が数週間分の合計なので、「1日あたり」の意味にならない。
+        # ここで返すのは、すでに読み込んだ日足の使い回しなので追加の取得はない。
+        liquidity = ph.liquidity_summary(rows) if granularity == 'daily' else None
+
         return jsonify({
             'company_code': code,
             'range': range_key,
             'granularity': granularity,
             'rows': rows or [],
+            'liquidity': liquidity,
             'gc_date': (crosses or {}).get('latest_gc_date'),
             'dc_date': (crosses or {}).get('latest_dc_date'),
         }), 200
