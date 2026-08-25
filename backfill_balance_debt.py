@@ -76,6 +76,34 @@ SCALAR_ROWS = (
                 'Total Equity Gross Minority Interest')),
 )
 
+# 純資産が円建てでないと分かる境目。
+#
+# ⚠️ **通貨のメタ情報（financialCurrency）は信じない。** 6269 三井海洋開発は
+#    JPY と申告しているのに実際はドル建てだった（EPSでも同じ罠を踏んでいる）。
+#    代わりに「時価総額 ÷ 純資産」と保存済みPBRを突き合わせる。同じものを
+#    別の道筋で出しているので、通貨が違えば100倍以上ずれる。
+#
+# 2026-08-25 の実測では、ずれは1.5倍未満に3,383件、1.5〜10倍に46件、
+# **10〜50倍が0件**、50倍以上が3件（6269 / 4875 メディシノバ /
+# 7699 オムニ・プラス）。谷がはっきりしているので、ここで切れば
+# 「決算が特殊なだけの会社」を巻き込まない。
+CURRENCY_MISMATCH_RATIO = 50
+
+
+def looks_foreign_currency(equity_oku, market_cap_oku, pbr):
+    """純資産が時価総額と別の通貨で入っていそうか。
+
+    判定できないとき（材料が無い）は False。**疑わしきは残す**——
+    ここで消しすぎると、通貨は正しいのに特殊な決算の会社まで空になる。
+    """
+    if not equity_oku or not market_cap_oku or not pbr:
+        return False
+    if equity_oku <= 0 or pbr <= 0:
+        return False
+    implied = market_cap_oku / equity_oku
+    gap = max(implied, pbr) / min(implied, pbr)
+    return gap >= CURRENCY_MISMATCH_RATIO
+
 
 def _as_obj(value):
     if isinstance(value, str):
@@ -97,7 +125,8 @@ def _needs_scalars(row):
 
 def load_targets(client, only_missing, code=None):
     """cf_history を持つ銘柄を取り切る（1000行上限にかからないようページング）"""
-    select = ('company_code, cf_history, delisted_at, '
+    # market_cap と pbr は「純資産が円建てか」の検算に使う
+    select = ('company_code, cf_history, delisted_at, market_cap, pbr, '
               + ', '.join(name for name, _ in SCALAR_ROWS))
     if code:
         return (client.table('screened_latest').select(select)
@@ -182,7 +211,7 @@ def main():
         return 0
 
     updated = debt_filled = retained_filled = empty = failed = 0
-    assets_filled = equity_filled = 0
+    assets_filled = equity_filled = foreign = 0
     consecutive_fail = 0
 
     def _notify_wait(seconds, attempt):
@@ -219,6 +248,16 @@ def main():
 
             # 触る列だけを更新する。他の列は同時に走る別のバッチが
             # 書いていることがあるので、行ごと上書きしない。
+            # ⚠️ 円建てでない純資産を億円として保存しない。保存すると
+            # 「時価総額÷純資産」の検算そのものが壊れ、しかも自己資本比率とは
+            # 整合してしまうので**壊れていることに気づけない**。
+            # 決められないものは持たせない（NULL のままにする）。
+            if looks_foreign_currency(scalars.get('equity'),
+                                      row.get('market_cap'), row.get('pbr')):
+                print('  %s 純資産が円建てでない疑い。総資産・純資産は入れない' % code)
+                scalars = {}
+                foreign += 1
+
             payload = dict(scalars)
             if got:
                 payload['cf_history'] = json.dumps(cf_history, ensure_ascii=False)
@@ -247,7 +286,8 @@ def main():
 
     print(f'\n更新 {updated}件 / 有利子負債 {debt_filled}件 '
           f'/ 利益剰余金 {retained_filled}件 / 総資産 {assets_filled}件 '
-          f'/ 純資産 {equity_filled}件 / BS無し {empty}件 / 失敗 {failed}件')
+          f'/ 純資産 {equity_filled}件 / 通貨違い {foreign}件 '
+          f'/ BS無し {empty}件 / 失敗 {failed}件')
     print(guard.summary())
     print('途中で止まっても、再実行すれば未取得の銘柄から続きを処理します。')
     return 0
