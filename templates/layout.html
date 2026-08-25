@@ -425,11 +425,14 @@
                             <i class="fas fa-chevron-down" style="font-size:9px; margin-left:4px;"></i>
                         </button>
                         <div class="nav-dropdown" x-show="open" x-cloak @click="open = false">
-                            <a href="/search" class="nav-dropdown-item">
-                                <i class="fas fa-search"></i>銘柄検索
-                            </a>
+                            {# 会社名で1社を開くのはヘッダーの検索窓に移した。
+                               ここは「条件から探す」「2〜3社を並べる」という、
+                               窓ではできないことを上から順に並べる。 #}
                             <a href="/screener" class="nav-dropdown-item">
                                 <i class="fas fa-filter"></i>スクリーニング
+                            </a>
+                            <a href="/search" class="nav-dropdown-item">
+                                <i class="fas fa-code-compare"></i>企業比較
                             </a>
                             <a href="/simulator" class="nav-dropdown-item">
                                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
@@ -611,11 +614,11 @@
         </div>
         <!-- メニューリンク -->
         <div style="padding: 8px 0;">
-            <a href="/search" class="slide-menu-link">
-                <i class="fas fa-search"></i>銘柄検索
-            </a>
             <a href="/screener" class="slide-menu-link">
                 <i class="fas fa-filter"></i>スクリーニング
+            </a>
+            <a href="/search" class="slide-menu-link">
+                <i class="fas fa-code-compare"></i>企業比較
             </a>
             <a href="/simulator" class="slide-menu-link">
                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
