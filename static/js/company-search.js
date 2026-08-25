@@ -54,13 +54,25 @@
 
     /**
      * 入力欄と候補リストを結びつける。
-     * mount({ input, list, onNavigate }) で複数の場所に置ける
+     * mount({ input, list }) で複数の場所に置ける
      * （ヘッダーとスマホの全画面検索で同じ動きにする）。
+     *
+     * onSelect を渡すと、銘柄ページへ飛ぶ代わりにそれを呼ぶ。
+     * 管理画面のように「選んだらその場で読み込む」使い方のため。
+     * 候補の出し方と絞り込みは同じものを使う（2か所に書かない）。
      */
     function mount(opts) {
         var input = opts.input;
         var list = opts.list;
+        var onSelect = opts.onSelect;
         if (!input || !list) return;
+
+        function pick(value) {
+            var v = String(value || '').trim();
+            if (!v) return;
+            if (onSelect) { onSelect(v); return; }
+            go(v);
+        }
 
         var active = -1;
 
@@ -104,7 +116,7 @@
                 e.preventDefault();
                 // 候補を選んでいればそれ、選んでいなければ打った文字列のまま飛ばす。
                 // サーバーが会社名でも解決する。
-                go(open && active >= 0 ? els[active].dataset.code : input.value);
+                pick(open && active >= 0 ? els[active].dataset.code : input.value);
                 return;
             }
             if (!open) return;
@@ -124,7 +136,10 @@
 
         list.addEventListener('click', function (e) {
             var item = e.target.closest('.cs-item');
-            if (item) go(item.dataset.code);
+            if (item) {
+                if (onSelect) { input.value = item.dataset.code; hide(); }
+                pick(item.dataset.code);
+            }
         });
 
         document.addEventListener('click', function (e) {

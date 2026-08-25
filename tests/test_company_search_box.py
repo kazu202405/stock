@@ -69,8 +69,14 @@ class SearchLogicTest(unittest.TestCase):
 
     def test_候補を選ばなくても飛べる(self):
         """サジェストは選んだ人しか救わない。打ったまま Enter でも飛ばす。"""
-        self.assertIn("go(open && active >= 0 ? els[active].dataset.code : input.value)",
+        self.assertIn("pick(open && active >= 0 ? els[active].dataset.code : input.value)",
                       self.js)
+
+    def test_選んだあとの行き先を差し替えられる(self):
+        """管理画面は「選んだらその場で読み込む」。候補の出し方は同じものを使い、
+        行き先だけ差し替える（候補の絞り込みを2か所に書かない）。"""
+        self.assertIn('var onSelect = opts.onSelect;', self.js)
+        self.assertIn('if (onSelect) { onSelect(v); return; }', self.js)
 
     def test_企業リストは最初のフォーカスまで読まない(self):
         """全ページのヘッダーに置くので、毎回3,906件を読ませない。"""

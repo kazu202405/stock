@@ -1,0 +1,448 @@
+{% extends "layout.html" %}
+
+{#
+  財務データの手入力（管理者専用）。
+
+  2026-08-25 まで、この機能は /search（企業情報ページ）の中にあり、
+  しかも is_admin=True を固定で渡していたので**ログインしていれば誰にでも
+  編集欄が出ていた**。保存先のAPIにも認証が無かった。管理の機能は管理の
+  メニューに置く。公開・会員向けの画面に管理UIを混ぜない。
+
+  使いどころ:
+    Yahoo に配当の支払い実績が無い新規上場銘柄（例: 367A は2025年6月上場で
+    2回分しか無く、2023・2024年8月期の配当性向が出せない）を、
+    決算短信を見て手で埋める。
+#}
+
+{% block title %}財務データの手入力 - Company Note{% endblock %}
+
+{% block head_extra %}
+<style>
+    .asd-wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 96px; }
+
+    .asd-head { margin-bottom: 20px; }
+    .asd-head h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 0 0 6px; }
+    .asd-head p { font-size: 13px; color: #737373; margin: 0; line-height: 1.7; }
+
+    .asd-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    .asd-card-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 14px;
+        padding-left: 9px;
+        border-left: 3px solid #1b4332;
+    }
+
+    .asd-picker { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+    .asd-picker .cs-wrap { flex: 1 1 260px; min-width: 220px; }
+    .asd-btn {
+        flex: 0 0 auto;
+        height: 34px;
+        padding: 0 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        background: #1b4332;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    .asd-btn:disabled { background: #cbd5c8; cursor: not-allowed; }
+    .asd-btn-ghost { background: #fff; color: #525252; border: 1px solid #ebebeb; }
+
+    .asd-loaded {
+        display: none;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #f1f5f9;
+        font-size: 13px;
+        color: #525252;
+    }
+    .asd-loaded b { color: #1a1a1a; }
+    .asd-loaded .asd-meta { color: #a3a3a3; font-size: 12px; margin-top: 4px; }
+
+    .asd-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+    }
+    .asd-field label {
+        display: block;
+        font-size: 12px;
+        color: #737373;
+        margin-bottom: 4px;
+    }
+    .asd-field input {
+        width: 100%;
+        height: 32px;
+        padding: 0 9px;
+        font-size: 13px;
+        color: #1a1a1a;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 6px;
+        outline: none;
+        font-variant-numeric: tabular-nums;
+    }
+    .asd-field input:focus { border-color: #1b4332; }
+    .asd-field input.is-changed { border-color: #d97706; background: #fffbeb; }
+
+    .asd-scroll { overflow-x: auto; }
+    table.asd-table {
+        width: 100%;
+        min-width: 640px;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .asd-table th, .asd-table td {
+        padding: 7px 8px;
+        border-bottom: 1px solid #f1f5f9;
+        white-space: nowrap;
+        text-align: right;
+    }
+    .asd-table th:first-child, .asd-table td:first-child {
+        text-align: left;
+        position: sticky;
+        left: 0;
+        background: #fff;
+        max-width: 150px;
+    }
+    .asd-table thead th {
+        font-size: 11.5px;
+        color: #737373;
+        font-weight: 600;
+        border-bottom: 1px solid #d4d4d4;
+    }
+    .asd-table td input {
+        width: 110px;
+        height: 28px;
+        padding: 0 7px;
+        font-size: 12.5px;
+        text-align: right;
+        border: 1px solid #ebebeb;
+        border-radius: 5px;
+        outline: none;
+        font-variant-numeric: tabular-nums;
+    }
+    .asd-table td input:focus { border-color: #1b4332; }
+    .asd-table td input.is-changed { border-color: #d97706; background: #fffbeb; }
+    .asd-unit { font-size: 11px; color: #a3a3a3; font-weight: 400; margin-left: 3px; }
+
+    .asd-actions {
+        position: sticky;
+        bottom: 0;
+        background: #f7f7f5;
+        padding: 14px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        border-top: 1px solid #ebebeb;
+    }
+    .asd-status { font-size: 13px; }
+    .asd-status.ok { color: #15803d; }
+    .asd-status.ng { color: #b91c1c; }
+
+    .asd-note {
+        font-size: 12px;
+        color: #737373;
+        line-height: 1.8;
+        background: #fafaf8;
+        border: 1px solid #f1f1ef;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-top: 14px;
+    }
+    .asd-note b { color: #1a1a1a; }
+
+    #asdEditor { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="asd-wrap">
+
+    <div class="asd-head">
+        <h1>財務データの手入力</h1>
+        <p>取得元に無い値を、決算短信などを見て手で埋めます。空欄の項目はそのまま残り、書き換えた項目だけが保存されます。</p>
+    </div>
+
+    <div class="asd-card">
+        <p class="asd-card-title">銘柄を選ぶ</p>
+        <div class="asd-picker">
+            <div class="cs-wrap">
+                <i class="fas fa-search cs-icon"></i>
+                <input type="text" id="asdSearch" class="cs-input"
+                       placeholder="会社名・銘柄コード" autocomplete="off">
+                <div id="asdSuggest" class="cs-list"></div>
+            </div>
+            <button type="button" class="asd-btn" id="asdLoadBtn" onclick="loadStock()">読み込む</button>
+        </div>
+        <div class="asd-loaded" id="asdLoaded">
+            <b id="asdName">---</b>
+            <div class="asd-meta" id="asdMeta"></div>
+        </div>
+    </div>
+
+    <div id="asdEditor">
+        <div class="asd-card">
+            <p class="asd-card-title">主要指標</p>
+            <div class="asd-grid" id="asdMetrics"></div>
+        </div>
+
+        <div class="asd-card">
+            <p class="asd-card-title">決算期ごとの数字</p>
+            <div class="asd-scroll">
+                <table class="asd-table">
+                    <thead><tr id="asdYearHead"></tr></thead>
+                    <tbody id="asdYearBody"></tbody>
+                </table>
+            </div>
+            <div class="asd-note">
+                <b>金額は億円で入力します</b>（売上高・営業利益・経常利益・純利益）。1株あたりの値と配当性向はそのままの単位です。<br>
+                <b>決算期の列は取得済みの期だけ</b>出ます。取得できていない期の欄は作れないので、まず「更新」で分析し直してください。
+            </div>
+        </div>
+
+        <div class="asd-actions">
+            <button type="button" class="asd-btn" id="asdSaveBtn" onclick="saveStock()">変更を保存</button>
+            <button type="button" class="asd-btn asd-btn-ghost" onclick="loadStock(currentCode)">読み直す</button>
+            <span class="asd-status" id="asdStatus"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    /*
+     * 保存は /api/watchlist/update（管理者のみ）。
+     *
+     * ⚠️ 履歴はサーバー側でキー単位にマージされる。ここで送っていないキー
+     *    （financial_history の bps、cf_history の有利子負債など）は消えない。
+     *    以前は丸ごと置き換えており、保存のたびに bps が消えていた。
+     */
+    let currentCode = null;
+    let loadedRow = null;
+
+    // 主要指標。key はDBの列名。amount=true は「億円で入れて円で保存」。
+    const METRICS = [
+        { key: 'equity_ratio',           label: '自己資本比率', unit: '%' },
+        { key: 'operating_margin',       label: '営業利益率',   unit: '%' },
+        { key: 'per_forward',            label: 'PER',          unit: '倍' },
+        { key: 'pbr',                    label: 'PBR',          unit: '倍' },
+        { key: 'dividend_yield_forward', label: '配当利回り(予想)', unit: '%' },
+        { key: 'market_cap',             label: '時価総額',     unit: '億円' },
+    ];
+
+    // 決算期ごとの行。amount=true は億円で入れて円で保存する。
+    const YEAR_ROWS = [
+        { key: 'revenue',          label: '売上高',       amount: true },
+        { key: 'op_income',        label: '営業利益',     amount: true },
+        { key: 'ordinary_income',  label: '経常利益',     amount: true },
+        { key: 'net_income',       label: '純利益',       amount: true },
+        { key: 'eps',              label: '1株利益(EPS)', amount: false, unit: '円' },
+        { key: 'dps',              label: '1株配当(DPS)', amount: false, unit: '円' },
+        { key: 'payout_ratio',     label: '配当性向',     amount: false, unit: '%' },
+    ];
+
+    function asObject(value) {
+        if (typeof value === 'string') {
+            try { return JSON.parse(value); } catch (e) { return {}; }
+        }
+        return value || {};
+    }
+
+    function setStatus(text, kind) {
+        const el = document.getElementById('asdStatus');
+        el.textContent = text || '';
+        el.className = 'asd-status' + (kind ? ' ' + kind : '');
+    }
+
+    async function loadStock(code) {
+        const raw = (code || document.getElementById('asdSearch').value || '').trim();
+        if (!raw) { setStatus('銘柄コードか会社名を入れてください', 'ng'); return; }
+
+        const btn = document.getElementById('asdLoadBtn');
+        btn.disabled = true;
+        setStatus('読み込み中...');
+        try {
+            const res = await fetch('/api/stock/screened/' + encodeURIComponent(raw));
+            if (!res.ok) {
+                setStatus('その銘柄のデータが見つかりませんでした', 'ng');
+                document.getElementById('asdEditor').style.display = 'none';
+                return;
+            }
+            loadedRow = await res.json();
+            currentCode = loadedRow.company_code;
+            document.getElementById('asdSearch').value = currentCode;
+            render();
+            setStatus('');
+        } catch (e) {
+            setStatus('読み込めませんでした。通信を確認してください', 'ng');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function render() {
+        const row = loadedRow;
+        document.getElementById('asdLoaded').style.display = 'block';
+        document.getElementById('asdName').textContent =
+            `${row.company_name || '---'}（${row.company_code}）`;
+        document.getElementById('asdMeta').textContent =
+            [row.industry_jp || row.sector, row.market_segment,
+             row.analyzed_at ? '最終分析 ' + String(row.analyzed_at).slice(0, 10) : null]
+            .filter(Boolean).join(' / ');
+
+        // 主要指標
+        document.getElementById('asdMetrics').innerHTML = METRICS.map(function (m) {
+            const v = row[m.key];
+            return `<div class="asd-field">
+                        <label>${m.label}<span class="asd-unit">${m.unit}</span></label>
+                        <input type="number" step="any" data-metric="${m.key}"
+                               value="${v === null || v === undefined ? '' : v}"
+                               data-original="${v === null || v === undefined ? '' : v}">
+                    </div>`;
+        }).join('');
+
+        // 決算期ごとの数字。列は取得済みの決算期から作る。
+        const history = asObject(row.financial_history);
+        const dates = new Set();
+        YEAR_ROWS.forEach(function (r) {
+            (history[r.key] || []).forEach(function (d) {
+                if (d && d.date) dates.add(d.date);
+            });
+        });
+        const cols = Array.from(dates).sort().reverse().slice(0, 6);
+
+        document.getElementById('asdYearHead').innerHTML =
+            '<th>項目</th>' + cols.map(function (d) {
+                return `<th>${d.slice(0, 7).replace('-', '年')}月期</th>`;
+            }).join('');
+
+        document.getElementById('asdYearBody').innerHTML = YEAR_ROWS.map(function (r) {
+            const byDate = {};
+            (history[r.key] || []).forEach(function (d) {
+                if (d && d.date) byDate[d.date] = d.value;
+            });
+            const unit = r.amount ? '億円' : (r.unit || '');
+            const cells = cols.map(function (d) {
+                let v = byDate[d];
+                if (v !== null && v !== undefined && r.amount) v = v / 1e8;
+                const shown = (v === null || v === undefined) ? ''
+                    : (r.amount ? Math.round(v * 10) / 10 : v);
+                return `<td><input type="number" step="any"
+                           data-type="${r.key}" data-date="${d}"
+                           data-amount="${r.amount ? '1' : '0'}"
+                           value="${shown}" data-original="${shown}"></td>`;
+            }).join('');
+            return `<tr><td>${r.label}<span class="asd-unit">${unit}</span></td>${cells}</tr>`;
+        }).join('');
+
+        document.getElementById('asdEditor').style.display = 'block';
+        watchChanges();
+    }
+
+    // 触った欄に印を付ける。どこを直したか分からないまま保存させない。
+    function watchChanges() {
+        document.querySelectorAll('#asdEditor input').forEach(function (input) {
+            input.addEventListener('input', function () {
+                const changed = String(this.value) !== String(this.dataset.original);
+                this.classList.toggle('is-changed', changed);
+            });
+        });
+    }
+
+    /**
+     * 変えた欄だけを集める。**触っていない欄は送らない。**
+     * 全部送ると、表示のときの丸め（億円で小数第1位）がそのまま保存され、
+     * 直していない数字が少しずつ削れていく。
+     */
+    function collectChanges() {
+        const payload = {};
+        const history = {};
+
+        document.querySelectorAll('#asdEditor input[data-metric]').forEach(function (input) {
+            if (String(input.value) === String(input.dataset.original)) return;
+            const v = input.value.trim();
+            payload[input.dataset.metric] = v === '' ? null : parseFloat(v);
+        });
+
+        document.querySelectorAll('#asdEditor input[data-type]').forEach(function (input) {
+            if (String(input.value) === String(input.dataset.original)) return;
+            const v = input.value.trim();
+            if (v === '') return;   // 空欄にして消す操作は用意しない
+            let num = parseFloat(v);
+            if (isNaN(num)) return;
+            if (input.dataset.amount === '1') num = num * 1e8;
+            const key = input.dataset.type;
+            if (!history[key]) history[key] = [];
+            history[key].push({ date: input.dataset.date, value: num });
+        });
+
+        // 履歴は「そのキーの全期」を送る必要がある（サーバーはキー単位で
+        // 差し替えるため）。触った期だけを送ると同じキーの他の期が消える。
+        const stored = asObject(loadedRow.financial_history);
+        Object.keys(history).forEach(function (key) {
+            const edited = {};
+            history[key].forEach(function (d) { edited[d.date] = d.value; });
+            const merged = (stored[key] || []).map(function (d) {
+                return { date: d.date, value: (d.date in edited) ? edited[d.date] : d.value };
+            });
+            const known = new Set(merged.map(function (d) { return d.date; }));
+            history[key].forEach(function (d) {
+                if (!known.has(d.date)) merged.push(d);
+            });
+            merged.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            history[key] = merged;
+        });
+
+        if (Object.keys(history).length) payload.financial_history = history;
+        return payload;
+    }
+
+    async function saveStock() {
+        if (!currentCode) return;
+        const edited = collectChanges();
+        if (!Object.keys(edited).length) {
+            setStatus('変えたところがありません', 'ng');
+            return;
+        }
+        const btn = document.getElementById('asdSaveBtn');
+        btn.disabled = true;
+        setStatus('保存中...');
+        try {
+            const res = await fetch('/api/watchlist/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_code: currentCode, edited_data: edited })
+            });
+            const result = await res.json();
+            if (res.ok) {
+                setStatus('保存しました（' + (result.updated_fields || []).join(' / ') + '）', 'ok');
+                await loadStock(currentCode);
+            } else {
+                setStatus(result.error || '保存できませんでした', 'ng');
+            }
+        } catch (e) {
+            setStatus('保存できませんでした。通信を確認してください', 'ng');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // 候補から選んだら飛ばずにその場で読み込む
+        CompanySearch.mount({
+            input: document.getElementById('asdSearch'),
+            list: document.getElementById('asdSuggest'),
+            onSelect: function (code) { loadStock(code); },
+        });
+    });
+</script>
+{% endblock %}

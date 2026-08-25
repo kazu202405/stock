@@ -955,6 +955,19 @@ def admin_users():
     return render_template('admin_users.html')
 
 
+@app.route('/admin/stock-data')
+def admin_stock_data():
+    """財務データの手入力（管理者専用）。
+
+    2026-08-25 まで /search（企業情報ページ）の中にあり、しかも
+    is_admin=True を固定で渡していたので**ログインしていれば誰にでも編集欄が
+    出ていた**。保存先のAPIにも認証が無かった。管理の機能は管理のメニューへ。
+    """
+    guard = _require_admin()
+    if guard: return guard
+    return render_template('admin_stock_data.html')
+
+
 @app.route('/admin/themes')
 def admin_themes():
     """テーマ運用画面（admin専用）。

@@ -1005,13 +1005,35 @@ def api_update_watchlist():
             # 億円単位に変換
             update_data['market_cap'] = edited_data['market_cap'] / 1e8 if edited_data['market_cap'] else None
 
-        # 財務履歴をJSON形式で更新
-        if 'financial_history' in edited_data:
-            update_data['financial_history'] = json.dumps(edited_data['financial_history'], ensure_ascii=False)
+        # 履歴は**キー単位でマージする。丸ごと置き換えない。**
+        #
+        # 編集画面の表に出ているのは revenue / op_income / ordinary_income /
+        # net_income / eps / dps / payout_ratio の7つだけ。丸ごと置き換えると、
+        # 表に無いキー（financial_history なら bps、cf_history なら
+        # interest_bearing_debt・retained_earnings・current_assets など）が
+        # **保存のたびに黙って消える**。消えてもエラーは出ず、画面も
+        # 「保存しました」と出るので気づけない。
+        from supabase_client import get_screened_data as _get_screened
 
-        # CF履歴をJSON形式で更新
+        def _merge_history(column, incoming):
+            current = _get_screened(company_code) or {}
+            existing = current.get(column)
+            if isinstance(existing, str):
+                try:
+                    existing = json.loads(existing)
+                except (TypeError, ValueError):
+                    existing = {}
+            merged = dict(existing or {})
+            merged.update(incoming or {})
+            return json.dumps(merged, ensure_ascii=False)
+
+        if 'financial_history' in edited_data:
+            update_data['financial_history'] = _merge_history(
+                'financial_history', edited_data['financial_history'])
+
         if 'cf_history' in edited_data:
-            update_data['cf_history'] = json.dumps(edited_data['cf_history'], ensure_ascii=False)
+            update_data['cf_history'] = _merge_history(
+                'cf_history', edited_data['cf_history'])
 
         if update_data:
             # 合致度を再計算するため、既存データを取得してマージ
