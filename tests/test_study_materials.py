@@ -157,7 +157,33 @@ class DegradesWithoutTableTest(unittest.TestCase):
     """migration は運用側が手で適用する。未適用の間も落ちない。"""
 
     def test_テーブルが無ければ空を返す(self):
-        self.assertEqual(sm.list_materials(), [])
+        """⚠️ 本番のDBを叩かないこと。
+
+        最初この判定を live のクエリでやっていたが、それでは
+        (1) テストが通信に依存して遅く・不安定になる
+        (2) migration を適用した時点で「テーブルが無い場合」を試せなくなる
+        (3) 資料が1件でも登録されたら落ちる
+        という三重の間違いだった。取得の失敗を作って通す。
+        """
+        from unittest.mock import patch
+
+        class Missing(Exception):
+            def __str__(self):
+                return ('PGRST205 Could not find the table '
+                        'public.study_materials in the schema cache')
+
+        with patch.object(sm, '_client', side_effect=Missing()):
+            self.assertEqual(sm.list_materials(), [])
+            self.assertFalse(sm.table_ready())
+
+    def test_取得の失敗は握りつぶさない(self):
+        """テーブルが無いのと、通信が落ちたのは別物。後者を空で返すと
+        「資料が消えた」ように見えて、原因も分からない。"""
+        from unittest.mock import patch
+
+        with patch.object(sm, '_client', side_effect=RuntimeError('network down')):
+            with self.assertRaises(RuntimeError):
+                sm.list_materials()
 
     def test_適用済みかを画面に出せる(self):
         self.assertIn('def table_ready', read('study_materials.py'))
