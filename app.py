@@ -2851,6 +2851,7 @@ SCREEN_SORTABLE = {
     'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
     'roe', 'roa', 'equity_ratio', 'operating_margin',
     'payout_ratio', 'operating_cf', 'free_cf',
+    'revenue_growth_1y_cy', 'op_growth_1y_cy', 'current_ratio',
     # 配当利回りは予想が主（2026-08-25）。実績も並べ替えられるようには
     # しておくが、画面のヘッダーからは予想だけを押せるようにしてある。
     'dividend_yield_forward', 'dividend_yield',
@@ -2860,9 +2861,12 @@ SCREEN_SORTABLE = {
 # クエリパラメータ名 -> (カラム, 比較方向)
 SCREEN_FILTERS = {
     # ⚠️ 足すときは、その列が実際に埋まっているか確かめること。
-    # 2026-08-25 の実測では revenue_growth_* / op_growth_* / total_assets /
-    # equity / current_ratio / margin_trading_ratio が**ほぼ空**で、
-    # 絞り込みに出しても該当ゼロになる（列があることと使えることは別）。
+    # 列があることと使えることは別。2026-08-25 時点で total_assets / equity /
+    # margin_trading_ratio は**ほぼ空**なので絞り込みに出していない。
+    #
+    # 増減率と流動比率は同日に backfill_growth_columns.py で埋めた
+    # （売上の増減率97.9% / 営業利益の増減率86.0% / 流動比率95.7%）。
+    # 派生値なので毎晩 _recalculate_growth_columns() で作り直している。
     'per_min': ('per_forward', 'gte'),
     'per_max': ('per_forward', 'lte'),
     'pbr_min': ('pbr', 'gte'),
@@ -2879,6 +2883,17 @@ SCREEN_FILTERS = {
     'payout_ratio_max': ('payout_ratio', 'lte'),
     'operating_cf_min': ('operating_cf', 'gte'),
     'free_cf_min': ('free_cf', 'gte'),
+    # 増減率。列の名前は決算期の世代で付いていて、スコアの言い方とずれる。
+    #   revenue_growth_1y_cy = スコアの「売上高増減率(2期前→前期)」
+    #   revenue_growth_cy_ny = スコアの「売上高増減率(前期→今期予)」
+    # 対応は analysis_quality.GROWTH_COLUMNS の注記が正。
+    'revenue_growth_min': ('revenue_growth_1y_cy', 'gte'),
+    'revenue_growth_max': ('revenue_growth_1y_cy', 'lte'),
+    'revenue_forecast_growth_min': ('revenue_growth_cy_ny', 'gte'),
+    'op_growth_min': ('op_growth_1y_cy', 'gte'),
+    'op_growth_max': ('op_growth_1y_cy', 'lte'),
+    'op_forecast_growth_min': ('op_growth_cy_ny', 'gte'),
+    'current_ratio_min': ('current_ratio', 'gte'),
     'match_rate_max': ('match_rate', 'lte'),
     'dividend_yield_max': ('dividend_yield_forward', 'lte'),
     # 「高配当を探す」で期待されているのは予想利回り。実績で絞ると、
@@ -5039,6 +5054,28 @@ def scheduled_update_daily_and_crosses():
     print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: {daily_update_status.get('phase')} "
           f"/ 保存{daily_update_status.get('saved')}件")
     _recalculate_scores_after_price_move()
+    _recalculate_growth_columns()
+
+
+def _recalculate_growth_columns():
+    """増減率・流動比率など、絞り込みに使う派生列を作り直す。
+
+    スコアの判定は financial_history から都度計算しているので列が要らないが、
+    スクリーナーはDB側で絞るため列が要る。**派生値なので元の値と一緒に動かす。**
+    決算で財務履歴が入れ替わったのに増減率が古いままだと、画面には正しい
+    売上高と古い増減率が並ぶ（片方が正しいので壊れて見えない）。
+
+    外部へは一切アクセスしない。DBの中だけで完結する。
+    """
+    from datetime import datetime
+    try:
+        import backfill_growth_columns as bgc
+        print(f'[Scheduler] 増減率の再計算 開始: {datetime.now()}')
+        updated = bgc.run(get_supabase_client())
+        print(f'[Scheduler] 増減率の再計算 終了: 更新{updated}件')
+    except Exception as e:
+        # ここで落ちても日足とスコアの更新は済んでいる。次の晩に持ち越す。
+        print(f'[Scheduler] 増減率の再計算エラー: {e}')
 
 
 def _recalculate_scores_after_price_move():

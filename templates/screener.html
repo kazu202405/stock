@@ -224,6 +224,37 @@
                     <label>配当性向 上限(%)</label>
                     <input type="number" x-model.number="filters.payout_ratio_max" @change="search(1)" placeholder="例: 80">
                 </div>
+                {# 増減率は「直近の確定決算 ÷ その1期前」。スコアの
+                   「売上高増減率(2期前→前期)」と同じ数字（2026-08-25 に
+                   5銘柄で突き合わせ済み）。 #}
+                <div class="scr-field">
+                    <label>増収率 下限(%)</label>
+                    <input type="number" x-model.number="filters.revenue_growth_min" @change="search(1)" placeholder="例: 10" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>増収率 上限(%)</label>
+                    <input type="number" x-model.number="filters.revenue_growth_max" @change="search(1)" placeholder="例: 100" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>営業増益率 下限(%)</label>
+                    <input type="number" x-model.number="filters.op_growth_min" @change="search(1)" placeholder="例: 10" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>営業増益率 上限(%)</label>
+                    <input type="number" x-model.number="filters.op_growth_max" @change="search(1)" placeholder="例: 200" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>今期予想の増収率 下限(%)</label>
+                    <input type="number" x-model.number="filters.revenue_forecast_growth_min" @change="search(1)" placeholder="例: 5" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>今期予想の増益率 下限(%)</label>
+                    <input type="number" x-model.number="filters.op_forecast_growth_min" @change="search(1)" placeholder="例: 5" step="0.1">
+                </div>
+                <div class="scr-field">
+                    <label>流動比率 下限(%)</label>
+                    <input type="number" x-model.number="filters.current_ratio_min" @change="search(1)" placeholder="例: 150">
+                </div>
                 <div class="scr-field">
                     <label>営業CF 下限(億円)</label>
                     <input type="number" x-model.number="filters.operating_cf_min" @change="search(1)" placeholder="例: 0">
@@ -930,6 +961,10 @@
                 dividend_yield_min: '', dividend_yield_max: '',
                 payout_ratio_min: '', payout_ratio_max: '',
                 operating_cf_min: '', free_cf_min: '',
+                revenue_growth_min: '', revenue_growth_max: '',
+                revenue_forecast_growth_min: '',
+                op_growth_min: '', op_growth_max: '',
+                op_forecast_growth_min: '', current_ratio_min: '',
                 market_cap_min: '', market_cap_max: '',
                 fiscal_month: '', score_complete: '',
             },
@@ -994,6 +1029,7 @@
                 // よく使う組み合わせはここから1押しで出せるようにする。
                 { key: 'cash',     label: '現金が残る',   filters: { operating_cf_min: 0, free_cf_min: 0 },            sort: 'free_cf', order: 'desc' },
                 { key: 'sustain',  label: '無理のない配当', filters: { dividend_yield_min: 3, payout_ratio_max: 70 },   sort: 'dividend_yield_forward', order: 'desc' },
+                { key: 'growth',   label: '増収増益で割安', filters: { revenue_growth_min: 5, op_growth_min: 5, per_max: 20 }, sort: 'op_growth_1y_cy', order: 'desc' },
             ],
 
             async init() {
