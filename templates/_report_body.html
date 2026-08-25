@@ -58,7 +58,9 @@
         {% if report.data_quality and report.data_quality.summary_language == 'en' %}
         <div class="rp-source-note">日本語概要を取得できなかったため、Yahoo Finance由来の英語原文を表示しています。</div>
         {% endif %}
-        <p class="rp-lead">{{ report.business_summary|safe }}</p>
+        {# ⚠️ |safe は使わない。事業概要は取得元のページとLLMの出力で、
+           こちらが中身を決められない。改行の <br> だけを残して他は文字にする。 #}
+        <p class="rp-lead">{{ report.business_summary|safe_summary }}</p>
       </section>
       {% else %}
       <section class="rp-card">

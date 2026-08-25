@@ -905,6 +905,10 @@
 </style>
 
 <script>
+    // ウォッチリストは全体で1つの共有リスト。消す操作は管理者だけに出す
+    // （APIも2026-08-25から管理者限定。出すと押した瞬間に403になる）。
+    const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
     function openStockDetail(code) {
         window.open(`/stock/${encodeURIComponent(code)}`, '_blank', 'noopener,noreferrer');
     }
@@ -1353,7 +1357,12 @@
                     { key: 'dividend_yield_display', label: '配当利回り(予想)', value: (r) => DividendBasis.cell(r) },
                     { key: 'equity_ratio',     label: '自己資本比率', value: (r) => r.equity_ratio != null ? r.equity_ratio + '%' : '---' },
                 ],
-                actions: (r) => `<button onclick="removeFavorite('${r.company_code}')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><i class="fas fa-trash-alt mr-1"></i>削除</button>`,
+                // ⚠️ ウォッチリスト（watched_tickers）は利用者ごとではなく
+                // **全体で1つ**。1人が消すと全員から消える。2026-08-25 に
+                // APIを管理者限定にしたので、ボタンも管理者にだけ出す。
+                actions: (r) => IS_ADMIN
+                    ? `<button onclick="removeFavorite('${r.company_code}')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><i class="fas fa-trash-alt mr-1"></i>削除</button>`
+                    : '',
             });
             return;
         }
@@ -1387,11 +1396,11 @@
                     <td class="scr-td-num">${item.per_forward ? Number(item.per_forward).toFixed(1) + '倍' : '---'}</td>
                     <td class="scr-td-num">${item.pbr ? Number(item.pbr).toFixed(2) + '倍' : '---'}</td>
                     <td class="scr-td-num">${DividendBasis.cell(item)}</td>
-                    <td class="px-4 py-3 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap">${IS_ADMIN ? `
                         <button onclick="event.stopPropagation(); removeFavorite('${item.company_code}')"
                                 class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
                             <i class="fas fa-trash-alt mr-1"></i>削除
-                        </button>
+                        </button>` : ''}
                     </td>
                 </tr>`;
         });

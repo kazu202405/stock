@@ -324,7 +324,9 @@ def screener():
     """
     guard = _require_member()
     if guard: return guard
-    return render_template('screener.html')
+    # ウォッチリストは全体で1つの共有リスト。消す操作は管理者だけに出す
+    return render_template('screener.html',
+                           is_admin=session.get('user_role') == 'admin')
 
 
 @app.route('/market')

@@ -825,9 +825,15 @@
                         決算銘柄を更新
                     </button>
                     {% endif %}
+                    {# 取得・再計算は運用の作業で、押すと外部を叩く。
+                       2026-08-25 に API を管理者限定にしたので、一般会員に
+                       出すと押した瞬間に403になる（何も起きないボタン）。
+                       毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
+                    {% if is_admin %}
                     <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">スコア再計算</button>
+                    {% endif %}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
@@ -938,8 +944,14 @@
                     <button class="filter-reset-btn" onclick="resetDivFilters()">リセット</button>
                 </div>
                 <div class="action-buttons">
+                    {# 取得・再計算は運用の作業で、押すと外部を叩く。
+                       2026-08-25 に API を管理者限定にしたので、一般会員に
+                       出すと押した瞬間に403になる（何も起きないボタン）。
+                       毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
+                    {% if is_admin %}
                     <button class="gc-fetch-btn" onclick="analyzeDivStocks()" id="divAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopDivAnalyze()" id="divStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                    {% endif %}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
@@ -1078,8 +1090,14 @@
                         GC/DC再計算のみ
                     </button>
                     {% endif %}
+                    {# 取得・再計算は運用の作業で、押すと外部を叩く。
+                       2026-08-25 に API を管理者限定にしたので、一般会員に
+                       出すと押した瞬間に403になる（何も起きないボタン）。
+                       毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
+                    {% if is_admin %}
                     <button class="gc-fetch-btn" onclick="analyzeTechStocks()" id="techAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopTechAnalyze()" id="techStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                    {% endif %}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->

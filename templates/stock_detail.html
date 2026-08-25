@@ -1021,7 +1021,13 @@
                 無料・低負荷更新
             </button>
             {% endif %}
+            {# 「更新」は外部から取り直すので、2026-08-25 に会員限定にした。
+               非会員に出すと押した瞬間に401になる（何も起きないボタン）。
+               株価は平日3回、財務は決算のたび、増減率は毎晩、自動で新しくなるので
+               会員でも普段は押す必要がない。数字が古く見えるときの手動の手段。 #}
+            {% if is_member %}
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
+            {% endif %}
             <button class="demo-trade-btn" id="demoBuyBtn" onclick="openDetailBuyModal()">
                 <i class="fas fa-plus" style="font-size: 10px;"></i>購入
             </button>
@@ -2639,12 +2645,28 @@
         element.appendChild(note);
     }
 
+    /**
+     * 事業概要は改行のために <br> を入れているので innerHTML で出す。
+     * ただし中身は**取得元のページとLLMの出力**なので、こちらが決められない。
+     *
+     * ⚠️ サーバー側（html_safe.sanitize_rich_text）が保存時に通しているが、
+     *    それより前に入った行が残っている。出す直前にもう一度通す。
+     *    片方だけに置くと、片方を直したときに穴が開く。
+     */
+    function safeSummary(text) {
+        const BR = ' BR ';
+        const kept = String(text == null ? '' : text).replace(/<\s*br\s*\/?\s*>/gi, BR);
+        const el = document.createElement('div');
+        el.textContent = kept;
+        return el.innerHTML.split(BR).join('<br>');
+    }
+
     // 事業概要表示
     function updateBusinessSummary(data) {
         const summaryContent = document.getElementById('business-summary-content');
         if (!summaryContent) return;
         if (data.business_summary_jp) {
-            summaryContent.innerHTML = `<div style="line-height: 1.7; color: var(--text-primary);">${data.business_summary_jp}</div>`;
+            summaryContent.innerHTML = `<div style="line-height: 1.7; color: var(--text-primary);">${safeSummary(data.business_summary_jp)}</div>`;
         } else if (data.business_summary) {
             summaryContent.innerHTML = `
                 <div style="margin-bottom: 10px; padding: 8px 12px; background: #fef9e7; border-left: 3px solid #f0c040; border-radius: 4px; font-size: 0.82rem; color: #7a6c2a; display: flex; align-items: center; justify-content: space-between;">

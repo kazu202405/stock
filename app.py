@@ -16,6 +16,17 @@ from models.user import *
 from models.chatbot import *
 from models.business_plan_preparation import *
 from stock_analyzer import StockAnalyzer, batch_analyze
+from html_safe import sanitize_rich_text
+
+# 事業概要は改行のために <br> を持つのでHTMLとして出すが、中身は取得元の
+# ページとLLMの出力で、こちらが決められない。テンプレートでは |safe ではなく
+# こちらを使う（<br> だけ残して他は文字にする）。
+def _safe_summary_filter(value):
+    from markupsafe import Markup
+    return Markup(sanitize_rich_text(value) or '')
+
+
+app.jinja_env.filters['safe_summary'] = _safe_summary_filter
 from analysis_quality import (
     analysis_data_status, build_cf_history, derive_fiscal_month,
     history_json_or_none, normalize_analysis_symbol,
@@ -878,7 +889,7 @@ def api_add_to_watchlist():
 
                 # 事業概要
                 'business_summary': stock_data.get('business_summary'),
-                'business_summary_jp': stock_data.get('business_summary_jp'),
+                'business_summary_jp': sanitize_rich_text(stock_data.get('business_summary_jp')),
                 'established': stock_data.get('established'),
                 'listing_date': stock_data.get('listing_date'),
                 'ceo_name': stock_data.get('ceo_name_jp'),
@@ -1013,7 +1024,9 @@ def api_update_watchlist():
                              "（一覧やSEOの説明文にも使われます）。"
                              "長い分析は銘柄ノートに書いてください。"
                 }), 400
-            update_data['business_summary_jp'] = summary
+            # 管理者でも、貼り付けた文章にタグが混じることがある。
+            # 画面は innerHTML で出すので、入口でエスケープしておく。
+            update_data['business_summary_jp'] = sanitize_rich_text(summary)
 
         # 決算期は日付の文字列（'2027-03-31'）。数値の列と混ぜない。
         if 'forecast_year' in edited_data:
@@ -1464,7 +1477,7 @@ def _save_analysis_to_screened(symbol, stock_data):
         'forecast_net_income': stock_data.get('forecast_net_income'),
         'forecast_year': _convert_timestamps(stock_data.get('forecast_year')),
         'business_summary': stock_data.get('business_summary'),
-        'business_summary_jp': stock_data.get('business_summary_jp'),
+        'business_summary_jp': sanitize_rich_text(stock_data.get('business_summary_jp')),
         'established': stock_data.get('established'),
         'listing_date': stock_data.get('listing_date'),
         'ceo_name': stock_data.get('ceo_name_jp'),
@@ -1601,7 +1614,7 @@ def _analyze_stock_and_save(analyzer, company_code):
         'forecast_net_income': stock_data.get('forecast_net_income'),
         'forecast_year': stock_data.get('forecast_year'),
         'business_summary': stock_data.get('business_summary'),
-        'business_summary_jp': stock_data.get('business_summary_jp'),
+        'business_summary_jp': sanitize_rich_text(stock_data.get('business_summary_jp')),
         'established': stock_data.get('established'),
         'listing_date': stock_data.get('listing_date'),
         'ceo_name': stock_data.get('ceo_name_jp'),
@@ -2359,8 +2372,11 @@ def api_retry_summary_jp(company_code):
         yahoo_data = get_yahoo_japan_profile(code)
         if yahoo_data.get('_source_status'):
             source_updates['yahoo_jp_profile'] = yahoo_data['_source_status']
-        summary_jp = yahoo_data.get('business_summary_jp')
-        segments = yahoo_data.get('business_segments')
+        # ⚠️ 取得元のページの中身をそのまま持つ。画面は innerHTML で出すので、
+        # ここでエスケープしてから <br> を足す（足したあとに通すと、
+        # こちらが意図して入れた <br> まで文字になる）。
+        summary_jp = sanitize_rich_text(yahoo_data.get('business_summary_jp'))
+        segments = sanitize_rich_text(yahoo_data.get('business_segments'))
         if summary_jp and segments:
             summary_jp += f"<br>【連結事業】{segments}"
         elif segments:
