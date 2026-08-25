@@ -112,7 +112,10 @@
         position: sticky;
         left: 0;
         background: #fff;
-        max-width: 150px;
+        width: 100px;
+        min-width: 100px;
+        font-weight: 600;
+        color: #1a1a1a;
     }
     .asd-table thead th {
         font-size: 11.5px;
@@ -206,7 +209,8 @@
             </div>
             <div class="asd-note">
                 <b>金額は億円で入力します</b>（売上高・営業利益・経常利益・純利益）。1株あたりの値と配当性向はそのままの単位です。<br>
-                <b>決算期の列は取得済みの期だけ</b>出ます。取得できていない期の欄は作れないので、まず「更新」で分析し直してください。
+                <b>行は取得済みの決算期だけ</b>出ます。取得できていない期は欄を作れないので、その場合はまず銘柄ページの「更新」で分析し直してください。<br>
+                並びは<b>銘柄ページの「財務データ（直近5年）」と同じ</b>にしてあります。
             </div>
         </div>
 
@@ -229,7 +233,8 @@
     let currentCode = null;
     let loadedRow = null;
 
-    // 主要指標。key はDBの列名。amount=true は「億円で入れて円で保存」。
+    // 主要指標。並びは銘柄ページの指標カードと同じ順にしてある。
+    // key はDBの列名。
     const METRICS = [
         { key: 'equity_ratio',           label: '自己資本比率', unit: '%' },
         { key: 'operating_margin',       label: '営業利益率',   unit: '%' },
@@ -239,15 +244,17 @@
         { key: 'market_cap',             label: '時価総額',     unit: '億円' },
     ];
 
-    // 決算期ごとの行。amount=true は億円で入れて円で保存する。
-    const YEAR_ROWS = [
-        { key: 'revenue',          label: '売上高',       amount: true },
-        { key: 'op_income',        label: '営業利益',     amount: true },
-        { key: 'ordinary_income',  label: '経常利益',     amount: true },
-        { key: 'net_income',       label: '純利益',       amount: true },
-        { key: 'eps',              label: '1株利益(EPS)', amount: false, unit: '円' },
-        { key: 'dps',              label: '1株配当(DPS)', amount: false, unit: '円' },
-        { key: 'payout_ratio',     label: '配当性向',     amount: false, unit: '%' },
+    // 列の順と見出しは銘柄ページの「財務データ（直近5年）」に合わせてある。
+    // 並びが違うと、銘柄ページを見ながら直すときに目が滑る。
+    // amount=true は億円で入れて円で保存する。
+    const YEAR_COLS = [
+        { key: 'revenue',          label: '売上高(億円)',   amount: true },
+        { key: 'op_income',        label: '営業利益(億円)', amount: true },
+        { key: 'ordinary_income',  label: '経常利益(億円)', amount: true },
+        { key: 'net_income',       label: '純利益(億円)',   amount: true },
+        { key: 'eps',              label: '1株益(円)',      amount: false },
+        { key: 'dps',              label: '1株配(円)',      amount: false },
+        { key: 'payout_ratio',     label: '配当性向(%)',    amount: false },
     ];
 
     function asObject(value) {
@@ -310,38 +317,35 @@
                     </div>`;
         }).join('');
 
-        // 決算期ごとの数字。列は取得済みの決算期から作る。
+        // 決算期が行、項目が列。**銘柄ページと同じ向き**にそろえてある。
         const history = asObject(row.financial_history);
         const dates = new Set();
-        YEAR_ROWS.forEach(function (r) {
-            (history[r.key] || []).forEach(function (d) {
+        YEAR_COLS.forEach(function (c) {
+            (history[c.key] || []).forEach(function (d) {
                 if (d && d.date) dates.add(d.date);
             });
         });
-        const cols = Array.from(dates).sort().reverse().slice(0, 6);
+        const periods = Array.from(dates).sort().reverse().slice(0, 6);
 
         document.getElementById('asdYearHead').innerHTML =
-            '<th>項目</th>' + cols.map(function (d) {
-                return `<th>${d.slice(0, 7).replace('-', '年')}月期</th>`;
+            '<th>決算期</th>' + YEAR_COLS.map(function (c) {
+                return `<th>${c.label}</th>`;
             }).join('');
 
-        document.getElementById('asdYearBody').innerHTML = YEAR_ROWS.map(function (r) {
-            const byDate = {};
-            (history[r.key] || []).forEach(function (d) {
-                if (d && d.date) byDate[d.date] = d.value;
-            });
-            const unit = r.amount ? '億円' : (r.unit || '');
-            const cells = cols.map(function (d) {
-                let v = byDate[d];
-                if (v !== null && v !== undefined && r.amount) v = v / 1e8;
+        document.getElementById('asdYearBody').innerHTML = periods.map(function (d) {
+            const cells = YEAR_COLS.map(function (c) {
+                const row_ = (history[c.key] || []).find(function (x) { return x.date === d; });
+                let v = row_ ? row_.value : null;
+                if (v !== null && v !== undefined && c.amount) v = v / 1e8;
                 const shown = (v === null || v === undefined) ? ''
-                    : (r.amount ? Math.round(v * 10) / 10 : v);
+                    : (c.amount ? Math.round(v * 10) / 10 : v);
                 return `<td><input type="number" step="any"
-                           data-type="${r.key}" data-date="${d}"
-                           data-amount="${r.amount ? '1' : '0'}"
+                           data-type="${c.key}" data-date="${d}"
+                           data-amount="${c.amount ? '1' : '0'}"
                            value="${shown}" data-original="${shown}"></td>`;
             }).join('');
-            return `<tr><td>${r.label}<span class="asd-unit">${unit}</span></td>${cells}</tr>`;
+            const label = d.slice(0, 7).replace('-', '年') + '月期';
+            return `<tr><td>${label}</td>${cells}</tr>`;
         }).join('');
 
         document.getElementById('asdEditor').style.display = 'block';

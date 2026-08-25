@@ -394,7 +394,7 @@
                    全画面で開く）。ナビが7項目あり、窓を入れると折り返す。 #}
                 {# ログイン不要。/stock/<code> は公開ページなので、検索で来た人が
                    そのまま別の会社も見に行ける方が入口として素直。 #}
-                <div class="hidden lg:block cs-wrap" style="width: 260px; margin-left: 24px;">
+                <div class="hidden lg:block cs-wrap" style="width: 186px; margin-left: 20px;">
                     <i class="fas fa-search cs-icon"></i>
                     <input type="text" id="hdrCompanySearch" class="cs-input"
                            placeholder="会社名・銘柄コードで探す"
@@ -480,8 +480,11 @@
                     </a>
                 </div>
 
+                {# ヘッダーに検索窓を足したぶん、ナビ最後の「マイノート」と
+                   名前がくっついて見えるようになった。区切り線で切って離す。 #}
                 <!-- ユーザー名・アカウントメニュー（デスクトップのみ） -->
-                <div class="hidden lg:flex items-center space-x-3 flex-shrink-0">
+                <div class="hidden lg:flex items-center space-x-3 flex-shrink-0"
+                     style="margin-left: 20px; padding-left: 20px; border-left: 1px solid #ebebeb; align-self: stretch;">
                     {% if is_logged_in %}
                     {# 名前も折り返していた。長い表示名でヘッダーを崩さないよう、
                        折り返さずに幅で切る。 #}

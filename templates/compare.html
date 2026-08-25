@@ -20,6 +20,22 @@
 
 {% block head_extra %}
 <style>
+    /* ⚠️ 切り出しのときに :root を取りこぼし、枠線も文字色も既定値に
+       落ちていた（入力欄が読めない状態）。search.html にあった定義を戻す。
+       この画面でしか使っていないので layout.html には上げない。 */
+    :root {
+        --primary-color: #1b4332;
+        --secondary-color: #2d6a4f;
+        --accent-color: #2d6a4f;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --text-primary: #1a1a1a;
+        --text-secondary: #6b7280;
+        --border-color: #e5e5e0;
+        --bg-light: #fafaf8;
+    }
+
 
     /* === 企業比較タブ用スタイル === */
     .compare-container {

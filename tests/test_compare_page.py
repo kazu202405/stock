@@ -75,6 +75,15 @@ class ContentTest(unittest.TestCase):
                       '/api/watchlist/update'):
             self.assertNotIn(piece, self.html, piece)
 
+    def test_使っているCSS変数が全部定義されている(self):
+        """切り出しのときに :root を取りこぼし、枠線も文字色も既定値に落ちて
+        入力欄が読めなくなっていた。変数はページ内で完結させる。"""
+        import re
+        used = set(re.findall(r'var\((--[a-z-]+)\)', self.html))
+        self.assertTrue(used, '変数を1つも使っていない（抽出が壊れた？）')
+        for name in sorted(used):
+            self.assertIn(name + ':', self.html, name + ' が未定義')
+
     def test_失敗をその場に出す(self):
         """モーダルは比較の邪魔になる。"""
         self.assertIn('id="compareError"', self.html)

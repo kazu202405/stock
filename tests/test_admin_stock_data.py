@@ -149,6 +149,20 @@ class EditorSendsOnlyChangesTest(unittest.TestCase):
     def test_触った欄に印を付ける(self):
         self.assertIn("classList.toggle('is-changed'", self.html)
 
+    def test_並びが銘柄ページと同じ(self):
+        """行が決算期、列が項目。銘柄ページの「財務データ（直近5年）」と
+        向きが違うと、見比べながら直すときに目が滑る。"""
+        detail = read('templates', 'stock_detail.html')
+        self.assertIn('<th style="text-align: left; width: 100px;">決算期</th>', detail)
+
+        self.assertIn("'<th>決算期</th>'", self.html)
+        self.assertIn('const YEAR_COLS', self.html)
+        # 列の見出しは銘柄ページと同じ文字にそろえる
+        for label in ('売上高(億円)', '営業利益(億円)', '経常利益(億円)',
+                      '純利益(億円)', '1株益(円)', '1株配(円)', '配当性向(%)'):
+            self.assertIn(label, self.html, label)
+            self.assertIn(label, detail, label + ' が銘柄ページ側に無い')
+
     def test_同じキーの他の期を消さない(self):
         """サーバーはキー単位で差し替えるので、触った期だけ送ると
         同じキーの他の期が消える。"""
