@@ -1123,8 +1123,10 @@ def create_question(user_id: str, data: dict) -> dict:
         'tags': data.get('tags', []),
         'is_anonymous': data.get('is_anonymous', False),
     }
-    if data.get('poster_name'):
-        q_data['poster_name'] = data['poster_name']
+    # ⚠️ poster_name は **community_questions に列が無い**。混ぜると
+    # PGRST204 で insert ごと失敗する（＝投稿名を入れた人は質問できなかった）。
+    # 表示名はアカウントから読むときに引く（app._resolve_display_name）ので、
+    # 投稿ごとの名前は持たない。
     result = client.table('community_questions').insert(q_data).execute()
     return result.data[0] if result.data else {}
 
@@ -1179,8 +1181,8 @@ def create_answer(question_id: str, user_id: str, data: dict) -> dict:
         'content': data['content'],
         'is_anonymous': data.get('is_anonymous', False),
     }
-    if data.get('poster_name'):
-        a_data['poster_name'] = data['poster_name']
+    # ⚠️ poster_name は **community_answers にも列が無い**。混ぜると
+    # PGRST204 で insert ごと失敗する（＝投稿名を入れた人は回答できなかった）。
     result = client.table('community_answers').insert(a_data).execute()
     if result.data:
         # answer_countを+1

@@ -176,20 +176,6 @@ def _build_user_map(user_ids):
     return user_map
 
 
-def _get_poster_name_for_session():
-    """現在のセッションユーザーのデフォルト投稿名を取得"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return None
-    try:
-        user = get_user_by_id(user_id)
-        if user:
-            return user.get('display_name') or user.get('name')
-    except Exception:
-        pass
-    return session.get('user_name')
-
-
 def login_required_api(f):
     """API用ログイン必須デコレータ"""
     @wraps(f)
@@ -4543,6 +4529,12 @@ def api_create_question():
         data = request.get_json()
         if not data or not data.get('title') or not data.get('content'):
             return jsonify({"error": "タイトルと本文は必須です"}), 400
+
+        # 投稿ごとの表示名は保存しない。理由は api_create_note と同じ。
+        # 投稿した時点の名前を焼き付けると、表示名を変えたときに過去の投稿が
+        # 古い名前のまま残り、同じ人が何人もいるように見える。
+        data.pop('poster_name', None)
+
         question = create_question(user_id, data)
         return jsonify({"question": question}), 201
     except Exception as e:
@@ -4630,9 +4622,11 @@ def api_create_answer(question_id):
         data = request.get_json()
         if not data or not data.get('content'):
             return jsonify({"error": "回答内容は必須です"}), 400
-        # poster_nameが未指定ならデフォルト投稿名を設定
-        if not data.get('poster_name') and not data.get('is_anonymous'):
-            data['poster_name'] = _get_poster_name_for_session()
+        # 投稿ごとの表示名は保存しない。理由は api_create_note と同じ。
+        # 投稿した時点の名前を焼き付けると、表示名を変えたときに過去の投稿が
+        # 古い名前のまま残り、同じ人が何人もいるように見える。
+        data.pop('poster_name', None)
+
         answer = create_answer(question_id, user_id, data)
         # 回答者名を付与
         if answer.get('is_anonymous'):

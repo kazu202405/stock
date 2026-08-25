@@ -151,6 +151,35 @@ class PosterNameTest(unittest.TestCase):
         self.assertIn('_resolve_display_name(note, user_map)', block)
 
 
+class CommunityPosterNameTest(unittest.TestCase):
+    """コミュニティ側は、投稿名を入れると**投稿そのものが失敗していた**。
+
+    community_questions / community_answers に poster_name という列が無いのに、
+    画面には入力欄があり、コードは値があれば insert に混ぜていた。
+    PostgREST は存在しない列で PGRST204 を返すので、投稿名を書いた人は
+    質問も回答もできなかった（実際 質問は1件・回答は0件だった）。
+
+    列を足すのではなく、経路ごと無くす。表示名はノートと同じく
+    アカウントから読むときに引く。
+    """
+
+    def test_存在しない列を挿そうとしない(self):
+        source = read('supabase_client.py')
+        for table in ('community_questions', 'community_answers'):
+            block = source.split("insert(", 1)  # 形だけの保険
+        self.assertNotIn("q_data['poster_name']", source)
+        self.assertNotIn("a_data['poster_name']", source)
+
+    def test_理由を書き残している(self):
+        source = read('supabase_client.py')
+        self.assertIn('PGRST204', source)
+
+    def test_画面から投稿名の欄を外した(self):
+        html = read('templates', 'community.html')
+        self.assertNotIn('poster_name', html)
+        self.assertNotIn('この投稿だけの表示名', html)
+
+
 class PublishConsentTest(unittest.TestCase):
     """公開の同意文が、実際に出る範囲と合っていること。
 

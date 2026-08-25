@@ -369,11 +369,10 @@
                 <button @click="showNoteModal = false" style="color:#a3a3a3; background:none; border:none; cursor:pointer; font-size:16px;"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-4">
-                <div>
-                    <label class="cm-form-label">投稿名</label>
-                    <input type="text" class="cm-form-input" x-model="noteForm.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
-                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
-                </div>
+                {# 投稿ごとの表示名はやめた（2026-08-25）。投稿した時点の名前を
+                   焼き付けると、表示名を変えたときに過去の投稿が古い名前のまま
+                   残り、**同じ人が何人もいるように見える**。名前はアカウントの
+                   表示名に一本化し、読むときに引く。 #}
                 <div>
                     <label class="cm-form-label">タイトル <span style="color:#dc2626;">*</span></label>
                     <input type="text" class="cm-form-input" x-model="noteForm.title" placeholder="例: キーエンスの営業利益率の秘密">
@@ -401,7 +400,7 @@
                     <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_public }" @click="noteForm.is_public = !noteForm.is_public"><div class="toggle-dot"></div></div>
                 </div>
                 <div x-show="noteForm.is_public" class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
-                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">いまの表示名：<span style="font-weight:600;" x-text="noteForm.is_anonymous ? '匿名ユーザー' : ((noteForm.poster_name || '').trim() || userDisplayName || 'あなたの名前')"></span></p></div>
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">いまの表示名：<span style="font-weight:600;" x-text="noteForm.is_anonymous ? '匿名ユーザー' : (userDisplayName || 'あなたの名前')"></span></p></div>
                     <div class="cm-toggle-switch" :class="{ 'on': noteForm.is_anonymous }" @click="noteForm.is_anonymous = !noteForm.is_anonymous"><div class="toggle-dot"></div></div>
                 </div>
             </div>
@@ -423,11 +422,6 @@
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="cm-form-label">投稿名</label>
-                    <input type="text" class="cm-form-input" x-model="questionForm.poster_name" placeholder="投稿時に表示される名前（空欄でデフォルト名を使用）" maxlength="30">
-                    <p class="text-xs mt-1" style="color:#a3a3a3;">この投稿だけの表示名を設定できます</p>
-                </div>
-                <div>
                     <label class="cm-form-label">質問タイトル <span style="color:#dc2626;">*</span></label>
                     <input type="text" class="cm-form-input" x-model="questionForm.title" placeholder="例: ROEとROAの違いがわかりません">
                 </div>
@@ -441,7 +435,7 @@
                 </div>
                 <div><label class="cm-form-label">タグ（カンマ区切り）</label><input type="text" class="cm-form-input" x-model="questionForm.tagsInput" placeholder="例: 財務指標, 初心者"></div>
                 <div class="flex items-center justify-between p-3 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
-                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">いまの表示名：<span style="font-weight:600;" x-text="questionForm.is_anonymous ? '匿名ユーザー' : ((questionForm.poster_name || '').trim() || userDisplayName || 'あなたの名前')"></span></p></div>
+                    <div><p class="text-xs font-bold" style="color:#1a1a1a;">匿名で投稿</p><p class="text-xs" style="color:#525252;">いまの表示名：<span style="font-weight:600;" x-text="questionForm.is_anonymous ? '匿名ユーザー' : (userDisplayName || 'あなたの名前')"></span></p></div>
                     <div class="cm-toggle-switch" :class="{ 'on': questionForm.is_anonymous }" @click="questionForm.is_anonymous = !questionForm.is_anonymous"><div class="toggle-dot"></div></div>
                 </div>
             </div>
@@ -530,9 +524,6 @@
                         <!-- 回答フォーム -->
                         <div class="mt-4 p-4 rounded-lg" style="background:#f8faf8; border:1px solid #ebebeb;">
                             <h4 class="text-xs font-bold mb-2" style="color:#1a1a1a;"><i class="fas fa-pen mr-1" style="font-size:10px; color:#2d6a4f;"></i>回答を書く</h4>
-                            <div class="mb-2">
-                                <input type="text" class="cm-form-input" x-model="answerForm.poster_name" placeholder="投稿名（空欄でデフォルト名を使用）" maxlength="30" style="font-size:12px; padding:6px 10px;">
-                            </div>
                             <textarea class="cm-form-textarea" x-model="answerForm.content" placeholder="回答を入力してください..." style="min-height:80px;"></textarea>
                             <div class="flex items-center justify-between mt-2">
                                 <label class="flex items-center gap-2 text-xs" style="color:#737373; cursor:pointer;">
@@ -570,7 +561,7 @@ function communityApp() {
         notesLoading: true, notesLoadingMore: false, notesHasMore: false,
         notesOffset: 0, notesLimit: 50,
         showNoteModal: false,
-        noteForm: { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false, poster_name: '' },
+        noteForm: { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false },
 
         // 質問
         questions: [], questionTags: [], qFilter: 'all',
@@ -578,12 +569,12 @@ function communityApp() {
         // 会員限定で隠れている件数（中身はサーバーが送らない）
         hiddenCount: 0, isMember: true,
         showQuestionModal: false,
-        questionForm: { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false, poster_name: '' },
+        questionForm: { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false },
 
         // 質問詳細
         showDetailModal: false, detailQuestion: null, detailAnswers: [], detailLikes: {},
         detailLoading: false, savingAnswer: false,
-        answerForm: { content: '', is_anonymous: false, poster_name: '' },
+        answerForm: { content: '', is_anonymous: false },
 
         async init() {
             // ユーザー情報を取得してデフォルト投稿名を設定
@@ -656,7 +647,7 @@ function communityApp() {
             return result;
         },
         openNoteModal() {
-            this.noteForm = { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false, poster_name: this.userDisplayName };
+            this.noteForm = { title: '', content: '', company_code: '', company_name: '', stars: 0, tagsInput: '', is_public: true, is_anonymous: false };
             this.showNoteModal = true;
         },
         async saveNote() {
@@ -664,7 +655,7 @@ function communityApp() {
             this.saving = true;
             const tags = this.noteForm.tagsInput.split(/[,、]/).map(t => t.trim()).filter(t => t.length > 0);
             try {
-                const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.noteForm.title.trim(), content: this.noteForm.content.trim(), company_code: this.noteForm.company_code.trim() || null, company_name: this.noteForm.company_name.trim() || null, stars: this.noteForm.stars, tags, is_public: this.noteForm.is_public, is_anonymous: this.noteForm.is_anonymous, poster_name: this.noteForm.poster_name.trim() || null }) });
+                const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.noteForm.title.trim(), content: this.noteForm.content.trim(), company_code: this.noteForm.company_code.trim() || null, company_name: this.noteForm.company_name.trim() || null, stars: this.noteForm.stars, tags, is_public: this.noteForm.is_public, is_anonymous: this.noteForm.is_anonymous }) });
                 const data = await res.json();
                 if (res.ok) { this.showNoteModal = false; showSuccessModal('ノートを投稿しました'); await Promise.all([this.loadNotes(), this.loadNoteTags()]); }
                 else { showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。'); }
@@ -699,7 +690,7 @@ function communityApp() {
             return result;
         },
         openQuestionModal() {
-            this.questionForm = { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false, poster_name: this.userDisplayName };
+            this.questionForm = { title: '', content: '', company_code: '', company_name: '', tagsInput: '', is_anonymous: false };
             this.showQuestionModal = true;
         },
         async saveQuestion() {
@@ -707,7 +698,7 @@ function communityApp() {
             this.saving = true;
             const tags = this.questionForm.tagsInput.split(/[,、]/).map(t => t.trim()).filter(t => t.length > 0);
             try {
-                const res = await fetch('/api/community/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.questionForm.title.trim(), content: this.questionForm.content.trim(), company_code: this.questionForm.company_code.trim() || null, company_name: this.questionForm.company_name.trim() || null, tags, is_anonymous: this.questionForm.is_anonymous, poster_name: this.questionForm.poster_name.trim() || null }) });
+                const res = await fetch('/api/community/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: this.questionForm.title.trim(), content: this.questionForm.content.trim(), company_code: this.questionForm.company_code.trim() || null, company_name: this.questionForm.company_name.trim() || null, tags, is_anonymous: this.questionForm.is_anonymous }) });
                 const data = await res.json();
                 if (res.ok) { this.showQuestionModal = false; showSuccessModal('質問を投稿しました'); await Promise.all([this.loadQuestions(), this.loadQuestionTags()]); }
                 else { showErrorModal('投稿できませんでした。しばらくしてからもう一度お試しください。'); }
@@ -729,7 +720,7 @@ function communityApp() {
             this.detailQuestion = null;
             this.detailAnswers = [];
             this.detailLikes = {};
-            this.answerForm = { content: '', is_anonymous: false, poster_name: this.userDisplayName };
+            this.answerForm = { content: '', is_anonymous: false };
             try {
                 const res = await fetch('/api/community/questions/' + qId);
                 const data = await res.json();
@@ -782,12 +773,12 @@ function communityApp() {
             if (!this.detailQuestion) return;
             this.savingAnswer = true;
             try {
-                const res = await fetch('/api/community/questions/' + this.detailQuestion.id + '/answers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: this.answerForm.content.trim(), is_anonymous: this.answerForm.is_anonymous, poster_name: this.answerForm.poster_name.trim() || null }) });
+                const res = await fetch('/api/community/questions/' + this.detailQuestion.id + '/answers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: this.answerForm.content.trim(), is_anonymous: this.answerForm.is_anonymous }) });
                 const data = await res.json();
                 if (res.ok && data.answer) {
                     this.detailAnswers.push(data.answer);
                     this.detailQuestion.answer_count = (this.detailQuestion.answer_count || 0) + 1;
-                    this.answerForm = { content: '', is_anonymous: false, poster_name: this.userDisplayName };
+                    this.answerForm = { content: '', is_anonymous: false };
                     // 一覧のanswer_countも更新
                     const listQ = this.questions.find(q => q.id === this.detailQuestion.id);
                     if (listQ) listQ.answer_count = this.detailQuestion.answer_count;
