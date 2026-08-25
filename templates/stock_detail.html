@@ -1689,10 +1689,13 @@
                 secondsVisible: false,
                 fixLeftEdge: true,
                 fixRightEdge: true,
+                tickMarkFormatter: ChartDate.tick,
             },
             localization: {
                 locale: 'ja-JP',
                 priceFormatter: (p) => chartCurrencySymbol() + Math.round(p).toLocaleString('ja-JP'),
+                // 既定は英語圏の並び。locale だけでは日付の書式が変わらない
+                timeFormatter: ChartDate.full,
             },
         });
 
@@ -1805,7 +1808,8 @@
             },
             rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.08 } },
             timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
-            localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1) },
+            localization: { locale: 'ja-JP', priceFormatter: p => p.toFixed(1),
+                            timeFormatter: ChartDate.full },
         });
 
         // 指数を先に引いて背面に置く（基準線なので銘柄の線を隠さない）
@@ -2666,7 +2670,8 @@
             },
             rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.15, bottom: 0.1 } },
             timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
-            localization: { locale: 'ja-JP', priceFormatter: (v) => `${v.toFixed(2)}倍` },
+            localization: { locale: 'ja-JP', priceFormatter: (v) => `${v.toFixed(2)}倍`,
+                            timeFormatter: ChartDate.full },
         });
         vhSeries = vhChart.addLineSeries({
             color: '#1b4332', lineWidth: 2, priceLineVisible: false,

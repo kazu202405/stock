@@ -19,6 +19,13 @@ os.environ.setdefault('ENABLE_SCHEDULER', 'false')
 
 import market_data as md
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def read(*parts):
+    with open(os.path.join(ROOT, *parts), encoding='utf-8') as f:
+        return f.read()
+
 
 class IndexListTest(unittest.TestCase):
 
@@ -59,6 +66,31 @@ class IndexListTest(unittest.TestCase):
         for key in ('gold', 'wti'):
             idx = md.INDEX_BY_KEY[key]
             self.assertIn('限月', idx['note'], key)
+
+    def test_割り切れる本数にする(self):
+        """カードは4列×2段で並べる。7本だと6+1のような半端な段になる。"""
+        self.assertEqual(len(md.INDEXES) % 4, 0,
+                         'カードの列数(4)で割り切れない本数: %d' % len(md.INDEXES))
+
+    def test_金利も並べる(self):
+        """お金の値段。ここが上がると将来の利益を今の価値に直すときの割引が
+        大きくなり、PERは下がりやすい。株価の水準を説明する背景になる。"""
+        self.assertIn('us10y', self.keys)
+        self.assertEqual(md.INDEX_BY_KEY['us10y']['symbol'], '^TNX')
+
+    def test_単位が後ろに付くものは単位を持つ(self):
+        """利回りは 4.70% で、$4.70 ではない。前置きだけだと意味を取り違える。"""
+        self.assertEqual(md.INDEX_BY_KEY['us10y'].get('suffix'), '%')
+
+    def test_画面が単位を出す(self):
+        html = read('templates', 'market.html')
+        self.assertIn("(idx.suffix || '')", html)
+
+    def test_カードの列は割り切れる数に固定する(self):
+        """auto-fill だと幅によって6+2のような半端な段になる。"""
+        html = read('templates', 'market.html')
+        self.assertIn('grid-template-columns: repeat(4, 1fr)', html)
+        self.assertNotIn('repeat(auto-fill, minmax(180px, 1fr))', html)
 
     def test_必要な項目が全部そろっている(self):
         needed = ('key', 'prefix', 'decimals', 'symbol', 'name',
