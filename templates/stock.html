@@ -703,7 +703,7 @@
     <!-- ヘッダー -->
     <div class="report-header">
         <div class="report-title">ウォッチリスト</div>
-        <a href="/search" class="search-link-btn">
+        <a href="/compare" class="search-link-btn">
             <i class="fas fa-search"></i> 銘柄検索
         </a>
     </div>
@@ -1474,7 +1474,7 @@
         wlBtn.textContent = `${countLabel}件 詳細取得`;
 
         if (watchlistCache.length === 0) {
-            content.innerHTML = '<div class="watchlist-empty">登録銘柄がありません。<a href="/search">銘柄検索</a>から登録してください。</div>';
+            content.innerHTML = '<div class="watchlist-empty">登録銘柄がありません。<a href="/compare">銘柄検索</a>から登録してください。</div>';
             return;
         }
 

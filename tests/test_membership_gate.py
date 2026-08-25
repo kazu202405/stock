@@ -163,8 +163,11 @@ class LandingAfterLoginTest(unittest.TestCase):
         self.root = root
 
     def test_free_user_lands_on_a_page_they_can_use(self):
+        # 2026-08-25: /search（銘柄検索）は /compare（企業比較）になった。
+        # 銘柄を探すのはヘッダーの検索窓でどのページからでもできるので、
+        # 着地は会社を眺めて回れるテーマ・業種の一覧にする。
         with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
-            self.assertEqual(self.root.home_path(), '/search')
+            self.assertEqual(self.root.home_path(), '/themes')
 
     def test_member_lands_on_the_dashboard(self):
         with unittest.mock.patch.object(self.root, 'is_member', return_value=True):

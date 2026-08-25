@@ -431,7 +431,7 @@
                             <a href="/screener" class="nav-dropdown-item">
                                 <i class="fas fa-filter"></i>スクリーニング
                             </a>
-                            <a href="/search" class="nav-dropdown-item">
+                            <a href="/compare" class="nav-dropdown-item">
                                 <i class="fas fa-code-compare"></i>企業比較
                             </a>
                             <a href="/simulator" class="nav-dropdown-item">
@@ -620,7 +620,7 @@
             <a href="/screener" class="slide-menu-link">
                 <i class="fas fa-filter"></i>スクリーニング
             </a>
-            <a href="/search" class="slide-menu-link">
+            <a href="/compare" class="slide-menu-link">
                 <i class="fas fa-code-compare"></i>企業比較
             </a>
             <a href="/simulator" class="slide-menu-link">
@@ -971,7 +971,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const path = window.location.pathname;
         /* 完全一致を優先し、startsWith判定は子パスのないリンクのみ適用 */
-        const exactPaths = ['/dashboard', '/dashboard/admin', '/admin/users', '/mypage', '/search', '/learning', '/community'];
+        const exactPaths = ['/dashboard', '/dashboard/admin', '/admin/users', '/mypage', '/compare', '/learning', '/community'];
         document.querySelectorAll('.nav-link').forEach(function(link) {
             const href = link.getAttribute('href');
             if (path === href) {

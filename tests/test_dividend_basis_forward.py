@@ -70,8 +70,8 @@ class SharedModuleTest(unittest.TestCase):
         self.assertEqual(source.count("label: '配当利回り(実績)'"), 1)
         self.assertEqual(source.count('<th>配当利回り(実績)</th>'), 1)
 
-    def test_銘柄ページと検索ページも共通部品を通す(self):
-        for name in ('stock_detail.html', 'search.html', 'screener.html'):
+    def test_銘柄ページと一覧も共通部品を通す(self):
+        for name in ('stock_detail.html', 'screener.html', 'stock.html'):
             self.assertIn('DividendBasis.', read('templates', name), name)
 
 
@@ -104,11 +104,14 @@ class DisplayedFieldsTest(unittest.TestCase):
         self.assertLess(source.index('x-text="fmtPct(row.dividend_yield_forward, 2)"'),
                         source.index('x-text="fmtPct(row.dividend_yield, 2)"'))
 
-    def test_管理者の書き戻し先が表示している列と同じ(self):
-        """カードに出しているのは予想なので、実績の列に書き戻すと
-        「直した数字が画面に反映されない」ように見える。"""
-        source = read('templates', 'search.html')
-        self.assertIn("'配当利回り': 'dividend_yield_forward'", source)
+    def test_管理者が直すのも予想の列(self):
+        """画面に出しているのは予想なので、実績の列に書き戻すと
+        「直した数字が画面に反映されない」ように見える。
+
+        2026-08-25: 手入力は /search から /admin/stock-data へ移した。"""
+        source = read('templates', 'admin_stock_data.html')
+        self.assertIn("key: 'dividend_yield_forward'", source)
+        self.assertNotIn("key: 'dividend_yield',", source)
 
 
 if __name__ == '__main__':

@@ -52,15 +52,20 @@ class UpdateEndpointGuardTest(unittest.TestCase):
 
 
 class SearchPageAdminFlagTest(unittest.TestCase):
+    """2026-08-25: /search は /compare へのリダイレクトになり、編集UIは
+    /admin/stock-data（管理者専用）へ移した。"""
 
-    def test_全員に管理者UIを渡さない(self):
+    def test_旧ページは管理者UIを持たない(self):
         source = read('models', 'root.py')
         block = source.split("@app.route('/search')", 1)[1].split('@app.route', 1)[0]
-        # docstring に経緯として is_admin=True と書いてあるので、
-        # 説明文を除いた実コードの部分だけを見る
         code = block.split('"""')[-1]
-        self.assertNotIn("is_admin=True", code)
-        self.assertIn("session.get('user_role') == 'admin'", code)
+        self.assertNotIn('is_admin', code)
+        self.assertIn("redirect('/compare'", code)
+
+    def test_編集画面は管理者だけが開ける(self):
+        source = read('models', 'root.py')
+        block = source.split("@app.route('/admin/stock-data')", 1)[1].split('@app.route', 1)[0]
+        self.assertIn('_require_admin()', block)
 
 
 if __name__ == '__main__':

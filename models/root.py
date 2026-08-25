@@ -53,9 +53,13 @@ def home_path():
 
     /dashboard は会員限定にしたので、ここを固定で /dashboard にすると
     無料会員は登録した直後に「この機能は会員限定です」に飛ばされる。
-    無料会員には、無料で使えて最初に触るであろう銘柄検索を出す。
+    無料会員には、無料で使えて最初に触るであろう画面を出す。
+
+    2026-08-25: /search（銘柄検索）は /compare（企業比較）になった。
+    銘柄を探すのはヘッダーの検索窓でどのページからでもできるので、
+    着地はテーマ・業種の一覧にする（会社を眺めて回れる入口）。
     """
-    return '/dashboard' if is_member() else '/search'
+    return '/dashboard' if is_member() else '/themes'
 
 
 def _require_member():
@@ -924,19 +928,27 @@ def sitemap_xml():
     return app.response_class('\n'.join(parts), mimetype='application/xml')
 
 
-@app.route('/search')
-def search():
-    """企業情報ページ（銘柄検索・企業比較）
+@app.route('/compare')
+def compare():
+    """企業比較（2〜3社を並べる）。
 
-    ⚠️ 2026-08-25: is_admin=True を固定で渡していた。ログインしていれば
-    誰にでも数値の編集欄と「変更を保存」ボタンが出ており、保存先の
-    /api/watchlist/update には認証が一切無かった（＝会員なら誰でも
-    全銘柄の財務データを書き換えられる状態）。他の画面と同じ判定に戻す。
+    2026-08-25 に /search から切り出した。あのページは検索窓のほかに
+    事業概要・財務データ5年・CF・財務健全性・主要株主/役員を持っていたが、
+    **その5つは /stock/<code> と同じもの**だった。銘柄検索はヘッダーの窓へ、
+    管理者の手入力は /admin/stock-data へ移し、ここには比較だけを残した。
     """
     guard = _require_login()
     if guard: return guard
-    return render_template('search.html',
-                           is_admin=session.get('user_role') == 'admin')
+    return render_template('compare.html')
+
+
+@app.route('/search')
+def search():
+    """旧「企業情報」ページ。中身は /compare に移した。
+
+    外から貼られたリンクとブックマークのために残す。消すと 404 になる。
+    """
+    return redirect('/compare', code=301)
 
 
 @app.route('/dashboard/admin')
