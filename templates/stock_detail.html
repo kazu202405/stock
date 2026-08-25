@@ -286,6 +286,42 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /* この会社のノート */
+    .stock-note {
+        padding: 14px 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .stock-note:last-child { border-bottom: none; }
+    .stock-note-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 12px;
+        margin-bottom: 7px;
+    }
+    .stock-note-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+    .stock-note-meta { font-size: 0.72rem; color: #a3a3a3; margin-left: auto; }
+    .stock-note-body {
+        font-size: 0.85rem;
+        line-height: 1.85;
+        color: #4c4a46;
+        white-space: pre-wrap;   /* 改行をそのまま出す。長文が1段落に潰れない */
+        word-break: break-word;
+    }
+    .stock-note-tags { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .note-tag {
+        font-size: 0.68rem;
+        color: #2d6a4f;
+        background: #f0fdf4;
+        border: 1px solid #dcfce7;
+        border-radius: 20px;
+        padding: 1px 9px;
+    }
+
     .metric-label {
         font-size: 0.75rem;
         color: var(--text-secondary);
@@ -1451,6 +1487,25 @@
             </div>
         
             </div>
+    </div>
+
+    {# この会社のノート。
+       公開ノート（notes.is_public）を company_code で引いて並べる。
+       ⚠️ 事業概要とは器が違う。あちらは一行紹介で、スクリーナーのカードや
+          SEOの説明文にも出るため長文を置けない。腰を据えた企業分析はこちら。
+       ⚠️ 「運営の見解」という見出しにしない。**書いた人の名前を出す。**
+          一意見であることが伝わる形にしておく。 #}
+    <div class="detail-card" id="stock-notes-card" style="grid-column: 1 / -1; display: none;">
+        <div class="detail-header">
+            この会社のノート
+            <span id="stock-notes-count" style="font-size:0.75rem; font-weight:400; color:#a3a3a3; margin-left:6px;"></span>
+        </div>
+        <div class="detail-content">
+            <div id="stock-notes-list"></div>
+            <p style="margin-top:14px; font-size:11.5px; color:#a3a3a3; line-height:1.7;">
+                ノートは書いた人の見方であって、会社の公式見解でも売買の勧めでもありません。
+            </p>
+        </div>
     </div>
 </div>
 
@@ -2708,6 +2763,59 @@
         if (vhChart && chartEl) vhChart.applyOptions({ width: chartEl.clientWidth });
     });
 
+    /**
+     * この会社のノート。公開ノートを銘柄コードで引く。
+     *
+     * ⚠️ 出るのは `is_public` のものだけ（サーバー側の get_notes_by_company が
+     *    絞っている）。銘柄ページは公開なので、非公開のノートを混ぜない。
+     * ⚠️ 本文はエスケープして入れる。書き手は会員なので、HTMLをそのまま
+     *    流し込むと公開ページに他人の書いたタグが載る。
+     */
+    function escapeText(value) {
+        const el = document.createElement('div');
+        el.textContent = String(value === null || value === undefined ? '' : value);
+        return el.innerHTML;
+    }
+
+    function formatNoteDate(value) {
+        const d = new Date(value);
+        return isNaN(d) ? '' : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    }
+
+    async function loadStockNotes(code) {
+        const card = document.getElementById('stock-notes-card');
+        const list = document.getElementById('stock-notes-list');
+        if (!card || !list || !code) return;
+        try {
+            const res = await fetch('/api/notes?company_code=' + encodeURIComponent(code));
+            if (!res.ok) return;
+            const data = await res.json();
+            const notes = data.notes || [];
+            if (!notes.length) return;   // 無いときは見出しごと出さない
+
+            document.getElementById('stock-notes-count').textContent = `${notes.length}件`;
+            list.innerHTML = notes.map(function (n) {
+                const who = n.is_anonymous ? '匿名'
+                    : escapeText(n.poster_name || n.display_name || n.user_name || '会員');
+                const when = formatNoteDate(n.created_at);
+                const tags = (Array.isArray(n.tags) ? n.tags : [])
+                    .map(t => `<span class="note-tag">${escapeText(t)}</span>`).join('');
+                return `<article class="stock-note">
+                    <div class="stock-note-head">
+                        <span class="stock-note-title">${escapeText(n.title || '（無題）')}</span>
+                        <span class="stock-note-meta">${who}${when ? ' ・ ' + when : ''}</span>
+                    </div>
+                    <div class="stock-note-body">${escapeText(n.content || '')}</div>
+                    ${tags ? `<div class="stock-note-tags">${tags}</div>` : ''}
+                </article>`;
+            }).join('');
+            card.style.display = '';
+        } catch (e) {
+            // ノートが出ないだけで、銘柄ページの他の部分は動く
+            console.error('ノートの取得エラー:', e);
+        }
+    }
+
     // 株主・役員を後追いで取得する。
     //
     // 全銘柄バックフィルは skip_extras=True で株主・役員を取らないため、
@@ -3568,6 +3676,7 @@
         }
 
         // ファイルキャッシュからチャートを読み込み
+        loadStockNotes(STOCK_CODE);
         const chartLoaded = await loadChartFromCache();
         if (!chartLoaded) {
             const chartContainer = document.getElementById('tradingview-chart-container');

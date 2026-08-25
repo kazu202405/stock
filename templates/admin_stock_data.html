@@ -171,6 +171,25 @@
     .asd-note b { color: #1a1a1a; }
 
     #asdEditor { display: none; }
+
+    .asd-textarea {
+        width: 100%;
+        min-height: 88px;
+        padding: 9px 11px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        outline: none;
+        resize: vertical;
+        font-family: inherit;
+    }
+    .asd-textarea:focus { border-color: #1b4332; }
+    .asd-textarea.is-changed { border-color: #d97706; background: #fffbeb; }
+    .asd-counter { font-size: 11.5px; color: #a3a3a3; margin-top: 5px; text-align: right; }
+    .asd-counter.is-over { color: #b91c1c; font-weight: 600; }
 </style>
 {% endblock %}
 
@@ -200,6 +219,21 @@
     </div>
 
     <div id="asdEditor">
+        <div class="asd-card">
+            <p class="asd-card-title">事業概要</p>
+            <textarea id="asdSummary" class="asd-textarea"
+                      placeholder="この会社が何で稼いでいるかを1〜3文で"></textarea>
+            <div class="asd-counter" id="asdSummaryCount"></div>
+            <div class="asd-note">
+                ここは<b>一行紹介の器</b>です。3か所に出ます
+                ——スクリーナーのカード（2行で切られる）、テーマ・業種ページ（全文）、
+                銘柄ページの検索用の説明文（全文）。<br>
+                いま入っているものは<b>中央値85文字・最長184文字</b>。
+                <b>長い分析はここではなく銘柄ノートに書いてください</b>
+                （マイノートから、銘柄を指定して公開で保存すると銘柄ページに出ます）。
+            </div>
+        </div>
+
         <div class="asd-card">
             <p class="asd-card-title">主要指標</p>
             <div class="asd-grid" id="asdMetrics"></div>
@@ -402,6 +436,12 @@
                     </div>`;
         }).join('');
 
+        // 事業概要
+        const summary = document.getElementById('asdSummary');
+        summary.value = row.business_summary_jp || '';
+        summary.dataset.original = summary.value;
+        updateSummaryCount();
+
         // 今期の会社予想
         document.getElementById('asdForecast').innerHTML = FORECAST_FIELDS.map(function (f) {
             const v = row[f.key];
@@ -481,8 +521,25 @@
         }).join('');
     }
 
+    // 事業概要の文字数。上限を超えたら保存前に画面で分かるようにする。
+    const SUMMARY_MAX = 300;
+
+    function updateSummaryCount() {
+        const summary = document.getElementById('asdSummary');
+        const counter = document.getElementById('asdSummaryCount');
+        if (!summary || !counter) return;
+        const n = summary.value.length;
+        counter.textContent = `${n} / ${SUMMARY_MAX}文字`;
+        counter.classList.toggle('is-over', n > SUMMARY_MAX);
+        summary.classList.toggle('is-changed',
+            String(summary.value) !== String(summary.dataset.original));
+    }
+
     // 触った欄に印を付ける。どこを直したか分からないまま保存させない。
     function watchChanges() {
+        const summary = document.getElementById('asdSummary');
+        if (summary) summary.addEventListener('input', updateSummaryCount);
+
         document.querySelectorAll('#asdEditor input').forEach(function (input) {
             input.addEventListener('input', function () {
                 const changed = String(this.value) !== String(this.dataset.original);
@@ -508,6 +565,11 @@
 
         // 表は2つ（financial_history と cf_history）。どちらの履歴かは
         // data-source で分ける。混ぜると片方が相手のキーを上書きする。
+        const summary = document.getElementById('asdSummary');
+        if (summary && String(summary.value) !== String(summary.dataset.original)) {
+            payload.business_summary_jp = summary.value.trim();
+        }
+
         document.querySelectorAll('#asdEditor input[data-forecast]').forEach(function (input) {
             if (String(input.value) === String(input.dataset.original)) return;
             const v = input.value.trim();

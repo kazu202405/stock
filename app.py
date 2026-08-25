@@ -1013,6 +1013,22 @@ def api_update_watchlist():
             if key in edited_data:
                 update_data[key] = edited_data[key]
 
+        # 事業概要（日本語）。**一行紹介の器であって、長文の置き場ではない。**
+        # この列は3か所に出る:
+        #   スクリーナーのカード … 2行でクランプ（長文は切られる）
+        #   テーマ・業種ページ   … 全文が出る（長文だと一覧が崩れる）
+        #   銘柄ページの meta description … 全文を striptags（SEOの説明文になる）
+        # 実データは中央値85文字・最長184文字。長い分析は銘柄ノートへ。
+        if 'business_summary_jp' in edited_data:
+            summary = (edited_data['business_summary_jp'] or '').strip() or None
+            if summary and len(summary) > BUSINESS_SUMMARY_MAX:
+                return jsonify({
+                    "error": f"事業概要は{BUSINESS_SUMMARY_MAX}文字までです"
+                             "（一覧やSEOの説明文にも使われます）。"
+                             "長い分析は銘柄ノートに書いてください。"
+                }), 400
+            update_data['business_summary_jp'] = summary
+
         # 決算期は日付の文字列（'2027-03-31'）。数値の列と混ぜない。
         if 'forecast_year' in edited_data:
             value = (edited_data['forecast_year'] or '').strip() or None
@@ -2862,6 +2878,10 @@ def api_report(source, key):
 # =============================================
 
 # 並べ替えに使ってよいカラム（任意の文字列を order に渡さないためのホワイトリスト）
+# 事業概要の上限。実データは中央値85文字・最長184文字なので、
+# 手で書き足す余地を見て少し広めに取る。長い分析は銘柄ノートへ。
+BUSINESS_SUMMARY_MAX = 300
+
 SCREEN_SORTABLE = {
     'match_rate', 'market_cap', 'stock_price', 'per_forward', 'pbr',
     'roe', 'roa', 'equity_ratio', 'operating_margin',
