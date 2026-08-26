@@ -59,6 +59,20 @@ class MessageTest(unittest.TestCase):
         ここまで会員向けの文言にすると、今度は逆に嘘になる。"""
         self.assertIn('データの読み込みに失敗しました', self.html)
 
+    def test_一般会員で管理者ボタンが無くても一覧描画を止めない(self):
+        """管理者専用ボタンをHTMLから消しても、会員向け一覧は描画できること。
+
+        2026-08-27、好調企業とテクニカル分析の描画中に、存在しない
+        wlAnalyzeBtn / techAnalyzeBtn の textContent を更新して例外になり、
+        キャッシュ利用時は「読み込み中」のまま残っていた。
+        """
+        self.assertIn("if (wlBtn) wlBtn.textContent", self.html)
+        self.assertIn("if (techBtn && !tech_analyze_status_running)", self.html)
+        self.assertNotIn(
+            "document.getElementById('techAnalyzeBtn').textContent",
+            self.html,
+        )
+
 
 class ApiStatusTest(unittest.TestCase):
     """APIが実際に401/403を返し分けていること。"""

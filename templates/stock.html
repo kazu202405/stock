@@ -1534,7 +1534,9 @@
         const totalCount = watchlistCache.length;
         const filteredCount = list.length;
         const countLabel = totalCount === filteredCount ? `${totalCount}` : `${filteredCount}/${totalCount}`;
-        wlBtn.textContent = `${countLabel}件 詳細取得`;
+        // 詳細取得は管理者専用なので、一般会員のHTMLにはボタン自体が無い。
+        // 一覧の描画は全会員に必要なため、ボタン更新だけを存在時に限定する。
+        if (wlBtn) wlBtn.textContent = `${countLabel}件 詳細取得`;
 
         if (watchlistCache.length === 0) {
             content.innerHTML = '<div class="watchlist-empty">登録銘柄がありません。<a href="/compare">銘柄検索</a>から登録してください。</div>';
@@ -3229,9 +3231,10 @@
 
         renderTechnicalStocks(list, false);
 
-        // 分析中でなければボタンラベル更新
-        if (!tech_analyze_status_running) {
-            document.getElementById('techAnalyzeBtn').textContent = `${technicalStocksCache.length}件 詳細取得`;
+        // 詳細取得は管理者専用。一般会員ではボタンが無くても一覧を描画する。
+        const techBtn = document.getElementById('techAnalyzeBtn');
+        if (techBtn && !tech_analyze_status_running) {
+            techBtn.textContent = `${technicalStocksCache.length}件 詳細取得`;
         }
     }
 
