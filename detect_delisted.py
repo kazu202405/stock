@@ -4,13 +4,29 @@
 アプリは生きた銘柄として表示し続けていた。株価は最終売買日で凍結されたまま、
 検索にもスクリーナーにも出て、上場廃止だとはどこにも書かれていなかった。
 
-2段構えで判定する:
+3段構えで判定する:
     1. **日足が30日以上止まっている**銘柄を候補にする（取引が無い＝足も付かない）
-    2. yfinance に問い合わせて**値が返らない**ことを確かめる
+    2. **JPXの公式な上場銘柄一覧に載っていない**ことを確かめる
+    3. yfinance に問い合わせて値が返らないことも見る（補助）
 
 1だけでは足りない。取得に失敗し続けているだけかもしれず、上場中の会社を
-アプリから消すことになる。逆に2だけだと全銘柄を個別に叩くことになり、
+アプリから消すことになる。逆に3だけだと全銘柄を個別に叩くことになり、
 レート制限に当たる（1で数十件まで絞れる）。
+
+⚠️ **2 を足したのは 2026-08-26。** 1だけで絞ると PRO Market を巻き込む。
+   TOKYO PRO Market はプロ投資家向けで**売買が成立しない日が続くのが正常**。
+   実測すると「足が30日以上止まっている」52件は**全件が PRO Market**で、
+   上場廃止は1件も無かった。JPXの一覧と突き合わせるとこの52件が消え、
+   残る37件がすべて本当の上場廃止だった。
+
+⚠️ **3 は単独では信用できない。** `probe_is_alive` は1年ぶんの足を見るので、
+   **廃止から1年経つまで「値が返る＝上場中」を返し続ける**。
+   実際 2026年6月に廃止された18件を「上場中」と誤判定していた。
+
+⚠️ JPX一覧は `jpx_master.fetch_all()` から取る。**`static/companies.json` は使わない。**
+   あれはこちらが取ってきた時点のスナップショットで更新が遅れ、ETFを
+   意図的に外しているので「載っていない＝廃止」にならない。
+   使うのはJPXが公開している生の一覧（PRO Market・ETF・REITも含む）。
 
 ⚠️ **daily_updated_at は候補の絞り込みに使えない。** 実測すると上場廃止銘柄でも
 8月の日付が入っていた（保存が走った記録であって、足が付いた記録ではない）。
@@ -119,6 +135,20 @@ def _codes_with_history(client):
 PROBE_PERIOD = '1y'
 
 
+def listed_codes():
+    """JPXが公開している上場銘柄コードの集合。取れなければ None。
+
+    None のときは**この条件を使わない**（全部を廃止扱いにしない）。
+    取得に失敗しただけで銘柄を消すことになるため。
+    """
+    try:
+        import jpx_master
+        return {r['code'] for r in jpx_master.fetch_all()}
+    except Exception as e:
+        print(f'JPXの一覧を取得できませんでした（この条件は使いません）: {e}')
+        return None
+
+
 def probe_is_alive(code):
     """いま Yahoo にこの銘柄が存在するか。1本でも足があれば上場中。
 
@@ -151,6 +181,17 @@ def main():
           f'（うち印つき {len([c for c in candidates if c[0] in marked])}件）')
 
     todo = [c for c in candidates if c[0] not in marked]
+
+    # JPXの一覧に「載っている」銘柄は候補から外す。
+    # 足が止まっているだけで、PRO Market なら正常な状態。
+    listed = listed_codes()
+    if listed:
+        before = len(todo)
+        todo = [c for c in todo if c[0] not in listed]
+        if before != len(todo):
+            print(f'JPXの一覧に載っているため候補から外した: {before - len(todo)}件'
+                  f'（PRO Market など、売買が無いのが正常な銘柄）')
+
     if args.limit:
         todo = todo[:args.limit]
     if not todo:
@@ -173,9 +214,17 @@ def main():
                   f'上場廃止（最終売買 {delisting.describe(stamp) or "不明"}）')
         time.sleep(PROBE_SLEEP)
 
-    # 生き返った銘柄の印を外す
+    # 生き返った銘柄の印を外す。
+    # ⚠️ probe_is_alive は廃止から1年は「値が返る」を返し続けるので、
+    #    これだけで外すと**正しく付いた印を全部外してしまう**。
+    #    JPXの一覧に戻っていることを必ず併せて確かめる。
     to_clear = []
-    for code in sorted(marked):
+    recheck = ([c for c in sorted(marked) if c in listed] if listed
+               else sorted(marked))
+    if listed and len(recheck) != len(marked):
+        print(f'印つき{len(marked)}件のうち、JPXの一覧に戻っている'
+              f'{len(recheck)}件だけ再確認します')
+    for code in recheck:
         if probe_is_alive(code):
             to_clear.append(code)
             print(f'  {code} → 値が返るようになったので印を外します')
