@@ -951,6 +951,19 @@
             padding: 14px;
         }
     }
+
+        /* PRO Market の注記。売買が無いのを異常と読ませないための説明 */
+        .pro-market-note {
+            background: #fff8e6;
+            border: 1px solid #f0d9a0;
+            border-left: 3px solid #d9a441;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            line-height: 1.7;
+            color: #6b5320;
+        }
 </style>
 
 <div class="detail-page-container">
@@ -1390,6 +1403,19 @@
         <div class="detail-card{% if not is_member %} members-only{% endif %}">
             <div class="detail-header">資金・売買状況</div>
             <div class="detail-content">
+                {# PRO Market はプロ投資家向けの市場で、売買が成立しない日が
+                   続くのが正常。出来高・売買代金・信用倍率がゼロや空でも
+                   データの取得漏れではない。
+                   ⚠️ 2026-08-26、これを書いていなかったせいで
+                      「出来高ゼロが1年続く103銘柄＝上場廃止」と読み違えた。
+                      利用者にも同じ誤解が起きるので、画面に明記する。 #}
+                {% if market_segment == 'PRO Market' %}
+                <div class="pro-market-note">
+                    この銘柄は <strong>TOKYO PRO Market</strong>（プロ投資家向け市場）です。
+                    売買が成立しない日が続くのが通常のため、出来高・売買代金・信用倍率は
+                    参考になりません。<strong>データの欠落ではありません。</strong>
+                </div>
+                {% endif %}
                 {# 並びは貸借対照表の読み順にしてある。
                    左（持っているもの）→ 右の1年以内 → その比率 →
                    右の借金 → 差し引き → 純資産、と上から降りられる。

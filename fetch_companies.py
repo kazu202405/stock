@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import os
 
-from security_filter import is_non_operating_segment
+from security_filter import is_non_operating_segment, is_class_share
 
 # JPX上場企業一覧（Excel）
 URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
@@ -36,6 +36,11 @@ def fetch_and_save():
         name = str(row.get("銘柄名", "")).strip()
         segment = str(row.get("市場・商品区分", "")).strip()
         if not (code and name and code != "nan" and name != "nan"):
+            continue
+        # 種類株式（優先株・社債型）は会社ではないので入れない。
+        # JPXは普通株と同じ「プライム（内国株式）」に入れるため、区分では分けられず
+        # コードの桁数でしか見分けられない。
+        if is_class_share(code):
             continue
         if is_non_operating_segment(segment):
             skipped += 1

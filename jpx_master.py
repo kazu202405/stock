@@ -32,6 +32,23 @@ DOMESTIC_SEGMENTS = {
     'グロース（内国株式）': 'グロース',
 }
 
+# 内国普通株**以外**。分析の対象外だが、**区分は必ず記録する**。
+#
+# ⚠️ ここを空のままにしたせいで 2026-08-26 に誤診をやった。
+#    PRO Market（プロ投資家向け市場）は売買が成立しない日が続くのが正常で、
+#    Yahoo・kabutanも扱っていない。区分を持っていなかったため、
+#    「出来高ゼロが1年続く103銘柄＝上場廃止」と読み違えた。
+#    区分さえ入っていれば起きなかった。
+OTHER_SEGMENTS = {
+    'PRO Market': 'PRO Market',
+    'ETF・ETN': 'ETF・ETN',
+    'REIT・ベンチャーファンド・カントリーファンド・インフラファンド': 'REIT等',
+    'プライム（外国株式）': '外国株',
+    'スタンダード（外国株式）': '外国株',
+    'グロース（外国株式）': '外国株',
+    '出資証券': '出資証券',
+}
+
 # JPXは値が無い欄をハイフンで埋める
 _BLANK = {'-', '', 'nan', 'None'}
 
@@ -74,6 +91,49 @@ def fetch(timeout=60):
             'industry17': _clean(r.get('17業種区分')),
             'market': DOMESTIC_SEGMENTS[segment],
             'size': _clean(r.get('規模区分')),
+        })
+    return rows
+
+
+def fetch_all(timeout=60):
+    """内国普通株**以外も含めて**全銘柄を返す。
+
+    `fetch()` は分析対象（内国普通株）だけに絞る。こちらは市場区分を
+    記録するためのもので、PRO Market・ETF・REIT・外国株も落とさない。
+
+    Returns:
+        [{'code','name','industry','industry17','market','size','domestic'}, ...]
+        market … 'プライム'/'スタンダード'/'グロース'/'PRO Market'/'ETF・ETN'/
+                 'REIT等'/'外国株'/'出資証券'/'その他'
+    """
+    import requests
+    import pandas as pd
+
+    res = requests.get(JPX_URL, timeout=timeout,
+                       headers={'User-Agent': 'Mozilla/5.0'})
+    res.raise_for_status()
+    df = pd.read_excel(io.BytesIO(res.content))
+
+    rows = []
+    for _, r in df.iterrows():
+        segment = _clean(r.get('市場・商品区分'))
+        domestic = segment in DOMESTIC_SEGMENTS
+        # ⚠️ 知らない区分を 'その他' にまとめない。JPXが区分名を変えたときに
+        #    黙って混ざり、また区分を見失う。素の区分名をそのまま入れる。
+        market = (DOMESTIC_SEGMENTS.get(segment)
+                  or OTHER_SEGMENTS.get(segment) or segment or 'その他')
+        code = str(r.get('コード')).strip()
+        if code.endswith('.0'):
+            code = code[:-2]
+        code = code.zfill(4)
+        rows.append({
+            'code': code,
+            'name': _clean(r.get('銘柄名')),
+            'industry': _clean(r.get('33業種区分')),
+            'industry17': _clean(r.get('17業種区分')),
+            'market': market,
+            'size': _clean(r.get('規模区分')),
+            'domestic': domestic,
         })
     return rows
 

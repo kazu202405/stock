@@ -727,6 +727,9 @@ def stock_detail(code):
         is_fund=is_fund,
         is_delisted=is_delisted,
         delisted_on=delisted_on,
+        # PRO Market は売買が成立しない日が続くのが正常。画面で説明しないと
+        # 出来高ゼロを「データの欠落」と読まれる（2026-08-26 実際に誤診した）
+        market_segment=company.get('market_segment'),
         is_logged_in=bool(session.get('user_id')),
         is_admin=session.get('user_role') == 'admin',
     )

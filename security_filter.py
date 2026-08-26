@@ -16,9 +16,14 @@
 
 # JPXの「市場・商品区分」のうち、事業会社でないもの。
 # PRO Market・出資証券・外国株式は事業会社なので除外しない。
+# ⚠️ JPXの生の区分名と、こちらで短くしたラベルの**両方**を並べる。
+#    sync_market_segments.py は 'REIT等' という短い名前で保存するが、
+#    過去に取り込んだ行には生の区分名が入っている。片方だけにすると、
+#    保存の仕方が変わった瞬間に判定がすり抜ける（実際に一度やった）。
 NON_OPERATING_SEGMENTS = (
     'ETF・ETN',
     'REIT・ベンチャーファンド・カントリーファンド・インフラファンド',
+    'REIT等',
 )
 
 # 区分が取れない場面のための保険。銘柄名に含まれていたら非事業会社とみなす。
@@ -49,6 +54,15 @@ NON_OPERATING_KEYWORDS = (
 # 入口(companies.json)はJPXの区分で除外済みなので、ここに載るのは
 # 過去に取り込んでしまった残りだけ。
 EXCLUDED_CODES = (
+    # 種類株式（優先株・社債型）。**会社ではない。**
+    # JPXは普通株と同じ「プライム（内国株式）」に入れるので区分では分けられない。
+    # 見分けは**5桁の数字コード**（普通株は4桁）。2026-08-26 時点でJPXの5桁は
+    # 7件あり、7件とも優先株か社債型種類株式で、普通株は1つも無い。
+    # これを外さないと「ゼンショーホールディングス第１回社債型種類株式」が
+    # 業種=小売業・株価4,919円で並び、ゼンショーを調べた人が当たりうる。
+    '75505',  # ゼンショーホールディングス第１回社債型種類株式
+    '92025',  # ＡＮＡホールディングス第１回社債型種類株式
+
     '1305',  # iFreeETF TOPIX（年1回決算型）
     '1306',  # NEXT FUNDS TOPIX連動型上場投信
     '1309',  # NEXT FUNDS ChinaAMC・中国株式・上証50
@@ -67,9 +81,23 @@ def exclude_non_operating(query, column='company_code'):
     """Supabaseのクエリに「事業会社でないものを除く」条件を足す。
 
     Python側で絞ると件数とページングが狂うので、必ずDB側で外す。
+
+    コードの列挙（EXCLUDED_CODES）と市場区分の**両方**で外す。
+    列挙は手で足すものなので必ず取りこぼす。実際 8963 インヴィンシブル投資法人と
+    8987 Japan Excellent, Inc. が漏れていた（後者は英語名なので
+    NON_OPERATING_KEYWORDS の '投資法人' にも掛からない）。
+
+    ⚠️ 区分の条件を `not_.in_()` だけで書かないこと。SQLでは
+       `NULL NOT IN (...)` が真にならないため、**区分がまだ入っていない行が
+       まとめて消える**。実測で37件が巻き込まれた。
+       「区分が空」または「非事業区分でない」の or で書く。
     """
     if EXCLUDED_CODES:
         query = query.not_.in_(column, list(EXCLUDED_CODES))
+    if NON_OPERATING_SEGMENTS:
+        quoted = ','.join('"%s"' % s for s in NON_OPERATING_SEGMENTS)
+        query = query.or_('market_segment.is.null,'
+                          'market_segment.not.in.(%s)' % quoted)
     return query
 
 
@@ -89,6 +117,20 @@ def is_non_operating(name=None, market_segment=None) -> bool:
     if market_segment is not None and str(market_segment).strip():
         return is_non_operating_segment(market_segment)
     return is_non_operating_name(name)
+
+
+def is_class_share(code) -> bool:
+    """種類株式（優先株・社債型）なら True。
+
+    JPXの銘柄コードは普通株が4桁。**5桁は種類株式**で、会社そのものではない。
+    2026-08-26 時点のJPX一覧にある5桁7件は、伊藤園第１種優先株式・
+    ソフトバンク第１回社債型種類株式など、すべて種類株式だった。
+
+    取り込みの入口で弾くために使う。EXCLUDED_CODES は既に入ってしまった
+    ぶんの手当てで、こちらは新しく増えないようにするためのもの。
+    """
+    text = str(code or '').strip()
+    return len(text) == 5 and text.isdigit()
 
 
 def exclude_delisted(query, column='delisted_at'):
