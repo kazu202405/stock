@@ -109,9 +109,73 @@ def get_screened_data(company_code: str) -> dict:
     return result.data[0] if result.data else None
 
 
+# 履歴から作るスカラー列。**履歴を書くときは必ず一緒に作り直す。**
+#
+# ⚠️ 2026-08-26、eps 列が履歴より1期古い銘柄が1,263件（34.5%）あった。
+#    4288 アズジェントは列が -115.44、履歴の最新期は +44.04。
+#    **黒字の会社が赤字として企業比較に出ていた。**
+#    分析時は get_latest_value() が日付で正しく選ぶので、書いた瞬間は合う。
+#    その後に履歴だけが新しくなり、列が取り残されて起きる。
+#
+# ⚠️ 列ごとにルールが違う。dps・payout_ratio は**進行中の年度を除く**
+#    （期末を待たずに合計した中間配当を「年間配当」として拾うため。
+#    実際に357銘柄の1株配当が半分になった）。eps は実績しか入らないので
+#    そのまま最新を取る。ここを揃えると、逆に配当が壊れる。
+_HISTORY_SCALARS = (
+    # (列名, 履歴の列, 履歴のキー, 進行中の年度を除くか)
+    ('eps', 'financial_history', 'eps', False),
+    ('dps', 'financial_history', 'dps', True),
+    ('payout_ratio', 'financial_history', 'payout_ratio', True),
+)
+
+
+def _pick_from_history(series, skip_in_progress):
+    """履歴の並び順に依存せず、日付で最新を選ぶ。
+
+    ⚠️ [0] や [-1] で取らないこと。financial_history の並びは銘柄ごとに
+       違う（実測で新しい順56.8% / 古い順43.2%）。
+    """
+    if not isinstance(series, list) or not series:
+        return None
+    rows = [x for x in series
+            if isinstance(x, dict) and x.get('date') and x.get('value') is not None]
+    if skip_in_progress:
+        from datetime import datetime as _dt
+        today = _dt.now().strftime('%Y-%m-%d')
+        rows = [x for x in rows if str(x['date']) <= today]
+    if not rows:
+        return None
+    return sorted(rows, key=lambda x: str(x['date']))[-1].get('value')
+
+
+def sync_history_scalars(data: dict) -> dict:
+    """履歴が書き込まれるなら、そこから作るスカラー列も作り直す。
+
+    履歴を触らない更新（株価の同期など）には何もしない。
+    """
+    if not isinstance(data, dict):
+        return data
+    for col, hist_col, key, skip in _HISTORY_SCALARS:
+        history = data.get(hist_col)
+        if history is None:
+            continue
+        if isinstance(history, str):
+            try:
+                history = json.loads(history)
+            except (ValueError, TypeError):
+                continue
+        if not isinstance(history, dict) or key not in history:
+            continue
+        value = _pick_from_history(history.get(key), skip)
+        if value is not None:
+            data[col] = value
+    return data
+
+
 def upsert_screened_data(data: dict) -> dict:
     """screened_latestにデータを登録/更新（is_dividendフラグを保持）"""
     client = get_supabase_client()
+    data = sync_history_scalars(data)
     existing = get_screened_data(data['company_code']) if data.get('company_code') else None
     if existing:
         if 'source_status' in data or existing.get('source_status'):
@@ -137,6 +201,7 @@ def upsert_screened_data(data: dict) -> dict:
 def update_screened_data(company_code: str, data: dict) -> dict:
     """screened_latestの指定フィールドを更新"""
     client = get_supabase_client()
+    data = sync_history_scalars(data)
     try:
         result = client.table('screened_latest').update(data).eq(
             'company_code', company_code
