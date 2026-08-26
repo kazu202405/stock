@@ -1154,6 +1154,34 @@
 </div>
 
 <script>
+    /*
+     * 取得に失敗したときの表示。**「失敗」と「権限が無い」を分ける。**
+     *
+     * ⚠️ 2026-08-26、非会員でダッシュボードを開くと「好調企業」と
+     *    「テクニカル分析」が回り続けたあと
+     *    「データの読み込みに失敗しました。ページを再読み込みしてお試しください」
+     *    と出ていた。実際は403（会員限定）で、**再読み込みしても直らない**。
+     *    直し方が書いていないうえ、直らない方法を案内していた。
+     */
+    function loadErrorHtml(response) {
+        var status = response && response.status;
+        if (status === 401) {
+            return '<div class="watchlist-empty">'
+                 + 'ログインの有効期限が切れています。'
+                 + '<a href="/login" style="color:#1b4332;text-decoration:underline;">ログイン</a>'
+                 + 'し直してください。</div>';
+        }
+        if (status === 403) {
+            return '<div class="watchlist-empty">'
+                 + 'この一覧は会員向けです。'
+                 + '<a href="https://gia2018.com/upgrade" target="_blank" rel="noopener"'
+                 + ' style="color:#1b4332;text-decoration:underline;">会員のご案内</a>'
+                 + '</div>';
+        }
+        return '<div class="watchlist-empty">'
+             + 'データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+    }
+
     // 管理者モードフラグ
     const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 
@@ -1327,7 +1355,7 @@
             } else {
                 if (!cached) {
                     document.getElementById('watchlistContent').innerHTML =
-                        '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                        loadErrorHtml(response);
                 }
             }
         } catch (error) {
@@ -2053,7 +2081,7 @@
                 favoriteCache = data.favorite_stocks || [];
                 applyFavFilters();
             } else {
-                content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                content.innerHTML = loadErrorHtml(response);
             }
         } catch (error) {
             content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
@@ -2273,7 +2301,7 @@
                 dividendCache = data.dividend_stocks || [];
                 applyDivFilters();
             } else {
-                content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                content.innerHTML = loadErrorHtml(response);
             }
         } catch (error) {
             content.innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
@@ -2567,7 +2595,7 @@
             if (response.ok) {
                 renderGcStocks(data.gc_stocks || []);
             } else {
-                document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                document.getElementById('gcContent').innerHTML = loadErrorHtml(response);
             }
         } catch (error) {
             document.getElementById('gcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
@@ -2997,7 +3025,7 @@
             if (response.ok) {
                 renderDcStocks(data.dc_stocks || []);
             } else {
-                document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                document.getElementById('dcContent').innerHTML = loadErrorHtml(response);
             }
         } catch (error) {
             document.getElementById('dcContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
@@ -3130,7 +3158,7 @@
                 technicalStocksCache = data.technical_stocks || [];
                 applyTechFilters();
             } else {
-                document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
+                document.getElementById('technicalContent').innerHTML = loadErrorHtml(response);
             }
         } catch (error) {
             document.getElementById('technicalContent').innerHTML = '<div class="watchlist-empty">データの読み込みに失敗しました。ページを再読み込みしてお試しください。</div>';
