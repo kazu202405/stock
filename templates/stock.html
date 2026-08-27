@@ -1322,12 +1322,26 @@
         checkShikihoAlert();
         loadMarketComment();
         loadWatchlist();
+        /*
+         * 前回開いていたタブの中身を先に取りに行く。
+         *
+         * ⚠️ activeTab は sessionStorage なので**ページをまたいで残る**。
+         *    /dashboard と /dashboard/admin はタブの数が違い、
+         *    GC・DCは管理画面にしか無い。管理画面でGCタブを開いたあと
+         *    /dashboard に来ると、無いタブの読み込みが走って
+         *    存在しない要素に書き込もうとする（2026-08-26 実際に起きた。
+         *    「好調企業がずっと読み込み中」の原因）。
+         *    ∴ **そのタブがこのページにあるときだけ**読み込む。
+         */
         const savedTab = sessionStorage.getItem('activeTab');
-        if (savedTab === 'favorite') loadFavoriteStocks();
-        if (savedTab === 'dividend') loadDividendStocks();
-        if (savedTab === 'gc') loadGcStocks();
-        if (savedTab === 'dc') loadDcStocks();
-        if (savedTab === 'technical') loadTechnicalStocks();
+        const tabExists = savedTab && document.getElementById('tabContent-' + savedTab);
+        if (tabExists) {
+            if (savedTab === 'favorite') loadFavoriteStocks();
+            if (savedTab === 'dividend') loadDividendStocks();
+            if (savedTab === 'gc') loadGcStocks();
+            if (savedTab === 'dc') loadDcStocks();
+            if (savedTab === 'technical') loadTechnicalStocks();
+        }
     });
 
     // ウォッチリストを読み込んで表示

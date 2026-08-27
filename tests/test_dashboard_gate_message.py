@@ -95,5 +95,50 @@ class ApiStatusTest(unittest.TestCase):
             self.assertEqual(c.get(path).status_code, 403, path)
 
 
+class SavedTabTest(unittest.TestCase):
+    """前回のタブを、そのページに無いのに読み込まない（2026-08-26）。
+
+    ⚠️ activeTab は sessionStorage なので**ページをまたいで残る**。
+       /dashboard は4タブ、/dashboard/admin は6タブ（GC・DCが増える）。
+       管理画面でGCタブを開いたあと /dashboard に来ると、
+       無いタブの読み込みが走って存在しない要素に書き込もうとする。
+       これが「好調企業がずっと読み込み中」の**根本原因**だった。
+       （ボタンのnullチェックは症状側の手当て。両方いる。）
+    """
+
+    def setUp(self):
+        import app as app_module
+        self.app = app_module.app
+        self.app.config['TESTING'] = True
+
+    def _tabs(self, path):
+        import re
+        c = self.app.test_client()
+        with c.session_transaction() as s:
+            s['user_id'] = '11111111-1111-1111-1111-111111111111'
+            s['user_name'] = 't'
+            s['user_role'] = 'admin'
+        body = c.get(path).get_data(as_text=True)
+        return set(re.findall(r'id="tabContent-([a-z]+)"', body))
+
+    def test_2つの画面でタブの数が違う(self):
+        """この前提が崩れたらテストの意味が無くなるので先に確かめる。"""
+        normal = self._tabs('/dashboard')
+        admin = self._tabs('/dashboard/admin')
+        self.assertTrue(normal)
+        self.assertTrue(admin - normal, '管理画面だけのタブが無くなった')
+        self.assertIn('gc', admin - normal)
+
+    def test_タブの存在を確かめてから読み込む(self):
+        html = read('templates', 'stock.html')
+        self.assertIn("document.getElementById('tabContent-' + savedTab)", html)
+        block = html.split("const savedTab = sessionStorage.getItem", 1)[1][:900]
+        self.assertIn('if (tabExists)', block)
+        # 各ローダーがその中に入っていること
+        for fn in ('loadGcStocks', 'loadDcStocks', 'loadTechnicalStocks',
+                   'loadFavoriteStocks', 'loadDividendStocks'):
+            self.assertIn(fn, block, fn)
+
+
 if __name__ == '__main__':
     unittest.main()
