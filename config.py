@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('APP_SECRET_KEY', 'your_secret_key')  # セッション管理とフラッシュメッセージに必要
+# セッションの署名鍵は下の SECRET_KEY で1か所だけ設定する（このファイル内）
 
 
 # サーバー設定（Supabase）- 環境変数から取得
@@ -29,8 +29,41 @@ MAIL_USE_SSL = True
 MAIL_USERNAME = os.getenv('MAIL_USERNAME', '')
 MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', '')
 
-# 秘密鍵
-SECRET_KEY = os.getenv('SECRET_KEY', 'secret-key')
+# セッションの署名鍵。**ここが唯一の設定箇所。**
+#
+# ⚠️ 以前は app.secret_key（16行目付近）と app.config['SECRET_KEY'] の
+#    2か所で設定していて、**後から実行される config['SECRET_KEY'] が勝って**いた。
+#    そのため APP_SECRET_KEY を設定しても使われず、コードを読んでも
+#    どちらが効くのか分からなかった（2026-08-26、実際に取り違えた）。
+#
+# ⚠️ 既定値を持たせない。未設定のまま起動すると鍵が 'secret-key' という
+#    **公開されている文字列**になり、誰でも管理者のセッションを偽造できる。
+#    しかも例外は出ず、ログイン画面も一覧も普通に動くので**画面に手がかりが
+#    出ない**。「壊れる」のではなく「静かに全開になる」形なので、
+#    気づける唯一の場所がここ。必ず落とす。
+#
+# 名前は SECRET_KEY を正とし、APP_SECRET_KEY も受ける（既存の環境を壊さない）。
+_UNSAFE_SECRET_KEYS = frozenset({
+    'secret-key', 'your_secret_key', 'change-me', 'changeme', 'dev', 'test',
+})
+
+
+def _resolve_secret_key():
+    key = (os.getenv('SECRET_KEY') or os.getenv('APP_SECRET_KEY') or '').strip()
+    if not key:
+        raise RuntimeError(
+            'SECRET_KEY が設定されていません。セッションの署名に使う鍵なので、'
+            '未設定のまま起動すると誰でもログイン状態を偽造できます。'
+            '.env（本番はRenderの環境変数）に SECRET_KEY を設定してください。')
+    if key.lower() in _UNSAFE_SECRET_KEYS:
+        raise RuntimeError(
+            'SECRET_KEY が既定値のままです（%r）。この値は公開されているため、'
+            '誰でも管理者のセッションを偽造できます。'
+            '推測できない値に変えてください。' % key)
+    return key
+
+
+SECRET_KEY = _resolve_secret_key()
 
 UPLOAD_FOLDER = 'uploads'
 
@@ -59,7 +92,8 @@ login_manager.login_view = None  # ログインページ無効
 def load_user(user_id):
     return None
 
-# 秘密鍵設定
+# 署名鍵を適用する。app.secret_key はこの config['SECRET_KEY'] の別名なので、
+# ここで1回設定すれば足りる（2か所に書くと後勝ちで分かりにくくなる）。
 app.config['SECRET_KEY'] = SECRET_KEY
 
 # 宣言された変数を格納する辞書
