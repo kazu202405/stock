@@ -687,6 +687,41 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* データ鮮度。管理者だけに出す。
+       色は「良い/注意/悪い」の3段だけ。指標の意味に色を足さない。 */
+    .freshness-card {
+        background: #fff; border: 1px solid #ebebeb; border-radius: 12px;
+        border-left: 3px solid #1b4332; padding: 14px 18px; margin-bottom: 16px;
+    }
+    .freshness-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 10px; flex-wrap: wrap; gap: 6px;
+    }
+    .freshness-title { font-size: 12px; font-weight: 600; color: #1b4332; }
+    .freshness-sub { font-size: 11px; color: #a3a3a3; }
+    .freshness-row {
+        display: grid; grid-template-columns: 190px 1fr auto;
+        gap: 10px; align-items: baseline;
+        padding: 7px 0; border-top: 1px solid #f2f2f0; font-size: 12px;
+    }
+    .freshness-row:first-child { border-top: none; }
+    .freshness-name { color: #1a1a1a; font-weight: 500; }
+    .freshness-name small { display: block; color: #a3a3a3; font-weight: 400; font-size: 10px; }
+    .freshness-detail { color: #525252; }
+    .freshness-detail small { display: block; color: #a3a3a3; font-size: 10px; margin-top: 2px; }
+    .freshness-when { color: #737373; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .freshness-badge {
+        display: inline-block; padding: 1px 7px; border-radius: 10px;
+        font-size: 10px; font-weight: 600; margin-right: 6px;
+    }
+    .fresh-ok   { background: #e8f5ec; color: #1b6b3a; }
+    .fresh-warn { background: #fff4e0; color: #92610a; }
+    .fresh-bad  { background: #fdeaea; color: #a02020; }
+    @media (max-width: 640px) {
+        .freshness-row { grid-template-columns: 1fr; gap: 2px; }
+        .freshness-when { text-align: left; }
+    }
 </style>
 
 <div class="report-container">
@@ -738,6 +773,21 @@
         </div>
         <div class="market-comment-body" id="commentDisplayBody"></div>
     </div>
+
+    {% if is_admin %}
+    {# データ鮮度。定期実行が「ちゃんと動いているか」をデータ側から見る。
+       ⚠️ 出しているのは**最後に実際に値が動いた実績**であって、
+          次回実行時刻ではない。予定はジョブが空振りしていても正常に見える。 #}
+    <div class="freshness-card" id="freshnessCard" style="display:none;">
+        <div class="freshness-head">
+            <span class="freshness-title">
+                <i class="fas fa-heartbeat" style="margin-right:6px; font-size:11px;"></i>データ鮮度
+            </span>
+            <span class="freshness-sub" id="freshnessSub"></span>
+        </div>
+        <div id="freshnessRows"></div>
+    </div>
+    {% endif %}
 
     <!-- ウォッチリスト一覧 -->
     <div class="watchlist-section" id="watchlistSection">
@@ -1321,6 +1371,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         checkShikihoAlert();
         loadMarketComment();
+        loadDataFreshness();
         loadWatchlist();
         /*
          * 前回開いていたタブの中身を先に取りに行く。
@@ -1343,6 +1394,62 @@
             if (savedTab === 'technical') loadTechnicalStocks();
         }
     });
+
+    /*
+     * データ鮮度。定期実行が「ちゃんと動いているか」をデータ側から見る。
+     *
+     * ⚠️ 出すのは**最後に実際に値が動いた実績**。次回実行時刻ではない。
+     *    予定は、ジョブが空振りしていても正常に見えるので役に立たない。
+     *    （サーキットブレーカーが開いたまま skip が正常系として記録され、
+     *      「全件成功なのに中身が空」になった実例がある）
+     */
+    async function loadDataFreshness() {
+        const card = document.getElementById('freshnessCard');
+        if (!card) return;                 // 管理者以外にはそもそも無い
+        try {
+            const res = await fetch('/api/admin/data-freshness');
+            if (!res.ok) return;           // 権限が無いだけなら黙って出さない
+            const data = await res.json();
+            const rows = (data.items || []).map(function (i) {
+                const cls = i.status === 'bad' ? 'fresh-bad'
+                          : i.status === 'warn' ? 'fresh-warn' : 'fresh-ok';
+                const mark = i.status === 'bad' ? '要確認'
+                           : i.status === 'warn' ? '注意' : '正常';
+                return '<div class="freshness-row">'
+                     + '<div class="freshness-name">'
+                     +   '<span class="freshness-badge ' + cls + '">' + mark + '</span>'
+                     +   freshEscape(i.label)
+                     +   '<small>' + freshEscape(i.schedule || '') + '</small>'
+                     + '</div>'
+                     + '<div class="freshness-detail">' + freshEscape(i.detail || '')
+                     +   (i.note ? '<small>' + freshEscape(i.note) + '</small>' : '')
+                     + '</div>'
+                     + '<div class="freshness-when">' + freshWhen(i.as_of, i.age) + '</div>'
+                     + '</div>';
+            }).join('');
+            document.getElementById('freshnessRows').innerHTML = rows;
+            document.getElementById('freshnessSub').textContent =
+                '最後に値が動いた実績で判定（対象 ' + (data.total || 0) + '銘柄）';
+            card.style.display = 'block';
+        } catch (e) {
+            // 鮮度が出せないこと自体でダッシュボードを壊さない
+        }
+    }
+
+    function freshEscape(text) {
+        const d = document.createElement('div');
+        d.textContent = text == null ? '' : String(text);
+        return d.innerHTML;
+    }
+
+    function freshWhen(asOf, age) {
+        if (!asOf) return '<span style="color:#a3a3a3;">記録なし</span>';
+        const shown = String(asOf).slice(0, 10);
+        if (age === null || age === undefined) return freshEscape(shown);
+        const label = age <= 0 ? '本日' : age + '営業日前';
+        return freshEscape(shown) + ' <small style="color:#a3a3a3;">('
+             + label + ')</small>';
+    }
 
     // ウォッチリストを読み込んで表示
     async function loadWatchlist() {

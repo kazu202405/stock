@@ -5514,6 +5514,23 @@ else:
     print("[Scheduler] ENABLE_SCHEDULER=false のためスケジューラは起動しません")
 
 
+@app.route('/api/admin/data-freshness', methods=['GET'])
+@admin_required_api
+def api_data_freshness():
+    """定期実行が「ちゃんと動いているか」をデータ側から見る。
+
+    ⚠️ /api/scheduler/status とは別物。あちらは**次にいつ動くか**しか出せず、
+       ジョブが空振りしていても正常に見える。こちらは
+       **最後に実際に値が動いた実績**を返す。
+    """
+    try:
+        import data_freshness
+        return jsonify(data_freshness.summary()), 200
+    except Exception as e:
+        print(f'データ鮮度の集計に失敗: {e}')
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/scheduler/status', methods=['GET'])
 def api_scheduler_status():
     """スケジューラの状態と次回実行時刻を取得"""
