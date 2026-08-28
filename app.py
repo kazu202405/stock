@@ -1212,6 +1212,7 @@ def admin_safe_refresh_stock():
 
 
 @app.route('/api/stock/batch', methods=['POST'])
+@member_required_api
 def analyze_stocks_batch():
     """
     複数銘柄を一括分析
@@ -1922,6 +1923,7 @@ def api_get_dc_stocks():
 
 
 @app.route('/api/dc-stocks/scrape', methods=['POST'])
+@admin_required_api
 def api_scrape_dc_stocks():
     """kabutan.jpからDC銘柄をスクレイピングしてsignal_stocksに保存"""
     try:
@@ -2240,6 +2242,7 @@ def api_analyze_technical_stocks():
 
 
 @app.route('/api/technical-stocks/analyze/stop', methods=['POST'])
+@admin_required_api
 def api_tech_analyze_stop():
     """テクニカル分析を停止"""
     global tech_analyze_status

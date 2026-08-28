@@ -49,6 +49,12 @@ INTENTIONALLY_OPEN = {
 BODY_LINES = 40
 
 
+def read_source():
+    with open(os.path.join(ROOT, 'tests', 'test_write_endpoints_guarded.py'),
+              encoding='utf-8') as f:
+        return f.read()
+
+
 def write_routes():
     """app.py の書き込み系ルートを (行番号, メソッド, パス, 判定の有無) で返す。"""
     with open(os.path.join(ROOT, 'app.py'), encoding='utf-8') as f:
@@ -69,7 +75,17 @@ def write_routes():
         while j < len(lines) and lines[j].strip().startswith('@'):
             decorators.append(lines[j])
             j += 1
-        body = '\n'.join(decorators + lines[j:j + BODY_LINES])
+        # ⚠️ 本文は**次のルート／次の関数の手前で必ず打ち切る**。
+        #    固定行数で読むと、短い関数のとき窓が次の関数まで食い込み、
+        #    隣が守られているだけで「守られている」と誤判定する。
+        #    実際 /api/dc-stocks/scrape（本文11行）がこれで見逃されていた。
+        end = j
+        while end < len(lines) and end < j + BODY_LINES:
+            if end > j and (lines[end].startswith('@app.')
+                            or lines[end].startswith('def ')):
+                break
+            end += 1
+        body = '\n'.join(decorators + lines[j:end])
         guarded = any(marker in body for marker in GUARD_MARKERS)
         found.append((i + 1, ','.join(methods), path, guarded))
     return found
@@ -91,6 +107,38 @@ class WriteEndpointGuardTest(unittest.TestCase):
             + '\n\n運用系（全銘柄の再取得・スクレイピング・再計算）と共有データは'
               ' @admin_required_api、外部を叩くものは @member_required_api、'
               '利用者自身のデータは @login_required_api を付けること。')
+
+    def test_本文は次の関数の手前で打ち切る(self):
+        """⚠️ 固定行数で本文を読むと、短い関数のとき窓が次の関数まで食い込み、
+        **隣が守られているだけで「守られている」と誤判定する。**
+
+        2026-08-28、これで3本を見逃していた:
+            /api/stock/batch                    最大200銘柄を外部APIで分析
+            /api/dc-stocks/scrape               kabutanを叩いてDBに保存
+            /api/technical-stocks/analyze/stop  走っている分析を止める
+        いずれも未ログインで200が返り、DC取得は実際に52件返した。
+
+        テストが「OK」と言っていたのに開いていた＝**テスト自体が
+        フェイルオープンしていた**。範囲の打ち切りを固定する。
+        """
+        src = read_source()
+        block = src.split('def write_routes(', 1)[1].split(chr(10) + 'class ', 1)[0]
+        self.assertIn("lines[end].startswith('@app.')", block)
+        self.assertIn("lines[end].startswith('def ')", block)
+        self.assertIn('lines[j:end]', block)
+        self.assertNotIn('lines[j:j + BODY_LINES]', block)
+
+    def test_停止と開始の権限を揃える(self):
+        """開始が管理者限定なのに停止が誰でも押せると、走っている処理を
+        外から止められる。対で見る。"""
+        routes = {p: guarded for _ln, _m, p, guarded in write_routes()}
+        pairs = [('/api/technical-stocks/analyze', '/api/technical-stocks/analyze/stop'),
+                 ('/api/watchlist/analyze', '/api/watchlist/analyze/stop'),
+                 ('/api/gc-stocks/analyze', '/api/gc-stocks/analyze/stop')]
+        for start, stop in pairs:
+            if start in routes and stop in routes:
+                self.assertEqual(routes[start], routes[stop],
+                                 '%s と %s で判定が違う' % (start, stop))
 
     def test_運用系バッチは管理者のみ(self):
         """会員に開けると、会員1人でも外部への叩き方を握れてしまう。"""
