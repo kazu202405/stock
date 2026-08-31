@@ -327,7 +327,11 @@ def health(jobs, client=None, now=None):
        正常として返すと、監視そのものが黙って無効になる。
     """
     now = now or _now()
-    if scheduler_item(jobs, now)['status'] == 'bad':
+    # ⚠️ **ok 以外はすべて異常に倒す。** 「状態を読めなかった」は warn だが、
+    #    それを 200 で返すと、読めなくなった時点で監視が黙って無効になる
+    #    （最初この判定を bad だけにしていて、実際に素通りしていた）。
+    #    web と別プロセスで cron を持つ構成にするときは、ここを見直すこと。
+    if scheduler_item(jobs, now)['status'] != 'ok':
         return False, 'scheduler'
 
     run = last_run(client or _client(), 'price_update')

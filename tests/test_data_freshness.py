@@ -296,6 +296,19 @@ class HealthEndpointTest(unittest.TestCase):
         run = {'ran_at': '2026-09-01T09:25:00+09:00', 'ok': True}
         self.assertEqual(self.call(self.healthy, run), (True, None))
 
+    def test_状態が読めないときも鳴らす(self):
+        """⚠️ 「読めなかった」を200で返すと、読めなくなった時点で監視が
+        黙って無効になる。最初これを bad だけで判定していて素通りしていた。"""
+        self.assertEqual(self.call(None, None), (False, 'scheduler'))
+
+    def test_未起動でも鳴らす(self):
+        """start() していないジョブには next_run_time が無い。属性で直に
+        読むと例外→「読めなかった」に化けて、未起動が分からなくなる。"""
+        self.assertEqual(self.call([{'id': 'a', 'next_run_time': None}], None),
+                         (False, 'scheduler'))
+        block = body_of(read('app.py'), 'def _jobs_health():')
+        self.assertIn("getattr(j, 'next_run_time', None)", block)
+
     def test_実行記録がまだ無いだけでは鳴らさない(self):
         """テーブルを作った直後・初回実行前がこれ。ここで鳴らすと
         「いつも赤い監視」になり、誰も見なくなる。"""
@@ -324,6 +337,45 @@ class HealthEndpointTest(unittest.TestCase):
         head = src.split("@app.route('/health/jobs'", 1)[1][:200]
         self.assertNotIn('@admin_required', head)
         self.assertNotIn('@login_required', head)
+
+
+class HealthDbCarriesJobsTest(unittest.TestCase):
+    """外形監視の枠が1つしか無いので /health/db に相乗りさせる（2026-09-01）。
+
+    UptimeRobot の無料枠で監視を1本しか置けないため、既に5分おきに叩かれて
+    いる /health/db が定期実行の異常も知らせる。監視が赤い間も UptimeRobot は
+    叩き続けるので、Supabase のキープアライブは効き続ける。
+    """
+
+    def setUp(self):
+        self.src = read('app.py')
+        self.block = body_of(self.src, 'def health_db():')
+
+    def test_定期実行の異常でも503(self):
+        self.assertIn('_jobs_health()', self.block)
+        self.assertIn('"status": "stale"', self.block)
+
+    def test_先にDBへ触ってからにする(self):
+        """⚠️ 順番が要。キープアライブが本来の目的なので、
+        定期実行の判定で先に return すると DB に触らない回ができる。"""
+        db_at = self.block.index("table('watched_tickers')")
+        jobs_at = self.block.index('_jobs_health()')
+        self.assertLess(db_at, jobs_at)
+
+    def test_判定できなければ503(self):
+        """読めないことを ok として返すと、監視そのものが黙って無効になる。"""
+        tail = self.block.rsplit('except Exception as e:', 1)[1]
+        self.assertIn('503', tail)
+
+    def test_どちらが原因か本文で分かる(self):
+        """このURLが赤いとき、DB不達と定期実行停止のどちらもありうる。"""
+        self.assertIn('"problem": "db"', self.block)
+        self.assertIn('"problem": problem', self.block)
+
+    def test_判定は1か所にまとめる(self):
+        """2つの口が別々に判定していると、片方だけ直る事故が起きる。"""
+        self.assertEqual(self.src.count('def _jobs_health():'), 1)
+        self.assertIn('_jobs_health()', body_of(self.src, 'def health_jobs():'))
 
 
 class StalePriceBannerTest(unittest.TestCase):

@@ -111,17 +111,57 @@ def redirect_to_canonical_host():
 # ヘルスチェック（Supabase自動停止の防止用キープアライブ）
 # =============================================
 
+def _jobs_health():
+    """定期実行が生きているかを (ok, problem) で返す。/health/* が共有する。"""
+    import data_freshness
+    try:
+        # ⚠️ getattr で読むこと。**start() していないジョブには next_run_time が
+        #    無く**、属性で直接読むと例外になる。そこで jobs=None に倒れると
+        #    「読めなかった」に化けて、起動していないことが分からなくなる。
+        #    None を並べて渡せば scheduler_item が「起動していません」を出す。
+        jobs = [{'id': j.id,
+                 'next_run_time': (getattr(j, 'next_run_time', None).isoformat()
+                                   if getattr(j, 'next_run_time', None) else None)}
+                for j in scheduler.get_jobs()]
+    except Exception as e:
+        print(f'[health] スケジューラの状態を取得できません: {str(e)[:120]}')
+        jobs = None                  # 正常には倒さない
+    return data_freshness.health(jobs)
+
+
 @app.route('/health/db', methods=['GET'])
 def health_db():
     """軽量DBクエリでSupabaseに触り、無料枠の自動一時停止を防ぐ。
-    外部スケジューラ（cron-job.org等）から数日おきに叩く想定。"""
+    外部監視（UptimeRobot）が5分おきに叩いている。
+
+    ⚠️ **定期実行の判定もここに相乗りさせている。** 外形監視の枠が1つしか
+       無いため。DBに触る目的（無料枠の自動停止よけ）は先に果たしてあり、
+       そのあとで503を返しても、監視は落ちている間も叩き続けるので
+       キープアライブは効き続ける。
+
+       ∴ このURLが赤いとき、原因は「DBに届かない」だけでなく
+       「定期実行が止まっている」こともある。本文の problem で見分ける
+       （db / scheduler / price）。
+    """
     try:
         client = get_supabase_client()
         # 最小コストの読み取り（1行だけ）でDBアクティビティを発生させる
         client.table('watched_tickers').select('company_code').limit(1).execute()
-        return jsonify({"status": "ok", "db": "reachable"}), 200
     except Exception as e:
-        return jsonify({"status": "error", "db": "unreachable", "detail": str(e)}), 503
+        return jsonify({"status": "error", "db": "unreachable",
+                        "problem": "db", "detail": str(e)}), 503
+
+    try:
+        ok, problem = _jobs_health()
+    except Exception as e:
+        # ⚠️ 判定できないことを正常として返すと、監視が黙って無効になる。
+        print(f'[health/db] 定期実行の判定に失敗: {str(e)[:200]}')
+        return jsonify({"status": "error", "db": "reachable"}), 503
+    if not ok:
+        print(f'[health/db] 定期実行の異常を検出: {problem}')
+        return jsonify({"status": "stale", "db": "reachable",
+                        "problem": problem}), 503
+    return jsonify({"status": "ok", "db": "reachable"}), 200
 
 
 @app.route('/health/jobs', methods=['GET'])
@@ -145,17 +185,8 @@ def health_jobs():
     ⚠️ 判定できないときは 503（fail-closed）。読めないことを ok として返すと、
        監視そのものが黙って無効になる。
     """
-    import data_freshness
     try:
-        jobs = [{'id': j.id,
-                 'next_run_time': (j.next_run_time.isoformat()
-                                   if j.next_run_time else None)}
-                for j in scheduler.get_jobs()]
-    except Exception as e:
-        print(f'[health/jobs] スケジューラの状態を取得できません: {str(e)[:120]}')
-        jobs = None
-    try:
-        ok, problem = data_freshness.health(jobs)
+        ok, problem = _jobs_health()
     except Exception as e:
         print(f'[health/jobs] 判定できません: {str(e)[:200]}')
         return jsonify({"status": "error"}), 503
