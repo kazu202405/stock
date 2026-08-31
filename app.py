@@ -5463,24 +5463,34 @@ def scheduled_update_daily_and_crosses():
     global daily_update_status
     from datetime import datetime
 
+    # ⚠️ **どの経路を通っても記録を残すこと。**
+    #    最初これを「最後まで通ったとき」だけ書いていたため、
+    #    2026-09-01 の3:30は発火したのに記録が1行も残らなかった。
+    #    記録が無いことは「異常なし」と区別がつかないので、
+    #    黙って何もしない回がいちばん見えなくなる。
     if daily_update_status["running"] or ma_cross_status["running"]:
         print("[Scheduler] 日足更新: すでに実行中のためスキップ")
+        record_job_run('daily_and_crosses', ok=False,
+                       detail='前回が実行中のままでスキップした')
         return
 
     print(f"[Scheduler] 日足更新＋GC/DC再計算 開始: {datetime.now()}")
     daily_update_status = {"running": True, "phase": "準備中", "done": 0, "total": 0,
                            "saved": 0, "stop_requested": False, "finished_at": None, "error": None}
-    _update_daily_and_recalc_background()
-    print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: {daily_update_status.get('phase')} "
-          f"/ 保存{daily_update_status.get('saved')}件")
-    # 保存0件は「変化なし」ではなく取得の失敗。日足はどの営業日でも1本増えるので、
-    # 0件で終わるのは yfinance が返していないとき（2026-08-31 に実際に起きた）。
-    saved = daily_update_status.get('saved') or 0
-    record_job_run('daily_and_crosses',
-                   ok=bool(saved) and not daily_update_status.get('error'),
-                   detail='保存%d件 / %s' % (
-                       saved, daily_update_status.get('error')
-                       or daily_update_status.get('phase') or ''))
+    try:
+        _update_daily_and_recalc_background()
+        print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: "
+              f"{daily_update_status.get('phase')} "
+              f"/ 保存{daily_update_status.get('saved')}件")
+    finally:
+        # 保存0件は「変化なし」ではなく取得の失敗。日足はどの営業日でも1本
+        # 増えるので、0件で終わるのは yfinance が返していないとき。
+        saved = daily_update_status.get('saved') or 0
+        record_job_run('daily_and_crosses',
+                       ok=bool(saved) and not daily_update_status.get('error'),
+                       detail='保存%d件 / %s' % (
+                           saved, daily_update_status.get('error')
+                           or daily_update_status.get('phase') or ''))
     _recalculate_scores_after_price_move()
     _recalculate_growth_columns()
 

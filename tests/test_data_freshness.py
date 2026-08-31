@@ -228,6 +228,18 @@ class JobRunRecordTest(unittest.TestCase):
         block = body_of(src, 'def scheduled_update_stock_prices')
         self.assertIn("record_job_run('price_update', ok=False", block)
 
+    def test_日足はどの経路でも記録を残す(self):
+        """⚠️ 「最後まで通ったとき」だけ書いていたため、2026-09-01 の3:30は
+        発火したのに記録が1行も残らなかった。記録が無いことは「異常なし」と
+        区別がつかないので、**黙って何もしない回がいちばん見えなくなる**。"""
+        block = body_of(read('app.py'), 'def scheduled_update_daily_and_crosses():')
+        # スキップして return する経路
+        head = block.split('return', 1)[0]
+        self.assertIn("record_job_run('daily_and_crosses'", head)
+        # 本体が落ちても書く
+        self.assertIn('finally:', block)
+        self.assertLess(block.index('try:'), block.index('_update_daily_and_recalc'))
+
     def test_記録の失敗でジョブを止めない(self):
         """見張りが本体を殺すのは本末転倒。テーブル未作成でも動くこと。"""
         src = read('app.py')
