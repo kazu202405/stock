@@ -550,6 +550,30 @@
         </div>
     </nav>
 
+    {#
+      株価が古いときだけ出す帯。
+
+      2026-08-31、株価の取得が3回とも空振りし、スクリーナーが金曜の終値を
+      **今日の株価の顔で**丸1日出していた。取得の失敗は外部次第で避けきれないが、
+      いつ時点の値かが書いてあれば、見る人の判断は狂わない。
+
+      ⚠️ **古いときだけ出すこと。** 平常時にも出していると誰も読まなくなり、
+         本当に古い日に効かなくなる（price_stale_as_of は
+         2営業日以上あいたときだけ入る）。
+    #}
+    {% if price_stale_as_of or price_fetch_failing %}
+    <div style="background:#fff7ed; border-bottom:1px solid #fed7aa; color:#9a3412;
+                font-size:13px; padding:8px 16px; text-align:center;">
+        <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>
+        {% if price_stale_as_of %}
+        株価は <strong>{{ price_stale_as_of }}時点</strong> のものです。取得が滞っているため、最新の株価ではありません。
+        {% else %}
+        {# いつ時点かを言えなくても「取れていない」ことは言える。 #}
+        株価の取得が滞っています。表示中の株価は最新ではありません。
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- メインコンテンツ -->
     <main class="flex-1">
         {% block content %}

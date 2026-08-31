@@ -29,7 +29,10 @@ botocore==1.31.85
 # Data Analysis
 pandas==2.2.2
 numpy>=1.26.0
-yfinance>=0.2.0
+# 版を固定する。無指定だと再デプロイのたびに別の版が入り、
+# 「昨日まで動いていたのに」が起きる。0.2.65 は200銘柄バルクで
+# 193/200件・5.1秒の取得を実地で確認した版。
+yfinance==0.2.65
 yahooquery>=2.3.0
 matplotlib>=3.8.0
 openpyxl==3.1.2

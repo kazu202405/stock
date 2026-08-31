@@ -13,6 +13,7 @@
 
 import os
 import sys
+import re
 import unittest
 from datetime import datetime, timedelta
 
@@ -28,6 +29,31 @@ def read(*parts):
     with open(os.path.join(ROOT, *parts), encoding='utf-8') as f:
         return f.read()
 
+
+def body_of(src, header):
+    """関数の本文だけを切り出す。次のトップレベル def で打ち切る。
+
+    ⚠️ **文字数で窓を切らないこと。** 短い関数だと窓が次の関数まで食い込み、
+       隣の関数のガードを拾って合格してしまう（2026-08-30 に実際に起きた形）。
+    """
+    body = src.split(header, 1)[1]
+    cut = re.search(r'\n(?=(def |@app\.route|class ))', body)
+    return body[:cut.start()] if cut else body
+
+
+def code_of(src, header):
+    # 関数の本文から docstring とコメントを落とし、コードだけを返す。
+    #
+    # ⚠️ **本文をそのまま検索すると、注意書きに書いた語を実装と取り違える。**
+    #    『summary() を呼ばないこと』という docstring が assertNotIn('summary(')
+    #    を落とした。禁止事項をコメントに書いた関数ほどこの形にはまるので、
+    #    禁止を確かめるテストは必ずコードだけを見ること。
+    body = body_of(src, header)
+    q = chr(34) * 3
+    body = ''.join(body.split(q)[::2])          # docstring を落とす
+    nl = chr(10)
+    return nl.join(ln for ln in body.split(nl)
+                   if not ln.strip().startswith('#'))
 
 class BusinessDaysTest(unittest.TestCase):
     """⚠️ 暦日で数えると月曜の朝に必ず警告が出る（金曜から3日経つため）。"""
@@ -83,11 +109,299 @@ class DesignTest(unittest.TestCase):
         block = self.src.split("'key': 'signals'", 1)[0][-1200:]
         self.assertIn("table('ma_crosses')", block)
 
+    def test_asofとageは同じ行から取る(self):
+        """as_of に「いちばん新しい更新」、age に「いちばん古い銘柄」を
+        入れていたため、画面に「2026-08-31（5営業日前）」という、
+        日付とかっこの中が別の銘柄を指す表示が出ていた。
+        画面は as_of と age を並べて出すので、必ず同じ値から導くこと。"""
+        block = self.src.split("'key': 'price'", 1)[1][:900]
+        self.assertIn("'age': business_days_since(newest, now)", block)
+        self.assertNotIn("'age': oldest", block)
+
     def test_株価は件数で判定する(self):
         """いちばん古い1件で判定すると、廃止手前の銘柄が1つあるだけで
         常に警告になる。"""
         block = self.src.split("'key': 'price'", 1)[0][-900:]
         self.assertIn('behind', block)
+
+
+class SchedulerLivenessTest(unittest.TestCase):
+    """定期実行そのものが生きているかを見る行（2026-08-31）。
+
+    ⚠️ `scheduler.running` は start() したかのフラグで、ループが死んでいても
+       true のまま返る。実際に見るのは**次回実行時刻が進んでいるか**。
+       APScheduler はジョブを投げた時点で予定を先に進めるので、予定が
+       過去のまま残っている＝発火していない。
+
+    実例: 2026-08-31、17:15以降の5本が今日の予定のまま止まっていたが、
+    running は true、ログにも画面にも何も出ていなかった。
+    """
+
+    def setUp(self):
+        self.now = datetime(2026, 8, 31, 23, 35, tzinfo=df.JST)
+
+    def item(self, jobs):
+        return df.scheduler_item(jobs, self.now)
+
+    def test_予定を大きく過ぎたジョブがあれば赤(self):
+        i = self.item([
+            {'id': 'gc_dc_evening', 'next_run_time': '2026-08-31T17:15:00+09:00'},
+            {'id': 'price_update_morning', 'next_run_time': '2026-09-01T09:25:00+09:00'},
+        ])
+        self.assertEqual(i['status'], 'bad')
+        self.assertIn('gc_dc_evening', i['when_text'])
+
+    def test_全部先の予定なら正常(self):
+        i = self.item([
+            {'id': 'a', 'next_run_time': '2026-09-01T02:00:00+09:00'},
+            {'id': 'b', 'next_run_time': '2026-09-01T09:25:00+09:00'},
+        ])
+        self.assertEqual(i['status'], 'ok')
+
+    def test_少しの遅れでは赤にしない(self):
+        """毎回のtickに数分のずれは出る。そこで赤くすると誰も見なくなる。"""
+        late = '2026-08-31T23:25:00+09:00'          # 10分前
+        self.assertEqual(self.item([{'id': 'a', 'next_run_time': late}])['status'], 'ok')
+
+    def test_起動していなければ赤(self):
+        """ジョブは登録されているのに次回予定が1つも無い＝start()されていない。"""
+        i = self.item([{'id': 'a', 'next_run_time': None}])
+        self.assertEqual(i['status'], 'bad')
+
+    def test_取得できなければ正常に倒さない(self):
+        """ここを ok にすると、状態が読めない時にパネルが緑になる。"""
+        self.assertEqual(self.item(None)['status'], 'warn')
+
+    def test_ジョブが1本も無ければ赤(self):
+        self.assertEqual(self.item([])['status'], 'bad')
+
+    def test_summaryは渡し忘れを正常に倒さない(self):
+        """summary(jobs=...) の渡し忘れが素通りすると、ジョブが死んでも
+        画面が緑のままになる。"""
+        src = read('data_freshness.py')
+        self.assertIn('items = [scheduler_item(jobs, now)]', src)
+        self.assertIn("jobs=jobs", read('app.py'))
+
+
+class JobRunRecordTest(unittest.TestCase):
+    """「取れなかった」と「変わらなかった」を区別する（2026-08-31）。
+
+    株価の price_updated_at は**株価が変わったときしか動かない**。
+    3回の定期実行がすべて取得0件で終わり、スクリーナーが丸1日前営業日の
+    終値を出していたのに、パネルは「98.3%が1営業日以内」で緑寄りだった。
+    データの新しさだけを見ていては、この形は永久に見つからない。
+    """
+
+    def test_失敗はNoneでなくFalseで返す(self):
+        """記録が無い(None)と失敗(False)を同じ扱いにすると、
+        テーブルを作った直後に全部赤くなるか、失敗を見逃すかのどちらかになる。"""
+        text, ok = df._run_suffix({'ran_at': '2026-08-31T15:20:00+09:00',
+                                   'ok': False, 'detail': '取得0/3669件'})
+        self.assertIs(ok, False)
+        self.assertIn('取得0/3669件', text)
+
+    def test_成功はTrue(self):
+        _, ok = df._run_suffix({'ran_at': '2026-08-31T15:20:00+09:00',
+                                'ok': True, 'detail': ''})
+        self.assertIs(ok, True)
+
+    def test_記録が無ければ何も足さない(self):
+        text, ok = df._run_suffix(None)
+        self.assertEqual(text, '')
+        self.assertIsNone(ok)
+
+    def test_直近の実行が失敗なら株価は赤(self):
+        """データが新しく見えても、取れていないなら赤にする。"""
+        src = read('data_freshness.py')
+        block = src.split("'key': 'price'", 1)[1][:1200]
+        self.assertIn("'bad' if price_run_ok is False", block)
+
+    def test_取得0件は例外にする(self):
+        """0件を「変化なし」として正常に通すと、誰も気づけない。"""
+        src = read('app.py')
+        block = body_of(src, 'def scheduled_update_stock_prices')
+        self.assertIn('if not prices:', block)
+        self.assertIn('raise RuntimeError', block)
+
+    def test_失敗しても実行記録は残す(self):
+        src = read('app.py')
+        block = body_of(src, 'def scheduled_update_stock_prices')
+        self.assertIn("record_job_run('price_update', ok=False", block)
+
+    def test_記録の失敗でジョブを止めない(self):
+        """見張りが本体を殺すのは本末転倒。テーブル未作成でも動くこと。"""
+        src = read('app.py')
+        block = body_of(src, 'def record_job_run')
+        self.assertIn('except Exception', block)
+        self.assertNotIn('raise', block)
+
+
+class FakeRunClient:
+    """job_runs の直近1行だけを返す最小のスタブ。"""
+
+    def __init__(self, run=None):
+        self.run = run
+
+    def table(self, _name):
+        return self
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, *a):
+        return self
+
+    def order(self, *a, **k):
+        return self
+
+    def limit(self, *a):
+        return self
+
+    def execute(self):
+        class R:
+            pass
+        r = R()
+        r.data = [self.run] if self.run else []
+        return r
+
+
+class HealthEndpointTest(unittest.TestCase):
+    """止まったら503を返す口（2026-09-01）。
+
+    鮮度パネルは管理画面を**開かないと見えない**。2026-08-31、株価が丸1日
+    止まっていたのに気づいたのは翌日だった。UptimeRobot が5分おきに
+    /health/db を叩いているので、そこに相乗りする。
+    """
+
+    def setUp(self):
+        self.now = datetime(2026, 9, 1, 8, 0, tzinfo=df.JST)
+        self.healthy = [{'id': 'a', 'next_run_time': '2026-09-01T09:25:00+09:00'}]
+
+    def call(self, jobs, run):
+        return df.health(jobs, client=FakeRunClient(run), now=self.now)
+
+    def test_スケジューラが止まっていたら異常(self):
+        stalled = [{'id': 'a', 'next_run_time': '2026-08-31T17:15:00+09:00'}]
+        self.assertEqual(self.call(stalled, None), (False, 'scheduler'))
+
+    def test_直近の取得が失敗していたら異常(self):
+        run = {'ran_at': '2026-09-01T09:25:00+09:00', 'ok': False}
+        self.assertEqual(self.call(self.healthy, run), (False, 'price'))
+
+    def test_取得が何日も成功していなければ異常(self):
+        run = {'ran_at': '2026-08-26T09:25:00+09:00', 'ok': True}
+        self.assertEqual(self.call(self.healthy, run), (False, 'price'))
+
+    def test_正常なら正常(self):
+        run = {'ran_at': '2026-09-01T09:25:00+09:00', 'ok': True}
+        self.assertEqual(self.call(self.healthy, run), (True, None))
+
+    def test_実行記録がまだ無いだけでは鳴らさない(self):
+        """テーブルを作った直後・初回実行前がこれ。ここで鳴らすと
+        「いつも赤い監視」になり、誰も見なくなる。"""
+        self.assertEqual(self.call(self.healthy, None), (True, None))
+
+    def test_重い集計を呼ばない(self):
+        """5分おきに叩かれる口。summary() は screened_latest を3,669行読む。"""
+        block = code_of(read('data_freshness.py'), 'def health(jobs')
+        self.assertNotIn('summary(', block)
+        self.assertNotIn('_core_rows(', block)
+
+    def test_判定できなければ503(self):
+        """読めないことを ok として返すと、監視そのものが黙って無効になる。"""
+        block = body_of(read('app.py'), 'def health_jobs():')
+        self.assertIn('return jsonify({"status": "error"}), 503', block)
+
+    def test_件数を漏らさない(self):
+        """未ログインで叩ける口。別アプリで /api/health/db が誰でも
+        会員数を返していた例がある。"""
+        block = code_of(read('app.py'), 'def health_jobs():')
+        self.assertNotIn('count', block)
+        self.assertNotIn('total', block)
+
+    def test_未ログインで叩ける(self):
+        src = read('app.py')
+        head = src.split("@app.route('/health/jobs'", 1)[1][:200]
+        self.assertNotIn('@admin_required', head)
+        self.assertNotIn('@login_required', head)
+
+
+class StalePriceBannerTest(unittest.TestCase):
+    """古い株価を「今日の株価の顔」で出さない（2026-09-01）。
+
+    取得が失敗すること自体は外部次第で避けきれない。いつ時点の値かを
+    書いておけば、見る人の判断は狂わない。外部に依存しない唯一の手当て。
+    """
+
+    def test_見るのは取得できた実績(self):
+        """⚠️ price_updated_at は**株価が変わったとき**しか動かない。
+        取得0件で終わった日も新しく見えるので、帯の判定には使えない。"""
+        src = read('data_freshness.py')
+        self.assertIn("table('job_runs')", body_of(src, 'def price_as_of('))
+        self.assertNotIn('price_updated_at', code_of(src, 'def price_as_of('))
+
+    def test_成功した回だけを見る(self):
+        block = body_of(read('data_freshness.py'), 'def price_as_of(')
+        self.assertIn("eq('ok', True)", block)
+
+    def test_成功した記録が無くても取得失敗なら出す(self):
+        """⚠️ price_as_of だけで出すと、成功した記録が1件も無いときに
+        帯が永久に出ない。取得がずっと弾かれている最中に公開すると
+        まさにこの形になり、古い株価が何の断りもなく出続ける。"""
+        block = code_of(read('models', 'root.py'), 'def inject_price_freshness():')
+        self.assertIn('price_fetch_failing()', block)
+        self.assertIn('price_fetch_failing', read('templates', 'layout.html'))
+
+    def test_古いときだけ出す(self):
+        """平常時にも出していると誰も読まなくなり、本当に古い日に効かない。"""
+        self.assertIn('{% if price_stale_as_of %}', read('templates', 'layout.html'))
+        block = body_of(read('models', 'root.py'), 'def inject_price_freshness():')
+        self.assertIn('PRICE_BANNER_STALE_DAYS', block)
+
+    def test_描画を壊さない(self):
+        """全ページの描画を通る。出せないときは何も出さないほうを優先する。"""
+        block = body_of(read('models', 'root.py'), 'def inject_price_freshness():')
+        self.assertIn('except Exception', block)
+        # 例外時は「何も出さない」を返すこと。ここで落ちると全ページが死ぬ。
+        self.assertIn('return none', block.rsplit('except Exception', 1)[1])
+        self.assertIn("'price_stale_as_of': None", block)
+
+
+class PriceRetryTest(unittest.TestCase):
+    """空振りしたら試し直す（2026-09-01）。
+
+    定期実行は1日3回しかないので、1回落ちると次まで2時間以上開く。
+    """
+
+    def test_空振りしたら再試行を積む(self):
+        """取得はできたが大半が欠けた回（例外は出ない）も積み直す。
+        except 側だけ見ていると、この経路が抜けても気づけない。"""
+        block = body_of(read('app.py'), 'def scheduled_update_stock_prices(')
+        # ⚠️ 最初の except で切ると、保存の except に当たって窓が短すぎる。
+        #    経路を確かめたいので、行そのものを見る。
+        self.assertIn('if not ok:' + chr(10) + ' ' * 12
+                      + '_schedule_price_retry(attempt)', block)
+
+    def test_例外でも再試行を積む(self):
+        """0件は例外にしてあるので、except 側にも無いと再試行が効かない。"""
+        block = body_of(read('app.py'), 'def scheduled_update_stock_prices(')
+        # 関数の中に except が複数ある。見たいのは一番外側なので後ろから切る。
+        tail = block.rsplit('except Exception as e:', 1)[1]
+        self.assertIn('_schedule_price_retry(attempt)', tail)
+
+    def test_無限には試さない(self):
+        """恒常的に弾かれているとき叩き続けても状況を悪くするだけ。"""
+        block = body_of(read('app.py'), 'def _schedule_price_retry(attempt):')
+        self.assertIn('if attempt >= PRICE_RETRY_MAX:', block)
+
+    def test_再試行の登録失敗で本体を止めない(self):
+        block = body_of(read('app.py'), 'def _schedule_price_retry(attempt):')
+        self.assertIn('except Exception', block)
+
+    def test_yfinanceの版を固定する(self):
+        """無指定だと再デプロイのたびに別の版が入り、
+        「昨日まで動いていたのに」が起きる。"""
+        self.assertIn('yfinance==', read('requirements.txt'))
 
 
 class EndpointTest(unittest.TestCase):

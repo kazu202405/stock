@@ -1424,7 +1424,7 @@
                      + '<div class="freshness-detail">' + freshEscape(i.detail || '')
                      +   (i.note ? '<small>' + freshEscape(i.note) + '</small>' : '')
                      + '</div>'
-                     + '<div class="freshness-when">' + freshWhen(i.as_of, i.age) + '</div>'
+                     + '<div class="freshness-when">' + freshWhen(i.as_of, i.age, i.when_text) + '</div>'
                      + '</div>';
             }).join('');
             document.getElementById('freshnessRows').innerHTML = rows;
@@ -1442,7 +1442,21 @@
         return d.innerHTML;
     }
 
-    function freshWhen(asOf, age) {
+    /*
+     * ⚠️ 日付とかっこの中は**必ず同じ値から出す**こと。
+     *    as_of に「いちばん新しい更新」、age に「いちばん古い銘柄」を入れていた
+     *    ため、「2026-08-31（5営業日前）」という、今日なのに5営業日前という
+     *    表示が出ていた（別々の銘柄の話が並んでいた）。
+     *
+     * when_text を持つ行は、日付＋営業日数では言い表せないもの
+     * （定期実行の遅れなど）。そのまま出す。
+     */
+    function freshWhen(asOf, age, whenText) {
+        if (whenText) {
+            const head = asOf ? freshEscape(String(asOf).slice(0, 10)) + '<br>' : '';
+            return head + '<small style="color:#a3a3a3;">'
+                 + freshEscape(whenText) + '</small>';
+        }
         if (!asOf) return '<span style="color:#a3a3a3;">記録なし</span>';
         const shown = String(asOf).slice(0, 10);
         if (age === null || age === undefined) return freshEscape(shown);

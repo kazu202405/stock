@@ -108,6 +108,37 @@ def inject_user():
     return _get_user_context()
 
 
+@app.context_processor
+def inject_price_freshness():
+    """株価が古いとき、全ページに「◯/◯時点」と出すための値を渡す。
+
+    2026-08-31、株価の取得が3回とも空振りし、スクリーナーが金曜の終値を
+    **今日の株価の顔で**丸1日出していた。取得が失敗すること自体は外部次第で
+    避けきれないが、いつ時点の値かを書いておけば見る人の判断は狂わない。
+
+    ⚠️ **古いときだけ出す。** 平常時に毎回出していると誰も読まなくなり、
+       本当に古い日に効かなくなる。
+    ⚠️ 全ページの描画を通るので、5分キャッシュ＋例外を出さない作りにしてある。
+       出せないときは何も出さない（画面を壊さないほうを優先）。
+    """
+    none = {'price_stale_as_of': None, 'price_fetch_failing': False}
+    try:
+        import data_freshness
+        when, age = data_freshness.price_as_of()
+        stale = (when is not None and age is not None
+                 and age > data_freshness.PRICE_BANNER_STALE_DAYS)
+        # ⚠️ 成功した記録が1件も無いときも帯を出す。取得がずっと弾かれている
+        #    最中に公開すると、いつ時点かを言えないまま古い株価が出続ける。
+        failing = data_freshness.price_fetch_failing()
+        if not stale and not failing:
+            return none
+        return {'price_stale_as_of': ('%d月%d日' % (when.month, when.day)
+                                      if stale else None),
+                'price_fetch_failing': failing}
+    except Exception:
+        return none
+
+
 @app.route('/')
 def index():
     """ランディングページ"""

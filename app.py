@@ -124,6 +124,47 @@ def health_db():
         return jsonify({"status": "error", "db": "unreachable", "detail": str(e)}), 503
 
 
+@app.route('/health/jobs', methods=['GET'])
+def health_jobs():
+    """定期実行が止まっていたら503を返す。外形監視から叩かせる口。
+
+    なぜ要るか:
+      鮮度パネルは管理画面を**開かないと見えない**。2026-08-31、株価の定期実行が
+      3回とも空振りしてスクリーナーが丸1日 前営業日の終値を出し、
+      さらに夕方からスケジューラ自体が発火を止めていたが、
+      どちらも誰かが管理画面を開くまで気づけなかった。
+
+      UptimeRobot が5分おきに `/health/db` を叩いているので、そこに相乗りする。
+      **新しい通知の仕組みを作らずに済む**のが狙い
+      （監視先を増やすより、既にある監視に載せるほうが忘れられない）。
+
+    ⚠️ **本文に件数を出さないこと。** ここは未ログインで叩ける。
+       別アプリで `/api/health/db` が誰でも会員数を返していた例がある。
+       返すのは status と、決まった語彙の problem だけ。
+
+    ⚠️ 判定できないときは 503（fail-closed）。読めないことを ok として返すと、
+       監視そのものが黙って無効になる。
+    """
+    import data_freshness
+    try:
+        jobs = [{'id': j.id,
+                 'next_run_time': (j.next_run_time.isoformat()
+                                   if j.next_run_time else None)}
+                for j in scheduler.get_jobs()]
+    except Exception as e:
+        print(f'[health/jobs] スケジューラの状態を取得できません: {str(e)[:120]}')
+        jobs = None
+    try:
+        ok, problem = data_freshness.health(jobs)
+    except Exception as e:
+        print(f'[health/jobs] 判定できません: {str(e)[:200]}')
+        return jsonify({"status": "error"}), 503
+    if ok:
+        return jsonify({"status": "ok"}), 200
+    print(f'[health/jobs] 異常を検出: {problem}')
+    return jsonify({"status": "stale", "problem": problem}), 503
+
+
 # =============================================
 # 認証ヘルパー関数
 # =============================================
@@ -4866,26 +4907,73 @@ def scheduled_fetch_gc_dc():
     except Exception as e:
         print(f"[Scheduler] DCエラー: {e}")
 
-def fetch_prices_batch(codes, chunk_size=200):
+def record_job_run(job_id, ok, detail=''):
+    """定期実行が実際に何をしたかを1行だけ残す。
+
+    なぜ要るか:
+      鮮度パネルはデータの新しさを見ているが、データは
+      **「取れなかった」と「変わらなかった」を区別できない**。
+      株価の price_updated_at は株価が変わったときしか動かないので、
+      取得が0件で終わった日も「土曜に更新済み」に見えてしまう
+      （2026-08-31、丸1日それで気づけなかった）。
+
+    ⚠️ **記録の失敗でジョブ本体を止めないこと。** 見張りが本体を殺すのは
+       本末転倒なので、ここは例外を飲む。テーブルが未作成でも同じ。
+    """
+    try:
+        get_supabase_client().table('job_runs').insert({
+            'job_id': job_id, 'ok': bool(ok), 'detail': (detail or '')[:500],
+        }).execute()
+    except Exception as e:
+        print(f'[Scheduler] 実行記録を残せませんでした ({job_id}): {str(e)[:120]}')
+
+
+def fetch_prices_batch(codes, chunk_size=200, stats=None):
     """複数銘柄の最新終値をまとめて取得する。{code: price} を返す。
 
     1銘柄ずつ叩くと3,875件で約23分かかるうえ、リクエスト数もそのまま
     銘柄数になりレート制限に当たりやすい。yfinanceのバッチ取得なら
     実測で1銘柄あたり0.065秒（従来比 約1/11）で済む。
+
+    ⚠️ **取れなかったことを黙って捨てないこと。** 以前はチャンク単位の例外を
+       `continue` で握りつぶしていたため、1件も取れなくても呼び出し側は
+       ただの空 dict を受け取り、例外も立たなかった。
+       2026-08-31、3回の定期実行がすべて0件で終わり、スクリーナーが
+       金曜の終値を丸1日出し続けていたのに、画面にもログにも何も出なかった。
+
+    Args:
+        stats: 渡すと取得の内訳（要求件数・取得件数・失敗チャンク・エラー例）を
+               書き込む。呼び出し側が「空振り」を判定するために使う。
     """
     import yfinance as yf
     import warnings
+    import time as _time
     warnings.filterwarnings('ignore')
 
     prices = {}
+    chunks = failed_chunks = 0
+    errors = []
     for i in range(0, len(codes), chunk_size):
         chunk = codes[i:i + chunk_size]
         symbols = [c if c.endswith('.T') else f'{c}.T' for c in chunk]
-        try:
-            df = yf.download(' '.join(symbols), period='2d', progress=False,
-                             threads=True, auto_adjust=False)
-        except Exception as e:
-            print(f'[Scheduler] バッチ取得エラー ({i}-{i+len(chunk)}): {e}')
+        chunks += 1
+        df = None
+        # 1回だけ取り直す。まるごと落ちたチャンクは200銘柄が消えるので、
+        # 一過性の失敗をそのまま捨てるのは高くつく。
+        for attempt in (1, 2):
+            try:
+                df = yf.download(' '.join(symbols), period='2d', progress=False,
+                                 threads=True, auto_adjust=False)
+                break
+            except Exception as e:
+                if attempt == 1:
+                    _time.sleep(3)
+                    continue
+                failed_chunks += 1
+                if len(errors) < 3:
+                    errors.append(str(e)[:120])
+                print(f'[Scheduler] バッチ取得エラー ({i}-{i+len(chunk)}): {e}')
+        if df is None:
             continue
 
         for code, sym in zip(chunk, symbols):
@@ -4895,6 +4983,11 @@ def fetch_prices_batch(codes, chunk_size=200):
                     prices[code] = float(series.iloc[-1])
             except Exception:
                 continue
+
+    if stats is not None:
+        stats.update({'requested': len(codes), 'fetched': len(prices),
+                      'chunks': chunks, 'failed_chunks': failed_chunks,
+                      'errors': errors})
     return prices
 
 
@@ -5205,7 +5298,39 @@ PRICE_SYNC_COLUMNS = ('company_code, stock_price, per_forward, pbr, '
                       'market_cap, dividend_yield, dividend_yield_forward')
 
 
-def scheduled_update_stock_prices():
+# 空振りした回を何分後に、何回まで試し直すか。
+#
+# 定期実行は 9:25 / 11:45 / 15:20 の3回しかないので、1回落ちると次まで2時間以上
+# 開く。レート制限のような一過性の失敗なら、30分後にもう一度で戻ることが多い。
+# 3回で打ち切るのは、恒常的に弾かれているときに叩き続けても状況を悪くするだけだから。
+PRICE_RETRY_MINUTES = 30
+PRICE_RETRY_MAX = 3
+
+
+def _schedule_price_retry(attempt):
+    """空振りした株価バッチを、少し待ってから試し直す。
+
+    ⚠️ 再試行の登録に失敗しても本体を止めないこと。ここで例外を上げると、
+       せっかく残した実行記録より後ろで落ちて話が分かりにくくなる。
+    """
+    if attempt >= PRICE_RETRY_MAX:
+        print(f"[Scheduler] 株価バッチ: {attempt}回試して取れないため打ち切ります"
+              f"（次の定期実行を待ちます）")
+        return
+    from datetime import datetime, timedelta
+    run_at = (datetime.now(pytz.timezone('Asia/Tokyo'))
+              + timedelta(minutes=PRICE_RETRY_MINUTES))
+    try:
+        scheduler.add_job(scheduled_update_stock_prices, 'date', run_date=run_at,
+                          args=[attempt + 1], id='price_update_retry',
+                          replace_existing=True, misfire_grace_time=600)
+        print(f"[Scheduler] 株価バッチ: {PRICE_RETRY_MINUTES}分後に試し直します"
+              f"（{attempt + 1}回目）")
+    except Exception as e:
+        print(f"[Scheduler] 株価バッチ: 再試行を登録できませんでした: {e}")
+
+
+def scheduled_update_stock_prices(attempt=0):
     """定期実行: screened_latest全銘柄の株価を更新する。
 
     ⚠️ 株価だけを書き換えないこと。PER・PBR・時価総額・配当利回りは
@@ -5238,7 +5363,20 @@ def scheduled_update_stock_prices():
 
         by_code = {r['company_code']: r for r in rows}
         print(f"[Scheduler] 対象銘柄数: {len(by_code)}件")
-        prices = fetch_prices_batch(list(by_code))
+        stats = {}
+        prices = fetch_prices_batch(list(by_code), stats=stats)
+
+        # ⚠️ **取得0件は「変化なし」ではなく失敗。** ここを正常として通すと、
+        #    スクリーナーが前営業日の株価を出し続けても誰も気づけない
+        #    （2026-08-31、3回の実行がすべて0件で丸1日金曜の値のままだった）。
+        #    price_updated_at は株価が変わったときしか動かないので、
+        #    鮮度パネルからも「取れなかった」ことは読めない。
+        if not prices:
+            raise RuntimeError(
+                '1件も取得できませんでした（対象%d件 / チャンク%d本中%d本が失敗）: %s'
+                % (len(by_code), stats.get('chunks', 0),
+                   stats.get('failed_chunks', 0),
+                   ' / '.join(stats.get('errors') or ['例外なし'])))
 
         success_count = 0
         split_count = 0
@@ -5266,8 +5404,20 @@ def scheduled_update_stock_prices():
         fail_count = len(by_code) - success_count
         print(f"[Scheduler] 株価バッチ更新完了: 成功{success_count}件, "
               f"失敗{fail_count}件, 分割の疑い{split_count}件")
+        # 取得はできたが大半が欠けている回も記録に残す。まるごと落ちるより
+        # 「半分だけ取れた」のほうが気づきにくい。
+        ok = stats.get('fetched', 0) >= len(by_code) * 0.5
+        record_job_run('price_update', ok=ok,
+                       detail='取得%d/%d件・保存%d件（チャンク%d本中%d本が失敗）'
+                              % (stats.get('fetched', 0), len(by_code),
+                                 success_count, stats.get('chunks', 0),
+                                 stats.get('failed_chunks', 0)))
+        if not ok:
+            _schedule_price_retry(attempt)
     except Exception as e:
         print(f"[Scheduler] 株価バッチ更新エラー: {e}")
+        record_job_run('price_update', ok=False, detail=str(e)[:300])
+        _schedule_price_retry(attempt)
 
 
 def scheduled_update_daily_and_crosses():
@@ -5292,6 +5442,14 @@ def scheduled_update_daily_and_crosses():
     _update_daily_and_recalc_background()
     print(f"[Scheduler] 日足更新＋GC/DC再計算 終了: {daily_update_status.get('phase')} "
           f"/ 保存{daily_update_status.get('saved')}件")
+    # 保存0件は「変化なし」ではなく取得の失敗。日足はどの営業日でも1本増えるので、
+    # 0件で終わるのは yfinance が返していないとき（2026-08-31 に実際に起きた）。
+    saved = daily_update_status.get('saved') or 0
+    record_job_run('daily_and_crosses',
+                   ok=bool(saved) and not daily_update_status.get('error'),
+                   detail='保存%d件 / %s' % (
+                       saved, daily_update_status.get('error')
+                       or daily_update_status.get('phase') or ''))
     _recalculate_scores_after_price_move()
     _recalculate_growth_columns()
 
@@ -5525,7 +5683,17 @@ def api_data_freshness():
     """
     try:
         import data_freshness
-        return jsonify(data_freshness.summary()), 200
+        # スケジューラの次回実行時刻も一緒に渡す。データだけを見ていると、
+        # 手でボタンを押した結果で緑になり、ジョブが死んでいるのを隠せてしまう。
+        try:
+            jobs = [{'id': j.id,
+                     'next_run_time': (j.next_run_time.isoformat()
+                                       if j.next_run_time else None)}
+                    for j in scheduler.get_jobs()]
+        except Exception as e:
+            print(f'スケジューラの状態を取得できませんでした: {e}')
+            jobs = None          # 正常には倒さない（警告として出る）
+        return jsonify(data_freshness.summary(jobs=jobs)), 200
     except Exception as e:
         print(f'データ鮮度の集計に失敗: {e}')
         return jsonify({"error": str(e)}), 500
