@@ -43,6 +43,9 @@ from supabase_client import (
     get_signal_gc_stocks, get_signal_dc_stocks, upsert_signal_stocks,
     get_dividend_stocks, set_dividend_flag, remove_dividend_flag,
     add_favorite_stock, remove_favorite_stock, get_favorite_stocks, is_favorite_stock,
+    add_favorite_stocks, add_to_favorite_folder, remove_from_favorite_folder,
+    set_favorite_folders, list_favorite_folders, count_unfiled_favorites,
+    create_favorite_folder, rename_favorite_folder, delete_favorite_folder,
     create_note, get_user_notes, get_public_notes,
     get_notes_by_company, update_note, delete_note,
     get_user_by_id,
@@ -2151,6 +2154,12 @@ def api_div_analyze_status():
     return jsonify(div_analyze_status), 200
 
 
+# 一度に登録できる件数と、作れるフォルダの数。
+# 上限が無いと、一覧を全選択して数千件を1リクエストで投げられる。
+BULK_FAVORITE_MAX = 200
+FAVORITE_FOLDER_MAX = 50
+
+
 # =============================================
 # お気に入り銘柄API
 # =============================================
@@ -2194,6 +2203,163 @@ def api_remove_favorite_stock(company_code):
         return jsonify({"message": f"{company_code}をお気に入りから削除しました"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/favorite-stocks/bulk', methods=['POST'])
+def api_add_favorite_stocks_bulk():
+    """選んだ銘柄をまとめてお気に入りに入れる。
+
+    好調企業・高配当企業・テクニカル分析の一覧から、チェックした銘柄を
+    1回で登録するための口。1件ずつ叩くと数十リクエストになる。
+    """
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        if not codes:
+            return jsonify({"error": "銘柄が選ばれていません"}), 400
+        if len(codes) > BULK_FAVORITE_MAX:
+            return jsonify({"error": f"一度に登録できるのは{BULK_FAVORITE_MAX}件までです"}), 400
+        result = add_favorite_stocks(user_id, codes, data.get('folder_id') or None)
+        return jsonify(result), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f'お気に入り一括登録エラー: {e}')
+        return jsonify({"error": "登録できませんでした"}), 500
+
+
+@app.route('/api/favorite-stocks/folder', methods=['POST'])
+def api_add_to_favorite_folder():
+    """選んだお気に入りにフォルダの札を付ける。
+
+    ⚠️ 1銘柄が複数のフォルダに入る。ここは「移動」ではなく「追加」なので、
+       すでに付いている他の札は外さない。
+    """
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        folder_id = data.get('folder_id')
+        if not codes or not folder_id:
+            return jsonify({"error": "銘柄とフォルダを選んでください"}), 400
+        if len(codes) > BULK_FAVORITE_MAX:
+            return jsonify({"error": f"一度に扱えるのは{BULK_FAVORITE_MAX}件までです"}), 400
+        return jsonify({"filed": add_to_favorite_folder(user_id, codes, folder_id)}), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f'フォルダ追加エラー: {e}')
+        return jsonify({"error": "追加できませんでした"}), 500
+
+
+@app.route('/api/favorite-stocks/folder', methods=['DELETE'])
+def api_remove_from_favorite_folder():
+    """フォルダの札を外す。**お気に入りからは消えない。**"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        folder_id = data.get('folder_id')
+        if not codes or not folder_id:
+            return jsonify({"error": "銘柄とフォルダを選んでください"}), 400
+        return jsonify({"removed": remove_from_favorite_folder(
+            user_id, codes, folder_id)}), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f'フォルダ解除エラー: {e}')
+        return jsonify({"error": "外せませんでした"}), 500
+
+
+@app.route('/api/favorite-stocks/folders', methods=['PUT'])
+def api_set_favorite_folders():
+    """1銘柄に付ける札を、渡された集合そのものに置き換える。
+
+    銘柄ごとにチェックを付け外しする画面用。まとめて送るので、
+    付け外しのたびにリクエストが飛ばない。
+    """
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        code = normalize_code(data.get('company_code') or '')
+        if not code:
+            return jsonify({"error": "銘柄が指定されていません"}), 400
+        ids = set_favorite_folders(user_id, code, data.get('folder_ids') or [])
+        return jsonify({"folder_ids": ids}), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f'フォルダ設定エラー: {e}')
+        return jsonify({"error": "変更できませんでした"}), 500
+
+
+# =============================================
+# お気に入りのフォルダAPI
+#
+# ⚠️ アプリは service_role で接続する＝RLSがバイパスされる。
+#    どの口も user_id で絞ること。folder_id はクライアントから来るので、
+#    本人のものかを確かめずに使うと他人のフォルダを触れてしまう
+#    （確認は supabase_client 側の owns_favorite_folder が担う）。
+# =============================================
+
+@app.route('/api/favorite-folders', methods=['GET'])
+def api_list_favorite_folders():
+    """フォルダ一覧（件数つき）と、未分類の件数を返す"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        return jsonify({"folders": list_favorite_folders(user_id),
+                        "unfiled": count_unfiled_favorites(user_id)}), 200
+    except Exception as e:
+        print(f'フォルダ一覧エラー: {e}')
+        return jsonify({"error": "取得できませんでした"}), 500
+
+
+@app.route('/api/favorite-folders', methods=['POST'])
+def api_create_favorite_folder():
+    """フォルダを作る"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        folders = list_favorite_folders(user_id)
+        if len(folders) >= FAVORITE_FOLDER_MAX:
+            return jsonify({"error": f"フォルダは{FAVORITE_FOLDER_MAX}個までです"}), 400
+        return jsonify(create_favorite_folder(user_id, data.get('name'))), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f'フォルダ作成エラー: {e}')
+        return jsonify({"error": "作成できませんでした"}), 500
+
+
+@app.route('/api/favorite-folders/<folder_id>', methods=['PATCH'])
+def api_rename_favorite_folder(folder_id):
+    """フォルダ名を変える"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json() or {}
+        return jsonify(rename_favorite_folder(user_id, folder_id, data.get('name'))), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f'フォルダ改名エラー: {e}')
+        return jsonify({"error": "変更できませんでした"}), 500
+
+
+@app.route('/api/favorite-folders/<folder_id>', methods=['DELETE'])
+def api_delete_favorite_folder(folder_id):
+    """フォルダを消す。**中のお気に入りは消さず未分類に戻る。**"""
+    try:
+        user_id = get_or_create_guest_user_id()
+        delete_favorite_folder(user_id, folder_id)
+        return jsonify({"message": "フォルダを削除しました（銘柄は未分類に戻りました）"}), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f'フォルダ削除エラー: {e}')
+        return jsonify({"error": "削除できませんでした"}), 500
 
 
 @app.route('/api/favorite-stocks/check/<company_code>', methods=['GET'])
@@ -4952,11 +5118,89 @@ def record_job_run(job_id, ok, detail=''):
        本末転倒なので、ここは例外を飲む。テーブルが未作成でも同じ。
     """
     try:
-        get_supabase_client().table('job_runs').insert({
+        rows = get_supabase_client().table('job_runs').insert({
             'job_id': job_id, 'ok': bool(ok), 'detail': (detail or '')[:500],
-        }).execute()
+        }).execute().data or []
+        return rows[0] if rows else None
     except Exception as e:
         print(f'[Scheduler] 実行記録を残せませんでした ({job_id}): {str(e)[:120]}')
+        return None
+
+
+# 二重起動を見張る窓と、順番が確定するまでの待ち時間。
+#
+# 2026-09-01、15:20の株価バッチで開始の印が**3秒以内に3つ**残った。
+# 同じ処理が3本同時に走り、Yahooへ3倍のリクエストを投げていた
+# （その日のレート制限の原因として有力）。
+#
+# gunicorn は --workers の指定が無いと Render の WEB_CONCURRENCY を見るため、
+# worker が増えるとプロセスごとにスケジューラが立つ。起動コマンドは直したが、
+# **設定は人が変えられるので、DB側にも門を置く**。
+JOB_CLAIM_WAIT_SECONDS = 5
+JOB_CLAIM_WINDOW_MINUTES = 45
+
+
+def claim_job(job_id):
+    """このプロセスがそのジョブを実行してよいかを決める。
+
+    仕組み:
+      1. 開始の印を残す
+      2. 数秒待つ（同時に立ち上がった他の印が出そろうのを待つ）
+      3. 窓の中でいちばん古い印が自分でなければ、**自分の印を消して降りる**
+
+    ⚠️ 降りるとき自分の印を消すのは、残すと「始まったのに終わらない」に
+       見えて hung と誤検知されるため。実際には走っていないので印も残さない。
+
+    ⚠️ 完全な排他ではない（DBの一意制約ではなく時刻の比較）。狙いは
+       「3本同時」を1本に減らすことで、理論上の同着を無くすことではない。
+       取りこぼしても次の定期実行で拾える種類の処理にだけ使う。
+    """
+    import time as _time
+    from datetime import datetime, timedelta, timezone
+
+    mine = record_job_run(job_id + ':start', ok=True, detail='開始')
+    if not mine:
+        return True          # 記録できないなら見張りは諦め、本体は動かす
+
+    _time.sleep(JOB_CLAIM_WAIT_SECONDS)
+    try:
+        since = (datetime.now(timezone.utc)
+                 - timedelta(minutes=JOB_CLAIM_WINDOW_MINUTES)).isoformat()
+        rows = (get_supabase_client().table('job_runs')
+                .select('id, ran_at')
+                .eq('job_id', job_id + ':start')
+                .gte('ran_at', since)
+                .order('ran_at').order('id').limit(20).execute().data or [])
+    except Exception as e:
+        print(f'[Scheduler] 二重起動の確認に失敗 ({job_id}): {str(e)[:120]}')
+        return True
+
+    # 直近の完了より後の印だけを見る（前回の実行の印を数えない）
+    finished = last_job_finish(job_id)
+    if finished:
+        rows = [r for r in rows if r['ran_at'] > finished]
+
+    if rows and rows[0]['id'] != mine.get('id'):
+        print(f'[Scheduler] {job_id}: 他で実行中のため降ります'
+              f'（同時に{len(rows)}本立ち上がりました）')
+        try:
+            (get_supabase_client().table('job_runs').delete()
+             .eq('id', mine['id']).execute())
+        except Exception as e:
+            print(f'[Scheduler] 自分の印を消せませんでした: {str(e)[:120]}')
+        return False
+    return True
+
+
+def last_job_finish(job_id):
+    """そのジョブが最後に終わった時刻（ISO文字列）。無ければ None。"""
+    try:
+        rows = (get_supabase_client().table('job_runs').select('ran_at')
+                .eq('job_id', job_id)
+                .order('ran_at', desc=True).limit(1).execute().data or [])
+    except Exception:
+        return None
+    return rows[0]['ran_at'] if rows else None
 
 
 def fetch_prices_batch(codes, chunk_size=200, stats=None):
@@ -5377,7 +5621,11 @@ def scheduled_update_stock_prices(attempt=0):
     #    「まだ何もしていない」と区別できない。2026-09-01、9:25 と 11:45 の
     #    2回とも記録が1行も残らず、成功も失敗も分からなかった。
     #    始まりが残っていれば、終わりが来ないこと自体が証拠になる。
-    record_job_run('price_update:start', ok=True, detail='開始')
+    #
+    # ⚠️ ここで同時に立ち上がった他のプロセスに道を譲る。同じ日の15:20に
+    #    3本同時に走り、Yahooへ3倍のリクエストを投げていた。
+    if not claim_job('price_update'):
+        return
     try:
         client = get_supabase_client()
 
@@ -5480,7 +5728,8 @@ def scheduled_update_daily_and_crosses():
         return
 
     print(f"[Scheduler] 日足更新＋GC/DC再計算 開始: {datetime.now()}")
-    record_job_run('daily_and_crosses:start', ok=True, detail='開始')
+    if not claim_job('daily_and_crosses'):
+        return
     daily_update_status = {"running": True, "phase": "準備中", "done": 0, "total": 0,
                            "saved": 0, "stop_requested": False, "finished_at": None, "error": None}
     try:

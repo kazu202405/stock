@@ -691,7 +691,7 @@ def get_favorite_stocks(user_id: str) -> list:
 
     # お気に入り一覧を取得
     favorites = client.table('favorite_stocks').select(
-        'company_code, created_at'
+        'id, company_code, created_at'
     ).eq('user_id', user_id).order('created_at', desc=True).execute()
 
     if not favorites.data:
@@ -699,6 +699,11 @@ def get_favorite_stocks(user_id: str) -> list:
 
     # 銘柄コードのリストを作成
     codes = [item['company_code'] for item in favorites.data]
+
+    # どのフォルダに入っているか（1銘柄が複数に入りうる）
+    by_fav = {}
+    for link in _links_for(client, [item['id'] for item in favorites.data]):
+        by_fav.setdefault(link['favorite_id'], []).append(link['folder_id'])
 
     # screened_latestから詳細データを取得
     details = client.table('screened_latest').select('*').in_(
@@ -716,10 +721,231 @@ def get_favorite_stocks(user_id: str) -> list:
         result.append({
             'company_code': code,
             'favorited_at': item['created_at'],
-            **detail
+            **detail,
+            # ⚠️ detail の後に置くこと。screened_latest 側に同名の列ができても
+            #    お気に入りのフォルダが上書きされないようにする。
+            'folder_ids': by_fav.get(item['id'], []),
         })
 
     return result
+
+
+# =============================================
+# お気に入りのフォルダ（2026-09-01）
+#
+# ⚠️ **1銘柄は複数のフォルダに入る。** 好調企業でありながら高配当、という
+#    銘柄が実際にあるため、単一所属にすると片方を選ばせることになる。
+#    ∴ favorite_stocks に列を足さず、favorite_folder_items で結ぶ。
+#
+# ⚠️ **アプリは service_role で接続する＝RLSがバイパスされる。**
+#    user_id の絞り込みはここの責任。folder_id はクライアントから来るので、
+#    「そのユーザーのフォルダか」を必ず確かめてから使うこと。
+#    確かめずに使うと、他人のフォルダに自分の銘柄を入れられる。
+# =============================================
+
+FOLDER_NAME_MAX = 60
+
+
+def _favorite_ids(client, user_id: str, codes: list) -> dict:
+    """{company_code: favorite_stocks.id} を返す（本人のぶんだけ）。"""
+    found = {}
+    for i in range(0, len(codes), 200):
+        rows = (client.table('favorite_stocks').select('id, company_code')
+                .eq('user_id', user_id)
+                .in_('company_code', codes[i:i + 200]).execute().data or [])
+        for r in rows:
+            found[r['company_code']] = r['id']
+    return found
+
+
+def _all_favorite_ids(client, user_id: str) -> dict:
+    """本人のお気に入り全件の {id: company_code}。"""
+    rows = (client.table('favorite_stocks').select('id, company_code')
+            .eq('user_id', user_id).execute().data or [])
+    return {r['id']: r['company_code'] for r in rows}
+
+
+def _links_for(client, favorite_ids: list) -> list:
+    """お気に入りIDに付いている札を返す。"""
+    out = []
+    for i in range(0, len(favorite_ids), 200):
+        out.extend(client.table('favorite_folder_items')
+                   .select('favorite_id, folder_id')
+                   .in_('favorite_id', favorite_ids[i:i + 200])
+                   .execute().data or [])
+    return out
+
+
+def list_favorite_folders(user_id: str) -> list:
+    """フォルダ一覧を、中の件数つきで返す。"""
+    client = get_supabase_client()
+    folders = (client.table('favorite_folders')
+               .select('id, name, sort_order, created_at')
+               .eq('user_id', user_id)
+               .order('sort_order').order('created_at')
+               .execute().data or [])
+    if not folders:
+        return []
+
+    # ⚠️ 件数は**本人のお気に入りに限って**数える。folder_id だけで数えると、
+    #    中間表に他人の行があったときに足してしまう。
+    mine = _all_favorite_ids(client, user_id)
+    counts = {}
+    for link in _links_for(client, list(mine)):
+        counts[link['folder_id']] = counts.get(link['folder_id'], 0) + 1
+    for f in folders:
+        f['count'] = counts.get(f['id'], 0)
+    return folders
+
+
+def count_unfiled_favorites(user_id: str) -> int:
+    """どのフォルダにも入れていないお気に入りの件数。"""
+    client = get_supabase_client()
+    mine = _all_favorite_ids(client, user_id)
+    if not mine:
+        return 0
+    labelled = {l['favorite_id'] for l in _links_for(client, list(mine))}
+    return len(set(mine) - labelled)
+
+
+def create_favorite_folder(user_id: str, name: str) -> dict:
+    """フォルダを作る。同名は作らせない（どちらに入れたか分からなくなる）。"""
+    name = (name or '').strip()[:FOLDER_NAME_MAX]
+    if not name:
+        raise ValueError('フォルダ名が空です')
+    client = get_supabase_client()
+    existing = (client.table('favorite_folders').select('id')
+                .eq('user_id', user_id).eq('name', name).execute().data or [])
+    if existing:
+        raise ValueError('同じ名前のフォルダがすでにあります')
+    rows = (client.table('favorite_folders')
+            .insert({'user_id': user_id, 'name': name}).execute().data or [])
+    return rows[0] if rows else {}
+
+
+def owns_favorite_folder(user_id: str, folder_id: str) -> bool:
+    """そのフォルダが本人のものか。**folder_id を使う前に必ず通すこと。**"""
+    if not folder_id:
+        return False
+    client = get_supabase_client()
+    rows = (client.table('favorite_folders').select('id')
+            .eq('user_id', user_id).eq('id', folder_id).execute().data or [])
+    return bool(rows)
+
+
+def rename_favorite_folder(user_id: str, folder_id: str, name: str) -> dict:
+    """フォルダ名を変える。"""
+    name = (name or '').strip()[:FOLDER_NAME_MAX]
+    if not name:
+        raise ValueError('フォルダ名が空です')
+    if not owns_favorite_folder(user_id, folder_id):
+        raise PermissionError('そのフォルダは存在しません')
+    client = get_supabase_client()
+    dup = (client.table('favorite_folders').select('id')
+           .eq('user_id', user_id).eq('name', name)
+           .neq('id', folder_id).execute().data or [])
+    if dup:
+        raise ValueError('同じ名前のフォルダがすでにあります')
+    rows = (client.table('favorite_folders').update({'name': name})
+            .eq('user_id', user_id).eq('id', folder_id).execute().data or [])
+    return rows[0] if rows else {}
+
+
+def delete_favorite_folder(user_id: str, folder_id: str) -> None:
+    """フォルダを消す。**中のお気に入りは消さず、札だけ外す。**
+
+    ⚠️ フォルダは札であって銘柄そのものではない。銘柄まで消すと、
+       名前を付け替えるつもりだった人がお気に入りごと失う。
+    """
+    if not owns_favorite_folder(user_id, folder_id):
+        raise PermissionError('そのフォルダは存在しません')
+    client = get_supabase_client()
+    # 中間表は on delete cascade だが、消えるのは札だけ。制約を書き換えたときに
+    # 黙って銘柄まで消える形にならないよう、ここでも明示して外す。
+    (client.table('favorite_folder_items').delete()
+     .eq('folder_id', folder_id).execute())
+    (client.table('favorite_folders').delete()
+     .eq('user_id', user_id).eq('id', folder_id).execute())
+
+
+def add_favorite_stocks(user_id: str, codes: list, folder_id=None) -> dict:
+    """複数銘柄をまとめてお気に入りに入れ、指定があればフォルダにも入れる。
+
+    ⚠️ すでにお気に入りの銘柄も**フォルダには入れる**。札は足すだけで何も
+       奪わないので、「入れたのに入っていない」が起きないようにする。
+    """
+    codes = [c for c in dict.fromkeys(codes or []) if c]
+    if not codes:
+        return {'added': 0, 'already': 0, 'filed': 0}
+    if folder_id and not owns_favorite_folder(user_id, folder_id):
+        raise PermissionError('そのフォルダは存在しません')
+
+    client = get_supabase_client()
+    existing = _favorite_ids(client, user_id, codes)
+    fresh = [c for c in codes if c not in existing]
+    if fresh:
+        client.table('favorite_stocks').insert(
+            [{'user_id': user_id, 'company_code': c} for c in fresh]).execute()
+
+    filed = add_to_favorite_folder(user_id, codes, folder_id) if folder_id else 0
+    return {'added': len(fresh), 'already': len(existing), 'filed': filed}
+
+
+def add_to_favorite_folder(user_id: str, codes: list, folder_id: str) -> int:
+    """お気に入りにフォルダの札を付ける。すでに付いていれば何も起きない。"""
+    codes = [c for c in dict.fromkeys(codes or []) if c]
+    if not codes or not folder_id:
+        return 0
+    if not owns_favorite_folder(user_id, folder_id):
+        raise PermissionError('そのフォルダは存在しません')
+    client = get_supabase_client()
+    ids = _favorite_ids(client, user_id, codes)
+    if not ids:
+        return 0
+    payload = [{'favorite_id': fid, 'folder_id': folder_id}
+               for fid in ids.values()]
+    # 同じ札を2枚付けない（主キーが (favorite_id, folder_id)）
+    client.table('favorite_folder_items').upsert(
+        payload, on_conflict='favorite_id,folder_id').execute()
+    return len(payload)
+
+
+def remove_from_favorite_folder(user_id: str, codes: list, folder_id: str) -> int:
+    """フォルダの札を外す。**お気に入りからは消えない。**"""
+    codes = [c for c in dict.fromkeys(codes or []) if c]
+    if not codes or not folder_id:
+        return 0
+    if not owns_favorite_folder(user_id, folder_id):
+        raise PermissionError('そのフォルダは存在しません')
+    client = get_supabase_client()
+    ids = _favorite_ids(client, user_id, codes)
+    if not ids:
+        return 0
+    fav_ids = list(ids.values())
+    for i in range(0, len(fav_ids), 200):
+        (client.table('favorite_folder_items').delete()
+         .eq('folder_id', folder_id)
+         .in_('favorite_id', fav_ids[i:i + 200]).execute())
+    return len(fav_ids)
+
+
+def set_favorite_folders(user_id: str, company_code: str, folder_ids: list) -> list:
+    """1銘柄に付ける札を、渡された集合そのものに置き換える。"""
+    folder_ids = [f for f in dict.fromkeys(folder_ids or []) if f]
+    for fid in folder_ids:
+        if not owns_favorite_folder(user_id, fid):
+            raise PermissionError('そのフォルダは存在しません')
+    client = get_supabase_client()
+    ids = _favorite_ids(client, user_id, [company_code])
+    fav_id = ids.get(company_code)
+    if not fav_id:
+        raise PermissionError('お気に入りに入っていません')
+    (client.table('favorite_folder_items').delete()
+     .eq('favorite_id', fav_id).execute())
+    if folder_ids:
+        client.table('favorite_folder_items').insert(
+            [{'favorite_id': fav_id, 'folder_id': f} for f in folder_ids]).execute()
+    return folder_ids
 
 
 def is_favorite_stock(user_id: str, company_code: str) -> bool:

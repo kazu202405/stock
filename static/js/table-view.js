@@ -138,7 +138,11 @@ window.TableView = (function () {
             var actions = config.actions ? config.actions(row) : '';
 
             html += '<div class="tv-card">';
-            html += '<div class="tv-card-head"><div style="min-width:0;">';
+            html += '<div class="tv-card-head">';
+            // 複数選択のチェック（config.select）。⚠️ 表だけに付けるとスマホで
+            // 使えない。カードはスマホの既定表示なので、こちらにも要る。
+            if (config.select) html += config.select(row);
+            html += '<div style="min-width:0;">';
             html += href
                 ? '<a class="tv-card-title" href="' + escapeHtml(href) + '">' + escapeHtml(title) + '</a>'
                 : '<div class="tv-card-title">' + escapeHtml(title) + '</div>';

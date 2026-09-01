@@ -361,6 +361,7 @@
     -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/table-view.css') }}">
     <script src="{{ url_for('static', filename='js/table-view.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bulk-select.js') }}"></script>
     <!-- スコアの色分けは全画面で同じ判定を使う（3画面がバラバラだったため集約） -->
     <script src="{{ url_for('static', filename='js/score-color.js') }}"></script>
     <!-- 配当利回りを予想で出すか実績で出すか。一覧と銘柄ページで食い違っていたため集約 -->
@@ -369,6 +370,63 @@
     <script src="{{ url_for('static', filename='js/company-search.js') }}"></script>
     <!-- チャートの日付を日本語の並びにする。lightweight-charts は locale だけでは変わらない -->
     <script src="{{ url_for('static', filename='js/chart-date.js') }}"></script>
+    <style>
+    /* 一覧の複数選択（共通部品 bulk-select.js） */
+    .bulk-cell { width: 34px; text-align: center; }
+    .bulk-cell input { width: 16px; height: 16px; cursor: pointer; }
+    .bulk-card-check { display: flex; align-items: center; padding-right: 10px; }
+    .bulk-card-check input { width: 18px; height: 18px; cursor: pointer; }
+
+    /* ⚠️ 選択が0件のときは出さない（JS側で display:none）。
+       常に出ていると一覧の下端が隠れて邪魔になる。 */
+    #bulkBar {
+        position: fixed; left: 50%; transform: translateX(-50%);
+        bottom: 18px; z-index: 60;
+        display: flex; align-items: center; gap: 10px;
+        background: #1b4332; color: #fff;
+        padding: 10px 14px; border-radius: 999px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.25);
+        font-size: 13px; max-width: calc(100vw - 24px);
+    }
+    #bulkBar .bulk-count { font-weight: 700; white-space: nowrap; }
+    #bulkBar select {
+        background: #fff; color: #1b4332; border: none; border-radius: 6px;
+        padding: 5px 8px; font-size: 13px; max-width: 40vw;
+    }
+    #bulkBar button {
+        border: none; border-radius: 999px; padding: 6px 14px;
+        font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    #bulkBar .bulk-go { background: #d4af37; color: #1b4332; font-weight: 700; }
+    #bulkBar .bulk-clear { background: transparent; color: #cfe3d8; text-decoration: underline; }
+
+    /* お気に入りのフォルダ帯 */
+    .fav-folder-bar {
+        display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+        margin-bottom: 10px;
+    }
+    .fav-chip-wrap { display: inline-flex; align-items: center; }
+    .fav-chip {
+        border: 1px solid #ebebeb; background: #fff; color: #525252;
+        border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .fav-chip:hover { background: #f0fdf4; border-color: #2d6a4f; }
+    .fav-chip.is-on { background: #1b4332; border-color: #1b4332; color: #fff; }
+    .fav-chip-n { font-size: 11px; opacity: .75; }
+    .fav-chip-add { border-style: dashed; color: #2d6a4f; }
+    .fav-chip-manage { color: #737373; }
+    .fav-chip-edit {
+        border: none; background: transparent; color: #737373;
+        cursor: pointer; font-size: 12px; padding: 2px 4px;
+    }
+    .fav-chip-edit:hover { color: #dc2626; }
+
+    /* スマホは下タブがあるので、その上に重ねる */
+    @media (max-width: 640px) {
+        #bulkBar { bottom: 72px; padding: 8px 12px; gap: 8px; }
+    }
+    </style>
 </head>
 
 <body class="min-h-screen" style="background: #f7f7f5;">

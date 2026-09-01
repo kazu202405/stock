@@ -899,7 +899,9 @@
                 <span class="watchlist-title"></span>
             </div>
             <div class="match-rate-description">
-                お気に入りに追加した銘柄を一覧表示しています。銘柄詳細ページの★ボタンから追加できます。
+                お気に入りに追加した銘柄を一覧表示しています。銘柄詳細ページの★ボタン、
+                または好調企業・高配当企業・テクニカル分析の一覧でチェックを付けて追加できます。
+                フォルダは1銘柄にいくつでも付けられます（好調かつ高配当、など）。
             </div>
             <div class="filter-action-bar">
                 <div class="filter-bar" id="favFilterBar">
@@ -940,6 +942,11 @@
                     <button class="filter-reset-btn" onclick="resetFavFilters()">リセット</button>
                 </div>
             </div>
+            <!--
+              フォルダの帯。1銘柄が複数のフォルダに入れるので、ここは
+              「絞り込み」であって「移動先」ではない。
+            -->
+            <div id="favFolderBar" class="fav-folder-bar"></div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
             <div id="favViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="favoriteContent">
@@ -1692,6 +1699,9 @@
         if (TableView.isCard('dashboard-watchlist')) {
             content.innerHTML = TableView.cards(pageRows, stockCardConfig({
                 sortKey: currentSort.key,
+                // ⚠️ カードにもチェックを出す。スマホの既定はカード表示なので、
+                //    表だけに付けると外では一括登録が使えない。
+                select: (r) => BulkSelect.cardCheck('watchlist', r.company_code),
             })) + moreRowsHtml('watchlist', shown, list.length);
             return;
         }
@@ -1708,6 +1718,7 @@
             <table class="watchlist-table">
                 <thead>
                     <tr>
+                        ${BulkSelect.headCell('watchlist', pageRows.map(r => r.company_code))}
                         <th class="sortable" onclick="sortWatchlist('company_code')">コード${sortIcon('company_code')}</th>
                         <th class="sortable" onclick="sortWatchlist('company_name')">会社名${sortIcon('company_name')}</th>
                         <th class="sortable" onclick="sortWatchlist('match_rate')">スコア${sortIcon('match_rate')}</th>
@@ -1745,6 +1756,7 @@
 
             html += `
                 <tr class="clickable-row ${trend.cls ? 'row-' + trend.cls : ''}" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">
+                    ${BulkSelect.cell('watchlist', code)}
                     <td>${code}</td>
                     <td class="company-name-cell">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
@@ -2191,6 +2203,9 @@
 
         sessionStorage.setItem('activeTab', tabName);
 
+        // 選択バーはタブごとに持ち替える（選んだものはタブ別に残る）
+        mountBulkBar(tabName);
+
         if (tabName === 'favorite' && !favoriteLoaded) loadFavoriteStocks();
         if (tabName === 'dividend' && !dividendLoaded) loadDividendStocks();
         if (tabName === 'gc' && gcStocksCache.length === 0) loadGcStocks();
@@ -2201,6 +2216,173 @@
     // ========================================
     // お気に入り銘柄
     // ========================================
+
+    /*
+     * お気に入りのフォルダ。
+     *
+     * ⚠️ **1銘柄は複数のフォルダに入る。** 好調企業でありながら高配当、という
+     *    銘柄が実際にあるため、単一所属にすると片方を選ばせることになる。
+     *    ∴ ここでの操作は「移動」ではなく「札を付ける／外す」。
+     */
+    let favFolders = [];          // [{id, name, count}]
+    let favUnfiled = 0;           // どのフォルダにも入れていない件数
+    let favFolderFilter = '';     // '' = すべて / 'unfiled' = 未分類 / id
+    let favFolderEditing = false;
+
+    // 選択の一括操作が使えるタブ。お気に入りだけは「フォルダから外す」も出す。
+    const BULK_TABS = ['watchlist', 'favorite', 'dividend', 'technical'];
+
+    async function loadFavoriteFolders() {
+        try {
+            const res = await fetch('/api/favorite-folders');
+            if (!res.ok) return;
+            const data = await res.json();
+            favFolders = data.folders || [];
+            favUnfiled = data.unfiled || 0;
+            renderFavFolderBar();
+            mountBulkBar(sessionStorage.getItem('activeTab') || 'watchlist');
+        } catch (e) {
+            // フォルダが出せないことで一覧まで止めない
+        }
+    }
+
+    function renderFavFolderBar() {
+        const bar = document.getElementById('favFolderBar');
+        if (!bar) return;
+        const total = favFolders.reduce((n, f) => n + (f.count || 0), 0);
+        const chip = (key, label, count, extra) =>
+            '<button class="fav-chip' + (favFolderFilter === key ? ' is-on' : '') + '"'
+            + ' onclick="setFavFolderFilter(\'' + key + '\')">'
+            + escapeHtmlFav(label)
+            + (count != null ? '<span class="fav-chip-n">' + count + '</span>' : '')
+            + '</button>' + (extra || '');
+
+        let html = chip('', 'すべて', favoriteCache.length)
+                 + chip('unfiled', '未分類', favUnfiled);
+        favFolders.forEach(f => {
+            const edit = favFolderEditing
+                ? '<button class="fav-chip-edit" title="名前を変える" onclick="renameFavFolder(\'' + f.id + '\')">✎</button>'
+                + '<button class="fav-chip-edit" title="フォルダを削除（銘柄は残ります）" onclick="deleteFavFolder(\'' + f.id + '\')">✕</button>'
+                : '';
+            html += '<span class="fav-chip-wrap">' + chip(f.id, f.name, f.count) + edit + '</span>';
+        });
+        html += '<button class="fav-chip fav-chip-add" onclick="createFavFolder()">＋ フォルダ</button>';
+        if (favFolders.length) {
+            html += '<button class="fav-chip fav-chip-manage" onclick="toggleFavFolderEdit()">'
+                 + (favFolderEditing ? '完了' : '編集') + '</button>';
+        }
+        bar.innerHTML = html;
+    }
+
+    function escapeHtmlFav(t) {
+        const d = document.createElement('div');
+        d.textContent = t == null ? '' : String(t);
+        return d.innerHTML;
+    }
+
+    function setFavFolderFilter(key) {
+        favFolderFilter = key;
+        renderFavFolderBar();
+        applyFavFilters(true);
+    }
+
+    function toggleFavFolderEdit() {
+        favFolderEditing = !favFolderEditing;
+        renderFavFolderBar();
+    }
+
+    async function createFavFolder() {
+        const name = (window.prompt('フォルダ名を入力してください（例: ウォッチ）') || '').trim();
+        if (!name) return;
+        await folderRequest('/api/favorite-folders', 'POST', { name: name });
+    }
+
+    async function renameFavFolder(id) {
+        const cur = (favFolders.find(f => f.id === id) || {}).name || '';
+        const name = (window.prompt('新しいフォルダ名', cur) || '').trim();
+        if (!name || name === cur) return;
+        await folderRequest('/api/favorite-folders/' + id, 'PATCH', { name: name });
+    }
+
+    async function deleteFavFolder(id) {
+        const f = favFolders.find(x => x.id === id) || {};
+        // ⚠️ 「銘柄は消えない」ことを必ず書く。フォルダ＝銘柄だと思っていると
+        //    押せなくなるし、押したあとで消えたと誤解される。
+        if (!window.confirm('フォルダ「' + (f.name || '') + '」を削除します。\n'
+                            + '中の銘柄はお気に入りに残ります（未分類になります）。')) return;
+        if (favFolderFilter === id) favFolderFilter = '';
+        await folderRequest('/api/favorite-folders/' + id, 'DELETE', null);
+    }
+
+    async function folderRequest(url, method, body) {
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(data.error || '処理できませんでした'); return false; }
+            await loadFavoriteFolders();
+            await loadFavoriteStocks();
+            return true;
+        } catch (e) {
+            alert('通信に失敗しました');
+            return false;
+        }
+    }
+
+    /* 一覧で選んだ銘柄をまとめてお気に入りへ。フォルダ指定があれば札も付ける。 */
+    async function bulkAddFavorites(codes, folderId) {
+        try {
+            const res = await fetch('/api/favorite-stocks/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_codes: codes, folder_id: folderId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(data.error || '登録できませんでした'); return; }
+            const parts = [];
+            if (data.added) parts.push(data.added + '件を追加');
+            if (data.already) parts.push(data.already + '件はすでに登録済み');
+            if (data.filed) parts.push('フォルダに' + data.filed + '件');
+            alert(parts.join(' / ') || '変更はありませんでした');
+            BulkSelect.clear(sessionStorage.getItem('activeTab') || 'watchlist');
+            favoriteLoaded = false;
+            await loadFavoriteFolders();
+            if ((sessionStorage.getItem('activeTab') || '') === 'favorite') loadFavoriteStocks();
+        } catch (e) {
+            alert('通信に失敗しました');
+        }
+    }
+
+    /* お気に入りタブで、選んだ銘柄をフォルダから外す（お気に入りからは消えない） */
+    async function bulkRemoveFromFolder(codes, folderId) {
+        if (!folderId) { alert('外すフォルダを選んでください'); return; }
+        try {
+            const res = await fetch('/api/favorite-stocks/folder', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_codes: codes, folder_id: folderId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(data.error || '外せませんでした'); return; }
+            BulkSelect.clear('favorite');
+            await loadFavoriteFolders();
+            await loadFavoriteStocks();
+        } catch (e) {
+            alert('通信に失敗しました');
+        }
+    }
+
+    function mountBulkBar(tabName) {
+        if (BULK_TABS.indexOf(tabName) < 0) return;
+        BulkSelect.mountBar(tabName, {
+            folders: favFolders,
+            actionLabel: tabName === 'favorite' ? 'フォルダに追加' : 'お気に入りに追加',
+            onRun: (codes, folderId) => bulkAddFavorites(codes, folderId),
+        });
+    }
 
     let favoriteLoaded = false;
     let favoriteCache = [];
@@ -2216,6 +2398,8 @@
             const data = await response.json();
             if (response.ok) {
                 favoriteCache = data.favorite_stocks || [];
+                // フォルダの件数は銘柄の増減で変わるので、一覧と一緒に読み直す
+                if (!favFolders.length) loadFavoriteFolders();
                 applyFavFilters();
             } else {
                 content.innerHTML = loadErrorHtml(response);
@@ -2245,6 +2429,14 @@
         if (!keepShown) resetShown('favorite');
 
         let list = [...favoriteCache];
+
+        // フォルダで絞る。'' = すべて / 'unfiled' = どこにも入れていないもの。
+        // ⚠️ 1銘柄が複数のフォルダに入るので includes で見る。
+        if (favFolderFilter === 'unfiled') {
+            list = list.filter(i => !(i.folder_ids || []).length);
+        } else if (favFolderFilter) {
+            list = list.filter(i => (i.folder_ids || []).indexOf(favFolderFilter) >= 0);
+        }
 
         // 配当利回りは予想を主に出す。並べ替え・絞り込みも表示と同じ値を見るため、
         // ここで dividend_yield_display を持たせる（static/js/dividend-basis.js が唯一の正）。
@@ -2332,6 +2524,7 @@
         // 表示の切り替えは共通部品（static/js/table-view.js）に集約している。
         if (TableView.isCard('dashboard-favorite')) {
             content.innerHTML = TableView.cards(list.slice(0, shownCount('favorite')), stockCardConfig({
+                select: (r) => BulkSelect.cardCheck('favorite', r.company_code),
                 sortKey: favSort.key,
                 actions: (r) => `<button class="delete-btn" onclick="removeFavoriteStock('${r.company_code}')">解除</button>`,
             })) + moreRowsHtml('favorite', shownCount('favorite'), list.length);
@@ -2343,6 +2536,7 @@
             <table class="watchlist-table">
                 <thead>
                     <tr>
+                        ${BulkSelect.headCell('favorite', list.slice(0, shownCount('favorite')).map(r => r.company_code))}
                         <th>コード</th>
                         <th>会社名</th>
                         <th class="sortable" onclick="sortFavColumn('match_rate')">スコア${favSortIcon('match_rate')}</th>
@@ -2382,6 +2576,7 @@
 
             html += `
                 <tr>
+                    ${BulkSelect.cell('favorite', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
@@ -2550,6 +2745,7 @@
         if (TableView.isCard('dashboard-dividend')) {
             content.innerHTML = TableView.cards(list.slice(0, shownCount('dividend')), stockCardConfig({
                 sortKey: divSort.key,
+                select: (r) => BulkSelect.cardCheck('dividend', r.company_code),
             })) + moreRowsHtml('dividend', shownCount('dividend'), list.length);
             return;
         }
@@ -2559,6 +2755,7 @@
             <table class="watchlist-table">
                 <thead>
                     <tr>
+                        ${BulkSelect.headCell('dividend', list.slice(0, shownCount('dividend')).map(r => r.company_code))}
                         <th>コード</th>
                         <th>会社名</th>
                         <th class="sortable" onclick="sortDivColumn('match_rate')">スコア${divSortIcon('match_rate')}</th>
@@ -2598,6 +2795,7 @@
 
             html += `
                 <tr>
+                    ${BulkSelect.cell('dividend', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>
@@ -3413,7 +3611,10 @@
 
         // スマホでは1社ずつ読む方が早い場面がある（共通部品 table-view.js）
         if (TableView.isCard('dashboard-technical')) {
-            content.innerHTML = TableView.cards(stocks.slice(0, shownCount('technical')), crossCardConfig())
+            content.innerHTML = TableView.cards(stocks.slice(0, shownCount('technical')),
+                Object.assign(crossCardConfig(), {
+                    select: (r) => BulkSelect.cardCheck('technical', r.company_code),
+                }))
                 + moreRowsHtml('technical', shownCount('technical'), stocks.length);
             return;
         }
@@ -3423,6 +3624,7 @@
             <table class="watchlist-table">
                 <thead>
                     <tr>
+                        ${BulkSelect.headCell('technical', stocks.slice(0, shownCount('technical')).map(r => r.company_code))}
                         <th>コード</th>
                         <th>会社名</th>
                         <th class="sortable" onclick="sortTechColumn('match_rate')">スコア${techSortIcon('match_rate')}</th>
@@ -3464,6 +3666,7 @@
 
             html += `
                 <tr id="tech-row-${code}" class="${trend.cls ? 'row-' + trend.cls : ''}">
+                    ${BulkSelect.cell('technical', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
                     <td class="${matchRateClass}">${matchRate}</td>

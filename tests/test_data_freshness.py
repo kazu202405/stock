@@ -353,18 +353,75 @@ class JobStateTest(unittest.TestCase):
             df.health(jobs, client=FakeJobsClient(rows), now=self.now), (False, 'price'))
 
     def test_開始の印を別のjob_idで残す(self):
-        """終わりの印と同じ job_id にすると「直近の実行」の意味が変わる。"""
-        block = body_of(read('app.py'), 'def scheduled_update_stock_prices(')
-        self.assertIn("record_job_run('price_update:start'", block)
-        # 印は取得を始める前に置くこと。あとに置くと死んだ回に残らない。
-        self.assertLess(block.index("'price_update:start'"),
-                        block.index('fetch_prices_batch('))
+        """終わりの印と同じ job_id にすると「直近の実行」の意味が変わる。
 
-    def test_日足にも開始の印を置く(self):
-        block = body_of(read('app.py'), 'def scheduled_update_daily_and_crosses():')
-        self.assertIn("record_job_run('daily_and_crosses:start'", block)
-        self.assertLess(block.index("'daily_and_crosses:start'"),
+        印は claim_job が置く（二重起動の門と同じ場所にまとめてある）。
+        置く位置は ClaimJobTest が見ている。"""
+        block = body_of(read('app.py'), 'def claim_job(job_id):')
+        self.assertIn("record_job_run(job_id + ':start'", block)
+        # 印を置いてから判定すること。逆だと自分の印を数えられない。
+        self.assertLess(block.index("':start'"), block.index('JOB_CLAIM_WAIT_SECONDS'))
+
+    def test_門を通るジョブは開始の印が必ず残る(self):
+        """claim_job を呼べば印は自動で残る。呼び忘れたジョブは
+        「途中で死んだ」が見えないままになる。"""
+        src = read('app.py')
+        for fn in ('def scheduled_update_stock_prices(',
+                   'def scheduled_update_daily_and_crosses():'):
+            with self.subTest(fn=fn):
+                self.assertIn('claim_job(', body_of(src, fn))
+
+
+class ClaimJobTest(unittest.TestCase):
+    """同じジョブが同時に何本も走らないこと（2026-09-01）。
+
+    15:20の株価バッチで開始の印が**3秒以内に3つ**残った。同じ処理が3本
+    同時に走り、Yahooへ3倍のリクエストを投げていた（その日のレート制限の
+    原因として有力）。gunicorn は --workers の指定が無いと Render の
+    WEB_CONCURRENCY を見るため、worker が増えるとスケジューラも増える。
+
+    ⚠️ 起動コマンドは直したが、**設定は人が変えられる**のでDB側にも門を置く。
+    """
+
+    def setUp(self):
+        self.src = read('app.py')
+
+    def test_株価バッチは門を通る(self):
+        block = body_of(self.src, 'def scheduled_update_stock_prices(')
+        self.assertIn("claim_job('price_update')", block)
+        # 門は取得を始める前にあること
+        self.assertLess(block.index('claim_job('), block.index('fetch_prices_batch('))
+
+    def test_日足も門を通る(self):
+        block = body_of(self.src, 'def scheduled_update_daily_and_crosses():')
+        self.assertIn("claim_job('daily_and_crosses')", block)
+        self.assertLess(block.index('claim_job('),
                         block.index('_update_daily_and_recalc_background()'))
+
+    def test_降りるときは自分の印を消す(self):
+        """⚠️ 残すと「始まったのに終わらない」に見えて hung と誤検知される。
+        実際には走っていないので印も残さない。"""
+        block = body_of(self.src, 'def claim_job(job_id):')
+        tail = block.split('降ります', 1)[1]
+        self.assertIn(".delete()", tail)
+        self.assertIn("eq('id', mine['id'])", tail)
+
+    def test_記録できないときは本体を止めない(self):
+        """見張りが本体を殺すのは本末転倒。"""
+        block = body_of(self.src, 'def claim_job(job_id):')
+        self.assertIn('if not mine:', block)
+        self.assertIn('return True', block.split('if not mine:', 1)[1][:120])
+
+    def test_前回の実行の印を数えない(self):
+        """窓の中に前回の開始が残っていると、毎回「他で実行中」になって
+        いつまでも動かなくなる。"""
+        block = body_of(self.src, 'def claim_job(job_id):')
+        self.assertIn('last_job_finish(job_id)', block)
+
+    def test_順番が確定するまで待つ(self):
+        """同時に立ち上がった印が出そろう前に判定すると、全員が勝つ。"""
+        block = body_of(self.src, 'def claim_job(job_id):')
+        self.assertIn('JOB_CLAIM_WAIT_SECONDS', block)
 
 
 class HealthEndpointTest(unittest.TestCase):
