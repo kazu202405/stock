@@ -5310,6 +5310,33 @@ def scheduled_sync_edinet_codes():
         record_job_run('edinet_codes', ok=False, detail=str(e)[:300])
 
 
+def scheduled_sync_edinet_reports():
+    """定期実行: 新しく出た有価証券報告書を取り込む（毎晩）。
+
+    2026-09-01 に一括で入れて役員99.7%まで埋めたが、**有報は年に1回出る**。
+    放っておくと来年の有報で古くなるし、新規上場も拾えない。
+
+    ふだんは数社しか出ないので軽い。決算期（6月）だけ数百社ぶん出るが、
+    1晩150件・25分の上限で数晩に分けて崩す。
+    """
+    from datetime import datetime
+    print(f"[Scheduler] 有報の取り込み開始: {datetime.now()}")
+    if not claim_job('edinet_reports'):
+        return
+    try:
+        import edinet_sync
+        r = edinet_sync.run(get_supabase_client())
+        print("[Scheduler] 有報の取り込み: 新規%d社 / 更新%d社 / 失敗%d社 / 積み残し%d社"
+              % (r['new_reports'], r['updated'], r['failed'], r['backlog']))
+        # ⚠️ 新しい有報が無い日は「更新0社」が正常。失敗があるときだけ落とす。
+        record_job_run('edinet_reports', ok=(r['failed'] == 0),
+                       detail='新規%d社・更新%d社・失敗%d社・積み残し%d社'
+                              % (r['new_reports'], r['updated'], r['failed'], r['backlog']))
+    except Exception as e:
+        print(f"[Scheduler] 有報の取り込みエラー: {e}")
+        record_job_run('edinet_reports', ok=False, detail=str(e)[:300])
+
+
 def scheduled_detect_delisted():
     """定期実行: 上場廃止になった銘柄に印を付ける（週1回）。
 
@@ -5963,6 +5990,10 @@ scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
 # 外部への負荷は1リクエストだけなので、他と重ならない時間に軽く置く。
 scheduler.add_job(scheduled_sync_edinet_codes, 'cron', day_of_week='sun',
                   hour=5, minute=0, id='edinet_codes')
+# 新しく出た有報の取り込み。ふだんは数社なので毎晩でも軽い。
+# 決算期だけ数百社ぶん出るので、1晩150件・25分の上限で数晩に分けて崩す。
+scheduler.add_job(scheduled_sync_edinet_reports, 'cron', hour=5, minute=40,
+                  id='edinet_reports')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 # JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
