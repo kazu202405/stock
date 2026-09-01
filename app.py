@@ -5285,6 +5285,31 @@ def scheduled_enqueue_earnings():
         print(f"[Scheduler] 決算検知エラー: {e}")
 
 
+def scheduled_sync_edinet_codes():
+    """定期実行: EDINETの提出者一覧を取り込む（週1回）。
+
+    証券コード→EDINETコードの対応表と、登記上の本店所在地・資本金・法人番号・
+    決算日が**1リクエストで全件**取れる。APIキーは要らない。
+
+    週1回で足りる。中身が変わるのは新規上場・商号変更・本店移転のときだけで、
+    数日遅れても実害が無い。
+    """
+    from datetime import datetime
+    print(f"[Scheduler] EDINETコード一覧の取り込み開始: {datetime.now()}")
+    if not claim_job('edinet_codes'):
+        return
+    try:
+        import edinet_codes
+        result = edinet_codes.sync(get_supabase_client())
+        print(f"[Scheduler] EDINETコード一覧: 取得{result['fetched']}件 / "
+              f"保存{result['saved']}件")
+        record_job_run('edinet_codes', ok=bool(result['saved']),
+                       detail='取得%d件・保存%d件' % (result['fetched'], result['saved']))
+    except Exception as e:
+        print(f"[Scheduler] EDINETコード一覧の取り込みエラー: {e}")
+        record_job_run('edinet_codes', ok=False, detail=str(e)[:300])
+
+
 def scheduled_detect_delisted():
     """定期実行: 上場廃止になった銘柄に印を付ける（週1回）。
 
@@ -5934,6 +5959,10 @@ scheduler.add_job(scheduled_process_earnings_queue, 'cron', hour=22, minute=0,
 # 上場廃止の検出。全銘柄の日足を読むので週1回、他が動いていない時間に
 scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
                   hour=4, minute=30, id='detect_delisted')
+# EDINETの提出者一覧。週1回で足りる（変わるのは新規上場・商号変更・本店移転のみ）。
+# 外部への負荷は1リクエストだけなので、他と重ならない時間に軽く置く。
+scheduler.add_job(scheduled_sync_edinet_codes, 'cron', day_of_week='sun',
+                  hour=5, minute=0, id='edinet_codes')
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 # JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。

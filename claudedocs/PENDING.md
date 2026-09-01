@@ -690,8 +690,7 @@ API   /api/admin/*    app.py @role_required('admin')
 
 修正方針＝`role_required` もメール基準（`GIA_ADMIN_EMAILS`）を見る。gia-next 側もメール判定。
 
-### kabutan 依存の差し替え（持ち越し中・外部アクセス不要）
-`DATA_ACQUISITION.md` は「株探は機械取得禁止」と明記しているが、まだ残っている。
+### kabutan 依存の差し替え検討
 - `gc_scraper.py:117` … kabutan の表から PER/PBR
 - `app.py` の技術銘柄一覧 … `sc.get('pbr') or sig.get('pbr')` で画面に出ている
 - `earnings_scraper.py` … 決算発表銘柄の検知そのもの
