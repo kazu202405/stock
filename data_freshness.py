@@ -132,6 +132,47 @@ def last_run(client, job_id):
     return rows[0] if rows else None
 
 
+# 開始の印が残ったまま、これだけ経っても終わりの印が来なければ「死んだ」とみなす。
+# 株価バッチは実測で十数分。倍の余裕を見てある。
+JOB_HUNG_MINUTES = 45
+
+# 開始の印は job_id の末尾にこれを付けて別行として残す。
+# 終わりの印と同じ job_id にすると、既存の「直近の実行」の意味が変わってしまう。
+START_SUFFIX = ':start'
+
+
+def job_state(client, job_id, now=None):
+    """ジョブの今の状態を返す。(state, when, detail)
+
+    state:
+        'ok'      … 直近が正常終了
+        'failed'  … 直近が失敗して終わった
+        'running' … 始まっていて、まだ終わっていない（時間内）
+        'hung'    … 始まったまま終わっていない＝途中で死んだ
+        'none'    … 記録が1件も無い
+
+    ⚠️ **終わりの印だけでは「死んだ」が見えない。**
+       2026-09-01、株価バッチが 9:25 と 11:45 の2回とも記録を1行も残さな
+       かった。成功でも失敗でもなく、**最後まで到達しなかった**ためで、
+       記録が無いことは「まだ何もしていない」と区別がつかない。
+       開始の印を先に置いておけば、終わりが来ないことが証拠になる。
+    """
+    now = now or _now()
+    finish = last_run(client, job_id)
+    start = last_run(client, job_id + START_SUFFIX)
+    f_at = _parse((finish or {}).get('ran_at'))
+    s_at = _parse((start or {}).get('ran_at'))
+
+    if s_at and (f_at is None or s_at > f_at):
+        minutes = (now - s_at).total_seconds() / 60.0
+        if minutes > JOB_HUNG_MINUTES:
+            return 'hung', s_at, '%s に始まったまま終わっていない' % s_at.strftime('%H:%M')
+        return 'running', s_at, '実行中（%s 開始）' % s_at.strftime('%H:%M')
+    if finish:
+        return ('ok' if finish.get('ok') else 'failed'), f_at, finish.get('detail') or ''
+    return 'none', None, ''
+
+
 def _run_suffix(run):
     """直近の実行結果を detail の末尾に足す文字列にする。
 
@@ -334,13 +375,17 @@ def health(jobs, client=None, now=None):
     if scheduler_item(jobs, now)['status'] != 'ok':
         return False, 'scheduler'
 
-    run = last_run(client or _client(), 'price_update')
+    client = client or _client()
+    state, when, _ = job_state(client, 'price_update', now)
     # 記録がまだ無いのは正常。テーブルを作った直後や初回実行前がこれにあたる。
-    if run is None:
+    if state == 'none':
         return True, None
-    if not run.get('ok'):
+    # 実行中は正常。始まったまま終わらない（hung）は異常。
+    if state == 'running':
+        return True, None
+    if state in ('failed', 'hung'):
         return False, 'price'
-    age = business_days_since(_parse(run.get('ran_at')), now)
+    age = business_days_since(when, now)
     if age is None or age > HEALTH_PRICE_STALE_DAYS:
         return False, 'price'
     return True, None
@@ -380,7 +425,14 @@ def summary(jobs=None):
     #    上場廃止の手前で取引が止まった銘柄が1つあるだけで常に警告になり、
     #    パネルが信用されなくなるため。
     behind = sum(1 for a in ages if a is not None and a > 3)
-    price_run_text, price_run_ok = _run_suffix(last_run(client, 'price_update'))
+    price_state, price_at, price_note = job_state(client, 'price_update', now)
+    price_run_text = ('' if price_state == 'none'
+                      else '　%s直近の実行 %s %s' % (
+                          '⚠️ ' if price_state in ('failed', 'hung') else '',
+                          price_at.strftime('%m-%d %H:%M') if price_at else '',
+                          price_note))
+    # ⚠️ running は赤にしない（正常に走っている最中）。hung と failed だけ落とす。
+    price_run_ok = False if price_state in ('failed', 'hung') else None
     items.append({
         'key': 'price',
         'label': '株価',
@@ -488,7 +540,13 @@ def summary(jobs=None):
     except Exception as e:
         print('GC/DCの取得に失敗: %s' % e)
     age_s = business_days_since(newest_s, now)
-    cross_run_text, cross_run_ok = _run_suffix(last_run(client, 'daily_and_crosses'))
+    cross_state, cross_at, cross_note = job_state(client, 'daily_and_crosses', now)
+    cross_run_text = ('' if cross_state == 'none'
+                      else '　%s直近の実行 %s %s' % (
+                          '⚠️ ' if cross_state in ('failed', 'hung') else '',
+                          cross_at.strftime('%m-%d %H:%M') if cross_at else '',
+                          cross_note))
+    cross_run_ok = False if cross_state in ('failed', 'hung') else None
     items.append({
         'key': 'signals',
         'label': 'テクニカル（GC/DC）',

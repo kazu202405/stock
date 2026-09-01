@@ -277,6 +277,96 @@ class FakeRunClient:
         return r
 
 
+class FakeJobsClient:
+    """job_id ごとに直近1行を返すスタブ。"""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.job = None
+
+    def table(self, _name):
+        return self
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, col, value):
+        if col == 'job_id':
+            self.job = value
+        return self
+
+    def order(self, *a, **k):
+        return self
+
+    def limit(self, *a):
+        return self
+
+    def execute(self):
+        class R:
+            pass
+        r = R()
+        r.data = [self.rows[self.job]] if self.job in self.rows else []
+        return r
+
+
+class JobStateTest(unittest.TestCase):
+    """始まったのに終わらない回を見つける（2026-09-01）。
+
+    ⚠️ **終わりの印だけでは「死んだ」が見えない。** 株価バッチが 9:25 と
+    11:45 の2回とも記録を1行も残さなかった。成功でも失敗でもなく、最後まで
+    到達しなかったため。記録が無いことは「まだ何もしていない」と区別が
+    つかないので、始まりの印を先に置いて、終わりが来ないことを証拠にする。
+    """
+
+    def setUp(self):
+        self.now = datetime(2026, 9, 1, 14, 30, tzinfo=df.JST)
+
+    def at(self, hour, minute):
+        return datetime(2026, 9, 1, hour, minute, tzinfo=df.JST).isoformat()
+
+    def state(self, rows):
+        return df.job_state(FakeJobsClient(rows), 'price_update', self.now)[0]
+
+    def test_始まったまま終わらなければ死んだとみなす(self):
+        self.assertEqual(self.state(
+            {'price_update:start': {'ran_at': self.at(11, 45), 'ok': True}}), 'hung')
+
+    def test_走っている最中は正常(self):
+        """実行中を赤くすると、毎回の実行で赤くなって誰も見なくなる。"""
+        self.assertEqual(self.state(
+            {'price_update:start': {'ran_at': self.at(14, 25), 'ok': True}}), 'running')
+
+    def test_終わっていれば結果で判断する(self):
+        base = {'price_update:start': {'ran_at': self.at(11, 45), 'ok': True}}
+        self.assertEqual(self.state(
+            dict(base, **{'price_update': {'ran_at': self.at(11, 58), 'ok': True}})), 'ok')
+        self.assertEqual(self.state(
+            dict(base, **{'price_update': {'ran_at': self.at(11, 47), 'ok': False}})), 'failed')
+
+    def test_記録が無ければ何も言わない(self):
+        self.assertEqual(self.state({}), 'none')
+
+    def test_死んだ回は503にする(self):
+        rows = {'price_update:start': {'ran_at': self.at(11, 45), 'ok': True}}
+        jobs = [{'id': 'a', 'next_run_time': '2026-09-01T15:20:00+09:00'}]
+        self.assertEqual(
+            df.health(jobs, client=FakeJobsClient(rows), now=self.now), (False, 'price'))
+
+    def test_開始の印を別のjob_idで残す(self):
+        """終わりの印と同じ job_id にすると「直近の実行」の意味が変わる。"""
+        block = body_of(read('app.py'), 'def scheduled_update_stock_prices(')
+        self.assertIn("record_job_run('price_update:start'", block)
+        # 印は取得を始める前に置くこと。あとに置くと死んだ回に残らない。
+        self.assertLess(block.index("'price_update:start'"),
+                        block.index('fetch_prices_batch('))
+
+    def test_日足にも開始の印を置く(self):
+        block = body_of(read('app.py'), 'def scheduled_update_daily_and_crosses():')
+        self.assertIn("record_job_run('daily_and_crosses:start'", block)
+        self.assertLess(block.index("'daily_and_crosses:start'"),
+                        block.index('_update_daily_and_recalc_background()'))
+
+
 class HealthEndpointTest(unittest.TestCase):
     """止まったら503を返す口（2026-09-01）。
 

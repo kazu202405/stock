@@ -5373,6 +5373,11 @@ def scheduled_update_stock_prices(attempt=0):
     from datetime import datetime
     import multiples
     print(f"[Scheduler] 株価バッチ更新開始: {datetime.now()}")
+    # ⚠️ **開始の印を先に残すこと。** 終わりの印だけだと、途中で死んだ回が
+    #    「まだ何もしていない」と区別できない。2026-09-01、9:25 と 11:45 の
+    #    2回とも記録が1行も残らず、成功も失敗も分からなかった。
+    #    始まりが残っていれば、終わりが来ないこと自体が証拠になる。
+    record_job_run('price_update:start', ok=True, detail='開始')
     try:
         client = get_supabase_client()
 
@@ -5475,6 +5480,7 @@ def scheduled_update_daily_and_crosses():
         return
 
     print(f"[Scheduler] 日足更新＋GC/DC再計算 開始: {datetime.now()}")
+    record_job_run('daily_and_crosses:start', ok=True, detail='開始')
     daily_update_status = {"running": True, "phase": "準備中", "done": 0, "total": 0,
                            "saved": 0, "stop_requested": False, "finished_at": None, "error": None}
     try:
