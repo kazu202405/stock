@@ -74,6 +74,25 @@ def _flushing_print(*a):
     print(*a, flush=True)
 
 
+def load_or_build_index(key, months, cache_path, log=_flushing_print):
+    """書類一覧を作る。キャッシュがあれば読む。
+
+    ⚠️ 一覧の走査だけで325リクエスト・約10分かかる。落ちるたびに走査し直すと
+       相手にも自分にも無駄なので、いったん作ったらファイルに残す。
+    """
+    if cache_path and os.path.exists(cache_path):
+        with open(cache_path, encoding='utf-8') as f:
+            index = json.load(f)
+        log('書類一覧をキャッシュから読みました: %d社（%s）' % (len(index), cache_path))
+        return index
+    index = build_index(key, months, log)
+    if cache_path:
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(index, f, ensure_ascii=False)
+        log('書類一覧を保存しました: %s' % cache_path)
+    return index
+
+
 def build_index(key, months=LOOKBACK_MONTHS, log=_flushing_print):
     """{company_code: 書類情報} を作る。新しい提出ほど優先。
 
@@ -111,7 +130,22 @@ def build_index(key, months=LOOKBACK_MONTHS, log=_flushing_print):
     return index
 
 
-def targets(client, limit, only_code=None):
+# EDINETから入れた役員データの目印。
+# 旧経路（yahooquery）は英語の name / title しか持たないので、
+# name_jp があれば「EDINETで入れ直した後」だと分かる。
+EDINET_MARK = 'name_jp'
+
+
+def is_edinet_done(row):
+    """この銘柄はもうEDINETで入れ直したか。
+
+    ⚠️ 「役員が空でないか」で判定しない。旧経路の英語データが入っている
+       銘柄（52.1%）を飛ばしてしまい、いちばん直したいものが直らない。
+    """
+    return EDINET_MARK in (row.get('company_officers') or '')
+
+
+def targets(client, limit, only_code=None, skip_done=False):
     """埋める対象を、時価総額の大きい順に返す。
 
     会員が実際に見る銘柄から埋める。全件流して途中で落ちるより、
@@ -134,6 +168,8 @@ def targets(client, limit, only_code=None):
     live = [r for r in rows
             if not r.get('delisted_at')
             and (r.get('market_segment') or '') in ('プライム', 'スタンダード', 'グロース')]
+    if skip_done:
+        live = [r for r in live if not is_edinet_done(r)]
     live.sort(key=lambda r: (r.get('market_cap') or 0), reverse=True)
     return live[:limit] if limit else live
 
@@ -174,6 +210,11 @@ def main():
     ap.add_argument('--code', default=None, help='1銘柄だけ処理する')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--months', type=int, default=LOOKBACK_MONTHS)
+    ap.add_argument('--skip-done', action='store_true',
+                    help='EDINETで入れ直し済みの銘柄を飛ばす（再開用）')
+    ap.add_argument('--index-cache', default=None,
+                    help='書類一覧を保存/再利用するファイル')
+    ap.add_argument('--sleep', type=float, default=SLEEP_SECONDS)
     args = ap.parse_args()
 
     from dotenv import load_dotenv
@@ -184,11 +225,12 @@ def main():
     key = _key()
     client = get_supabase_client()
 
-    rows = targets(client, args.limit, args.code)
+    globals()['SLEEP_SECONDS'] = args.sleep
+    rows = targets(client, args.limit, args.code, skip_done=args.skip_done)
     print('対象 %d銘柄' % len(rows), flush=True)
 
     print('EDINETの書類一覧を走査します（過去%dか月）…' % args.months, flush=True)
-    index = build_index(key, args.months)
+    index = load_or_build_index(key, args.months, args.index_cache)
 
     have = [r for r in rows if r['company_code'] in index]
     print('うち有報が見つかった: %d銘柄' % len(have), flush=True)

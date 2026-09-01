@@ -202,6 +202,17 @@ class BackfillSafetyTest(unittest.TestCase):
                                   'employees': 12})
         self.assertEqual(set(got), {'company_officers', 'employees'})
 
+    def test_再開の目印は英語データを済み扱いしない(self):
+        """⚠️ 「役員が空でないか」で判定すると、旧経路の英語データが入っている
+        銘柄（52.1%）を飛ばしてしまい、いちばん直したいものが直らない。
+        EDINETで入れた印（name_jp）があるかで判定する。"""
+        import backfill_edinet_reports as bf
+        self.assertFalse(bf.is_edinet_done(
+            {'company_officers': '[{"name": "Mr. Taro", "title": "CEO"}]'}))
+        self.assertTrue(bf.is_edinet_done(
+            {'company_officers': '[{"name_jp": "山田太郎"}]'}))
+        self.assertFalse(bf.is_edinet_done({'company_officers': None}))
+
     def test_認証エラーを成功として扱わない(self):
         """⚠️ 公式APIは認証エラーでもHTTP 200を返し、本文のStatusCodeが401。
         status_code だけ見ると「全件成功なのに中身が空」になる。"""
