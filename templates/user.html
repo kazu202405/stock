@@ -250,15 +250,15 @@
                         document.getElementById('city').value = result.address2;
                         document.getElementById('area').value = result.address3;
                     } else {
-                        alert('郵便番号に対応する住所が見つかりませんでした。');
+                        showToast('郵便番号に対応する住所が見つかりませんでした', 'info');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('住所の取得に失敗しました。');
+                    showErrorModal('住所の取得に失敗しました。');
                 });
         } else {
-            alert('有効な郵便番号を入力してください。');
+            showToast('有効な郵便番号を入力してください', 'info');
         }
     }
 
@@ -380,15 +380,19 @@
                 })
                 .catch(error => {
                     console.error('Fetch error:', error);
-                    alert('ユーザー情報の取得に失敗しました。');
+                    showErrorModal('ユーザー情報の取得に失敗しました。');
                 });
         });
     });
 
-    function confirmDelete(id) {
-        if (confirm('本当にこのユーザーを削除しますか？')) {
-            window.location.href = '/user/delete/' + id;
-        }
+    async function confirmDelete(id) {
+        const ok = await showConfirmModal({
+            title: 'ユーザーを削除します',
+            message: 'このユーザーを削除します。元には戻せません。',
+            okLabel: '削除する',
+            danger: true,
+        });
+        if (ok) window.location.href = '/user/delete/' + id;
     }
     // document.querySelectorAll('#userForm .form-control').forEach(field => {
     //     field.addEventListener('input', function() {

@@ -1363,12 +1363,12 @@
                 btn.textContent = '保存しました';
                 setTimeout(() => { btn.textContent = '保存する'; btn.disabled = false; }, 1500);
             } else {
-                alert('保存できませんでした。しばらくしてからもう一度お試しください。');
+                showErrorModal('保存できませんでした。しばらくしてからもう一度お試しください。');
                 btn.textContent = '保存する';
                 btn.disabled = false;
             }
         } catch (e) {
-            alert('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
             btn.textContent = '保存する';
             btn.disabled = false;
         }
@@ -1840,7 +1840,13 @@
 
     // ウォッチリストから削除
     async function removeFromWatchlist(code) {
-        if (!confirm(`${code} を登録リストから削除しますか？`)) return;
+        const ok = await showConfirmModal({
+            title: '登録リストから削除',
+            message: `${code} を登録リストから削除します。`,
+            okLabel: '削除する',
+            danger: true,
+        });
+        if (!ok) return;
 
         try {
             const response = await fetch(`/api/watchlist/remove/${code}`, { method: 'DELETE' });
@@ -2027,7 +2033,13 @@
     // ========================================
 
     async function removeAllWatchlist() {
-        if (!confirm('ウォッチリストの全銘柄を削除しますか？')) return;
+        const ok = await showConfirmModal({
+            title: 'ウォッチリストを空にします',
+            message: '登録されている全銘柄を削除します。元には戻せません。',
+            okLabel: '全部削除する',
+            danger: true,
+        });
+        if (!ok) return;
 
         try {
             const response = await fetch('/api/watchlist/remove-all', { method: 'DELETE' });
@@ -2261,16 +2273,32 @@
                  + chip('unfiled', '未分類', favUnfiled);
         favFolders.forEach(f => {
             const edit = favFolderEditing
-                ? '<button class="fav-chip-edit" title="名前を変える" onclick="renameFavFolder(\'' + f.id + '\')">✎</button>'
-                + '<button class="fav-chip-edit" title="フォルダを削除（銘柄は残ります）" onclick="deleteFavFolder(\'' + f.id + '\')">✕</button>'
+                ? '<button class="fav-chip-edit" title="名前を変える" aria-label="' + escapeHtmlFav(f.name) + ' の名前を変える"'
+                + ' onclick="renameFavFolder(\'' + f.id + '\')"><i class="fas fa-pen"></i></button>'
+                + '<button class="fav-chip-edit is-danger" title="このフォルダを削除（銘柄は残ります）"'
+                + ' aria-label="' + escapeHtmlFav(f.name) + ' を削除"'
+                + ' onclick="deleteFavFolder(\'' + f.id + '\')"><i class="fas fa-trash-can"></i></button>'
                 : '';
             html += '<span class="fav-chip-wrap">' + chip(f.id, f.name, f.count) + edit + '</span>';
         });
-        html += '<button class="fav-chip fav-chip-add" onclick="createFavFolder()">＋ フォルダ</button>';
+        html += '<button class="fav-chip fav-chip-add" onclick="createFavFolder()">＋ フォルダを作る</button>';
+        // ⚠ 名前の変更と削除はここからしか辿れない。灰色の「編集」だと見つけられず
+        //   「編集できない」と読まれる。中身の分かる文言と鉛筆アイコンを出す。
         if (favFolders.length) {
-            html += '<button class="fav-chip fav-chip-manage" onclick="toggleFavFolderEdit()">'
-                 + (favFolderEditing ? '完了' : '編集') + '</button>';
+            html += '<button class="fav-chip fav-chip-manage' + (favFolderEditing ? ' is-on' : '') + '"'
+                 + ' onclick="toggleFavFolderEdit()">'
+                 + (favFolderEditing
+                     ? '<i class="fas fa-check"></i> 編集を終える'
+                     : '<i class="fas fa-pen"></i> 名前の変更・削除')
+                 + '</button>';
         }
+        if (favFolderEditing) {
+            html += '<p class="fav-folder-hint">'
+                 + '<i class="fas fa-pen"></i> 名前を変える　'
+                 + '<i class="fas fa-trash-can"></i> フォルダを削除（中の銘柄はお気に入りに残ります）'
+                 + '</p>';
+        }
+        bar.classList.toggle('is-editing', favFolderEditing);
         bar.innerHTML = html;
     }
 
@@ -2292,26 +2320,48 @@
     }
 
     async function createFavFolder() {
-        const name = (window.prompt('フォルダ名を入力してください（例: ウォッチ）') || '').trim();
+        const name = await showPromptModal({
+            title: 'フォルダを作る',
+            note: '1つの銘柄をいくつのフォルダに入れても構いません。',
+            placeholder: '例: ウォッチ / 決算待ち',
+            okLabel: '作る',
+        });
         if (!name) return;
-        await folderRequest('/api/favorite-folders', 'POST', { name: name });
+        if (await folderRequest('/api/favorite-folders', 'POST', { name: name })) {
+            showToast('フォルダ「' + name + '」を作りました');
+        }
     }
 
     async function renameFavFolder(id) {
         const cur = (favFolders.find(f => f.id === id) || {}).name || '';
-        const name = (window.prompt('新しいフォルダ名', cur) || '').trim();
+        const name = await showPromptModal({
+            title: 'フォルダ名を変える',
+            note: '銘柄の中身はそのままです。',
+            value: cur,
+            okLabel: '保存',
+        });
         if (!name || name === cur) return;
-        await folderRequest('/api/favorite-folders/' + id, 'PATCH', { name: name });
+        if (await folderRequest('/api/favorite-folders/' + id, 'PATCH', { name: name })) {
+            showToast('「' + name + '」に変えました');
+        }
     }
 
     async function deleteFavFolder(id) {
         const f = favFolders.find(x => x.id === id) || {};
         // ⚠️ 「銘柄は消えない」ことを必ず書く。フォルダ＝銘柄だと思っていると
         //    押せなくなるし、押したあとで消えたと誤解される。
-        if (!window.confirm('フォルダ「' + (f.name || '') + '」を削除します。\n'
-                            + '中の銘柄はお気に入りに残ります（未分類になります）。')) return;
+        const ok = await showConfirmModal({
+            title: 'フォルダを削除します',
+            message: '「' + (f.name || '') + '」を削除します。\n'
+                   + '中の銘柄はお気に入りに残ります（未分類になります）。',
+            okLabel: '削除する',
+            danger: true,
+        });
+        if (!ok) return;
         if (favFolderFilter === id) favFolderFilter = '';
-        await folderRequest('/api/favorite-folders/' + id, 'DELETE', null);
+        if (await folderRequest('/api/favorite-folders/' + id, 'DELETE', null)) {
+            showToast('フォルダを削除しました');
+        }
     }
 
     async function folderRequest(url, method, body) {
@@ -2322,12 +2372,12 @@
                 body: body ? JSON.stringify(body) : undefined,
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) { alert(data.error || '処理できませんでした'); return false; }
+            if (!res.ok) { showErrorModal(data.error || '処理できませんでした'); return false; }
             await loadFavoriteFolders();
             await loadFavoriteStocks();
             return true;
         } catch (e) {
-            alert('通信に失敗しました');
+            showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');
             return false;
         }
     }
@@ -2341,24 +2391,24 @@
                 body: JSON.stringify({ company_codes: codes, folder_id: folderId }),
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) { alert(data.error || '登録できませんでした'); return; }
+            if (!res.ok) { showErrorModal(data.error || '登録できませんでした'); return; }
             const parts = [];
             if (data.added) parts.push(data.added + '件を追加');
             if (data.already) parts.push(data.already + '件はすでに登録済み');
             if (data.filed) parts.push('フォルダに' + data.filed + '件');
-            alert(parts.join(' / ') || '変更はありませんでした');
+            showToast(parts.join(' / ') || '変更はありませんでした');
             BulkSelect.clear(sessionStorage.getItem('activeTab') || 'watchlist');
             favoriteLoaded = false;
             await loadFavoriteFolders();
             if ((sessionStorage.getItem('activeTab') || '') === 'favorite') loadFavoriteStocks();
         } catch (e) {
-            alert('通信に失敗しました');
+            showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');
         }
     }
 
     /* お気に入りタブで、選んだ銘柄をフォルダから外す（お気に入りからは消えない） */
     async function bulkRemoveFromFolder(codes, folderId) {
-        if (!folderId) { alert('外すフォルダを選んでください'); return; }
+        if (!folderId) { showToast('外すフォルダを選んでください', 'info'); return; }
         try {
             const res = await fetch('/api/favorite-stocks/folder', {
                 method: 'DELETE',
@@ -2366,12 +2416,13 @@
                 body: JSON.stringify({ company_codes: codes, folder_id: folderId }),
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) { alert(data.error || '外せませんでした'); return; }
+            if (!res.ok) { showErrorModal(data.error || '外せませんでした'); return; }
             BulkSelect.clear('favorite');
             await loadFavoriteFolders();
             await loadFavoriteStocks();
+            showToast(codes.length + '件をフォルダから外しました');
         } catch (e) {
-            alert('通信に失敗しました');
+            showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');
         }
     }
 
@@ -2599,17 +2650,23 @@
     }
 
     async function removeFavoriteStock(code) {
-        if (!confirm('この企業をお気に入りから解除しますか？')) return;
+        const ok = await showConfirmModal({
+            title: 'お気に入りから解除',
+            message: 'この企業をお気に入りから外します。フォルダの札も一緒に外れます。',
+            okLabel: '解除する',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             const response = await fetch(`/api/favorite-stocks/remove/${code}`, { method: 'DELETE' });
             if (response.ok) {
                 favoriteCache = favoriteCache.filter(item => item.company_code !== code);
                 applyFavFilters();
             } else {
-                alert('解除できませんでした。しばらくしてからもう一度お試しください。');
+                showErrorModal('解除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            alert('解除できませんでした。しばらくしてからもう一度お試しください。');
+            showErrorModal('解除できませんでした。しばらくしてからもう一度お試しください。');
         }
     }
 
@@ -2818,17 +2875,23 @@
     }
 
     async function removeDividendStock(code) {
-        if (!confirm('この企業を高配当リストから解除しますか？')) return;
+        const ok = await showConfirmModal({
+            title: '高配当リストから解除',
+            message: 'この企業を高配当リストから外します。',
+            okLabel: '解除する',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             const response = await fetch(`/api/dividend-stocks/remove/${code}`, { method: 'DELETE' });
             if (response.ok) {
                 dividendCache = dividendCache.filter(item => item.company_code !== code);
                 applyDivFilters();
             } else {
-                alert('解除できませんでした。しばらくしてからもう一度お試しください。');
+                showErrorModal('解除できませんでした。しばらくしてからもう一度お試しください。');
             }
         } catch (error) {
-            alert('解除できませんでした。しばらくしてからもう一度お試しください。');
+            showErrorModal('解除できませんでした。しばらくしてからもう一度お試しください。');
         }
     }
 
@@ -3712,7 +3775,7 @@
 
             if (!data.started) {
                 btn.textContent = '対象なし';
-                alert(data.message || '本日決算を発表した銘柄はありませんでした');
+                showToast(data.message || '本日決算を発表した銘柄はありませんでした', 'info');
                 setTimeout(() => { btn.textContent = '決算銘柄を更新'; }, 3000);
                 btn.disabled = false;
                 return;
@@ -3722,7 +3785,7 @@
             console.error('決算更新エラー:', e);
             btn.disabled = false;
             btn.textContent = '決算銘柄を更新';
-            alert('開始できませんでした: ' + e.message);
+            showErrorModal('開始できませんでした: ' + e.message);
         }
     }
 
@@ -3752,7 +3815,12 @@
     async function updateDailyPrices() {
         const btn = document.getElementById('dailyUpdateBtn');
         if (!btn || btn.disabled) return;
-        if (!confirm('全銘柄の日足を取得し直し、GC/DCを再計算します。数分かかります。実行しますか？')) return;
+        const ok = await showConfirmModal({
+            title: '日足を取り直してGC/DCを再計算',
+            message: '全銘柄の日足を取得し直し、GC/DCを再計算します。数分かかります。',
+            okLabel: '実行する',
+        });
+        if (!ok) return;
 
         btn.disabled = true;
         btn.textContent = '開始中...';
@@ -3765,7 +3833,7 @@
             console.error('日足更新エラー:', e);
             btn.disabled = false;
             btn.textContent = '日足更新＋GC再計算';
-            alert('開始できませんでした。しばらくしてからお試しください。');
+            showErrorModal('開始できませんでした。しばらくしてからお試しください。');
         }
     }
 
@@ -3784,7 +3852,7 @@
                 btn.disabled = false;
                 if (st.error) {
                     btn.textContent = '日足更新＋GC再計算';
-                    alert('失敗しました: ' + st.error);
+                    showErrorModal('失敗しました: ' + st.error);
                 } else {
                     btn.textContent = `完了 日足${st.saved}件`;
                     setTimeout(() => { btn.textContent = '日足更新＋GC再計算'; }, 5000);
@@ -3821,7 +3889,7 @@
             console.error('GC/DC再計算エラー:', e);
             btn.disabled = false;
             btn.textContent = 'GC/DC再計算';
-            alert('再計算を開始できませんでした。しばらくしてからお試しください。');
+            showErrorModal('再計算を開始できませんでした。しばらくしてからお試しください。');
         }
     }
 
@@ -3841,7 +3909,7 @@
                 btn.disabled = false;
                 if (st.error) {
                     btn.textContent = 'GC/DC再計算';
-                    alert('再計算に失敗しました: ' + st.error);
+                    showErrorModal('再計算に失敗しました: ' + st.error);
                 } else {
                     btn.textContent = `完了 ${st.saved}件`;
                     setTimeout(() => { btn.textContent = 'GC/DC再計算'; }, 4000);
@@ -3866,20 +3934,26 @@
         const willRun = Math.min(n, limit);
         const mins = Math.ceil(willRun * 5 / 60);
         if (n > limit) {
-            if (!confirm(
-                `未分析が${n.toLocaleString()}件あります。
-` +
-                `1回の実行では古い順に${limit}件まで処理します（約${mins}分）。
+            const ok = await showConfirmModal({
+                title: 'テクニカル分析を実行',
+                message: `未分析が${n.toLocaleString()}件あります。
+`
+                       + `1回の実行では古い順に${limit}件まで処理します（約${mins}分）。
 
-` +
-                `※ 決算があった銘柄だけを更新したい場合は、好調企業タブの
-` +
-                `　「決算銘柄を更新」のほうが速く済みます。
-
-実行しますか？`
-            )) return;
+`
+                       + `※ 決算があった銘柄だけを更新したい場合は、好調企業タブの
+`
+                       + `　「決算銘柄を更新」のほうが速く済みます。`,
+                okLabel: '実行する',
+            });
+            if (!ok) return;
         } else if (willRun > 20) {
-            if (!confirm(`${willRun}件を分析します（約${mins}分）。実行しますか？`)) return;
+            const ok = await showConfirmModal({
+                title: 'テクニカル分析を実行',
+                message: `${willRun}件を分析します（約${mins}分）。`,
+                okLabel: '実行する',
+            });
+            if (!ok) return;
         }
         setAnalyzeBusy('techAnalyzeBtn', { label: '開始中...' });
         stopBtn.style.display = 'inline-block';

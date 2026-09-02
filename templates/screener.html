@@ -1408,7 +1408,13 @@
     }
 
     async function removeFavorite(code) {
-        if (!confirm('この企業をお気に入りから削除しますか？')) return;
+        const ok = await showConfirmModal({
+            title: 'お気に入りから削除',
+            message: 'この企業をお気に入りから削除します。',
+            okLabel: '削除する',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             const response = await fetch(`/api/watchlist/remove/${code}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('削除に失敗しました');
@@ -1416,7 +1422,7 @@
             renderFavorites();
         } catch (err) {
             console.error('削除エラー:', err);
-            alert('削除できませんでした。しばらくしてからもう一度お試しください。');
+            showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
         }
     }
 

@@ -499,10 +499,14 @@
         });
     });
 
-    function confirmDelete(id) {
-        if (confirm('本当にこの決算情報を削除しますか？')) {
-            window.location.href = '/settlement/delete/' + id;
-        }
+    async function confirmDelete(id) {
+        const ok = await showConfirmModal({
+            title: '決算情報を削除します',
+            message: 'この決算情報を削除します。元には戻せません。',
+            okLabel: '削除する',
+            danger: true,
+        });
+        if (ok) window.location.href = '/settlement/delete/' + id;
     }
     
     // カテゴリーセットの定義（必要に応じて外部ファイルやサーバーサイドから取得）

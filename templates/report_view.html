@@ -494,7 +494,7 @@
         pdf.save(REPORT_FILENAME + '.pdf');
       } catch (err) {
         console.error('PDFの作成に失敗:', err);
-        alert('PDFを作成できませんでした。画像での保存をお試しください。');
+        showErrorModal('PDFを作成できませんでした。画像での保存をお試しください。');
       }
     });
   }
@@ -510,7 +510,7 @@
         link.click();
       } catch (err) {
         console.error('画像の作成に失敗:', err);
-        alert('画像を作成できませんでした。時間をおいてお試しください。');
+        showErrorModal('画像を作成できませんでした。時間をおいてお試しください。');
       }
     });
   }

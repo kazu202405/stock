@@ -300,9 +300,9 @@
     function copyToClipboard(elementId) {
         var copyText = document.getElementById(elementId).innerText;
         navigator.clipboard.writeText(copyText).then(function() {
-            alert('コピーしました: ' + copyText);
+            showToast('コピーしました');
         }, function(err) {
-            alert('コピーに失敗しました。');
+            showErrorModal('コピーに失敗しました。');
         });
     }
 
@@ -322,9 +322,9 @@
         });
 
         navigator.clipboard.writeText(clipboardText).then(function() {
-            alert('テーブルをコピーしました');
+            showToast('テーブルをコピーしました');
         }, function(err) {
-            alert('コピーに失敗しました。');
+            showErrorModal('コピーに失敗しました。');
         });
     }
 
@@ -366,7 +366,7 @@
         var message = document.getElementById('chatbot-input').value;
 
         if (message.trim() === '') {
-            alert('メッセージを入力してください');
+            showToast('メッセージを入力してください', 'info');
             return;
         }
 
@@ -407,7 +407,7 @@
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('エラーが発生しました');
+            showErrorModal('エラーが発生しました。しばらくしてからもう一度お試しください。');
             tempBotMessage.innerText = 'エラーが発生しました';
         });
     }
@@ -429,9 +429,9 @@
 
         // クリップボードにコピー
         navigator.clipboard.writeText(messageText).then(function() {
-            alert('メッセージがコピーされました: ' + messageText);
+            showToast('メッセージをコピーしました');
         }, function(err) {
-            alert('メッセージのコピーに失敗しました。');
+            showErrorModal('メッセージのコピーに失敗しました。');
         });
     }
 

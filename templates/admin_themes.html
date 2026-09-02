@@ -356,7 +356,13 @@ function adminThemes() {
         },
 
         async removeTheme(t) {
-            if (!confirm(`「${t.name}」を削除しますか？付いている${t.count}社のタグも外れます。`)) return;
+            const ok = await showConfirmModal({
+                title: 'テーマを削除します',
+                message: `「${t.name}」を削除します。\n付いている${t.count}社のタグも外れます。`,
+                okLabel: '削除する',
+                danger: true,
+            });
+            if (!ok) return;
             try {
                 await fetch('/api/admin/themes/' + encodeURIComponent(t.name), { method: 'DELETE' });
                 await this.load();
@@ -387,7 +393,7 @@ function adminThemes() {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ company_code: c }) });
                 const data = await res.json();
-                if (!res.ok) { alert(data.error || '追加できませんでした'); return; }
+                if (!res.ok) { showErrorModal(data.error || '追加できませんでした'); return; }
                 this.addCode = '';
                 this.suggestions = this.suggestions.filter(s => s.company_code !== c);
                 await this.loadStocks();
