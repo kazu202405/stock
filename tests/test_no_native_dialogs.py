@@ -5,12 +5,15 @@
     見た人が「エラーが出た」と読む。OSごとに見た目が違って安っぽく、
     文言の調整もできない。ブロックされる環境もある。
 
-代わりに使うもの（すべて layout.html にある。全ページで使える）:
+代わりに使うもの（実体は layout.html にある）:
     showErrorModal(msg)                     失敗を伝えて止める
     showSuccessModal(msg)                   完了を伝えて止める
     await showConfirmModal({...})           はい/いいえを聞く（danger:true で赤ボタン）
     await showPromptModal({...})            文字を入力してもらう
-    showToast(msg, 'error'|'info')          止めずに short く知らせる
+    showToast(msg, 'error'|'info')          止めずに短く知らせる
+
+⚠️ layout.html を継承していないページ（login / register / lp / seminar など8枚）では
+   そのままでは呼べない。HelpersAreReachable がそれを見張っている。
 
 ⚠️ この見張り自身がフェイルオープンしていないかを test_scanner_* で確かめている。
    注意書きのコメントを読んで合格してしまう作りにはしないこと。
@@ -76,6 +79,50 @@ class ScannerSelfTest(unittest.TestCase):
         self.assertFalse(find_violations("showAlert('x'); this.confirmDelete(1);"))
 
 
+# 共通部品は layout.html にある。継承していないページでは呼べない。
+UI_HELPERS = re.compile(r'(?<![\w.$])(showErrorModal|showSuccessModal|showConfirmModal'
+                        r'|showPromptModal|showToast)\s*\(')
+
+
+def extends_layout(text):
+    return '{% extends "layout.html" %}' in text or "{% extends 'layout.html' %}" in text
+
+
+class HelpersAreReachable(unittest.TestCase):
+    """共通部品を呼ぶなら、それが読み込まれるページであること。
+
+    ⚠️ login / register / lp / seminar など8枚は layout.html を継承していない
+       独立ページ。そこで showErrorModal を書くと ReferenceError になり、
+       **その操作だけ黙って死ぬ**（画面には何も出ない）。
+       ダイアログ禁止の直し方を間違えるとこれを踏む。
+    """
+
+    def test_helper_callers_extend_layout(self):
+        base = os.path.join(ROOT, 'templates')
+        bad = []
+        checked = 0
+        for name in sorted(os.listdir(base)):
+            if not name.endswith('.html') or name == 'layout.html':
+                continue
+            checked += 1
+            with open(os.path.join(base, name), encoding='utf-8') as f:
+                text = f.read()
+            if UI_HELPERS.search(strip_comments(text)) and not extends_layout(text):
+                bad.append(name)
+        self.assertGreater(checked, 20, 'テンプレートを走査できていない')
+        self.assertEqual([], bad, '\n\nlayout.html を継承していないのに共通部品を'
+                         '呼んでいます（実行時に ReferenceError になります）。\n'
+                         'layout.html を継承するか、そのページ内に表示を作ってください:\n  '
+                         + '\n  '.join(bad) + '\n')
+
+    def test_scanner_detects_a_caller(self):
+        # 見張りが本当に見張れているか
+        self.assertTrue(UI_HELPERS.search('showErrorModal("x")'))
+        self.assertTrue(UI_HELPERS.search('await showConfirmModal({})'))
+        self.assertFalse(UI_HELPERS.search('// showToast は layout.html にある'))
+        self.assertFalse(UI_HELPERS.search('myShowToast(1)'))
+
+
 class NoNativeDialogsInTemplates(unittest.TestCase):
 
     def _targets(self):
@@ -103,7 +150,9 @@ class NoNativeDialogsInTemplates(unittest.TestCase):
 
         self.assertEqual([], found, '\n\nブラウザ標準ダイアログが残っています。\n'
                          'showErrorModal / showConfirmModal / showPromptModal / showToast '
-                         'に置き換えてください（layout.html）。\n\n  '
+                         'に置き換えてください（layout.html にあります）。\n'
+                         '⚠️ login / register / lp など layout.html を継承していないページでは'
+                         'そのままでは呼べません。\n\n  '
                          + '\n  '.join(found) + '\n')
 
 
