@@ -564,18 +564,26 @@
                             <a href="/screener" class="nav-dropdown-item">
                                 <i class="fas fa-filter"></i>スクリーニング
                             </a>
+                            {# 企業比較・テーマ・業種・決算情報は、中身を確認してから
+                               公開する。それまでは管理者にだけ出す（2026-09-03）。
+                               ⚠️ メニューを消してもURLを知っていれば開ける。
+                                  完全に閉じるならページ側にもガードが要る。 #}
+                            {% if is_logged_in and user_role == 'admin' %}
                             <a href="/compare" class="nav-dropdown-item">
                                 <i class="fas fa-code-compare"></i>企業比較
                             </a>
+                            {% endif %}
                             <a href="/simulator" class="nav-dropdown-item">
                                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
                             </a>
+                            {% if is_logged_in and user_role == 'admin' %}
                             <a href="/themes" class="nav-dropdown-item">
                                 <i class="fas fa-tags"></i>テーマ・業種
                             </a>
                             <a href="/earnings" class="nav-dropdown-item">
                                 <i class="fas fa-calendar-alt"></i>決算情報
                             </a>
+                            {% endif %}
                             <a href="/report" class="nav-dropdown-item">
                                 <i class="fas fa-file-invoice"></i>レポート
                             </a>
@@ -783,18 +791,24 @@
             <a href="/screener" class="slide-menu-link">
                 <i class="fas fa-filter"></i>スクリーニング
             </a>
+            {# ⚠️ デスクトップのドロップダウンと同じ扱いにすること。
+               片方だけ隠すと、スマホからは見えたままになる。 #}
+            {% if is_logged_in and user_role == 'admin' %}
             <a href="/compare" class="slide-menu-link">
                 <i class="fas fa-code-compare"></i>企業比較
             </a>
+            {% endif %}
             <a href="/simulator" class="slide-menu-link">
                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
             </a>
+            {% if is_logged_in and user_role == 'admin' %}
             <a href="/themes" class="slide-menu-link">
                 <i class="fas fa-tags"></i>テーマ・業種
             </a>
             <a href="/earnings" class="slide-menu-link">
                 <i class="fas fa-calendar-alt"></i>決算情報
             </a>
+            {% endif %}
             <a href="/report" class="slide-menu-link">
                 <i class="fas fa-file-invoice"></i>レポート
             </a>

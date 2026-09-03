@@ -867,23 +867,33 @@
                     <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">好調企業登録</button>
                     <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
-                    {% if is_admin %}
-                    {# 財務データは決算発表時にしか変わらない。全件やり直すと約4.5時間かかるが、
-                       決算を出した銘柄だけなら平常日は数件〜数十件で済む。 #}
+                    {# 2026-09-03: 「決算銘柄を更新」「N件 詳細取得」「スコア再計算」を閉じた。
+                       どれも定期実行で置き換わっており、押しても同じことをするだけ。
+
+                         決算銘柄を更新 … 22:00 の scheduled_process_earnings_queue が同じ処理。
+                                          さらに 23:30 の scheduled_check_earnings_freshness が
+                                          検知の取りこぼしを拾って積み直す（二重の網）。
+                         N件 詳細取得   … 財務が変わるのは決算のときだけで、そこは上の2本が見る。
+                                          株価は平日3回／業績予想はTDnetから毎日／会社概要・株主・
+                                          設立日は毎晩2:00／役員・大株主はEDINETから5:40。
+                         スコア再計算   … match_rate は保存のたびに計算されている。定義を変えた
+                                          ときの作り直しは recalc_match_rates.py（全銘柄）の仕事。
+                                          ここで32件だけ直すと並び順が新旧混在になる。
+
+                       ⚠️ **テクニカルタブの「N件 詳細取得」は残してある。** GC/DC銘柄は毎日
+                          入れ替わるのに scheduled_fetch_gc_dc は一覧を取るだけで分析しない。
+                          そこだけは自動化されていない。
+
+                       APIとJSは消していない。1銘柄だけ直したいときは銘柄ページの
+                       「無料・低負荷更新」「更新」（どちらも管理者限定）を使う。
                     <button class="gc-fetch-btn" onclick="updateEarnings()" id="earningsBtn"
-                            style="background-color: #1b4332;" title="決算発表・業績修正のあった銘柄の財務データを更新します（押し忘れた日の分も残っています）">
+                            style="background-color: #1b4332;" title="決算発表・業績修正のあった銘柄の財務データを更新します">
                         決算銘柄を更新
                     </button>
-                    {% endif %}
-                    {# 取得・再計算は運用の作業で、押すと外部を叩く。
-                       2026-08-25 に API を管理者限定にしたので、一般会員に
-                       出すと押した瞬間に403になる（何も起きないボタン）。
-                       毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
-                    {% if is_admin %}
                     <button class="gc-fetch-btn" onclick="analyzeWlStocks()" id="wlAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopWlAnalyze()" id="wlStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     <button class="gc-fetch-btn" onclick="recalculateMatchRates()" id="recalcBtn" style="background-color: #6b7280;">スコア再計算</button>
-                    {% endif %}
+                    #}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->

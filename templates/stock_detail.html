@@ -1038,7 +1038,13 @@
                非会員に出すと押した瞬間に401になる（何も起きないボタン）。
                株価は平日3回、財務は決算のたび、増減率は毎晩、自動で新しくなるので
                会員でも普段は押す必要がない。数字が古く見えるときの手動の手段。 #}
-            {% if is_member %}
+            {# 2026-09-03: 会員には出さないことにした（管理者にだけ残す）。
+               株価は平日3回、財務は決算の検知→再分析→取りこぼしの拾い直し、
+               業績予想はTDnetから毎日、会社概要は毎晩、役員はEDINETから、と
+               すべて自動で維持されるので、会員が押す理由が無い。
+               ⚠️ **押すと外部APIを叩く。** 会員が連打するとレート制限を招く。
+               管理者には残す。1銘柄だけ数字がおかしいときの手当てに要る。 #}
+            {% if is_admin %}
             <button class="refresh-button" id="refreshBtn" onclick="refreshAnalysis()">更新</button>
             {% endif %}
             <button class="demo-trade-btn" id="demoBuyBtn" onclick="openDetailBuyModal()">
