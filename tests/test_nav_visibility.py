@@ -95,10 +95,19 @@ class ヘッダーの見え方(unittest.TestCase):
 class 運用ボタン(unittest.TestCase):
     """定期実行で置き換わったものは閉じてある。
 
-    決算銘柄を更新 … 22:00 の再分析＋23:30 の取りこぼし拾いが同じ処理をする
-    N件 詳細取得   … 財務は決算のときだけ変わり、そこは上の2本が見ている
-    スコア再計算   … 保存のたびに match_rate は計算される。定義変更時は
-                     recalc_match_rates.py（全銘柄）の仕事
+    決算銘柄を更新     … 22:00 の再分析＋23:30 の取りこぼし拾いが同じ処理をする
+    N件 詳細取得       … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                         株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                         概要は毎晩2:00／役員はEDINETから5:40 で維持されている
+    スコア再計算       … 保存のたびに match_rate は計算される。定義変更時は
+                         recalc_match_rates.py（全銘柄）の仕事
+    日足更新＋GC再計算 … 毎晩3:30 scheduled_update_daily_and_crosses が同じ
+    GC/DC再計算のみ    … 同じジョブの後半
+    GC/DC銘柄の取得    … 9:15と17:15 scheduled_fetch_gc_dc が同じ関数を呼ぶ
+
+    ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+       1319・1357 など**すべてETF**。意図して分析対象から外しているので、
+       詳細取得を押しても入らない（「未分析が残る」ようには見えるが埋まらない）。
     """
 
     def buttons(self, ctx):
@@ -106,21 +115,26 @@ class 運用ボタン(unittest.TestCase):
         body = re.sub(r'\{#.*?#\}', '', html, flags=re.S)
         return body
 
-    def test_閉じた3つは管理者にも出ない(self):
+    CLOSED = ('id="earningsBtn"', 'id="wlAnalyzeBtn"', 'id="recalcBtn"',
+              'id="divAnalyzeBtn"', 'id="gcFetchBtn"', 'id="gcAnalyzeBtn"',
+              'id="dcFetchBtn"', 'id="dailyUpdateBtn"', 'id="maRecalcBtn"',
+              'id="techAnalyzeBtn"')
+
+    def test_閉じたボタンは管理者にも出ない(self):
         body = self.buttons(ADMIN)
-        for el in ('id="earningsBtn"', 'id="wlAnalyzeBtn"', 'id="recalcBtn"'):
+        for el in self.CLOSED:
             self.assertNotIn(el, body, '%s が復活している' % el)
 
-    def test_テクニカルの詳細取得は残す(self):
-        """⚠️ GC/DC銘柄は毎日入れ替わるのに、scheduled_fetch_gc_dc は一覧を
-        取るだけで分析しない。ここを消すと新しい銘柄が未分析のまま残る。"""
-        self.assertIn('id="techAnalyzeBtn"', self.buttons(ADMIN))
-
-    def test_会員には運用ボタンを出さない(self):
+    def test_会員にも出ない(self):
         body = self.buttons(MEMBER)
-        for el in ('id="earningsBtn"', 'id="wlAnalyzeBtn"', 'id="recalcBtn"',
-                   'id="techAnalyzeBtn"'):
+        for el in self.CLOSED:
             self.assertNotIn(el, body)
+
+    def test_無いボタンを案内文で指さない(self):
+        """⚠️ 「取得」ボタンを消したのに「「取得」ボタンを押してください」が
+        残っていると、押しようのないものを指す案内になる。"""
+        for ctx in (ADMIN, MEMBER):
+            self.assertNotIn('「取得」ボタン', self.buttons(ctx))
 
 
 class 銘柄ページの更新ボタン(unittest.TestCase):

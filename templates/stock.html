@@ -1015,10 +1015,19 @@
                        2026-08-25 に API を管理者限定にしたので、一般会員に
                        出すと押した瞬間に403になる（何も起きないボタン）。
                        毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
-                    {% if is_admin %}
+{# 2026-09-03: 定期実行に置き換わったので閉じた。
+   日足更新＋GC再計算／GC/DC再計算のみ … 毎晩3:30 scheduled_update_daily_and_crosses
+   GC銘柄・DC銘柄の取得              … 9:15と17:15 scheduled_fetch_gc_dc（同じ関数を呼ぶ）
+   N件 詳細取得                      … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                                       株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                                       概要は毎晩2:00／役員はEDINETから5:40 で維持されている。
+   ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+      1319・1357 など**すべてETF**。意図して分析対象から外しているので、押しても入らない。
+   ⚠️ api_analyze_technical_stocks は signal_stocks を range() 無しで読んでおり、
+      1,000件で頭打ちになる。戻すときはページングを足すこと。
                     <button class="gc-fetch-btn" onclick="analyzeDivStocks()" id="divAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopDivAnalyze()" id="divStopBtn" style="background-color: #dc2626; display: none;">停止</button>
-                    {% endif %}
+                    #}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
@@ -1034,9 +1043,20 @@
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
                 <div style="display: flex; align-items: center; gap: 10px;">
+{# 2026-09-03: 定期実行に置き換わったので閉じた。
+   日足更新＋GC再計算／GC/DC再計算のみ … 毎晩3:30 scheduled_update_daily_and_crosses
+   GC銘柄・DC銘柄の取得              … 9:15と17:15 scheduled_fetch_gc_dc（同じ関数を呼ぶ）
+   N件 詳細取得                      … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                                       株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                                       概要は毎晩2:00／役員はEDINETから5:40 で維持されている。
+   ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+      1319・1357 など**すべてETF**。意図して分析対象から外しているので、押しても入らない。
+   ⚠️ api_analyze_technical_stocks は signal_stocks を range() 無しで読んでおり、
+      1,000件で頭打ちになる。戻すときはページングを足すこと。
                     <button class="gc-fetch-btn" onclick="fetchGcStocks()" id="gcFetchBtn">取得</button>
                     <button class="gc-fetch-btn" onclick="analyzeGcStocks()" id="gcAnalyzeBtn" style="background-color: var(--secondary-color);">詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopGcAnalyze()" id="gcStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                    #}
                     <span class="watchlist-count" id="gcCount">0件</span>
                 </div>
             </div>
@@ -1055,7 +1075,7 @@
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
             <div id="gcViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="gcContent">
-                <div class="watchlist-empty">「取得」ボタンを押してGC銘柄を取得してください</div>
+                <div class="watchlist-empty">GC銘柄はまだありません（毎日9:15と17:15に自動で取り込みます）</div>
             </div>
         </div>
 
@@ -1064,7 +1084,18 @@
             <div class="watchlist-header">
                 <span class="watchlist-title"></span>
                 <div style="display: flex; align-items: center; gap: 10px;">
+{# 2026-09-03: 定期実行に置き換わったので閉じた。
+   日足更新＋GC再計算／GC/DC再計算のみ … 毎晩3:30 scheduled_update_daily_and_crosses
+   GC銘柄・DC銘柄の取得              … 9:15と17:15 scheduled_fetch_gc_dc（同じ関数を呼ぶ）
+   N件 詳細取得                      … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                                       株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                                       概要は毎晩2:00／役員はEDINETから5:40 で維持されている。
+   ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+      1319・1357 など**すべてETF**。意図して分析対象から外しているので、押しても入らない。
+   ⚠️ api_analyze_technical_stocks は signal_stocks を range() 無しで読んでおり、
+      1,000件で頭打ちになる。戻すときはページングを足すこと。
                     <button class="gc-fetch-btn" onclick="fetchDcStocks()" id="dcFetchBtn">取得</button>
+                    #}
                     <span class="watchlist-count" id="dcCount">0件</span>
                 </div>
             </div>
@@ -1083,7 +1114,7 @@
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
             <div id="dcViewToolbar" style="display:flex; justify-content:flex-end; margin-bottom:8px;"></div>
             <div id="dcContent">
-                <div class="watchlist-empty">「取得」ボタンを押してDC銘柄を取得してください</div>
+                <div class="watchlist-empty">DC銘柄はまだありません（毎日9:15と17:15に自動で取り込みます）</div>
             </div>
         </div>
         {% endif %}
@@ -1143,11 +1174,16 @@
                     <button class="filter-reset-btn" onclick="resetTechFilters()">リセット</button>
                 </div>
                 <div class="action-buttons">
-                    {% if is_admin %}
-                    {# GC/DCの再計算はDBの日足だけを使うためネットワークを叩かない。
-                       外部サイトのレート制限と無関係に何度でも実行できる。 #}
-                    {# 日足を更新してもGC/DCを計算し直さないと結果が変わらないため、
-                       1つのボタンで最後まで通す。 #}
+{# 2026-09-03: 定期実行に置き換わったので閉じた。
+   日足更新＋GC再計算／GC/DC再計算のみ … 毎晩3:30 scheduled_update_daily_and_crosses
+   GC銘柄・DC銘柄の取得              … 9:15と17:15 scheduled_fetch_gc_dc（同じ関数を呼ぶ）
+   N件 詳細取得                      … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                                       株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                                       概要は毎晩2:00／役員はEDINETから5:40 で維持されている。
+   ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+      1319・1357 など**すべてETF**。意図して分析対象から外しているので、押しても入らない。
+   ⚠️ api_analyze_technical_stocks は signal_stocks を range() 無しで読んでおり、
+      1,000件で頭打ちになる。戻すときはページングを足すこと。
                     <button class="gc-fetch-btn" onclick="updateDailyPrices()" id="dailyUpdateBtn"
                             style="background-color: #2d6a4f;" title="最新の日足を取得し、続けてGC/DCを再計算します">
                         日足更新＋GC再計算
@@ -1156,14 +1192,25 @@
                             style="background-color: #1b4332;" title="保存済みの日足からGC/DC発生日を計算し直します（取得はしません）">
                         GC/DC再計算のみ
                     </button>
-                    {% endif %}
+                    #}
                     {# 取得・再計算は運用の作業で、押すと外部を叩く。
                        2026-08-25 に API を管理者限定にしたので、一般会員に
                        出すと押した瞬間に403になる（何も起きないボタン）。
                        毎晩の自動処理で最新になるので、会員が押す必要もない。 #}
                     {% if is_admin %}
+{# 2026-09-03: 定期実行に置き換わったので閉じた。
+   日足更新＋GC再計算／GC/DC再計算のみ … 毎晩3:30 scheduled_update_daily_and_crosses
+   GC銘柄・DC銘柄の取得              … 9:15と17:15 scheduled_fetch_gc_dc（同じ関数を呼ぶ）
+   N件 詳細取得                      … 「今日まだ分析していない銘柄を全部やり直す」だけ。
+                                       株価は平日3回／財務は決算のたび／予想はTDnetから毎日／
+                                       概要は毎晩2:00／役員はEDINETから5:40 で維持されている。
+   ⚠️ テクニカル1,000件のうち232件は screened_latest に無いが、実測すると
+      1319・1357 など**すべてETF**。意図して分析対象から外しているので、押しても入らない。
+   ⚠️ api_analyze_technical_stocks は signal_stocks を range() 無しで読んでおり、
+      1,000件で頭打ちになる。戻すときはページングを足すこと。
                     <button class="gc-fetch-btn" onclick="analyzeTechStocks()" id="techAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopTechAnalyze()" id="techStopBtn" style="background-color: #dc2626; display: none;">停止</button>
+                                        #}
                     {% endif %}
                 </div>
             </div>
@@ -3222,7 +3269,7 @@
         countElement.textContent = `${stocks.length}件`;
 
         if (stocks.length === 0) {
-            content.innerHTML = '<div class="watchlist-empty">GC銘柄がありません。「取得」ボタンでデータを取得してください。</div>';
+            content.innerHTML = '<div class="watchlist-empty">GC銘柄がありません（毎日9:15と17:15に自動で取り込みます）。</div>';
             return;
         }
 
@@ -3485,7 +3532,7 @@
         countElement.textContent = `${stocks.length}件`;
 
         if (stocks.length === 0) {
-            content.innerHTML = '<div class="watchlist-empty">DC銘柄がありません。「取得」ボタンでデータを取得してください。</div>';
+            content.innerHTML = '<div class="watchlist-empty">DC銘柄がありません（毎日9:15と17:15に自動で取り込みます）。</div>';
             return;
         }
 
