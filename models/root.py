@@ -250,7 +250,10 @@ INVITE_HEADLINES = {
     },
 }
 
-INVITE_CHECKOUT_URL = 'https://gia2018.com/upgrade/invite'
+# ⚠️ **from=note を落とさないこと。** これが無いと、決済のあと GIA 側の
+#    マイページに着地して、買った本人が何を買ったのか分からなくなる。
+#    受け取る側は gia-next の /upgrade/[plan] と /upgrade/success。
+INVITE_CHECKOUT_URL = 'https://gia2018.com/upgrade/invite?from=note'
 
 
 @app.route('/seminar')
