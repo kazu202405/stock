@@ -2472,6 +2472,37 @@
         }
     }
 
+    /* 選んだ銘柄をお気に入りそのものから外す。
+
+       ⚠️ 「フォルダから外す」とは別物。こちらは一覧から消える。
+          取り消せないので、何件消えるかを見せてから確かめる。 */
+    async function bulkRemoveFavorites(codes) {
+        if (!codes || !codes.length) return;
+        const ok = await showConfirmModal({
+            title: 'お気に入りから外します',
+            message: `選んだ ${codes.length} 件をお気に入りから外します。\n`
+                   + 'フォルダの札も一緒に外れます。',
+            okLabel: `${codes.length}件を外す`,
+            danger: true,
+        });
+        if (!ok) return;
+        try {
+            const res = await fetch('/api/favorite-stocks/bulk', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_codes: codes }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { showErrorModal(data.error || '外せませんでした'); return; }
+            BulkSelect.clear('favorite');
+            await loadFavoriteFolders();
+            await loadFavoriteStocks();
+            showToast(`${data.removed || codes.length}件をお気に入りから外しました`);
+        } catch (e) {
+            showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');
+        }
+    }
+
     /* お気に入りタブで、選んだ銘柄をフォルダから外す（お気に入りからは消えない） */
     async function bulkRemoveFromFolder(codes, folderId) {
         if (!folderId) { showToast('外すフォルダを選んでください', 'info'); return; }
@@ -2498,6 +2529,12 @@
             folders: favFolders,
             actionLabel: tabName === 'favorite' ? 'フォルダに追加' : 'お気に入りに追加',
             onRun: (codes, folderId) => bulkAddFavorites(codes, folderId),
+            // お気に入りタブだけ「解除」を出す。他のタブでの解除は
+            // 「その一覧から消す」という別の意味になるので混ぜない。
+            removeLabel: tabName === 'favorite' ? 'お気に入りから外す' : null,
+            onRemove: tabName === 'favorite'
+                ? (codes) => bulkRemoveFavorites(codes)
+                : null,
         });
     }
 
@@ -2643,7 +2680,8 @@
             content.innerHTML = TableView.cards(list.slice(0, shownCount('favorite')), stockCardConfig({
                 select: (r) => BulkSelect.cardCheck('favorite', r.company_code),
                 sortKey: favSort.key,
-                actions: (r) => `<button class="delete-btn" onclick="removeFavoriteStock('${r.company_code}')">解除</button>`,
+                // ⚠️ 解除の入口は一括バーに寄せた。カードにも置くと、
+                //    同じことをする場所が2つになり、片方だけ直る事故が起きる。
             })) + moreRowsHtml('favorite', shownCount('favorite'), list.length);
             return;
         }
@@ -2665,7 +2703,8 @@
                         <th class="sortable" onclick="sortFavColumn('pbr')">PBR${favSortIcon('pbr')}</th>
                         <th class="sortable" onclick="sortFavColumn('dividend_yield_display')">配当利回り(予想)${favSortIcon('dividend_yield_display')}</th>
                         <th class="sortable" onclick="sortFavColumn('payout_ratio')">配当性向${favSortIcon('payout_ratio')}</th>
-                        <th>操作</th>
+                        <th class="sortable" onclick="sortFavColumn('gc_date')">GC${favSortIcon('gc_date')}</th>
+                        <th class="sortable" onclick="sortFavColumn('dc_date')">DC${favSortIcon('dc_date')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -2705,7 +2744,8 @@
                     <td class="${toneCell(toneLower(item.pbr, 3, 10))}">${pbr}</td>
                     <td class="${toneCell(item.dividend_yield_display != null && item.dividend_yield_display >= 3 ? 'good' : null)}">${divYield}</td>
                     <td class="${toneCell(item.payout_ratio != null && item.payout_ratio >= 85 ? 'low' : null)}">${payoutRatio}</td>
-                    <td><button class="delete-btn" onclick="removeFavoriteStock('${code}')">解除</button></td>
+                    <td>${formatScrapedDate(item.gc_date)}</td>
+                    <td>${formatScrapedDate(item.dc_date)}</td>
                 </tr>
             `;
         });

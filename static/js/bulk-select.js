@@ -142,13 +142,27 @@ window.BulkSelect = (function () {
                     return '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>';
                 }).join('') + '</select>';
         }
+        // 取り消せない操作は最後に、色を分けて置く。
+        // ⚠️ 「選択解除」と並ぶので**文言で区別できるようにする**。
+        //    どちらも「解除」だと、消すつもりのない人が押す。
+        var danger = '';
+        if (typeof o.onRemove === 'function') {
+            danger = '<button class="bulk-danger" onclick="BulkSelect.remove(\'' + esc(key) + '\')">'
+                + esc(o.removeLabel || '一覧から外す') + '</button>';
+        }
         bar.innerHTML =
             '<span class="bulk-count">' + n + '件 選択中</span>'
             + picker
             + '<button class="bulk-go" onclick="BulkSelect.run(\'' + esc(key) + '\')">'
             + esc(o.actionLabel || 'お気に入りに追加') + '</button>'
-            + '<button class="bulk-clear" onclick="BulkSelect.clear(\'' + esc(key) + '\')">選択解除</button>';
+            + danger
+            + '<button class="bulk-clear" onclick="BulkSelect.clear(\'' + esc(key) + '\')">選択をやめる</button>';
         bar.style.display = 'flex';
+    }
+
+    function remove(key) {
+        var o = opts[key] || {};
+        if (typeof o.onRemove === 'function') o.onRemove(codes(key));
     }
 
     function run(key) {
@@ -160,7 +174,7 @@ window.BulkSelect = (function () {
 
     return {
         headCell: headCell, cell: cell, cardCheck: cardCheck,
-        toggle: toggle, toggleAll: toggleAll, clear: clear, run: run,
+        toggle: toggle, toggleAll: toggleAll, clear: clear, run: run, remove: remove,
         count: count, codes: codes, has: has, mountBar: mountBar, repaint: repaint,
     };
 })();

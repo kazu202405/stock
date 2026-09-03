@@ -2204,6 +2204,41 @@ FAVORITE_FOLDER_MAX = 50
 # お気に入り銘柄API
 # =============================================
 
+def _attach_ma_crosses(rows):
+    """GC/DCの発生日を ma_crosses から入れ直す。
+
+    ⚠️ **screened_latest の gc_date を画面に出さないこと。** あれは kabutan を
+       スクレイピングした時刻が全銘柄一律で入っており、「いつGCしたか」を
+       表していない。テクニカル一覧は ma_crosses を見ているので、
+       ここで別の値を出すと**同じアプリの中で日付が食い違う**。
+
+    取れなかったときは触らない（黙って古い値を残すより、空のほうがよい）。
+    """
+    codes = [r.get('company_code') for r in rows if r.get('company_code')]
+    if not codes:
+        return
+    crosses = {}
+    try:
+        client = get_supabase_client()
+        for i in range(0, len(codes), 200):
+            got = (client.table('ma_crosses')
+                   .select('company_code, latest_gc_date, latest_dc_date')
+                   .in_('company_code', codes[i:i + 200]).execute()).data or []
+            for c in got:
+                crosses[c['company_code']] = c
+    except Exception as e:
+        print(f'GC/DCの取得に失敗（この列は空になります）: {str(e)[:120]}')
+        for row in rows:
+            row['gc_date'] = None
+            row['dc_date'] = None
+        return
+
+    for row in rows:
+        c = crosses.get(row.get('company_code')) or {}
+        row['gc_date'] = c.get('latest_gc_date')
+        row['dc_date'] = c.get('latest_dc_date')
+
+
 @app.route('/api/favorite-stocks', methods=['GET'])
 def api_get_favorite_stocks():
     """お気に入り銘柄一覧を取得"""
@@ -2212,6 +2247,7 @@ def api_get_favorite_stocks():
         stocks = get_favorite_stocks(user_id)
         for row in stocks:
             attach_score_quality(row)
+        _attach_ma_crosses(stocks)
         return jsonify({"favorite_stocks": stocks}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2229,6 +2265,33 @@ def api_add_favorite_stock():
         company_code = normalize_code(data['company_code'])
         add_favorite_stock(user_id, company_code)
         return jsonify({"message": f"{company_code}をお気に入りに追加しました"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/favorite-stocks/bulk', methods=['DELETE'])
+def api_bulk_remove_favorite_stocks():
+    """選んだ銘柄をまとめてお気に入りから外す。
+
+    ⚠️ 1件ずつ叩くと、20件選んだだけで20往復になる。まとめて受ける。
+    ⚠️ フォルダから外すのとは別物。こちらは**お気に入りそのもの**から消える。
+    """
+    try:
+        user_id = get_or_create_guest_user_id()
+        data = request.get_json(silent=True) or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        if not codes:
+            return jsonify({"error": "銘柄が選ばれていません"}), 400
+
+        removed = failed = 0
+        for code in codes:
+            try:
+                remove_favorite_stock(user_id, code)
+                removed += 1
+            except Exception as e:
+                failed += 1
+                print(f'お気に入りの解除に失敗 {code}: {str(e)[:120]}')
+        return jsonify({"removed": removed, "failed": failed}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
