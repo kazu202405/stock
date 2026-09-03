@@ -738,9 +738,14 @@
     <!-- ヘッダー -->
     <div class="report-header">
         <div class="report-title">ウォッチリスト</div>
+        {# 2026-09-03: 「銘柄検索」ボタンを外した。検索は 2026-08-25 に
+           ヘッダーの検索窓へ移っており、このボタンは古い呼び名のまま
+           企業比較(/compare)へ飛んでいた（名前と行き先が食い違っていた）。
+           /compare は会員に見せない方針にしたので、入口ごと閉じる。
         <a href="/compare" class="search-link-btn">
             <i class="fas fa-search"></i> 銘柄検索
         </a>
+        #}
     </div>
 
     <!-- マーケット所感 -->
@@ -1738,7 +1743,11 @@
         if (wlBtn) wlBtn.textContent = `${countLabel}件 詳細取得`;
 
         if (watchlistCache.length === 0) {
-            content.innerHTML = '<div class="watchlist-empty">登録銘柄がありません。<a href="/compare">銘柄検索</a>から登録してください。</div>';
+            // ⚠️ 登録は管理者だけ（/api/watchlist/add は admin 限定）。
+            //    会員に「登録してください」と言っても押せる場所が無い。
+            content.innerHTML = IS_ADMIN
+                ? '<div class="watchlist-empty">登録銘柄がありません。ヘッダーの検索窓で銘柄を開き、★から登録してください。</div>'
+                : '<div class="watchlist-empty">登録銘柄がありません。</div>';
             return;
         }
 
