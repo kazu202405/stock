@@ -5243,6 +5243,38 @@ JOB_CLAIM_WAIT_SECONDS = 5
 JOB_CLAIM_WINDOW_MINUTES = 45
 
 
+def close_hung_run(job_id):
+    """前回が「始まったまま終わっていない」なら、失敗として終端する。
+
+    ⚠️ **プロセスが落ちると finally は走らない。** Renderの再起動やOOMで
+       消えると、開始の印だけが残る。誰かが手で終端しない限り、パネルは
+       赤いまま・監視は503のままになる（2026-09-04 に実際に起きた）。
+
+    ⚠️ 実行中(running)を終端しないこと。まだ走っているものを「死んだ」と
+       書くと、本物の実行が終わったときに記録が二重になる。
+       hung（JOB_HUNG_MINUTES を過ぎた）だけを対象にする。
+
+    次の実行を止めない。記録を正しくするだけで、データには触らない。
+    """
+    try:
+        import data_freshness
+
+        client = get_supabase_client()
+        state, when, _ = data_freshness.job_state(client, job_id)
+        if state != 'hung':
+            return False
+        stamp = when.strftime('%m-%d %H:%M') if when else '?'
+        record_job_run(job_id, ok=False,
+                       detail='%s に開始したまま終わらなかった'
+                              '（次の実行が終端した）' % stamp)
+        print(f'[Scheduler] 前回の実行が途中で消えていました（{job_id} {stamp}）')
+        return True
+    except Exception as e:
+        # ⚠️ ここで例外を出して本体を止めない。記録の掃除は本筋ではない。
+        print(f'[Scheduler] 死んだ実行の終端に失敗 ({job_id}): {str(e)[:120]}')
+        return False
+
+
 def claim_job(job_id):
     """このプロセスがそのジョブを実行してよいかを決める。
 
@@ -5260,6 +5292,10 @@ def claim_job(job_id):
     """
     import time as _time
     from datetime import datetime, timedelta, timezone
+
+    # 前回が途中で消えていたら、まずそれを終端する。
+    # ⚠️ ここでやらないと、パネルと監視が「赤いまま戻らない」状態になる。
+    close_hung_run(job_id)
 
     mine = record_job_run(job_id + ':start', ok=True, detail='開始')
     if not mine:
