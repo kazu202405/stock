@@ -85,6 +85,29 @@ def _forecast_number(value) -> Optional[float]:
         return None
 
 
+def _finite_number(value) -> Optional[float]:
+    """有限の数値だけを返す。文字列・Infinity・NaN は None。
+
+    ⚠️ **Yahoo は EPS が 0 の銘柄で trailingPE に文字列 'Infinity' を返す。**
+       そのまま `<=` で比べると TypeError になり、analyze() が例外で終わる。
+       例外は握られて result["error"] に入るだけなので画面には理由が出ず、
+       保存にも到達しないため**その銘柄だけ永久に更新されない**。
+       実際 407A（EPS 0.0）がこの状態だった。
+
+    ⚠️ NaN も弾くこと。`nan <= 0` も `nan > limit` も False なので、
+       範囲チェックを素通りして「正しいPER」として保存されてしまう。
+    """
+    import math
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        num = float(str(value).strip().replace(',', ''))
+    except (TypeError, ValueError):
+        return None
+    return num if math.isfinite(num) else None
+
+
 def extract_yahoo_forecast_data(page_html: str) -> Dict[str, Any]:
     """Yahoo JapanのHTMLから会社予想を抽出し、非開示も区別する。
 
@@ -1079,7 +1102,7 @@ class StockAnalyzer:
 
         赤字（EPSがマイナス）ならPERは存在しないので作らない。
         """
-        price = result.get('last_price')
+        price = _finite_number(result.get('last_price'))
         if not price or price <= 0:
             return
 
@@ -1091,7 +1114,11 @@ class StockAnalyzer:
         derived, conflicts = {}, {}
         for key, series, limit in (('per', 'eps', self.MAX_PER),
                                    ('pbr', 'bps', self.MAX_PBR)):
-            external = result.get(key)
+            raw = result.get(key)
+            external = _finite_number(raw)
+            if raw is not None and external is None:
+                # 数値として読めない外部値（'Infinity' など）は使わない
+                result[key] = None
             if external is not None and (external <= 0 or external > limit):
                 # 桁が明らかにおかしい外部値は、この時点で捨てる
                 external = None
@@ -1099,8 +1126,9 @@ class StockAnalyzer:
 
             row = _latest(series)
             computed = None
-            if row and row['value'] > 0:
-                candidate = price / row['value']
+            row_value = _finite_number(row['value']) if row else None
+            if row_value and row_value > 0:
+                candidate = price / row_value
                 if candidate <= limit:
                     computed = round(candidate, 4)
 
