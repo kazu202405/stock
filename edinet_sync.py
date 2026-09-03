@@ -110,9 +110,15 @@ def count_backlog(client, state):
         if len(page) < 1000:
             break
         start += 1000
+    # ⚠️ 種類株式（5桁コード）を数えない。会社ではないので有報を出すことがなく、
+    #    数え続けると「毎晩やっているのに永久に減らない件数」になる。
+    #    2026-09-03 時点で6件あり、積み残し10件のうち6件がこれだった。
+    import security_filter as sf
+
     live = [r for r in rows
             if not r.get('delisted_at')
             and (r.get('market_segment') or '') in ('プライム', 'スタンダード', 'グロース')
+            and not sf.is_class_share(r['company_code'])
             and not (state.get(r['company_code']) or {}).get('doc_id')]
     return len(live)
 

@@ -169,6 +169,72 @@ class BacklogTest(unittest.TestCase):
         self.assertIn("'backlog': backlog", block)
 
 
+class 積み残しが減る条件(unittest.TestCase):
+    """⚠️ 2026-09-03 まで、積み残しは何をしても19社のまま動かなかった。
+
+    毎晩の edinet_sync は `edinet_codes.report_doc_id` の有無で数える。
+    一括スクリプト（backfill_edinet_reports.py）は screened_latest に中身だけ
+    書いて、この印を書いていなかった。∴ 何社取り込んでも件数が動かない。
+
+    担当が2つに分かれているとき、**進捗の印は片方だけが書けばよいのではなく、
+    数える側が見る場所に書く**こと。
+    """
+
+    def test_一括スクリプトも取り込み済みの印を書く(self):
+        src = read('backfill_edinet_reports.py')
+        self.assertIn('def mark_ingested(', src)
+        block = code_of(src, 'def mark_ingested(')
+        # 数える側が見るテーブルと列に書くこと
+        self.assertIn("table('edinet_codes')", block)
+        self.assertIn('report_doc_id', block)
+
+    def test_中身を書いたら印も書く(self):
+        """本体を書いた直後に印を書く。片方だけ通る道を作らない。
+
+        ⚠️ 「どこかに mark_ingested がある」だけを見ると、別の分岐にだけ
+           残っていても合格してしまう。本体を書く行より後ろに限って見る。
+        """
+        block = code_of(read('backfill_edinet_reports.py'), 'def main(')
+        after = block.split("table('screened_latest').update(updates)", 1)[1]
+        after = after.split('ok += 1', 1)[0]
+        self.assertIn('mark_ingested(', after)
+
+    def test_取れる項目が無くても印は書く(self):
+        """有報は読めている（既に埋まっているだけ）。ここで印を書かないと
+        永久に積み残しに残り、毎晩同じ会社を数え続ける。"""
+        block = code_of(read('backfill_edinet_reports.py'), 'def main(')
+        head = block.split('if not updates:', 1)[1].split('continue', 1)[0]
+        self.assertIn('mark_ingested(', head)
+
+    def test_印が書けなくても取り込みは落とさない(self):
+        block = code_of(read('backfill_edinet_reports.py'), 'def mark_ingested(')
+        self.assertIn('except Exception', block)
+        # ただし黙って飛ばさない（同じことが起きる）
+        self.assertIn('print(', block)
+
+
+class 積み残しの数え方(unittest.TestCase):
+
+    def test_種類株式は数えない(self):
+        """⚠️ 5桁コードは種類株式（伊藤園第1種優先株式・ソフトバンク第1回
+        社債型種類株式など）で、会社ではないので有報を出すことがない。
+        数え続けると「毎晩やっているのに永久に減らない件数」になる。
+        2026-09-03 時点で、積み残し10件のうち6件がこれだった。"""
+        block = code_of(read('edinet_sync.py'), 'def count_backlog(')
+        self.assertIn('is_class_share', block)
+
+    def test_種類株式の判定が生きている(self):
+        import security_filter as sf
+        self.assertTrue(sf.is_class_share('25935'))
+        self.assertTrue(sf.is_class_share('94345'))
+        self.assertFalse(sf.is_class_share('7203'))
+        self.assertFalse(sf.is_class_share('407A'))
+
+    def test_上場廃止も数えない(self):
+        block = code_of(read('edinet_sync.py'), 'def count_backlog(')
+        self.assertIn('delisted_at', block)
+
+
 class SchedulerTest(unittest.TestCase):
 
     def setUp(self):

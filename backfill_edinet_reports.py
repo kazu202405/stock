@@ -204,6 +204,33 @@ def updates_for(row, data):
     return updates
 
 
+def mark_ingested(client, code, doc, dry_run=False):
+    """毎晩のジョブが見る「取り込み済み」の印を書く。
+
+    ⚠️ **中身（screened_latest）だけ書いて、ここを書かないと積み残しが減らない。**
+       毎晩の edinet_sync は edinet_codes.report_doc_id の有無で数えるので、
+       印が無い限り何社取り込んでも「積み残し19社」と言い続ける。
+       実際 2026-09-03 まで、この印が無いせいで件数が固定されていた。
+
+    印が書けなくても中身の取り込みは成功しているので、ここで落とさない。
+    ただし黙って飛ばすと同じことが起きるので、必ず画面に出す。
+    """
+    if dry_run:
+        return
+    from datetime import datetime, timezone
+    payload = {'report_doc_id': doc.get('docID'),
+               'report_fetched_at': datetime.now(timezone.utc).isoformat()}
+    period = doc.get('periodEnd')
+    if period:
+        payload['report_period_end'] = period
+    try:
+        (client.table('edinet_codes').update(payload)
+         .eq('company_code', code).execute())
+    except Exception as e:
+        print('  ※ %s の取り込み済みの印を書けませんでした: %s' % (code, str(e)[:110]),
+              flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--limit', type=int, default=500)
@@ -244,6 +271,9 @@ def main():
             data = edinet_report.extract(fetch_report(doc['docID'], key))
             updates = updates_for(row, data)
             if not updates:
+                # ⚠️ 有報は読めている（既に埋まっているだけ）。ここで印を書かないと
+                #    永久に積み残しに残り、毎晩同じ会社を数え続ける。
+                mark_ingested(client, code, doc, dry_run=args.dry_run)
                 skipped += 1
                 print('  [%d/%d] %s %s 取れる項目なし' % (
                     i, len(have), code, (row.get('company_name') or '')[:12]), flush=True)
@@ -255,6 +285,8 @@ def main():
             if not args.dry_run:
                 (client.table('screened_latest').update(updates)
                  .eq('company_code', code).execute())
+            # 中身と同じタイミングで、毎晩のジョブが見る印も書く
+            mark_ingested(client, code, doc, dry_run=args.dry_run)
             ok += 1
             print('  [%d/%d] %s %s 役員%d人 / 大株主%d件 / 従業員%s' % (
                 i, len(have), code, (row.get('company_name') or '')[:12],
