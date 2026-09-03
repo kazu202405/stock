@@ -490,7 +490,8 @@ class HealthEndpointTest(unittest.TestCase):
         読むと例外→「読めなかった」に化けて、未起動が分からなくなる。"""
         self.assertEqual(self.call([{'id': 'a', 'next_run_time': None}], None),
                          (False, 'scheduler'))
-        block = body_of(read('app.py'), 'def _jobs_health():')
+        # 読み手は scheduler_jobs() に一本化した（2026-09-03）
+        block = body_of(read('app.py'), 'def scheduler_jobs():')
         self.assertIn("getattr(j, 'next_run_time', None)", block)
 
     def test_実行記録がまだ無いだけでは鳴らさない(self):
@@ -521,6 +522,44 @@ class HealthEndpointTest(unittest.TestCase):
         head = src.split("@app.route('/health/jobs'", 1)[1][:200]
         self.assertNotIn('@admin_required', head)
         self.assertNotIn('@login_required', head)
+
+
+class スケジューラの読み方は1か所(unittest.TestCase):
+    """⚠️ next_run_time を直接読むと、start() 前のジョブで AttributeError になる。
+
+    そうなると画面には「状態を取得できませんでした」しか出ず、**「読めなかった」と
+    「止まっている」の区別がつかない**。getattr で読めば
+    「スケジューラが起動していません（N本すべて予定なし）」という本当の状態が出る。
+
+    同じ読み取りが3か所にあり、正しかったのは1か所だけだった（2026-09-03）。
+    """
+
+    def setUp(self):
+        self.src = read('app.py')
+
+    def test_共通の読み手がある(self):
+        self.assertIn('def scheduler_jobs(', self.src)
+        block = body_of(self.src, 'def scheduler_jobs(')
+        self.assertIn("getattr(j, 'next_run_time', None)", block)
+
+    def test_直接読んでいる場所が無い(self):
+        """`j.next_run_time` / `job.next_run_time` を素で読まない。"""
+        # ⚠️ body_of だと「直接 j.next_run_time を読まないこと」という
+        #    注意書き自体を拾って落ちる。コードだけを見る。
+        for name in ('def _jobs_health(', 'def api_data_freshness(',
+                     'def api_scheduler_status('):
+            block = code_of(self.src, name)
+            self.assertNotIn('j.next_run_time', block, name)
+            self.assertNotIn('job.next_run_time', block, name)
+
+    def test_3か所とも共通の読み手を使う(self):
+        for name in ('def _jobs_health(', 'def api_data_freshness(',
+                     'def api_scheduler_status('):
+            self.assertIn('scheduler_jobs()', body_of(self.src, name), name)
+
+    def test_読めないときは正常に倒さない(self):
+        """⚠️ None を「異常なし」にすると、監視そのものが黙って無効になる。"""
+        self.assertNotEqual('ok', df.scheduler_item(None)['status'])
 
 
 class HealthDbCarriesJobsTest(unittest.TestCase):

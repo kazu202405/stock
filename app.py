@@ -114,6 +114,28 @@ def redirect_to_canonical_host():
 # ヘルスチェック（Supabase自動停止の防止用キープアライブ）
 # =============================================
 
+def scheduler_jobs():
+    """スケジューラのジョブを [{'id', 'next_run_time'}] で返す。読めなければ None。
+
+    ⚠️ **next_run_time は getattr で読むこと。** start() していないジョブには
+       この属性が無く、`j.next_run_time` と直接書くと AttributeError になる。
+       そうなると「状態を取得できませんでした」としか出せず、**「読めなかった」と
+       「止まっている」の区別がつかない**。getattr なら None が並ぶので、
+       画面には「起動していません」という本当の状態が出る。
+
+    ⚠️ **この関数を通すこと。** 同じ読み取りを各所に書くと、1か所だけ直って
+       他が古いままになる（実際に3か所あり、正しいのは1か所だけだった）。
+    """
+    try:
+        return [{'id': j.id,
+                 'next_run_time': (getattr(j, 'next_run_time', None).isoformat()
+                                   if getattr(j, 'next_run_time', None) else None)}
+                for j in scheduler.get_jobs()]
+    except Exception as e:
+        print(f'[scheduler] ジョブ一覧を取得できません: {str(e)[:150]}')
+        return None
+
+
 def _jobs_health():
     """定期実行が生きているかを (ok, problem) で返す。/health/* が共有する。"""
     import data_freshness
@@ -122,10 +144,7 @@ def _jobs_health():
         #    無く**、属性で直接読むと例外になる。そこで jobs=None に倒れると
         #    「読めなかった」に化けて、起動していないことが分からなくなる。
         #    None を並べて渡せば scheduler_item が「起動していません」を出す。
-        jobs = [{'id': j.id,
-                 'next_run_time': (getattr(j, 'next_run_time', None).isoformat()
-                                   if getattr(j, 'next_run_time', None) else None)}
-                for j in scheduler.get_jobs()]
+        jobs = scheduler_jobs()
     except Exception as e:
         print(f'[health] スケジューラの状態を取得できません: {str(e)[:120]}')
         jobs = None                  # 正常には倒さない
@@ -6123,14 +6142,9 @@ def api_data_freshness():
         import data_freshness
         # スケジューラの次回実行時刻も一緒に渡す。データだけを見ていると、
         # 手でボタンを押した結果で緑になり、ジョブが死んでいるのを隠せてしまう。
-        try:
-            jobs = [{'id': j.id,
-                     'next_run_time': (j.next_run_time.isoformat()
-                                       if j.next_run_time else None)}
-                    for j in scheduler.get_jobs()]
-        except Exception as e:
-            print(f'スケジューラの状態を取得できませんでした: {e}')
-            jobs = None          # 正常には倒さない（警告として出る）
+        # ⚠️ 直接 j.next_run_time を読まないこと。start() 前のジョブで例外になり、
+        #    パネルが「取得できませんでした」しか出せなくなる（本当の状態が隠れる）。
+        jobs = scheduler_jobs()
         return jsonify(data_freshness.summary(jobs=jobs)), 200
     except Exception as e:
         print(f'データ鮮度の集計に失敗: {e}')
@@ -6141,13 +6155,10 @@ def api_data_freshness():
 def api_scheduler_status():
     """スケジューラの状態と次回実行時刻を取得"""
     try:
+        triggers = {j.id: str(j.trigger) for j in scheduler.get_jobs()}
         jobs = []
-        for job in scheduler.get_jobs():
-            jobs.append({
-                'id': job.id,
-                'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
-                'trigger': str(job.trigger),
-            })
+        for job in (scheduler_jobs() or []):
+            jobs.append({**job, 'trigger': triggers.get(job['id'])})
         return jsonify({
             "running": scheduler.running,
             "jobs": jobs,
