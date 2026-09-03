@@ -11,6 +11,7 @@
 
 import os
 import sys
+import io
 import unittest
 from datetime import date, datetime, timedelta, timezone
 
@@ -104,16 +105,28 @@ class TestDescribe(unittest.TestCase):
 
 
 class TestProbePeriod(unittest.TestCase):
-    """売買が少ないだけの銘柄を廃止扱いにしないこと。
+    """生死の確認は直近5営業日で見る（2026-09-03 に 1y から変更）。
 
-    TOKYO PRO Market は売買が年に数回しかなく、直近5日に足が無いのが普通。
-    5日で判定したとき、動力・横浜ライト工業・サトウ産業など約40社が一斉に
-    「2026-07-17 上場廃止」と出た（そんな日は無い）。
+    1年で見ると、廃止から1年は古い足が残っていて「値が返る」になり、
+    廃止したばかりの銘柄に永遠に印が付かない（実測で8社が該当）。
+
+    5日にできるのは、**先にJPXの一覧で PRO Market を落としているから**。
+    PRO Market は売買が年に数回しかなく、直近5日に足が無いのが普通で、
+    かつて5日で判定したときは動力・横浜ライト工業など約40社が一斉に
+    「2026-07-17 上場廃止」と出た（そんな日は無い）。順番が条件になっている。
     """
 
-    def test_probe_looks_at_a_year(self):
+    def test_probe_looks_at_recent_days(self):
         import detect_delisted
-        self.assertEqual(detect_delisted.PROBE_PERIOD, '1y')
+        self.assertEqual(detect_delisted.PROBE_PERIOD, '5d')
+
+    def test_JPXの一覧が先に効いている(self):
+        """5日判定を安全にしている前提。ここが消えたら5日に戻せない。"""
+        import detect_delisted
+        src = io.open(detect_delisted.__file__, encoding='utf-8').read()
+        block = src.split('def plan_changes(', 1)[1].split('\ndef ', 1)[0]
+        self.assertIn('listed_codes()', block)
+        self.assertIn('not in listed', block)
 
 
 class TestRealCases(unittest.TestCase):

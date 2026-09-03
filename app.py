@@ -5344,10 +5344,16 @@ def scheduled_detect_delisted():
     印が無いと、株価が最終売買日で凍結されたままスクリーナーにも検索にも出続け、
     上場廃止だとどこにも書かれない。
 
-    毎日ではなく週1回にしてある。候補を出すのに全銘柄の日足を読む必要があり
-    （daily_updated_at は当てにならない。廃止銘柄でも新しい日付が入っている）、
-    web プロセスで毎日やるには重い。上場廃止は事前に開示されるうえ、
-    数日遅れて印が付いても実害は小さい。
+    判定は `detect_delisted.plan_changes` に一本化してある。
+    ⚠️ **ここに独自の条件を書かないこと。** 以前はこちらだけ JPX の一覧を
+       見ておらず、手動スクリプトと違う判定をしていた。1年ぶんの足で生死を
+       見ていたため、廃止直後の8社に永遠に印が付かなかった（2026-09-03に判明）。
+
+    印を外す側もここでやる。誤って付いた印は、外す仕組みが無いと残り続ける
+    （実測で PRO Market の40社が「2026-07-17 上場廃止」のまま7週間残っていた）。
+
+    毎日ではなく週1回。上場廃止は事前に開示されるうえ、数日遅れて印が付いても
+    実害は小さい。
     """
     from datetime import datetime
 
@@ -5357,34 +5363,50 @@ def scheduled_detect_delisted():
         import supabase_client as sc
         if not sc.has_column('screened_latest', 'delisted_at'):
             print("[Scheduler] 上場廃止の検出: delisted_at 列が未適用のためスキップ")
+            record_job_run('detect_delisted', ok=False, detail='delisted_at 列が未適用')
             return
 
         client = sc.get_supabase_client()
-        candidates, all_rows = detect_delisted.find_candidates(client)
-        marked = {r['company_code'] for r in all_rows if r.get('delisted_at')}
-        todo = [c for c in candidates if c[0] not in marked]
-        print(f"[Scheduler] 上場廃止の検出: 候補{len(candidates)}件 / 未判定{len(todo)}件")
+        try:
+            to_mark, to_clear, held = detect_delisted.plan_changes(
+                client, verbose=False)
+        except detect_delisted.ListingUnavailable as e:
+            # ⚠️ ここを「条件を使わずに続行」にしてはいけない。JPXの一覧が
+            #    無いまま判定すると、正しく付いた印を全部外す。
+            print(f"[Scheduler] 上場廃止の検出: 中止（{e}）")
+            record_job_run('detect_delisted', ok=False,
+                           detail='JPXの上場銘柄一覧を取得できず中止')
+            return
 
-        import time as _time
-        marked_now = 0
-        for code, _name, last, _ in todo:
-            if detect_delisted.probe_is_alive(code):
-                continue
-            stamp = detect_delisted.delisting.delisted_timestamp(
-                [{'time': int(datetime(last.year, last.month, last.day, 15, 0,
-                                       tzinfo=detect_delisted.delisting.JST
-                                       ).timestamp())}]) if last else None
+        marked_now = cleared = failed = 0
+        for code, _name, stamp in to_mark:
             try:
-                (client.table('screened_latest')
-                 .update({'delisted_at': stamp or datetime.now().isoformat()})
+                (client.table('screened_latest').update({'delisted_at': stamp})
                  .eq('company_code', code).execute())
                 marked_now += 1
             except Exception as e:
+                failed += 1
                 print(f"[Scheduler] 上場廃止の印付け {code} 失敗: {e}")
-            _time.sleep(detect_delisted.PROBE_SLEEP)
-        print(f"[Scheduler] 上場廃止の検出終了: {marked_now}件に印を付けました")
+        for code in to_clear:
+            try:
+                (client.table('screened_latest').update({'delisted_at': None})
+                 .eq('company_code', code).execute())
+                cleared += 1
+            except Exception as e:
+                failed += 1
+                print(f"[Scheduler] 上場廃止の印外し {code} 失敗: {e}")
+
+        detail = (f'印を付けた{marked_now}件・外した{cleared}件・'
+                  f'保留{len(held)}件・失敗{failed}件')
+        if held:
+            # JPXに無いのに値が付く。コード変更や廃止直前の可能性があるので、
+            # 自動では触らず、誰が見ても分かるように銘柄コードを残す。
+            detail += '（保留: ' + ','.join(c for c, _ in held[:10]) + '）'
+        print(f"[Scheduler] 上場廃止の検出終了: {detail}")
+        record_job_run('detect_delisted', ok=(failed == 0), detail=detail)
     except Exception as e:
         print(f"[Scheduler] 上場廃止の検出エラー: {e}")
+        record_job_run('detect_delisted', ok=False, detail=str(e)[:300])
 
 
 # 1晩に再分析する決算銘柄の上限と、かける時間の上限。

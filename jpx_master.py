@@ -21,9 +21,45 @@ JPX（日本取引所）が公開している上場銘柄一覧を取得する�
 """
 
 import io
+import re
+from urllib.parse import urljoin
 
+# ⚠️ **JPXはファイル名を変える。** 2026-09、`data_j.xls` が `data_j.xlsx` に
+#    差し替わって固定URLが404になった。上場廃止の判定はこの一覧が前提なので、
+#    取れないと判定そのものが効かなくなる（実際に10日ほど気づけなかった）。
+#    ∴ 固定URLでだめなら、配布ページからリンクを見つけ直す。
 JPX_URL = ('https://www.jpx.co.jp/markets/statistics-equities/misc/'
-           'tvdivq0000001vg2-att/data_j.xls')
+           'tvdivq0000001vg2-att/data_j.xlsx')
+JPX_INDEX_URL = 'https://www.jpx.co.jp/markets/statistics-equities/misc/01.html'
+
+
+def _download(timeout=60):
+    """銘柄一覧ファイルの中身を返す。取れなければ例外。
+
+    ⚠️ ここで None やからの中身を返さないこと。呼び出し側が「一覧に載って
+       いない＝上場廃止」と読むので、取得失敗を空の一覧として渡すと
+       全銘柄を廃止扱いにする。
+    """
+    import requests
+
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        res = requests.get(JPX_URL, timeout=timeout, headers=headers)
+        res.raise_for_status()
+        return res.content
+    except Exception as e:
+        print('JPXの固定URLで取得できませんでした（配布ページから探します）: %s' % e)
+
+    page = requests.get(JPX_INDEX_URL, timeout=timeout, headers=headers)
+    page.raise_for_status()
+    m = re.search(r'href="([^"]*data_j\.xlsx?)"', page.text)
+    if not m:
+        raise RuntimeError('JPXの配布ページに data_j のリンクが見つかりません')
+    url = urljoin(JPX_INDEX_URL, m.group(1))
+    print('JPXの一覧を配布ページのリンクから取得します: %s' % url)
+    res = requests.get(url, timeout=timeout, headers=headers)
+    res.raise_for_status()
+    return res.content
 
 # 内国株式のみ。ETF・REIT・PRO Marketは分析対象外
 DOMESTIC_SEGMENTS = {
@@ -64,13 +100,9 @@ def fetch(timeout=60):
     Returns:
         [{'code','name','industry','industry17','market','size'}, ...]
     """
-    import requests
     import pandas as pd
 
-    res = requests.get(JPX_URL, timeout=timeout,
-                       headers={'User-Agent': 'Mozilla/5.0'})
-    res.raise_for_status()
-    df = pd.read_excel(io.BytesIO(res.content))
+    df = pd.read_excel(io.BytesIO(_download(timeout)))
 
     rows = []
     for _, r in df.iterrows():
@@ -106,13 +138,9 @@ def fetch_all(timeout=60):
         market … 'プライム'/'スタンダード'/'グロース'/'PRO Market'/'ETF・ETN'/
                  'REIT等'/'外国株'/'出資証券'/'その他'
     """
-    import requests
     import pandas as pd
 
-    res = requests.get(JPX_URL, timeout=timeout,
-                       headers={'User-Agent': 'Mozilla/5.0'})
-    res.raise_for_status()
-    df = pd.read_excel(io.BytesIO(res.content))
+    df = pd.read_excel(io.BytesIO(_download(timeout)))
 
     rows = []
     for _, r in df.iterrows():

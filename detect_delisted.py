@@ -4,36 +4,47 @@
 アプリは生きた銘柄として表示し続けていた。株価は最終売買日で凍結されたまま、
 検索にもスクリーナーにも出て、上場廃止だとはどこにも書かれていなかった。
 
-3段構えで判定する:
-    1. **日足が30日以上止まっている**銘柄を候補にする（取引が無い＝足も付かない）
-    2. **JPXの公式な上場銘柄一覧に載っていない**ことを確かめる
-    3. yfinance に問い合わせて値が返らないことも見る（補助）
+## いまの判定（2026-09-03 に作り直した）
 
-1だけでは足りない。取得に失敗し続けているだけかもしれず、上場中の会社を
-アプリから消すことになる。逆に3だけだと全銘柄を個別に叩くことになり、
-レート制限に当たる（1で数十件まで絞れる）。
+    候補      = JPXの一覧に無い内国株  または  日足が30日以上止まっている
+    印を付ける = 候補 かつ JPXの一覧に無い かつ 直近5営業日に値が付かない
+    印を外す   = 印つき かつ JPXの一覧に載っている
 
-⚠️ **2 を足したのは 2026-08-26。** 1だけで絞ると PRO Market を巻き込む。
+決め手は**JPXの公式な上場銘柄一覧**。載っていなければ上場していない。
+日足やYahooは補助で、単独では判定に使わない。
+
+⚠️ **JPXの一覧が取れないときは何もしない（fail-closed）。**
+   以前は「この条件を使わない」に倒していたが、それをやると
+   PRO Market を廃止扱いにするうえ、**正しく付いた印を全部外す**。
+   2026-09-03 の実測では、JPXが .xls → .xlsx に変わって一覧が404になり、
+   40件の印を外す判定になっていた（実際にはどれも廃止のまま）。
+
+## 過去に踏んだ間違い
+
+⚠️ **日足だけで絞ると PRO Market を巻き込む。**
    TOKYO PRO Market はプロ投資家向けで**売買が成立しない日が続くのが正常**。
-   実測すると「足が30日以上止まっている」52件は**全件が PRO Market**で、
-   上場廃止は1件も無かった。JPXの一覧と突き合わせるとこの52件が消え、
-   残る37件がすべて本当の上場廃止だった。
+   実測で「足が30日以上止まっている」52件は全件が PRO Market だった。
+   2026-07-17 には約40社を一斉に「上場廃止」と誤判定している（そんな日は無い）。
 
-⚠️ **3 は単独では信用できない。** `probe_is_alive` は1年ぶんの足を見るので、
-   **廃止から1年経つまで「値が返る＝上場中」を返し続ける**。
-   実際 2026年6月に廃止された18件を「上場中」と誤判定していた。
+⚠️ **1年ぶんの足で生死を見ると、廃止から1年は「上場中」を返し続ける。**
+   2026年6月に廃止された18件を「上場中」と誤判定していた。
+   ∴ 生死の確認は**直近5営業日**で見る。PRO Market を巻き込む心配は、
+   先にJPXの一覧で落としているので無い（この順番が要る）。
+
+⚠️ **日足の最終足は「出来高がある足」で見る。**
+   出来高0の足が埋まっている銘柄があり、最終足だけ見ると新しく見える。
+   実測で PALTAC(8283) は 2026-08-07 が最後の売買なのに、足の日付は 08-10 だった。
+
+⚠️ **JPXに無い＝廃止、とは限らない。** 実測で3件（nmsホールディングス・
+   ディーブイエックス・神鋼鋼線工業）はJPXの一覧に無いのに Yahoo は値を返した。
+   ∴ 値が付かないことも併せて確かめ、食い違うものは**保留して人が見る**。
 
 ⚠️ JPX一覧は `jpx_master.fetch_all()` から取る。**`static/companies.json` は使わない。**
    あれはこちらが取ってきた時点のスナップショットで更新が遅れ、ETFを
    意図的に外しているので「載っていない＝廃止」にならない。
-   使うのはJPXが公開している生の一覧（PRO Market・ETF・REITも含む）。
-
-⚠️ **daily_updated_at は候補の絞り込みに使えない。** 実測すると上場廃止銘柄でも
-8月の日付が入っていた（保存が走った記録であって、足が付いた記録ではない）。
-日足の中身を読んで最終足の日付を見ること。
 
 戻すとき:
-    値が返るようになった銘柄は印を外す。判定を間違えたまま直せないと、
+    JPXの一覧に戻った銘柄は印を外す。判定を間違えたまま直せないと、
     その銘柄はアプリから消えたままになる。
 
 前提: supabase/migration_delisted.sql を適用済みであること。
@@ -46,7 +57,6 @@
 import argparse
 import json
 import os
-import time
 from datetime import datetime, timezone
 
 os.environ.setdefault('ENABLE_SCHEDULER', 'false')
@@ -59,7 +69,24 @@ import delisting
 import supabase_client as sc
 
 PAGE_SIZE = 100
-PROBE_SLEEP = 1.5
+
+# 内国普通株の市場区分。ここに入らないもの（PRO Market・ETF・REIT・外国株）は
+# そもそも分析対象ではないので、印の対象にもしない。
+DOMESTIC = ('プライム', 'スタンダード', 'グロース')
+
+# 生死を確かめる期間。
+#
+# ⚠️ **1年で見てはいけない。** 廃止から1年は古い足が残っていて「値が返る」に
+#    なり、廃止したばかりの銘柄に永遠に印が付かない（実測で8件が該当）。
+#    5営業日で見ると、廃止済みは Yahoo が何も返さない。
+#
+# ⚠️ 5日判定が使えるのは**JPXの一覧で先に PRO Market を落としているから**。
+#    順番を入れ替えると、売買が年に数回の PRO Market を全部廃止扱いにする。
+PROBE_PERIOD = '5d'
+
+
+class ListingUnavailable(RuntimeError):
+    """JPXの上場銘柄一覧が取れなかった。判定を中止する合図。"""
 
 
 def _bars(raw):
@@ -71,96 +98,171 @@ def _bars(raw):
     return raw if isinstance(raw, list) else []
 
 
-def find_candidates(client, today=None):
-    """日足が止まっている銘柄を返す。[(code, name, 最終足の日付)]"""
-    last_bar = {}
-    offset = 0
-    while True:
-        page = (client.table('stock_price_history')
-                .select('company_code, daily_1y')
-                .range(offset, offset + PAGE_SIZE - 1)
-                .execute().data or [])
-        for row in page:
-            bars = _bars(row.get('daily_1y'))
-            if delisting.is_chart_stale(bars, today=today):
-                last_bar[row['company_code']] = delisting.last_bar_date(bars)
-        if len(page) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
-
-    # 日足の行そのものが無い銘柄も候補（1本も足が無いのと同じ）
-    rows, offset = [], 0
-    while True:
-        page = (client.table('screened_latest')
-                .select('company_code, company_name, delisted_at')
-                .range(offset, offset + 999).execute().data or [])
-        rows.extend(page)
-        if len(page) < 1000:
-            break
-        offset += 1000
-    have_history = _codes_with_history(client)
-
-    out = []
-    for row in rows:
-        code = row['company_code']
-        if code in last_bar or code not in have_history:
-            out.append((code, row.get('company_name'), last_bar.get(code),
-                        row.get('delisted_at')))
-    return out, rows
-
-
-def _codes_with_history(client):
-    codes, offset = set(), 0
-    while True:
-        page = (client.table('stock_price_history')
-                .select('company_code')
-                .range(offset, offset + 999).execute().data or [])
-        codes.update(r['company_code'] for r in page)
-        if len(page) < 1000:
-            break
-        offset += 1000
-    return codes
-
-
-# 上場しているかを確かめるときに見る期間。
-#
-# ⚠️ **5日で見てはいけない。** TOKYO PRO Market の銘柄は売買が年に数回しかなく、
-# 直近5日に足が無いのが普通。実測で1年に1本しか付いていない銘柄が多数あり、
-# 5日判定だと動力・横浜ライト工業・サトウ産業など約40社を一斉に
-# 「2026-07-17 上場廃止」と誤判定した（そんな日は無い）。
-#
-# 1年で見ると差がはっきり出る:
-#   本当に廃止   6670 MCJ / 6201 豊田自動織機 / 4384 ラクスル → 1年でも 0本
-#   売買が少ない 1432 動力 / 1452 横浜ライト工業 / 5135 AIR-U → 1年で 1本
-PROBE_PERIOD = '1y'
+def traded_bars(bars):
+    """出来高がある足だけ返す。出来高0は「取引が無かった日」の埋め草。"""
+    return [b for b in bars or [] if (b.get('volume') or 0) > 0]
 
 
 def listed_codes():
     """JPXが公開している上場銘柄コードの集合。取れなければ None。
 
-    None のときは**この条件を使わない**（全部を廃止扱いにしない）。
-    取得に失敗しただけで銘柄を消すことになるため。
+    None は「判定できない」であって「一覧が空」ではない。
+    ⚠️ **None のときは印を付けも外しもしないこと（fail-closed）。**
+       空の集合として扱うと全銘柄が「一覧に無い」になり、全部を廃止にする。
     """
     try:
         import jpx_master
         return {r['code'] for r in jpx_master.fetch_all()}
     except Exception as e:
-        print(f'JPXの一覧を取得できませんでした（この条件は使いません）: {e}')
+        print(f'JPXの一覧を取得できませんでした: {e}')
         return None
 
 
-def probe_is_alive(code):
-    """いま Yahoo にこの銘柄が存在するか。1本でも足があれば上場中。
+def _all_rows(client):
+    rows, offset = [], 0
+    while True:
+        page = (client.table('screened_latest')
+                .select('company_code, company_name, delisted_at, market_segment')
+                .range(offset, offset + 999).execute().data or [])
+        rows.extend(page)
+        if len(page) < 1000:
+            break
+        offset += 1000
+    return rows
 
-    例外は「取れなかった」側に倒す。ここで True に倒すと永遠に印が付かない。
-    取得に失敗しただけの銘柄は、翌週の検出でまた確かめられる。
+
+def _last_traded(client):
+    """銘柄ごとの「最後に売買があった日」。日足が無い銘柄は None を入れる。"""
+    out, offset = {}, 0
+    while True:
+        page = (client.table('stock_price_history')
+                .select('company_code, daily_1y')
+                .range(offset, offset + PAGE_SIZE - 1).execute().data or [])
+        for row in page:
+            out[row['company_code']] = delisting.last_bar_date(
+                traded_bars(_bars(row.get('daily_1y'))))
+        if len(page) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+    return out
+
+
+def find_candidates(client, today=None, listed=None):
+    """印を付ける候補を返す。[(code, name, 最終売買日, delisted_at)]
+
+    候補にする条件は2つのどちらか:
+      - JPXの一覧に無い内国株（決め手。廃止直後でもその日から拾える）
+      - 日足が30日以上止まっている（JPXの反映が遅れた場合の保険）
     """
+    today = today or datetime.now(delisting.JST).date()
+    rows = _all_rows(client)
+    last_traded = _last_traded(client)
+
+    out = []
+    for row in rows:
+        code = row['company_code']
+        if (row.get('market_segment') or '') not in DOMESTIC:
+            continue
+        last = last_traded.get(code)
+        stale = last is None or (today - last).days > delisting.STALE_CHART_DAYS
+        missing = listed is not None and code not in listed
+        if stale or missing:
+            out.append((code, row.get('company_name'), last, row.get('delisted_at')))
+    return out, rows
+
+
+def probe_has_recent_trading(codes):
+    """直近5営業日に値が付いた銘柄の集合を返す。
+
+    ⚠️ 一括の yf.download を使う（200銘柄で1リクエスト）。銘柄ごとに
+       Ticker().history() を叩くとレート制限に当たる。
+    ⚠️ 例外は「値が付かなかった」側に倒さない。取得に失敗しただけの銘柄を
+       廃止にしないため、失敗時は**全部を「値が付いた」扱い**にして、
+       その回は印を付けない（fail-closed）。
+    """
+    codes = list(codes)
+    if not codes:
+        return set()
     import yfinance as yf
     try:
-        hist = yf.Ticker(f'{code}.T').history(period=PROBE_PERIOD)
-        return len(hist) > 0
-    except Exception:
-        return False
+        data = yf.download([c + '.T' for c in codes], period=PROBE_PERIOD,
+                           interval='1d', auto_adjust=False, progress=False,
+                           group_by='ticker')
+    except Exception as e:
+        print(f'値の確認に失敗しました（今回は印を付けません）: {e}')
+        return set(codes)
+
+    alive = set()
+    for code in codes:
+        try:
+            if len(data[code + '.T']['Close'].dropna()) > 0:
+                alive.add(code)
+        except Exception:
+            pass
+    return alive
+
+
+def plan_changes(client, today=None, verbose=True, probe=None):
+    """印を付ける／外す銘柄を決める。書き込みはしない。
+
+    Returns: (to_mark, to_clear, held)
+        to_mark … [(code, name, stamp)]  廃止と判定
+        to_clear… [code]                 印が誤りだったもの
+        held    … [(code, name)]         JPXに無いが値は付く＝保留（人が見る）
+
+    Raises:
+        ListingUnavailable: JPXの一覧が取れないとき。判定そのものを中止する。
+
+    ⚠️ スケジューラと手動スクリプトの両方がこれを呼ぶ。片方だけに条件を
+       足すと、同じ名前の処理が別の判定をするようになる。
+    """
+    listed = listed_codes()
+    if not listed:
+        raise ListingUnavailable(
+            'JPXの上場銘柄一覧を取得できませんでした。一覧なしで判定すると '
+            'PRO Market を廃止扱いにしたり、正しく付いた印を外したりするので、'
+            '今回は何もしません。')
+
+    candidates, rows = find_candidates(client, today=today, listed=listed)
+    marked = {r['company_code'] for r in rows if r.get('delisted_at')}
+
+    todo = [c for c in candidates if c[0] not in marked and c[0] not in listed]
+    skipped = len([c for c in candidates if c[0] not in marked]) - len(todo)
+    if verbose:
+        print(f'候補 {len(candidates)}件（うち印つき '
+              f'{len([c for c in candidates if c[0] in marked])}件）')
+        if skipped:
+            print(f'JPXの一覧に載っているため候補から外した: {skipped}件'
+                  f'（PRO Market など、売買が無いのが正常な銘柄）')
+
+    prober = probe or probe_has_recent_trading
+    alive = prober([c[0] for c in todo])
+
+    to_mark, held = [], []
+    for code, name, last, _ in todo:
+        if code in alive:
+            # JPXには無いのに値が付く。廃止の直前後や、コード変更の可能性がある。
+            held.append((code, name))
+            if verbose:
+                print(f'  保留 {code} {str(name)[:16]} → JPXに無いが値は付く')
+            continue
+        stamp = (delisting.delisted_timestamp(
+            [{'time': int(datetime(last.year, last.month, last.day, 15, 0,
+                                   tzinfo=delisting.JST).timestamp())}])
+            if last else datetime.now(timezone.utc).isoformat())
+        to_mark.append((code, name, stamp))
+        if verbose:
+            print(f'  印 {code} {str(name)[:16]} → '
+                  f'上場廃止（最終売買 {delisting.describe(stamp) or "不明"}）')
+
+    # 印つきなのにJPXの一覧に載っているものは、印のほうが誤り。
+    # ⚠️ ここで値が付くかは見ない。PRO Market は上場中でも値が付かない日が続く。
+    to_clear = sorted(marked & listed)
+    if verbose:
+        for code in to_clear:
+            print(f'  外す {code} → JPXの一覧に載っている（上場中）')
+
+    return to_mark, to_clear, held
 
 
 def main():
@@ -175,63 +277,17 @@ def main():
         return
 
     client = sc.get_supabase_client()
-    candidates, all_rows = find_candidates(client)
-    marked = {r['company_code'] for r in all_rows if r.get('delisted_at')}
-    print(f'日足が{delisting.STALE_CHART_DAYS}日以上止まっている: {len(candidates)}件'
-          f'（うち印つき {len([c for c in candidates if c[0] in marked])}件）')
-
-    todo = [c for c in candidates if c[0] not in marked]
-
-    # JPXの一覧に「載っている」銘柄は候補から外す。
-    # 足が止まっているだけで、PRO Market なら正常な状態。
-    listed = listed_codes()
-    if listed:
-        before = len(todo)
-        todo = [c for c in todo if c[0] not in listed]
-        if before != len(todo):
-            print(f'JPXの一覧に載っているため候補から外した: {before - len(todo)}件'
-                  f'（PRO Market など、売買が無いのが正常な銘柄）')
+    try:
+        to_mark, to_clear, held = plan_changes(client)
+    except ListingUnavailable as e:
+        print(f'\n中止: {e}')
+        return
 
     if args.limit:
-        todo = todo[:args.limit]
-    if not todo:
-        print('新しく印を付ける候補はありません')
-    else:
-        print(f'\nyfinanceで確認する: {len(todo)}件')
-
-    to_mark, alive = [], []
-    for i, (code, name, last, _) in enumerate(todo, 1):
-        if probe_is_alive(code):
-            alive.append((code, name))
-            print(f'  [{i}/{len(todo)}] {code} {str(name)[:16]} → 値が返る（上場中）')
-        else:
-            stamp = (delisting.delisted_timestamp(
-                [{'time': int(datetime(last.year, last.month, last.day,
-                                       15, 0, tzinfo=delisting.JST).timestamp())}])
-                if last else datetime.now(timezone.utc).isoformat())
-            to_mark.append((code, name, stamp))
-            print(f'  [{i}/{len(todo)}] {code} {str(name)[:16]} → '
-                  f'上場廃止（最終売買 {delisting.describe(stamp) or "不明"}）')
-        time.sleep(PROBE_SLEEP)
-
-    # 生き返った銘柄の印を外す。
-    # ⚠️ probe_is_alive は廃止から1年は「値が返る」を返し続けるので、
-    #    これだけで外すと**正しく付いた印を全部外してしまう**。
-    #    JPXの一覧に戻っていることを必ず併せて確かめる。
-    to_clear = []
-    recheck = ([c for c in sorted(marked) if c in listed] if listed
-               else sorted(marked))
-    if listed and len(recheck) != len(marked):
-        print(f'印つき{len(marked)}件のうち、JPXの一覧に戻っている'
-              f'{len(recheck)}件だけ再確認します')
-    for code in recheck:
-        if probe_is_alive(code):
-            to_clear.append(code)
-            print(f'  {code} → 値が返るようになったので印を外します')
-        time.sleep(PROBE_SLEEP)
+        to_mark = to_mark[:args.limit]
 
     print(f'\n印を付ける: {len(to_mark)}件 / 外す: {len(to_clear)}件 / '
-          f'上場中だった: {len(alive)}件')
+          f'保留: {len(held)}件')
 
     if not args.apply:
         print('\n--apply を付けると書き込みます（いまは何も変えていません）')
