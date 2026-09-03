@@ -5358,6 +5358,41 @@ def scheduled_sync_edinet_reports():
         record_job_run('edinet_reports', ok=False, detail=str(e)[:300])
 
 
+def scheduled_fetch_tdnet_forecasts():
+    """定期実行: TDnetの決算短信から通期予想を取り込む（毎日）。
+
+    業績予想の取得元が Yahoo!JP のHTMLだけだった（充足率83.6%）。短信は
+    会社が自分で出した一次情報で、TDnetがログイン不要・無料で配っている。
+
+    ⚠️ **TDnetは直近31日ぶんしか公開されていない。** 取りこぼした日は
+       取り返せないので、毎日走らせる。過去に遡って一気に埋める道は無い
+       （そこは有料サービスの領域）。落ちた日があれば
+       `backfill_tdnet_forecasts.py --days N` で31日以内なら拾い直せる。
+
+    ⚠️ 決算期の山（5月中旬・8月上旬）は1日1,000本を超える。上限を超えたぶんは
+       翌日に回らない（その日の分しか見ない）ので、山の時期は
+       バックフィルで補うこと。件数は job_runs に残る。
+    """
+    from datetime import datetime
+
+    print(f"[Scheduler] TDnetの業績予想の取り込み開始: {datetime.now()}")
+    if not claim_job('tdnet_forecast'):
+        return
+    try:
+        import tdnet_forecast
+        stats = tdnet_forecast.run(get_supabase_client())
+        detail = ('短信%d本・予想あり%d本・更新%d件・据え置き%d件・'
+                  '未登録%d件・失敗%d件'
+                  % (stats['reports'], stats['with_forecast'], stats['updated'],
+                     stats['skipped'], stats['unknown'], stats['failed']))
+        print(f"[Scheduler] TDnetの業績予想: {detail}")
+        # ⚠️ 短信が1本も無い日は正常（休日明けや閑散期）。失敗だけを落とす。
+        record_job_run('tdnet_forecast', ok=(stats['failed'] == 0), detail=detail)
+    except Exception as e:
+        print(f"[Scheduler] TDnetの業績予想の取り込みエラー: {e}")
+        record_job_run('tdnet_forecast', ok=False, detail=str(e)[:300])
+
+
 def scheduled_detect_delisted():
     """定期実行: 上場廃止になった銘柄に印を付ける（週1回）。
 
@@ -6026,6 +6061,10 @@ scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='ear
 scheduler.add_job(scheduled_process_earnings_queue, 'cron', hour=22, minute=0,
                   id='earnings_process_queue')
 
+# TDnetの決算短信から業績予想を取り込む。短信は15:00〜20:00に出るので、
+# 出そろってから。⚠️ **直近31日しか公開されないので毎日走らせること。**
+scheduler.add_job(scheduled_fetch_tdnet_forecasts, 'cron', hour=20, minute=0,
+                  id='tdnet_forecast')
 # 上場廃止の検出。全銘柄の日足を読むので週1回、他が動いていない時間に
 scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
                   hour=4, minute=30, id='detect_delisted')

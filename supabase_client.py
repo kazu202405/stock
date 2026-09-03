@@ -472,6 +472,35 @@ def calculate_match_rate(data: dict):
     return score_breakdown(data)['score']
 
 
+def keep_disclosed_forecast(data: dict, existing: dict) -> dict:
+    """会社が出した予想（決算短信）を、写しの経路で上書きさせない。
+
+    ⚠️ Yahoo!ファイナンス日本版の予想は短信の写しで、**期が変わった直後は
+       古い期のまま**のことがある（実測: 内田洋行は Yahoo が2026年7月期、
+       短信は2027年7月期を出していた）。そのまま上書きすると、せっかく
+       一次情報で入れた値が古い数字に戻る。
+
+    残すのは「短信由来で、決算期が新しくない上書き」だけ。短信より新しい期の
+    予想が来たなら、それは正しい更新なので通す。
+    """
+    status = _source_status_object(existing.get('source_status'))
+    mark = status.get('forecast') or {}
+    if mark.get('source') != 'tdnet':
+        return data
+
+    old_year = str(existing.get('forecast_year') or '')[:10]
+    new_year = str(data.get('forecast_year') or '')[:10]
+    if new_year and old_year and new_year > old_year:
+        return data                      # より新しい期の予想。通す
+
+    dropped = [k for k in ('forecast_revenue', 'forecast_op_income',
+                           'forecast_ordinary_income', 'forecast_net_income',
+                           'forecast_year') if k in data]
+    if not dropped:
+        return data
+    return {k: v for k, v in data.items() if k not in dropped}
+
+
 def upsert_screened_data_with_match_rate(data: dict) -> dict:
     """screened_latestにデータを登録/更新（合致度を自動計算、is_dividendフラグ保持）"""
     # ETF・REIT等もそのまま保存する。除外は「読み取り時」に行う方針
@@ -488,6 +517,8 @@ def upsert_screened_data_with_match_rate(data: dict) -> dict:
         if ('edinet_db' in str(existing.get('data_source') or '')
                 and data.get('data_source') == 'yfinance'):
             data['data_source'] = existing['data_source']
+        # 短信（会社の一次情報）で入れた予想を、写しの経路で戻さない
+        data = keep_disclosed_forecast(data, existing)
         merged = {**existing, **data}
         data['match_rate'] = calculate_match_rate(merged)
         # 既存のis_dividendフラグを保持
