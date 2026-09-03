@@ -93,6 +93,11 @@ def load_or_build_index(key, months, cache_path, log=_flushing_print):
     return index
 
 
+# 府令コード。010＝企業内容等の開示（会社の有報）。
+# 030＝特定有価証券の内容等の開示（信託受益証券・投資信託など）で、会社の中身は無い。
+COMPANY_ORDINANCE = '010'
+
+
 def build_index(key, months=LOOKBACK_MONTHS, log=_flushing_print):
     """{company_code: 書類情報} を作る。新しい提出ほど優先。
 
@@ -114,6 +119,14 @@ def build_index(key, months=LOOKBACK_MONTHS, log=_flushing_print):
                 continue
             for doc in (body.get('results') or []):
                 if doc.get('docTypeCode') != edinet_report.DOC_TYPE_ANNUAL_REPORT:
+                    continue
+                # ⚠️ **「有価証券報告書」は会社の有報だけではない。**
+                #    府令コード030（特定有価証券の内容等の開示）は、信託受益証券や
+                #    投資信託の有報。会社そのものの中身は入っていない。
+                #    実測: クレディセゾン(8253) は 2026-08-28 提出の
+                #    「有価証券報告書（内国信託受益証券）」で本来の有報が上書きされ、
+                #    本表CSVが見つからず取り込みに失敗していた。
+                if doc.get('ordinanceCode') != COMPANY_ORDINANCE:
                     continue
                 sec = doc.get('secCode')
                 if not sec or len(sec) != 5:

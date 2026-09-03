@@ -82,7 +82,15 @@ DOMESTIC = ('プライム', 'スタンダード', 'グロース')
 #
 # ⚠️ 5日判定が使えるのは**JPXの一覧で先に PRO Market を落としているから**。
 #    順番を入れ替えると、売買が年に数回の PRO Market を全部廃止扱いにする。
-PROBE_PERIOD = '5d'
+PROBE_PERIOD = '1mo'
+
+# 直近の足がこの営業日数より古ければ「もう取引されていない」とみなす。
+#
+# ⚠️ **「期間内に足が1本でもあるか」で見てはいけない。** 廃止直後は期間内に
+#    古い足が残っているので「生きている」と読んでしまう。実測で、2026-08-27〜28に
+#    取引が終わった3社（nmsHD・ディーブイエックス・神鋼鋼線工業）が5日判定を
+#    すり抜けた。**最後の足がいつかを見る。**
+PROBE_STALE_DAYS = 3
 
 
 class ListingUnavailable(RuntimeError):
@@ -171,8 +179,8 @@ def find_candidates(client, today=None, listed=None):
     return out, rows
 
 
-def probe_has_recent_trading(codes):
-    """直近5営業日に値が付いた銘柄の集合を返す。
+def probe_has_recent_trading(codes, today=None):
+    """直近に値が付いている銘柄の集合を返す（最後の足の日付で見る）。
 
     ⚠️ 一括の yf.download を使う（200銘柄で1リクエスト）。銘柄ごとに
        Ticker().history() を叩くとレート制限に当たる。
@@ -192,10 +200,15 @@ def probe_has_recent_trading(codes):
         print(f'値の確認に失敗しました（今回は印を付けません）: {e}')
         return set(codes)
 
+    today = today or datetime.now(delisting.JST).date()
     alive = set()
     for code in codes:
         try:
-            if len(data[code + '.T']['Close'].dropna()) > 0:
+            closes = data[code + '.T']['Close'].dropna()
+            if not len(closes):
+                continue
+            last = closes.index[-1].date()
+            if delisting.business_days_between(last, today) <= PROBE_STALE_DAYS:
                 alive.add(code)
         except Exception:
             pass

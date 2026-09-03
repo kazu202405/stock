@@ -91,34 +91,58 @@ class TestDescribe(unittest.TestCase):
         self.assertIsNone(delisting.describe(None))
         self.assertIsNone(delisting.describe(''))
 
-    def test_a_recent_date_is_not_a_last_trading_day(self):
+    def test_分からない印は出さない(self):
         """日足が1本も無い銘柄は、印を付けた時刻がそのまま入る。
         それを最終売買日として出すと「今日まで売買されていた会社が上場廃止」
-        という嘘になる（7420 佐鳥電機・2692 伊藤忠食品で実際に出た）。"""
+        という嘘になる（7420 佐鳥電機・2692 伊藤忠食品で実際に出た）。
+
+        見分けるのは時刻。本物は 15:00 JST（取引終了時刻）で作る。"""
         self.assertIsNone(
             delisting.describe('2026-08-24T09:00:00+09:00', today=self.TODAY))
         self.assertIsNone(
             delisting.describe('2026-08-10T09:00:00+09:00', today=self.TODAY))
+
+    def test_新しくても本物なら出す(self):
+        """⚠️ 以前は「30日以内の日付なら分からない印」と推測していた。
+        JPXの一覧に無ければ廃止の当日から印を付けられるようになったので、
+        その推測は本物の日付まで隠すようになった（実測で3社が「不明」と出た）。"""
+        self.assertEqual(
+            '2026-08-28',
+            delisting.describe('2026-08-28T15:00:00+09:00', today=self.TODAY))
+
+    def test_DBから素の文字列で戻っても読める(self):
+        """保存はUTC。15:00 JST は 06:00 UTC。"""
+        self.assertEqual(
+            '2026-08-28',
+            delisting.describe('2026-08-28T06:00:00', today=self.TODAY))
 
     def test_garbage_is_not_shown(self):
         self.assertIsNone(delisting.describe('not-a-date'))
 
 
 class TestProbePeriod(unittest.TestCase):
-    """生死の確認は直近5営業日で見る（2026-09-03 に 1y から変更）。
+    """生死は「最後の足がいつか」で見る（2026-09-03 に 1y から作り直した）。
 
-    1年で見ると、廃止から1年は古い足が残っていて「値が返る」になり、
-    廃止したばかりの銘柄に永遠に印が付かない（実測で8社が該当）。
+    1年ぶんの足があるかで見ると、廃止から1年は古い足が残っていて
+    「値が返る」になり、廃止したばかりの銘柄に永遠に印が付かない（実測で8社）。
 
-    5日にできるのは、**先にJPXの一覧で PRO Market を落としているから**。
-    PRO Market は売買が年に数回しかなく、直近5日に足が無いのが普通で、
+    短い期間に変えられたのは、**先にJPXの一覧で PRO Market を落としているから**。
+    PRO Market は売買が年に数回しかなく、直近数日に足が無いのが普通で、
     かつて5日で判定したときは動力・横浜ライト工業など約40社が一斉に
     「2026-07-17 上場廃止」と出た（そんな日は無い）。順番が条件になっている。
     """
 
-    def test_probe_looks_at_recent_days(self):
+    def test_最後の足の日付で見る(self):
+        """⚠️ 「期間内に足が1本でもあるか」では、廃止直後に古い足が残っていて
+        「生きている」と読んでしまう。実測で 2026-08-27〜28 に取引が終わった
+        3社（nmsHD・ディーブイエックス・神鋼鋼線工業）がすり抜けた。"""
         import detect_delisted
-        self.assertEqual(detect_delisted.PROBE_PERIOD, '5d')
+        self.assertEqual(detect_delisted.PROBE_PERIOD, '1mo')
+        self.assertTrue(detect_delisted.PROBE_STALE_DAYS >= 1)
+        src = io.open(detect_delisted.__file__, encoding='utf-8').read()
+        block = src.split('def probe_has_recent_trading(', 1)[1].split('\ndef ', 1)[0]
+        self.assertIn('closes.index[-1]', block)
+        self.assertIn('business_days_between', block)
 
     def test_JPXの一覧が先に効いている(self):
         """5日判定を安全にしている前提。ここが消えたら5日に戻せない。"""

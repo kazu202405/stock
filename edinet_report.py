@@ -80,6 +80,15 @@ def _is_current(item_name):
     return PROPOSAL_MARK not in (item_name or '')
 
 
+def _has_current_officers(rows):
+    """現任（議案でない）の氏名の行があるか。"""
+    for r in rows:
+        name = r.get('項目名') or ''
+        if name.startswith('氏名、役員の状況') and _is_current(name):
+            return True
+    return False
+
+
 def extract_officers(rows):
     """役員を [{name_jp, title_jp, yearBorn, age}] で返す。
 
@@ -88,6 +97,13 @@ def extract_officers(rows):
     """
     from datetime import date
 
+    # ⚠️ **現任の行が1つも無く、（議案）の行しか無い会社がある。**
+    #    トヨタは現任と議案の両方を持つが、福山通運・カバーなどは議案だけ。
+    #    議案を一律に落とすと、そういう会社は**役員0人**になる（実測で6社）。
+    #    ∴ 現任があればそれだけを使い、無いときに限って議案を使う。
+    #    混ぜないこと。混ぜると、まだ就任していない人が現任として並ぶ。
+    use_proposal = not _has_current_officers(rows)
+
     by_ctx = {}
     order = []
     for r in rows:
@@ -95,7 +111,7 @@ def extract_officers(rows):
         if not name.startswith(('氏名、役員の状況', '役職名、役員の状況',
                                 '生年月日、役員の状況')):
             continue
-        if not _is_current(name):
+        if not use_proposal and not _is_current(name):
             continue                      # ⚠️ 議案は現任ではない
         ctx = r.get('コンテキストID') or ''
         if ctx not in by_ctx:
