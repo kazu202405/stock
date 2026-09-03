@@ -132,6 +132,30 @@ def last_run(client, job_id):
     return rows[0] if rows else None
 
 
+# 何営業日ぶん更新が無ければ「古い」と数えるか。
+#
+# ⚠️ **この定数から計算も文言も作ること。** 別々に書くとズレる。実際、注記は
+#    「4営業日を超えるもの」なのに計算は「4営業日以上」で、16件と37件という
+#    2つの数が並存していた。しきい値が36.7件だったため、この差だけで
+#    赤と黄が入れ替わっていた（2026-09-03）。
+#
+# ⚠️ **ここに入る＝取得できていない、ではない。** price_updated_at は
+#    株価が**変わったとき**しか動かないので、値が動いていない小型株も入る。
+#    2026-09-03 に37件をYahooと突き合わせたところ、値が取れる15件は
+#    **全件がぴったり一致**していた（表示は正しい）。
+#    ∴ 少し出るのは正常。取得が本当に止まったかは、detail に出している
+#    「取得◯◯/◯◯件」と直近の実行の成否で見る。
+PRICE_STALE_DAYS = 4
+
+def count_behind(ages, days=None):
+    """更新が止まっている銘柄の数。境界は「以上」（days日ちょうども入る）。
+
+    ⚠️ 画面の文言はこの関数と同じ言い方にすること。別々に書くとズレる。
+    """
+    days = PRICE_STALE_DAYS if days is None else days
+    return sum(1 for a in ages if a is not None and a >= days)
+
+
 # 開始の印が残ったまま、これだけ経っても終わりの印が来なければ「死んだ」とみなす。
 # 株価バッチは実測で十数分。倍の余裕を見てある。
 JOB_HUNG_MINUTES = 45
@@ -424,7 +448,7 @@ def summary(jobs=None):
     # ⚠️ 状態は「いちばん古い1件」ではなく「古い銘柄が何件あるか」で決める。
     #    上場廃止の手前で取引が止まった銘柄が1つあるだけで常に警告になり、
     #    パネルが信用されなくなるため。
-    behind = sum(1 for a in ages if a is not None and a > 3)
+    behind = count_behind(ages)
     price_state, price_at, price_note = job_state(client, 'price_update', now)
     price_run_text = ('' if price_state == 'none'
                       else '　%s直近の実行 %s %s' % (
@@ -458,8 +482,9 @@ def summary(jobs=None):
                    else 'bad' if behind > total * 0.01
                    else 'warn' if behind > total * 0.002 else 'ok'),
         'note': '一括取得は回によって数銘柄取りこぼすが、次の実行で拾い直す。'
-                '4営業日を超えるものが増えたら止まっている疑い'
-                '（いまは%d件）。' % behind,
+                '%d営業日以上のものが増えたら止まっている疑い（いまは%d件）。'
+                '値が動いていない小型株もここに入るので、少し出るのは正常。'
+                % (PRICE_STALE_DAYS, behind),
     })
 
     # ── 会社概要・株主・設立日（毎日 2:00）──────────────────────────

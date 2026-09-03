@@ -118,6 +118,31 @@ class DesignTest(unittest.TestCase):
         self.assertIn("'age': business_days_since(newest, now)", block)
         self.assertNotIn("'age': oldest", block)
 
+    def test_古い件数の文言と計算が同じ定数から来ている(self):
+        """⚠️ 注記は「4営業日を超えるもの」、計算は「4営業日以上」だった。
+        16件と37件という2つの数が並存し、しきい値が36.7件だったため、
+        この差だけで赤と黄が入れ替わっていた（2026-09-03）。
+
+        数字を文言に直接書かせないことで、ズレようが無いようにする。
+        """
+        block = body_of(read('data_freshness.py'), 'def summary(')
+        self.assertIn('count_behind(ages)', block)
+        self.assertIn('PRICE_STALE_DAYS, behind', block)
+        self.assertNotIn('4営業日', block)
+
+    def test_境界はちょうどの日数も含む(self):
+        """「%d営業日以上」と書いてあるので、ちょうどの日も入る。"""
+        self.assertEqual(1, df.count_behind([df.PRICE_STALE_DAYS]))
+        self.assertEqual(0, df.count_behind([df.PRICE_STALE_DAYS - 1]))
+        self.assertEqual(0, df.count_behind([None]))
+
+    def test_値が動いていないだけの銘柄も入ることを書いてある(self):
+        """⚠️ price_updated_at は株価が変わったときしか動かない。
+        ここに入る＝取得できていない、ではない。実測で、値が取れる15件は
+        全件がYahooとぴったり一致していた（表示は正しい）。"""
+        src = read('data_freshness.py')
+        self.assertIn('変わったとき', src)
+
     def test_株価は件数で判定する(self):
         """いちばん古い1件で判定すると、廃止手前の銘柄が1つあるだけで
         常に警告になる。"""
