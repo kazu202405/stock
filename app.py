@@ -5593,8 +5593,10 @@ def scheduled_check_earnings_freshness():
         rows, offset = [], 0
         while True:
             page = (client.table('screened_latest')
+                    # ⚠️ financial_history が要る。分析日ではなく
+                    #    「直近の決算が入っているか」で判定するため。
                     .select('company_code, company_name, fiscal_month, '
-                            'analyzed_at, delisted_at')
+                            'analyzed_at, delisted_at, financial_history')
                     .order('company_code')
                     .range(offset, offset + 499).execute().data)
             if not page:

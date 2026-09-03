@@ -59,8 +59,41 @@ def last_fiscal_end(fiscal_month, today):
     return end
 
 
+def newest_period(row):
+    """財務履歴に入っている、いちばん新しい決算期（YYYY-MM-DD）。無ければ None。
+
+    ⚠️ 配当(dps)は権利確定日ベースで決算期末とズレるので見ない。
+       損益の系列だけを見る。
+    """
+    import json
+
+    history = row.get('financial_history')
+    if isinstance(history, str):
+        try:
+            history = json.loads(history)
+        except (TypeError, ValueError):
+            history = {}
+    newest = None
+    for key in ('revenue', 'op_income', 'ordinary_income', 'net_income'):
+        for item in ((history or {}).get(key) or []):
+            if not isinstance(item, dict) or item.get('value') is None:
+                continue
+            day = str(item.get('date') or '')[:10]
+            if len(day) == 10 and (newest is None or day > newest):
+                newest = day
+    return newest
+
+
 def is_stale(row, today):
-    """直近の決算が反映されていない疑いがあるか。"""
+    """直近の決算が反映されていない疑いがあるか。
+
+    ⚠️ **「いつ分析したか」で判断しない。** 決算の発表は期末の1〜2か月後なので、
+       期末と発表の間に分析が走ると `analyzed_at > 期末` になり、その年度は
+       二度と拾われない。実測（2026-09-03）で199銘柄がこの状態で、網が
+       拾えていたのは0件だった。**見たいのは「直近の決算が入っているか」。**
+
+    財務履歴が渡されていないときだけ、従来どおり分析日で見る（保険）。
+    """
     if row.get('delisted_at'):
         return False
     fiscal_end = last_fiscal_end(row.get('fiscal_month'), today)
@@ -68,6 +101,13 @@ def is_stale(row, today):
         return False
     if (today - fiscal_end).days < DISCLOSURE_GRACE_DAYS:
         return False        # まだ発表の期限が来ていない
+
+    if 'financial_history' in row:
+        newest = newest_period(row)
+        if newest is None:
+            return False    # 履歴が1本も無い銘柄はバックフィルの領分
+        return newest < fiscal_end.isoformat()
+
     analyzed = _as_date(row.get('analyzed_at'))
     if analyzed is None:
         return False        # 一度も分析していない銘柄は別の話（バックフィルの領分）

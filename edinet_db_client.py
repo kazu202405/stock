@@ -416,6 +416,19 @@ def _apply_financials(result: Dict[str, Any], payload: Any) -> List[str]:
     return filled
 
 
+def _strip_footnote(value: str) -> str:
+    """名前の脚注記号を落とす。整形は edinet_report と同じものを使う。
+
+    ⚠️ ここで独自に実装しない。経路ごとに名前が違うと、同じ人が
+       別人に見える。読み込めないときは元の値をそのまま返す。
+    """
+    try:
+        from edinet_report import strip_footnote
+        return strip_footnote(value)
+    except Exception:
+        return value
+
+
 def _apply_shareholders(result: Dict[str, Any], payload: Any) -> List[str]:
     if not _empty(result.get("major_shareholders_jp")):
         return []
@@ -432,7 +445,9 @@ def _apply_shareholders(result: Dict[str, Any], payload: Any) -> List[str]:
         if not name:
             continue
         holders.append({
-            "name": str(name),
+            # 有報の脚注記号（「(注)2」「※1」）を落とす。脚注の本文は
+            # 持っていないので、記号だけ残しても読む人には意味が無い。
+            "name": _strip_footnote(str(name)),
             "shares": _number(_first(row, "shares_held", "sharesHeld", "shares")),
             "ratio": _number(_first(row, "ratio_pct", "ratio", "ownership_ratio")),
             "as_of": _first(row, "as_of", "period_end", "fiscal_year", "fiscalYear"),
@@ -461,7 +476,7 @@ def _apply_directors(result: Dict[str, Any], payload: Any) -> List[str]:
             continue
         title = _first(row, "officialTitle", "official_title", "title")
         officers.append({
-            "name": str(name),
+            "name": _strip_footnote(str(name)),
             "name_jp": str(name),
             "title": str(title or "役員"),
             "title_jp": str(title or "役員"),

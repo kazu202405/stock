@@ -35,13 +35,38 @@ RATIO_TO_PERCENT = 100
 PROPOSAL_MARK = '（議案）'
 
 
+# 有報の脚注記号。名前の後ろに付く「（注）」「(注)2」「（注1,2）」「※1」など。
+#
+# ⚠️ **括弧を丸ごと落とさない。** 「（信託口）」「（常任代理人 …）」は名前の一部で、
+#    消すと別の株主になってしまう。ここで狙うのは「注」「※」だけ。
+_FOOTNOTE = re.compile(
+    r'\s*(?:[（(]\s*注[\s0-9０-９,、，]*[)）][\s0-9０-９,、，]*'
+    r'|※[\s0-9０-９,、，]*)\s*$')
+
+
+def strip_footnote(value):
+    """名前の末尾に付いた脚注記号を落とす。
+
+    「株式会社We(注)２」→「株式会社We」
+    「日本マスタートラスト信託銀行株式会社（信託口）※１」→「…（信託口）」
+    """
+    text = (value or '').strip()
+    # 「（注）１,２」のように続けて付くことがあるので、無くなるまで剥がす
+    for _ in range(3):
+        stripped = _FOOTNOTE.sub('', text).strip()
+        if stripped == text:
+            break
+        text = stripped
+    return text
+
+
 def _clean_name(value):
     """氏名の間に入る全角スペースを詰める。
 
     有報は「豊  田  章  男」のように字間を空けて書くことが多い。
     そのまま出すと検索にも表示にも噛み合わない。
     """
-    text = (value or '').strip()
+    text = strip_footnote(value)
     text = text.replace('　', ' ')
     text = re.sub(r'\s+', ' ', text)
     # 1文字ずつ空けているだけの並び（「豊 田 章 男」）は詰める
