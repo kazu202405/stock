@@ -151,8 +151,13 @@ def health_db():
         # 最小コストの読み取り（1行だけ）でDBアクティビティを発生させる
         client.table('watched_tickers').select('company_code').limit(1).execute()
     except Exception as e:
+        # ⚠️ **例外文をそのまま返さない。** ここは未ログインで叩ける口なので、
+        #    接続エラーの本文から接続先ホスト・ライブラリ・内部構成が読める。
+        #    原因はサーバー側のログに残す。外へ出すのは「届かない」だけでよい
+        #    （監視は status と problem しか見ていない）。
+        print(f'[health/db] DBに届きません: {str(e)[:300]}')
         return jsonify({"status": "error", "db": "unreachable",
-                        "problem": "db", "detail": str(e)}), 503
+                        "problem": "db"}), 503
 
     try:
         ok, problem = _jobs_health()
@@ -1705,7 +1710,10 @@ def _analyze_stock_and_save(analyzer, company_code):
             ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
         'financial_history': history_json_or_none(financial_history),
         'cf_history': history_json_or_none(cf_history),
-        'fiscal_month': derive_fiscal_month(financial_history, cf_history),
+        # 有報の対象決算期があればそれを使う（決算期変更を追えるのはこちらだけ）
+        'fiscal_month': derive_fiscal_month(
+            financial_history, cf_history,
+            authoritative=_authoritative_fiscal_month(company_code)),
         'data_source': analysis_data_source_name(stock_data),
         'source_status': stock_data.get('source_status'),
         'data_status': analysis_data_status(financial_history, cf_history)
@@ -1725,6 +1733,19 @@ def _analyze_stock_and_save(analyzer, company_code):
 
 # migrationを適用する前でも分析・保存が止まらないようにするための、
 # 「まだ無い列」の一覧。列が来たら自動でまた書き始める。
+def _authoritative_fiscal_month(company_code):
+    """有報の対象決算期から分かる決算月。引けなければ None。
+
+    ⚠️ ここで例外を出して分析を止めない。引けなければ最頻値に落ちるだけ。
+    """
+    try:
+        from edinet_codes import authoritative_fiscal_month
+        return authoritative_fiscal_month(company_code)
+    except Exception as e:
+        print(f'決算月の引き当てに失敗（最頻値を使います）: {str(e)[:120]}')
+        return None
+
+
 _MIGRATION_PENDING_COLUMNS = {'fiscal_month', 'dps_forecast', 'dividend_yield_forward'}
 
 # 株主・役員のオンデマンド取得に許す最大秒数。

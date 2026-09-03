@@ -556,6 +556,19 @@ class HealthDbCarriesJobsTest(unittest.TestCase):
         self.assertIn('"problem": "db"', self.block)
         self.assertIn('"problem": problem', self.block)
 
+    def test_例外文を外に出さない(self):
+        """⚠️ 未ログインで叩ける口。接続エラーの本文には接続先ホストや
+        ライブラリ名が出るので、内部構成が読める。原因はサーバー側の
+        ログに残し、外へ出すのは「届かない」だけでよい
+        （監視は status と problem しか見ていない）。"""
+        # 返す本文に例外を混ぜていないこと
+        for chunk in self.block.split('return jsonify(')[1:]:
+            body = chunk.split(')', 1)[0]
+            self.assertNotIn('str(e)', body)
+            self.assertNotIn('detail', body)
+        # ただし原因は必ずログに残す（黙って捨てない）
+        self.assertIn('print(', self.block)
+
     def test_判定は1か所にまとめる(self):
         """2つの口が別々に判定していると、片方だけ直る事故が起きる。"""
         self.assertEqual(self.src.count('def _jobs_health():'), 1)

@@ -159,18 +159,29 @@ def analysis_data_status(financial_history, cf_history) -> str:
             and history_has_values(cf_history) else 'stale')
 
 
-def derive_fiscal_month(financial_history, cf_history=None):
-    """決算期の月(1-12)を財務履歴の決算日から求める。取れなければNone。
+def derive_fiscal_month(financial_history, cf_history=None, authoritative=None):
+    """決算期の月(1-12)を求める。取れなければNone。
 
     決算"発表予定日"ではなく決算"期"の月であることに注意。発表予定日は無料で
     全銘柄を取れる取得元が未整理のため、ここでは扱わない。
 
+    Args:
+        authoritative: 有報の対象決算期から分かる月。**あればこれを使う。**
+            会社が自分で出した一次情報なので、推測より強い。
+
+    ⚠️ **最頻値だけでは決算期を変更した会社を追えない。** 履歴には古い決算月が
+       4〜5年ぶん、新しい月は1年ぶんしか無いので、最頻値は古いほうを返し続ける。
+       実測で44社が該当した（ダイフク 3月→12月、ツルハHD 5月→2月、
+       タダノ 3月→12月 など）。最頻値は有報が取れないときの保険。
+
     yfinanceの決算日は3月期なら 2026-03-31 のように期末日で入る。ただし配当
     (dps)の日付は権利確定日で決算期末とズレるため、損益・BS項目だけを見る。
-    最新の決算日ではなく最頻値を採るのは、1年だけ決算期変更や不規則な日付が
-    混ざっても引きずられないようにするため。
+    最頻値を採るのは、1年だけ不規則な日付が混ざっても引きずられないため。
     """
     from collections import Counter
+
+    if authoritative and 1 <= int(authoritative) <= 12:
+        return int(authoritative)
 
     def _rows(history):
         if isinstance(history, str):

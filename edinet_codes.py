@@ -177,14 +177,87 @@ def sync(client=None, rows=None):
     return {'fetched': len(rows), 'saved': saved}
 
 
-def fiscal_month_mismatches(client=None):
-    """決算月が screened_latest と食い違う銘柄を返す（上書きはしない）。
+_FISCAL_CACHE = {'at': None, 'map': {}}
 
-    どちらが正しいかは有報を見るまで決められない。まず数を見えるようにする。
+# 引き当て表を作り直す間隔（秒）。有報は年1回しか変わらないので長くてよい。
+FISCAL_CACHE_SECONDS = 6 * 3600
+
+
+def authoritative_fiscal_months(client=None, force=False):
+    """{company_code: 決算月} を返す。有報の対象決算期がいちばん強い証拠。
+
+    ⚠️ 銘柄ごとに引くと一括分析で200回問い合わせることになる。
+       全件を一度読んでプロセス内に持つ（有報は年1回しか変わらない）。
+    """
+    import time
+
+    now = time.time()
+    if (not force and _FISCAL_CACHE['at']
+            and now - _FISCAL_CACHE['at'] < FISCAL_CACHE_SECONDS):
+        return _FISCAL_CACHE['map']
+
+    if client is None:
+        from supabase_client import get_supabase_client
+        client = get_supabase_client()
+
+    out, start = {}, 0
+    try:
+        while True:
+            page = (client.table('edinet_codes')
+                    .select('company_code, fiscal_month, report_period_end')
+                    .range(start, start + 999).execute().data or [])
+            for r in page:
+                period = str(r.get('report_period_end') or '')
+                month = None
+                if len(period) >= 7 and period[4] == '-':
+                    try:
+                        month = int(period[5:7])
+                    except ValueError:
+                        month = None
+                # 有報が無い会社は提出者一覧の決算日で代用する
+                if not month:
+                    month = r.get('fiscal_month')
+                if month and 1 <= int(month) <= 12:
+                    out[r['company_code']] = int(month)
+            if len(page) < 1000:
+                break
+            start += 1000
+    except Exception as e:
+        # ⚠️ 引けなくても分析は止めない。最頻値に落ちるだけ。
+        print('決算月の引き当て表を作れませんでした: %s' % str(e)[:120])
+        return _FISCAL_CACHE['map']
+
+    _FISCAL_CACHE['at'] = now
+    _FISCAL_CACHE['map'] = out
+    return out
+
+
+def authoritative_fiscal_month(company_code, client=None):
+    """1銘柄ぶん。無ければ None（呼び出し側は最頻値に落とす）。"""
+    return authoritative_fiscal_months(client).get(str(company_code))
+
+
+def fiscal_month_mismatches(client=None):
+    """決算月の食い違いのうち、**まだ決着がつかないもの**を返す（上書きはしない）。
+
+    三者を突き合わせる:
+        ours   … screened_latest（yfinanceの決算日の最頻値）
+        edinet … edinet_codes（EDINETの提出者一覧の決算日）
+        report … 有報の対象決算期（**会社が自分で出した一次情報。いちばん強い**）
+
+    ⚠️ **有報と一致しているものを数えない。** 決着がついているのに数え続けると、
+       何をしても減らない件数になり、やがて誰も見なくなる。
+       実測（2026-09-03）では44件のうち37件が「提出者一覧が正しく、こちらが
+       決算期変更を追えていなかった」、7件が「こちらが正しく、提出者一覧が古い」で、
+       **判断が要るものは0件**だった。
+
+    返す各行: company_code / company_name / ours / edinet / report
     """
     if client is None:
         from supabase_client import get_supabase_client
         client = get_supabase_client()
+
+    report = authoritative_fiscal_months(client, force=True)
 
     edi = {}
     start = 0
@@ -208,11 +281,18 @@ def fiscal_month_mismatches(client=None):
         for r in page:
             if r.get('delisted_at'):
                 continue
-            mine, theirs = r.get('fiscal_month'), edi.get(r['company_code'])
-            if mine and theirs and int(mine) != int(theirs):
-                out.append({'company_code': r['company_code'],
-                            'company_name': r.get('company_name'),
-                            'ours': int(mine), 'edinet': int(theirs)})
+            code = r['company_code']
+            mine, theirs = r.get('fiscal_month'), edi.get(code)
+            if not (mine and theirs) or int(mine) == int(theirs):
+                continue
+            truth = report.get(code)
+            # 有報がこちらを支持しているなら、提出者一覧が古いだけ。決着済み。
+            if truth and int(truth) == int(mine):
+                continue
+            out.append({'company_code': code,
+                        'company_name': r.get('company_name'),
+                        'ours': int(mine), 'edinet': int(theirs),
+                        'report': int(truth) if truth else None})
         if len(page) < 1000:
             break
         start += 1000

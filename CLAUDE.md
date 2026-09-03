@@ -285,6 +285,15 @@ OKなもの：
 - **Supabase接続**: 環境変数 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` が必要
 - **.env必須**: APIキー・DB接続情報等は.envに格納。絶対にコミットしない
 - **セキュリティ重視**: 不要なファイル作成は避ける
+- **英語列の 0.6% は正常。壊れていない**（2026-09-03 実測）
+  - `business_summary` 0.6% ←→ `business_summary_jp` 100%
+  - `major_holders` 0.6% ←→ `major_shareholders_jp` 99.8%／`institutional_holders` 0.3%
+  - 日本語版が入る前の取得元（yahooquery/yfinance）の名残で、取得経路はもう動かない。
+    **消さずに残してある**のは、日本語が無いときだけ出すフォールバックが画面に
+    実在するため（レポートの事業内容／銘柄ページの創業家・機関投資家の比率）。
+  - ⚠️ **この数字を「欠損」として画面に出さないこと。** 出すと99.4%の銘柄で
+    「事業概要を取得できていません」と嘘が出る。`OMISSION_FIELDS` に足さない。
+    見張り＝`tests/test_legacy_english_columns.py`
 
 ## スマホ表示で繰り返し出た崩れ（2026-08-08）
 
