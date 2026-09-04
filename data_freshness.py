@@ -113,6 +113,14 @@ def _status(age, warn, bad):
     return 'ok'
 
 
+# 実行記録を「読めなかった」ことを表す印。
+#
+# ⚠️ **None（記録が無い）と混ぜないこと。** 記録が無いのは正常（初回実行前）だが、
+#    読めなかったのは判断できないという意味。同じ値で返すと、通信が一瞬
+#    切れただけで「始まったまま終わっていない」と誤検知する。
+UNREADABLE = object()
+
+
 def last_run(client, job_id):
     """job_runs から、そのジョブの直近1回を返す（無ければ None）。
 
@@ -127,8 +135,12 @@ def last_run(client, job_id):
                 .eq('job_id', job_id)
                 .order('ran_at', desc=True).limit(1).execute().data or [])
     except Exception as e:
+        # ⚠️ **「読めなかった」を「記録が無い」と同じ None で返さない。**
+        #    呼び出し側は None を「まだ1回も走っていない」と読むので、
+        #    通信が一瞬切れただけで hung と誤検知する（実測で 2026-09-03 に
+        #    Server disconnected のたびに監視が503を返していた）。
         print('実行記録の取得に失敗 (%s): %s' % (job_id, str(e)[:120]))
-        return None
+        return UNREADABLE
     return rows[0] if rows else None
 
 
@@ -173,7 +185,8 @@ def job_state(client, job_id, now=None):
         'failed'  … 直近が失敗して終わった
         'running' … 始まっていて、まだ終わっていない（時間内）
         'hung'    … 始まったまま終わっていない＝途中で死んだ
-        'none'    … 記録が1件も無い
+        'none'    … 記録が1件も無い（初回実行前。正常）
+        'unknown' … 記録を読めなかった（通信の一時的な失敗。判定しない）
 
     ⚠️ **終わりの印だけでは「死んだ」が見えない。**
        2026-09-01、株価バッチが 9:25 と 11:45 の2回とも記録を1行も残さな
@@ -184,6 +197,12 @@ def job_state(client, job_id, now=None):
     now = now or _now()
     finish = last_run(client, job_id)
     start = last_run(client, job_id + START_SUFFIX)
+
+    # ⚠️ 片方でも読めなければ判定しない。**「分からない」を異常にしない。**
+    #    通信が一瞬切れるたびに監視が鳴ると、本物の異常が埋もれる。
+    if finish is UNREADABLE or start is UNREADABLE:
+        return 'unknown', None, '実行記録を読めませんでした'
+
     f_at = _parse((finish or {}).get('ran_at'))
     s_at = _parse((start or {}).get('ran_at'))
 
@@ -403,6 +422,11 @@ def health(jobs, client=None, now=None):
     state, when, _ = job_state(client, 'price_update', now)
     # 記録がまだ無いのは正常。テーブルを作った直後や初回実行前がこれにあたる。
     if state == 'none':
+        return True, None
+    # ⚠️ 記録が読めないだけで鳴らさない。Supabase への接続は一瞬切れることが
+    #    あり（Server disconnected）、そのたびに503を返すと本物の異常が埋もれる。
+    #    ジョブそのものの生死は scheduler_item が別途見ている。
+    if state == 'unknown':
         return True, None
     # 実行中は正常。始まったまま終わらない（hung）は異常。
     if state == 'running':
