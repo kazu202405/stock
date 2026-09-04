@@ -5245,6 +5245,31 @@ JOB_CLAIM_WAIT_SECONDS = 5
 JOB_CLAIM_WINDOW_MINUTES = 45
 
 
+def recorded(job_id, fn):
+    """実行記録を残すようにジョブを包む。
+
+    ⚠️ **個々の関数に record_job_run を書き足さない。** 書き忘れが生まれる
+       （2026-09-04 時点で18本中9本が記録を残しておらず、ジョブが走ったのか
+       どうかを確かめられなかった）。登録の1か所で包めば漏れない。
+
+    ⚠️ 自分で record_job_run を呼ぶ関数は包まない。二重に記録される。
+
+    失敗しても例外は投げ直す（APScheduler のログに残すため）。
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper():
+        try:
+            fn()
+        except Exception as e:
+            record_job_run(job_id, ok=False, detail=str(e)[:300])
+            raise
+        else:
+            record_job_run(job_id, ok=True, detail='完了')
+    return wrapper
+
+
 def close_hung_run(job_id):
     """前回が「始まったまま終わっていない」なら、失敗として終端する。
 
@@ -6182,18 +6207,23 @@ scheduler = BackgroundScheduler(
     timezone=pytz.timezone('Asia/Tokyo'),
     job_defaults={'misfire_grace_time': 1800, 'coalesce': True,
                   'max_instances': 1})
-scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
-scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
+scheduler.add_job(recorded('gc_dc_morning', scheduled_fetch_gc_dc), 'cron',
+                  hour=9, minute=15, id='gc_dc_morning')
+scheduler.add_job(recorded('gc_dc_evening', scheduled_fetch_gc_dc), 'cron',
+                  hour=17, minute=15, id='gc_dc_evening')
 # 株価バッチ更新（9:25 / 11:45 / 15:20 JST）
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25, id='price_update_morning')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45, id='price_update_midday')
 scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id='price_update_closing')
 # 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
-scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=15, minute=30, id='earnings_detect_afternoon')
-scheduler.add_job(scheduled_enqueue_earnings, 'cron', hour=21, minute=0, id='earnings_detect_evening')
+scheduler.add_job(recorded('earnings_detect_afternoon', scheduled_enqueue_earnings),
+                  'cron', hour=15, minute=30, id='earnings_detect_afternoon')
+scheduler.add_job(recorded('earnings_detect_evening', scheduled_enqueue_earnings),
+                  'cron', hour=21, minute=0, id='earnings_detect_evening')
 
 # 検知した銘柄の再分析。21:00の検知が終わってから動かす
-scheduler.add_job(scheduled_process_earnings_queue, 'cron', hour=22, minute=0,
+scheduler.add_job(recorded('earnings_process_queue', scheduled_process_earnings_queue),
+                  'cron', hour=22, minute=0,
                   id='earnings_process_queue')
 
 # TDnetの決算短信から業績予想を取り込む。短信は15:00〜20:00に出るので、
@@ -6214,20 +6244,24 @@ scheduler.add_job(scheduled_sync_edinet_reports, 'cron', hour=5, minute=40,
 # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
 scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
 # JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
-scheduler.add_job(scheduled_update_margin_balances, 'cron', day_of_week='thu',
+scheduler.add_job(recorded('margin_weekly', scheduled_update_margin_balances),
+                  'cron', day_of_week='thu',
                   hour=4, minute=10, id='margin_weekly')
 # 決算の再分析（22:00）が終わったころに、拾えていない銘柄が無いか数える。
 # 見つかったぶんは翌日のキューに積むので、次の晩に取り直される。
-scheduler.add_job(scheduled_check_earnings_freshness, 'cron', hour=23, minute=30,
+scheduler.add_job(recorded('earnings_freshness', scheduled_check_earnings_freshness),
+                  'cron', hour=23, minute=30,
                   id='earnings_freshness')
 # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
-scheduler.add_job(scheduled_backfill_yahoo_profile, 'cron', hour=2, minute=0,
+scheduler.add_job(recorded('yahoo_profile_backfill', scheduled_backfill_yahoo_profile),
+                  'cron', hour=2, minute=0,
                   id='yahoo_profile_backfill')
 
 # 株主・役員のバックフィルは23:00。
 # **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
 # 朝に回すと、閲覧より先にバックフィルが枠を取ってしまう。
-scheduler.add_job(scheduled_backfill_holders_officers, 'cron', hour=23, minute=0,
+scheduler.add_job(recorded('holders_backfill', scheduled_backfill_holders_officers),
+                  'cron', hour=23, minute=0,
                   id='holders_backfill')
 
 # スケジューラは1プロセスでのみ起動させる。

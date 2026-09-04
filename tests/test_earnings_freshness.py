@@ -106,10 +106,14 @@ class WiringTest(unittest.TestCase):
     def test_決算の再分析より後に走る(self):
         """22:00の再分析で拾えたものを、取りこぼしと数えないため。"""
         import re
-        proc = re.search(r"scheduled_process_earnings_queue, 'cron', hour=(\d+), minute=(\d+)",
-                         self.source)
-        check = re.search(r"scheduled_check_earnings_freshness, 'cron', hour=(\d+), minute=(\d+)",
-                          self.source)
+        # ⚠️ 2026-09-04: 実行記録を残すため recorded(...) で包んだので、
+        #    関数名の直後に 'cron' が来ない。ジョブIDから時刻を引く。
+        def at(job_id):
+            return re.search(
+                r"hour=(\d+), minute=(\d+),?\s*id='%s'" % job_id,
+                self.source, re.S)
+        proc = at('earnings_process_queue')
+        check = at('earnings_freshness')
         self.assertIsNotNone(proc)
         self.assertIsNotNone(check)
         self.assertGreater((int(check.group(1)), int(check.group(2))),
