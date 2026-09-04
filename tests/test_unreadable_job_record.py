@@ -99,7 +99,8 @@ class 監視は読めないだけで鳴らさない(unittest.TestCase):
         self.assertEqual('warn', df.scheduler_item(None)['status'])
         ok, problem = df.health(None, client=Empty())
         self.assertFalse(ok)
-        self.assertEqual('scheduler', problem)
+        # 2026-09-04: どのジョブが遅れているかを後ろに付けたので前方一致で見る
+        self.assertTrue(problem.startswith('scheduler'), problem)
 
 
 class パネルは赤くしない(unittest.TestCase):

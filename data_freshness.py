@@ -415,8 +415,13 @@ def health(jobs, client=None, now=None):
     #    それを 200 で返すと、読めなくなった時点で監視が黙って無効になる
     #    （最初この判定を bad だけにしていて、実際に素通りしていた）。
     #    web と別プロセスで cron を持つ構成にするときは、ここを見直すこと。
-    if scheduler_item(jobs, now)['status'] != 'ok':
-        return False, 'scheduler'
+    item = scheduler_item(jobs, now)
+    if item['status'] != 'ok':
+        # ⚠️ **どのジョブが遅れているかを捨てない。** 'scheduler' だけ返して
+        #    いたため、ログに「異常を検出: scheduler」としか出ず、30分続いた
+        #    警告の原因をあとから追えなかった（2026-09-04）。
+        return False, 'scheduler: %s' % (item.get('when_text')
+                                         or item.get('detail') or '不明')
 
     client = client or _client()
     state, when, _ = job_state(client, 'price_update', now)

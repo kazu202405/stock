@@ -466,7 +466,12 @@ class HealthEndpointTest(unittest.TestCase):
 
     def test_スケジューラが止まっていたら異常(self):
         stalled = [{'id': 'a', 'next_run_time': '2026-08-31T17:15:00+09:00'}]
-        self.assertEqual(self.call(stalled, None), (False, 'scheduler'))
+        ok, problem = self.call(stalled, None)
+        self.assertFalse(ok)
+        # ⚠️ 2026-09-04: どのジョブが遅れているかを後ろに付けた。
+        #    ログで原因を追えるようにするため（'scheduler' だけだと分からない）。
+        self.assertTrue(problem.startswith('scheduler'), problem)
+        self.assertIn('a', problem, 'ジョブ名が入っていない')
 
     def test_直近の取得が失敗していたら異常(self):
         run = {'ran_at': '2026-09-01T09:25:00+09:00', 'ok': False}
@@ -483,13 +488,16 @@ class HealthEndpointTest(unittest.TestCase):
     def test_状態が読めないときも鳴らす(self):
         """⚠️ 「読めなかった」を200で返すと、読めなくなった時点で監視が
         黙って無効になる。最初これを bad だけで判定していて素通りしていた。"""
-        self.assertEqual(self.call(None, None), (False, 'scheduler'))
+        ok, problem = self.call(None, None)
+        self.assertFalse(ok)
+        self.assertTrue(problem.startswith('scheduler'), problem)
 
     def test_未起動でも鳴らす(self):
         """start() していないジョブには next_run_time が無い。属性で直に
         読むと例外→「読めなかった」に化けて、未起動が分からなくなる。"""
-        self.assertEqual(self.call([{'id': 'a', 'next_run_time': None}], None),
-                         (False, 'scheduler'))
+        ok, problem = self.call([{'id': 'a', 'next_run_time': None}], None)
+        self.assertFalse(ok)
+        self.assertTrue(problem.startswith('scheduler'), problem)
         # 読み手は scheduler_jobs() に一本化した（2026-09-03）
         block = body_of(read('app.py'), 'def scheduler_jobs():')
         self.assertIn("getattr(j, 'next_run_time', None)", block)
@@ -593,7 +601,9 @@ class HealthDbCarriesJobsTest(unittest.TestCase):
     def test_どちらが原因か本文で分かる(self):
         """このURLが赤いとき、DB不達と定期実行停止のどちらもありうる。"""
         self.assertIn('"problem": "db"', self.block)
-        self.assertIn('"problem": problem', self.block)
+        # ⚠️ ログには詳しく、本文は短く。外部監視は problem の値で
+        #    分岐しているので、'scheduler: 〜が遅れ' をそのまま返すと壊れる。
+        self.assertIn("problem or ''", self.block)
 
     def test_例外文を外に出さない(self):
         """⚠️ 未ログインで叩ける口。接続エラーの本文には接続先ホストや

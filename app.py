@@ -185,9 +185,11 @@ def health_db():
         print(f'[health/db] 定期実行の判定に失敗: {str(e)[:200]}')
         return jsonify({"status": "error", "db": "reachable"}), 503
     if not ok:
+        # ⚠️ ログには詳しく、本文は短く。外部監視は problem の値で分岐して
+        #    いるので、'scheduler: 〜が3時間遅れ' をそのまま返すと壊れる。
         print(f'[health/db] 定期実行の異常を検出: {problem}')
         return jsonify({"status": "stale", "db": "reachable",
-                        "problem": problem}), 503
+                        "problem": (problem or '').split(':')[0]}), 503
     return jsonify({"status": "ok", "db": "reachable"}), 200
 
 
@@ -6166,7 +6168,20 @@ def scheduled_backfill_yahoo_profile():
             print(f"[Scheduler] score_complete の更新に失敗: {str(e)[:100]}")
 
 
-scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
+# ⚠️ **misfire_grace_time の既定は1秒。** Render は1プロセス8スレッドで、
+#    Webの応答と重いジョブが同居する。発火の瞬間に1秒でも詰まると、そのジョブは
+#    **黙って飛ばされる**（APScheduler が "Run time of job was missed by ..." を
+#    出して次回まで走らない）。日次のジョブは「少し遅れて走る」ほうが
+#    「走らない」より良いので、猶予を30分に広げる。
+#
+# ⚠️ coalesce=True … 復帰時に、溜まった発火をまとめて1回にする。
+#    False（既定）だと、止まっていた間の回数ぶん一気に走る。
+# ⚠️ max_instances=1 … 前回が走っている間は重ねない。株価の一括取得が
+#    二重に走ると、外部APIを倍叩くことになる。
+scheduler = BackgroundScheduler(
+    timezone=pytz.timezone('Asia/Tokyo'),
+    job_defaults={'misfire_grace_time': 1800, 'coalesce': True,
+                  'max_instances': 1})
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=9, minute=15, id='gc_dc_morning')
 scheduler.add_job(scheduled_fetch_gc_dc, 'cron', hour=17, minute=15, id='gc_dc_evening')
 # 株価バッチ更新（9:25 / 11:45 / 15:20 JST）
