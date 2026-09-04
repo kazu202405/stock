@@ -136,6 +136,93 @@ def scheduler_jobs():
         return None
 
 
+# スケジューラを起こし直すまでの間隔（秒）。短くすると、復帰の途中で
+# 何度も叩いてしまう。UptimeRobot は5分おきなので、2回に1回まで。
+SCHEDULER_REVIVE_COOLDOWN = 600
+
+# 「止まっている」とみなす遅れ（分）。data_freshness の判定（15分）より
+# 長くする。⚠️ 同じ値にすると、警告が出た瞬間に毎回起こしにいくことになる。
+SCHEDULER_REVIVE_AFTER_MINUTES = 25
+
+_last_revive = {'at': None}
+
+
+def revive_scheduler_if_stalled(jobs, now=None):
+    """次回予定が進まなくなっていたら、スケジューラを起こし直す。
+
+    ⚠️ **再起動でしか直らない状態を残さない。** 夜中に止まると、誰かが
+       気づくまでその日のジョブが全部走らない（2026-09-04 に2回起きた）。
+
+    ⚠️ 予定を過ぎただけで毎回叩かない。復帰の途中に何度も呼ぶと、
+       走り始めたジョブを落とすことになる。
+
+    Returns: 起こしにいったら True。
+    """
+    import time as _time
+    from datetime import datetime, timezone
+
+    if not jobs:
+        return False
+    now = now or datetime.now(timezone.utc)
+    overdue = []
+    for job in jobs:
+        when = job.get('next_run_time')
+        if not when:
+            continue
+        try:
+            due = datetime.fromisoformat(when)
+        except ValueError:
+            continue
+        late = (now - due).total_seconds() / 60.0
+        if late > SCHEDULER_REVIVE_AFTER_MINUTES:
+            overdue.append((late, job.get('id')))
+    if not overdue:
+        return False
+
+    last = _last_revive['at']
+    if last and (_time.time() - last) < SCHEDULER_REVIVE_COOLDOWN:
+        return False
+    _last_revive['at'] = _time.time()
+
+    overdue.sort(reverse=True)
+    late, job_id = overdue[0]
+    detail = '%s が%d分遅れ（%d本）' % (job_id, late, len(overdue))
+    print(f'[Scheduler] 止まっている疑い: {detail} → 起こし直します')
+
+    # ⚠️ そもそも起動していないなら触らない（ENABLE_SCHEDULER=false は意図的）。
+    thread = getattr(scheduler, '_thread', None)
+    if thread is None:
+        print('[Scheduler] 起動していないので何もしません')
+        return False
+
+    try:
+        # 1. まず起こす。眠っているだけならこれで動く。
+        #    ⚠️ ここが失敗しても2の判断まで進むこと。分けないと、
+        #       wakeup が投げた時点で「死んでいるか」を見ずに終わる。
+        try:
+            scheduler.wakeup()
+        except Exception as e:
+            print(f'[Scheduler] wakeup に失敗: {str(e)[:120]}')
+        # 2. ループそのものが死んでいたら、立ち上げ直す。
+        #    ⚠️ ジョブの登録は消えない（MemoryJobStore に残る）。
+        if not thread.is_alive():
+            print('[Scheduler] ループが死んでいます。起動し直します')
+            try:
+                scheduler.shutdown(wait=False)
+            except Exception:
+                pass
+            scheduler.start()
+            record_job_run('scheduler_revive', ok=True,
+                           detail='ループが死んでいたので起動し直した（%s）' % detail)
+            return True
+        record_job_run('scheduler_revive', ok=True, detail='起こした（%s）' % detail)
+        return True
+    except Exception as e:
+        print(f'[Scheduler] 起こし直しに失敗: {str(e)[:150]}')
+        record_job_run('scheduler_revive', ok=False, detail=str(e)[:200])
+        return False
+
+
 def _jobs_health():
     """定期実行が生きているかを (ok, problem) で返す。/health/* が共有する。"""
     import data_freshness
@@ -148,6 +235,10 @@ def _jobs_health():
     except Exception as e:
         print(f'[health] スケジューラの状態を取得できません: {str(e)[:120]}')
         jobs = None                  # 正常には倒さない
+    # ⚠️ 見つけたら直す。気づくだけで放っておくと、誰かが Render の画面から
+    #    再起動するまでその日のジョブが走らない。
+    if jobs:
+        revive_scheduler_if_stalled(jobs)
     return data_freshness.health(jobs)
 
 
