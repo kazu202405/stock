@@ -16,11 +16,15 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 行き先はこの2つだけ。
-#   /upgrade              … 公開の申込ページ（¥4,980）。会員限定ゲートからはここへ
-#   /upgrade/invite?...   … 紹介限定の ¥11,000（models/root.py の INVITE_CHECKOUT_URL）
+# 行き先はこの2つだけ。どちらも `from=note` が要る。
+#   /upgrade?from=note        … 公開の申込ページ（¥4,980）。会員限定ゲートからはここへ
+#   /upgrade/invite?from=note … 紹介限定の ¥11,000（models/root.py の INVITE_CHECKOUT_URL）
+#
+# ⚠️ **`from=note` を落とさないこと。** これが無いと、決済のあとGIA側のマイページに
+#    着地して、買ったはずの機能に戻る道が示されない。GIA側は
+#    gia-next の app/(form)/upgrade/ でこの値を受けている。
 ALLOWED = {
-    'https://gia2018.com/upgrade',
+    'https://gia2018.com/upgrade?from=note',
     'https://gia2018.com/upgrade/invite?from=note',
 }
 
