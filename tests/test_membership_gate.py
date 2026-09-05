@@ -151,6 +151,23 @@ class GetMembershipErrorFlagTest(unittest.TestCase):
         self.assertFalse(result['found'])
 
 
+def _free_user_client():
+    """ログイン済みの無料会員。"""
+    import app as app_module
+
+    app_module.app.config['TESTING'] = True
+    client = app_module.app.test_client()
+    with client.session_transaction() as sess:
+        sess['user_id'] = 'test-free-user'
+        sess['user_name'] = 'テスト'
+        sess['user_role'] = 'user'
+    patcher = unittest.mock.patch.object(
+        app_module, 'is_member_session', return_value=False)
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
+    return client
+
+
 class LandingAfterLoginTest(unittest.TestCase):
     """ログイン・登録した直後に課金案内へ飛ばさない。
 
@@ -163,11 +180,48 @@ class LandingAfterLoginTest(unittest.TestCase):
         self.root = root
 
     def test_free_user_lands_on_a_page_they_can_use(self):
-        # 2026-08-25: /search（銘柄検索）は /compare（企業比較）になった。
-        # 銘柄を探すのはヘッダーの検索窓でどのページからでもできるので、
-        # 着地は会社を眺めて回れるテーマ・業種の一覧にする。
+        """着地先が、無料会員に実際に開けること。"""
         with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
-            self.assertEqual(self.root.home_path(), '/themes')
+            landing = self.root.home_path()
+
+        client = _free_user_client()
+        self.assertEqual(client.get(landing).status_code, 200,
+                         f'着地先 {landing} を無料会員が開けない')
+
+    def test_the_landing_page_is_in_the_menu(self):
+        """着地先が、ヘッダーのメニューから辿れること。
+
+        2026-09-06 の事故: 着地は /themes のままだったが、/themes は
+        ヘッダーから管理者限定にしていた。開けはするので status では
+        気づけない。**離れたら二度と戻れないページに毎回降ろしていた。**
+
+        ⚠️ 着地先とメニューは別々に直される。着地の正しさは「開けるか」
+           ではなく「そこへ戻る道があるか」で見る。
+        """
+        with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
+            landing = self.root.home_path()
+
+        # 着地先とは別のページを開き、そこのメニューに着地先が載っているか見る
+        # （着地先ページ自身の自己リンクで通ってしまわないように）
+        body = _free_user_client().get('/learning').get_data(as_text=True)
+        self.assertIn(f'href="{landing}"', body,
+                      f'着地先 {landing} がメニューに無い（戻る道が無い）')
+
+    def test_the_home_link_points_at_the_landing(self):
+        """ロゴと「ホーム」が、その人の着地先を指していること。
+
+        ⚠️ **Jinja は未定義の変数を空文字で描く。** `home_path` を渡し忘れると
+           href="" になり、ロゴを押しても何も起きない。例外も警告も出ないので、
+           空でないことまで見る。
+        """
+        with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
+            landing = self.root.home_path()
+
+        body = _free_user_client().get('/learning').get_data(as_text=True)
+        self.assertNotIn('href="" class="flex items-center', body,
+                         'ロゴの行き先が空（home_path が渡っていない）')
+        self.assertIn(f'href="{landing}" class="flex items-center', body,
+                      f'ロゴが着地先 {landing} を指していない')
 
     def test_member_lands_on_the_dashboard(self):
         with unittest.mock.patch.object(self.root, 'is_member', return_value=True):

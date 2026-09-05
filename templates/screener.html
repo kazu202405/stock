@@ -29,6 +29,10 @@
     <!-- ===== 全銘柄スクリーニング ===== -->
     <div id="panel-screen" class="max-w-none mx-auto px-6 py-4" x-data="screenerApp()" x-init="init()">
 
+        {# 絞り込み・並べ替えは会員価値。非会員に出しても API 側が受け付けない
+           ので、動かないUIを置くより出さない。件数はサーバーで切っている
+           （app._screen_preview）。 #}
+        {% if is_member %}
         <!-- よく使う条件 -->
         <div class="scr-card" style="margin-bottom:12px;">
             <div class="scr-card-label">よく使う条件</div>
@@ -287,26 +291,33 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- 件数・注記 -->
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
             <div style="font-size:13px; color:#525252;">
                 <template x-if="!loading">
+                    {% if is_member %}
                     <span>該当 <strong style="color:#1b4332; font-size:15px;" x-text="total.toLocaleString()"></strong> 件</span>
+                    {% else %}
+                    <span>全 <strong style="color:#1b4332; font-size:15px;" x-text="total.toLocaleString()"></strong> 社のうち、合致度の高い <strong style="color:#1b4332;" x-text="rows.length"></strong> 社</span>
+                    {% endif %}
                 </template>
                 <template x-if="loading">
                     <span style="color:#a3a3a3;"><i class="fas fa-spinner fa-spin mr-1"></i>絞り込み中...</span>
                 </template>
             </div>
+            {% if is_member %}
             <div style="font-size:11px; color:#a3a3a3;">
                 並べ替えは列見出しをクリック
             </div>
+            {% endif %}
         </div>
 
         <p style="font-size:11px; color:#a3a3a3; margin-bottom:12px; line-height:1.6;">
             ※ 掲載情報は企業の財務状況を整理したものであり、特定銘柄の推奨ではありません。<br>
             ※ スコアの色は総合評価です。<span class="score-tone-high">緑</span>＝12項目すべて判定できて高得点。<span class="score-tone-provisional">灰色</span>＝まだ判定できていない項目があります（点数は参考値）。<br>
-            ※ ROE順で並べ替える際は、自己資本比率5%未満の企業を除外しています（分母が小さいとROEが極端な値になり比較できないため）。
+            {% if is_member %}※ ROE順で並べ替える際は、自己資本比率5%未満の企業を除外しています（分母が小さいとROEが極端な値になり比較できないため）。{% endif %}
         </p>
 
         <!-- 表示の切り替え。
@@ -391,10 +402,14 @@
                         <tr>
                             <th class="scr-th">銘柄</th>
                             <template x-for="col in columns" :key="col.key">
-                                <th class="scr-th scr-th-sortable" :class="{ 'is-active': sort === col.key }"
+                                {# 非会員は並べ替えできない（APIが受け付けない）。
+                                   矢印を出すと、押しても順が変わらず壊れて見える。 #}
+                                <th class="scr-th" :class="canSort ? ('scr-th-sortable' + (sort === col.key ? ' is-active' : '')) : ''"
                                     @click="toggleSort(col.key)">
                                     <span x-text="col.label"></span>
-                                    <i class="fas" :class="sort === col.key ? (order === 'desc' ? 'fa-sort-down' : 'fa-sort-up') : 'fa-sort'"></i>
+                                    <template x-if="canSort">
+                                        <i class="fas" :class="sort === col.key ? (order === 'desc' ? 'fa-sort-down' : 'fa-sort-up') : 'fa-sort'"></i>
+                                    </template>
                                 </th>
                             </template>
                         </tr>
@@ -473,6 +488,24 @@
             </div>
         </div>
 
+        {# 非会員向けの続き。行そのものはサーバーが返していないので、
+           ここは「まだ先がある」ことを伝えるだけ。ぼかした行を置いて
+           中身をレスポンスに載せてはいけない。 #}
+        {% if not is_member %}
+        <div class="scr-locked" x-show="!loading" x-cloak>
+            <div class="scr-locked-rows" aria-hidden="true">
+                <span></span><span></span><span></span>
+            </div>
+            <p class="scr-locked-lead">
+                残り <strong x-text="Math.max(total - rows.length, 0).toLocaleString()"></strong> 社は会員の方にご覧いただいています。
+            </p>
+            <p class="scr-locked-note">
+                条件での絞り込み、並べ替え、企業分析レポートもご利用いただけます。
+            </p>
+            <a href="/membership" class="scr-locked-btn">会員のご案内を見る</a>
+        </div>
+        {% endif %}
+
         <!-- ページング -->
         <div class="scr-pager" x-show="totalPages > 1">
             <button class="scr-page-btn" :disabled="page <= 1" @click="search(page - 1)">前へ</button>
@@ -482,6 +515,29 @@
             <button class="scr-page-btn" :disabled="page >= totalPages" @click="search(page + 1)">次へ</button>
         </div>
     </div>
+
+    <style>
+    /* 非会員に「この先がある」ことだけを伝える枠。
+       行の中身はサーバーが返していないので、ぼかす対象そのものが無い。 */
+    .scr-locked{
+        border:1px solid #ebebeb; border-radius:12px; background:#fff;
+        padding:26px 22px 24px; text-align:center; margin-top:4px;
+    }
+    .scr-locked-rows{ display:grid; gap:8px; margin-bottom:18px; }
+    .scr-locked-rows span{
+        display:block; height:14px; border-radius:4px;
+        background:linear-gradient(90deg,#f0f0ee 0%,#f7f7f5 55%,#f0f0ee 100%);
+    }
+    .scr-locked-rows span:nth-child(2){ width:88%; margin:0 auto; }
+    .scr-locked-rows span:nth-child(3){ width:72%; margin:0 auto; }
+    .scr-locked-lead{ font-size:14px; color:#1a1a1a; margin:0 0 6px; line-height:1.8; }
+    .scr-locked-note{ font-size:12.5px; color:#737373; margin:0 0 18px; line-height:1.8; }
+    .scr-locked-btn{
+        display:inline-block; background:#1b4332; color:#fff; text-decoration:none;
+        font-size:13.5px; font-weight:600; letter-spacing:0.04em;
+        padding:12px 28px; border-radius:10px;
+    }
+    </style>
 
     <!-- ===== お気に入り（従来の一覧） ===== -->
     <div id="panel-fav" class="max-w-none mx-auto px-6 py-4" style="display:none;">
@@ -943,6 +999,9 @@
             sort: 'match_rate',
             order: 'desc',
             loading: true,
+            // 並べ替え・絞り込みは会員だけ。判定はサーバー側と同じものを使う
+            // （ここを true に書き換えられてもAPIが受け付けない）。
+            canSort: {{ 'true' if is_member else 'false' }},
             // 'table' か 'card'。表は会社どうしを比べるため、カードは
             // 1社ずつ読むため。スマホでどちらが向くかは場面によるので選べるようにする。
             view: 'table',
@@ -1165,6 +1224,7 @@
             },
 
             toggleSort(key) {
+                if (!this.canSort) return;
                 const col = this.columns.find(c => c.key === key);
                 if (!col || col.noSort) return;
                 if (this.sort === key) {

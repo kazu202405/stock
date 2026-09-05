@@ -28,7 +28,10 @@ ALLOWED = {
     'https://gia2018.com/upgrade/invite?from=note',
 }
 
+# ⚠️ app.py も見る。2026-09-06、member_required_api の upgrade_url が
+#    templates/models の外にあったため、この見張りをすり抜けていた。
 SCAN_DIRS = ('templates', 'models')
+SCAN_FILES = ('app.py',)
 GIA_URL = re.compile(r"https://gia2018\.com[^\"'\s)]*")
 
 
@@ -46,16 +49,16 @@ def _strip_comments(text, path):
 class MembershipLinkTest(unittest.TestCase):
     def _found_links(self):
         found = []
+        paths = [os.path.join(ROOT, name) for name in SCAN_FILES]
         for directory in SCAN_DIRS:
             base = os.path.join(ROOT, directory)
-            for name in sorted(os.listdir(base)):
-                if not name.endswith(('.html', '.py')):
-                    continue
-                path = os.path.join(base, name)
-                with open(path, encoding='utf-8') as f:
-                    body = _strip_comments(f.read(), path)
-                for url in GIA_URL.findall(body):
-                    found.append((name, url))
+            paths += [os.path.join(base, name) for name in sorted(os.listdir(base))
+                      if name.endswith(('.html', '.py'))]
+        for path in paths:
+            with open(path, encoding='utf-8') as f:
+                body = _strip_comments(f.read(), path)
+            for url in GIA_URL.findall(body):
+                found.append((os.path.basename(path), url))
         return found
 
     def test_every_membership_link_points_at_the_same_place(self):

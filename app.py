@@ -394,6 +394,15 @@ def login_required_api(f):
 # 「他にもある」と分かる状態にする。
 FREE_COMMUNITY_QUESTIONS = 3
 
+# 非会員に見せるスクリーナーの件数。考え方はコミュニティと同じ。
+# ヘッダーの「スクリーニング」は全員に出しているので、押した先が
+# 門前払いだと、そこで終わる。上位数件だけ実物を見せる。
+FREE_SCREEN_ROWS = 3
+
+# 会員申込の行き先。`from=note` を落とすと、決済のあとGIA側のマイページに
+# 着地して、買ったはずの機能に戻る道が示されない（gia-next 側がこの値を受ける）。
+UPGRADE_URL = 'https://gia2018.com/upgrade?from=note'
+
 # 段の表示名。内部キーをそのまま画面に出さないための対応表。
 # 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
 MEMBERSHIP_LABELS = {
@@ -434,7 +443,7 @@ def member_required_api(f):
         if not is_member_session():
             return jsonify({
                 "error": "この機能は会員限定です",
-                "upgrade_url": "https://gia2018.com/upgrade",
+                "upgrade_url": UPGRADE_URL,
             }), 403
         return f(*args, **kwargs)
     return decorated
@@ -3880,17 +3889,70 @@ def _attach_gc(rows):
         r['gc_active'] = bool(gc and (not dc or gc >= dc))
 
 
+def _screen_preview(client):
+    """非会員に見せる上位 FREE_SCREEN_ROWS 件。
+
+    ⚠️ **絞り込み・並べ替え・ページングを一切受け付けない。** 受け付けると、
+       条件を変えながら叩くだけで全件を集められる（3件 × 条件の数だけ漏れる）。
+       固定の並び（合致度順）の先頭だけを返す。
+
+    ⚠️ **ぼかしはCSSでやらない。** 隠した行をレスポンスに載せると、
+       開発者ツールでもcurlでも中身が読める。ここで落とし切る。
+    """
+    from security_filter import exclude_delisted, exclude_non_operating
+
+    query = client.table('screened_latest').select(SCREEN_COLUMNS, count='exact')
+    query = query.not_.is_('company_name', 'null')
+    query = exclude_non_operating(query)
+    query = exclude_delisted(query)
+    query = query.not_.is_('match_rate', 'null')
+    query = query.order('match_rate', desc=True)
+    try:
+        query = query.order('score_complete', desc=True, nullsfirst=False)
+    except TypeError:
+        query = query.order('score_complete', desc=True)
+
+    res = query.range(0, FREE_SCREEN_ROWS - 1).execute()
+    rows = res.data or []
+    _attach_gc(rows)
+    for row in rows:
+        attach_score_quality(row)
+        row.pop('financial_history', None)
+        row.pop('cf_history', None)
+
+    total = res.count or 0
+    return jsonify({
+        'rows': rows,
+        'total': total,
+        'page': 1,
+        'per_page': FREE_SCREEN_ROWS,
+        'total_pages': 1,
+        'sort': 'match_rate',
+        'order': 'desc',
+        # 画面が「見本を出している」と分かるように明示する
+        'preview': True,
+        'locked': max(total - len(rows), 0),
+        'upgrade_url': UPGRADE_URL,
+    }), 200
+
+
 @app.route('/api/stocks/screen', methods=['GET'])
-@member_required_api
+@login_required_api
 def api_screen_stocks():
     """全銘柄を横断して絞り込み・並べ替え・ページングする。
 
-    会員限定。match_rate（合致度スコア）や横断的な絞り込みは会員価値であり、
-    スクリーナー画面自体がログイン必須。APIを素通しにするとスコアを直叩きで
-    収集できてしまうため、ページと同じ基準でゲートする。
+    絞り込み・並べ替え・全件は会員価値。非会員には合致度の上位数件だけを
+    返す（_screen_preview）。ヘッダーの「スクリーニング」は全員に出しており、
+    押した先が門前払いだとそこで終わってしまうため。
+
+    ⚠️ APIを素通しにするとスコアを直叩きで収集できる。非会員向けの分岐は
+       リクエストのパラメータを一切見ない。
     """
     try:
         client = get_supabase_client()
+
+        if not is_member_session():
+            return _screen_preview(client)
 
         page = max(1, request.args.get('page', 1, type=int) or 1)
         per_page = request.args.get('per_page', 50, type=int) or 50
@@ -5133,7 +5195,7 @@ def api_get_question_detail(question_id):
             if question_id not in free_ids:
                 return jsonify({
                     "error": "この質問は会員限定です",
-                    "upgrade_url": "https://gia2018.com/upgrade",
+                    "upgrade_url": UPGRADE_URL,
                 }), 403
 
         # 質問者名を解決（poster_name > display_name > name）

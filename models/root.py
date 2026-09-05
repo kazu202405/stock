@@ -58,8 +58,16 @@ def home_path():
     2026-08-25: /search（銘柄検索）は /compare（企業比較）になった。
     銘柄を探すのはヘッダーの検索窓でどのページからでもできるので、
     着地はテーマ・業種の一覧にする（会社を眺めて回れる入口）。
+
+    2026-09-06: /themes はヘッダーから管理者限定にした（中身を確認してから
+    公開する判断）。着地だけ残っていたので、無料会員は毎回ログイン直後に
+    「メニューに無いページ」へ降ろされ、離れたら戻れなかった。
+    ⚠️ **着地先はメニューから辿れるページにする。** 着地とメニューは
+       別々に直されるので、片方を閉じたらもう片方を必ず確認する。
+    スクリーナーは合致度の上位3件を非会員にも見せるので、無料会員でも
+    中身のある画面になる（FREE_SCREEN_ROWS）。
     """
-    return '/dashboard' if is_member() else '/themes'
+    return '/dashboard' if is_member() else '/screener'
 
 
 def _require_member():
@@ -98,8 +106,13 @@ def _get_user_context():
             # ただし会員限定の「値」はテンプレートに渡さずサーバー側で落とすこと
             # （CSSで隠してもAPIやソース表示から丸見えになる）。
             'is_member': is_member(),
+            # ⚠️ ロゴ・「ホーム」の行き先をテンプレートに直書きしない。
+            #    /dashboard は会員限定なので、無料会員が押すと
+            #    「この機能は会員限定です」に落ちる。着地（home_path）と
+            #    同じ場所を指すこと。
+            'home_path': home_path(),
         }
-    return {'is_logged_in': False, 'is_member': False}
+    return {'is_logged_in': False, 'is_member': False, 'home_path': '/'}
 
 
 @app.context_processor
@@ -352,11 +365,13 @@ def dashboard():
 
 @app.route('/screener')
 def screener():
-    """好調企業ランキングページ（会員限定）
+    """好調企業ランキングページ。
 
-    銘柄を横断して絞り込む機能は会員価値、という既存の整理に従う。
+    絞り込み・並べ替え・全件は会員価値。非会員には合致度の上位3件だけを
+    見せる（件数を切るのは API 側＝app._screen_preview。テンプレートで
+    隠しても、APIを直に叩けば中身が読めるため）。
     """
-    guard = _require_member()
+    guard = _require_login()
     if guard: return guard
     # ウォッチリストは全体で1つの共有リスト。消す操作は管理者だけに出す
     return render_template('screener.html',

@@ -511,7 +511,7 @@
                 {# 幅が足りないと「Company/Note」「～企業分析アプ/リ～」と
                    折り返してヘッダーの高さが崩れていた。ロゴは縮めない。 #}
                 <div class="flex items-center flex-shrink-0">
-                    <a href="/dashboard" class="flex items-center space-x-2.5">
+                    <a href="{{ home_path }}" class="flex items-center space-x-2.5">
                         <div class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background: #1b4332;">
                             <i class="fas fa-book-open text-white" style="font-size: 11px;"></i>
                         </div>
@@ -543,7 +543,7 @@
                    「ホー/ム」「マーケッ/ト」のように語の途中で折り返していた。
                    入らない幅では出さず、☰（スライドメニュー）に集約する。 #}
                 <div class="hidden lg:flex items-center space-x-6">
-                    <a href="/dashboard" class="nav-link px-2 py-1.5 text-sm font-medium">
+                    <a href="{{ home_path }}" class="nav-link px-2 py-1.5 text-sm font-medium">
                         ホーム
                     </a>
                     <a href="/learning" class="nav-link px-2 py-1.5 text-sm font-medium">
@@ -726,7 +726,7 @@
 
     <!-- ボトムタブナビ（モバイル専用） -->
     <div class="bottom-tab-nav md:hidden" x-data>
-        <a href="/dashboard" class="bottom-tab-item" data-tab-path="/dashboard">
+        <a href="{{ home_path }}" class="bottom-tab-item" data-tab-path="{{ home_path }}">
             <i class="fas fa-home"></i>
             <span>ホーム</span>
         </a>
