@@ -1314,7 +1314,7 @@
     <!-- 財務データテーブル -->
     <div style="margin-bottom: 20px;">
         <div class="detail-card{% if not is_member %} members-only{% endif %}" style="grid-column: 1 / -1;">
-            <div class="detail-header">財務データ（直近5年）</div>
+            <div class="detail-header">財務データ（直近数年）</div>
             <div class="detail-content" style="overflow-x: auto;">
                 <table class="financial-table" style="width: 100%; min-width: 800px;">
                     <thead>
@@ -1339,7 +1339,7 @@
                 </table>
             </div>
         
-            {% if not is_member %}{% set cta_text = '売上・利益の5年推移は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
+            {% if not is_member %}{% set cta_text = '売上・利益の数年分の推移は会員限定です' %}{% include '_members_cta.html' %}{% endif %}
             </div>
     </div>
 
