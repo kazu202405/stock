@@ -22,7 +22,9 @@ class InvitePageTest(unittest.TestCase):
         self.assertIn('¥11,000', body)
         self.assertIn('https://gia2018.com/upgrade/invite', body)
         self.assertIn('noindex, nofollow', body)
-        self.assertIn('/static/images/seminar/app-metrics.png', body)
+        # 宣伝色を落とすため THE TOOL / HOST の節は撤去済み（再追加の検知）
+        self.assertNotIn('THE TOOL', body)
+        self.assertNotIn('主催者について', body)
 
     def test_headline_variants_change_only_the_entry_message(self):
         response = self.client.get('/invite?v=c')

@@ -45,8 +45,14 @@ body{
   line-height:1.9;
   overflow-x:clip;
   padding-bottom:74px;
+  /* 日本語は既定だとどこでも折れる。文節の切れ目で折る。 */
+  word-break:auto-phrase;
 }
 @media (min-width:760px){ body{ padding-bottom:0; } }
+
+/* 見出しは行の長さを揃え、本文は最終行に1〜2文字だけ残さない。 */
+h1,h2,h3{ text-wrap:balance; }
+p,li,dd,dt,summary,.answer{ text-wrap:pretty; }
 
 a{ color:inherit; }
 img{ display:block; max-width:100%; }
@@ -283,76 +289,6 @@ main section.ruled{
 }
 .three-lines p{ color:var(--muted); font-size:14px; margin:0; }
 
-/* 実画面は資料を机上で見比べるような、左右非対称の綴じ方。 */
-.tool-stage{
-  display:grid;
-  grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);
-  gap:26px;
-  align-items:start;
-}
-.evidence{
-  margin:0;
-  background:white;
-  border:1px solid var(--line-dark);
-  box-shadow:8px 8px 0 var(--teal-pale);
-}
-.evidence .cap{
-  min-height:38px;
-  border-bottom:1px solid var(--line);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:16px;
-  padding:0 14px;
-  font-family:'IBM Plex Mono',monospace;
-  font-size:9.5px;
-  letter-spacing:.08em;
-  color:var(--muted);
-}
-.evidence img{ width:100%; height:auto; }
-.evidence figcaption{
-  border-top:1px solid var(--line);
-  padding:15px 17px 17px;
-  color:#43515f;
-  font-size:13px;
-  line-height:1.75;
-}
-.tool-side{ padding-top:62px; }
-.tool-side .evidence{ box-shadow:-7px 7px 0 var(--blue-pale); }
-.tool-notes{
-  margin:34px 0 0;
-  padding:0;
-  list-style:none;
-  counter-reset:note;
-}
-.tool-notes li{
-  counter-increment:note;
-  position:relative;
-  padding:13px 0 13px 42px;
-  border-bottom:1px solid var(--line);
-  font-size:13px;
-  color:var(--muted);
-}
-.tool-notes li::before{
-  content:counter(note,decimal-leading-zero);
-  position:absolute;
-  left:0;
-  top:13px;
-  color:var(--teal);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:10px;
-}
-.live-link{
-  display:inline-block;
-  margin-top:30px;
-  color:var(--navy);
-  text-decoration:none;
-  font-size:13px;
-  font-weight:700;
-  border-bottom:1px solid var(--navy);
-}
-.live-link:hover{ color:var(--teal); border-color:var(--teal); }
-
 .meeting-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -425,48 +361,6 @@ main section.ruled{
 .plan-row dd{ color:#354554; font-size:14px; }
 .plan-row dd strong{ color:var(--navy); font-size:18px; }
 .plan-row dd small{ display:block; color:var(--muted); margin-top:5px; font-size:11.5px; }
-
-.fit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:28px; }
-.fit{
-  background:white;
-  border-top:3px solid var(--teal);
-  padding:30px 32px;
-}
-.fit.no{ border-color:var(--line-dark); }
-.fit h3{
-  margin:0 0 18px;
-  color:var(--navy);
-  font-family:'Shippori Mincho',serif;
-  font-size:20px;
-}
-.fit ul{ list-style:none; padding:0; margin:0; }
-.fit li{
-  position:relative;
-  border-top:1px solid var(--line);
-  padding:12px 0 12px 23px;
-  color:var(--muted);
-  font-size:13px;
-}
-.fit li::before{ position:absolute; left:0; color:var(--teal); }
-.fit.yes li::before{ content:"○"; }
-.fit.no li::before{ content:"—"; color:var(--line-dark); }
-
-.profile{
-  display:grid;
-  grid-template-columns:220px minmax(0,1fr);
-  border-top:1px solid var(--line-dark);
-  border-bottom:1px solid var(--line-dark);
-  padding:34px 0;
-  gap:38px;
-}
-.profile-name{
-  color:var(--navy);
-  font-family:'Shippori Mincho',serif;
-  font-size:27px;
-  margin:0;
-}
-.profile-role{ color:var(--teal); font-size:11px; letter-spacing:.1em; margin-top:7px; }
-.profile-copy{ color:var(--muted); font-size:14px; }
 
 .entry{
   background:var(--navy-dark);
@@ -570,6 +464,7 @@ footer strong{ color:#d6e0e7; }
 }
 
 @media (max-width:720px){
+  .wide-br{ display:none; }
   .shell,.narrow{ width:min(100% - 32px,var(--max)); }
   .invite-bar .shell{ min-height:44px; }
   .invite-bar .private{ display:none; }
@@ -598,22 +493,12 @@ footer strong{ color:#d6e0e7; }
   .mobile-only{ display:block; }
   .three-lines article{ display:block; padding:22px 0; }
   .three-lines h3{ margin:7px 0 7px; }
-  .tool-stage{ display:block; }
-  .tool-side{ padding-top:34px; }
-  .evidence{ box-shadow:5px 5px 0 var(--teal-pale); }
-  .tool-side .evidence{ box-shadow:5px 5px 0 var(--blue-pale); }
-  .evidence .cap{ font-size:8.5px; }
   .meeting-grid{ display:block; }
   .meeting-grid article{ min-height:0; padding:27px 24px; }
   .letter{ padding:38px 25px 38px 32px; }
   .plan-row{ display:block; }
   .plan-row dt{ border-right:0; border-bottom:1px solid var(--line); padding:12px 18px; }
   .plan-row dd{ padding:18px; }
-  .fit-grid{ display:block; }
-  .fit + .fit{ margin-top:20px; }
-  .fit{ padding:26px 22px; }
-  .profile{ display:block; }
-  .profile-copy{ margin-top:24px; }
   .entry{ padding:66px 0; }
   .entry-grid{ display:block; }
   .entry-box{ margin-top:38px; padding:26px 22px; }
@@ -646,8 +531,8 @@ footer strong{ color:#d6e0e7; }
       </h1>
       <p class="hero-lead">{{ head.lead }}</p>
       <p class="hero-note">
-        株をすすめる会ではありません。<br>
-        公開されている企業の数字を材料に、会社の見方を一緒に磨く会です。
+        絶対儲かりますという会ではありません。<br>
+        公開されている企業の数字をもとに、業績が好調の企業の見つけ方を一緒に身につける会です。
       </p>
     </div>
 
@@ -677,21 +562,21 @@ footer strong{ color:#d6e0e7; }
       <div class="section-head">
         <p class="section-code">WHAT WE DO</p>
         <div>
-          <h2>会社の数字を、<br>ひとりで眺めて終わらせない。</h2>
-          <p class="intro">企業分析は、知識を覚えるだけでは身につきません。同じ会社を見ても、どこに注目するかは人によって違います。実際の企業を題材に、数字を読み、考えを話し、ほかの経営者の見方を聞く。その繰り返しをつくります。</p>
+          <h2>ひとりで考えるより、<br class="wide-br">みんなで考えるほうが速い。</h2>
+          <p class="intro">同じ会社を見ても、知見や経験、目線が違えば、どう考えるかは人によって変わります。実際の企業を題材に、数字や考えを話し、ほかの経営者の見方を聞く。他社を読むために使った見方は、そのまま自社の経営にも、投資の判断にも使えます。</p>
         </div>
       </div>
 
       <div class="three-lines">
         <article>
           <span class="n mono">01</span>
-          <h3>数字をそろえる</h3>
-          <p>売上、利益、自己資本、キャッシュフロー。会社ごとに散らばる情報を、同じ位置に並べます。</p>
+          <h3>数字の理由を考える</h3>
+          <p>伸びているのか、無理をしているのか。単独の数字ではなく、数年分の変化と組み合わせて読みます。</p>
         </article>
         <article>
           <span class="n mono">02</span>
-          <h3>数字の理由を考える</h3>
-          <p>伸びているのか、無理をしているのか。単独の数字ではなく、5年間の変化と組み合わせて読みます。</p>
+          <h3>探す時間を削減する</h3>
+          <p>売上、利益、自己資本、キャッシュフロー。会社ごとに散らばっているこれらを、わかりやすくまとめます。</p>
         </article>
         <article>
           <span class="n mono">03</span>
@@ -705,40 +590,6 @@ footer strong{ color:#d6e0e7; }
   <section class="ruled">
     <div class="shell">
       <div class="section-head">
-        <p class="section-code">THE TOOL</p>
-        <div>
-          <h2>当日は、自作の企業分析アプリを使います。</h2>
-          <p class="intro">Company Noteは、上場企業の情報を同じ順番で読めるようにした道具です。投資判断を代わりに出すのではなく、考える材料を見つけやすくします。</p>
-        </div>
-      </div>
-
-      <div class="tool-stage">
-        <figure class="evidence">
-          <div class="cap"><span>COMPANY NOTE / METRICS</span><span>7203</span></div>
-          <img src="/static/images/seminar/app-metrics.png" alt="Company Noteでトヨタ自動車の自己資本比率、営業利益率、PER、PBR、配当利回り、時価総額を並べた実際の画面">
-          <figcaption>企業ごとに散らばっている指標を、同じ場所・同じ順番に。数字を探す時間より、数字の意味を考える時間を増やします。</figcaption>
-        </figure>
-
-        <div class="tool-side">
-          <figure class="evidence">
-            <div class="cap"><span>PRICE / MARKET</span><span>1 YEAR</span></div>
-            <img src="/static/images/seminar/app-chart.png" alt="Company Noteの株価推移と日経平均を比較できる実際のチャート画面">
-            <figcaption>会社固有の動きか、市場全体の動きか。起点をそろえて見比べます。</figcaption>
-          </figure>
-          <ul class="tool-notes">
-            <li>5年間の売上・利益・一株利益</li>
-            <li>財務健全性とキャッシュフロー</li>
-            <li>業界基準との比較とデータ充足度</li>
-          </ul>
-          <a class="live-link" href="https://note.gia2018.com/stock/7203" target="_blank" rel="noopener">登録せずに実際の画面を見る →</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="white">
-    <div class="shell">
-      <div class="section-head">
         <p class="section-code">MONTHLY STUDY</p>
         <div>
           <h2>月に一度、ひとつの会社を深く見る。</h2>
@@ -749,23 +600,23 @@ footer strong{ color:#d6e0e7; }
       <div class="meeting-grid">
         <article>
           <span class="kicker mono">READ</span>
-          <h3>5年間の変化を読む</h3>
+          <h3>数年分の変化を読む</h3>
           <p>売上と利益がどう動いたか。現金は増えたか。配当は無理をしていないか。数字を順番に見ます。</p>
         </article>
         <article>
           <span class="kicker mono">COMPARE</span>
-          <h3>2社を並べて違いを探す</h3>
+          <h3>複数社を並べて違いを探す</h3>
           <p>大きい会社と、良い会社は同じとは限りません。同じ業種や似た規模の会社を比べます。</p>
         </article>
         <article>
-          <span class="kicker mono">DISCUSS</span>
-          <h3>参加者の見方を聞く</h3>
-          <p>経営者、営業、財務。それぞれ注目する場所が違います。少人数だから、一人ずつ言葉にできます。</p>
+          <span class="kicker mono">SHARE</span>
+          <h3>気になる会社を持ち寄る</h3>
+          <p>主催からは毎回1社お出しします。参加者も、無理のない範囲で気になっている会社を1社。少人数なので、一人ずつ話せます。</p>
         </article>
         <article>
           <span class="kicker mono">RETURN</span>
-          <h3>自社を見る目盛りに戻す</h3>
-          <p>他社の決算なら、少し距離を置いて見られます。その目盛りを持ち帰り、自社の数字にも当てます。</p>
+          <h3>自社にいかす</h3>
+          <p>他社を見る側に立つと、銀行や取引先が自社の決算をどこから見ているかも分かります。</p>
         </article>
       </div>
     </div>
@@ -778,11 +629,13 @@ footer strong{ color:#d6e0e7; }
         <div><h2>なぜ、アプリまで作ったのか。</h2></div>
       </div>
       <div class="letter">
-        <p>会社の見方をお話ししていると、毎回きまって同じところで手が止まりました。</p>
-        <p>「で、この会社の数字はどこで見るんですか」</p>
-        <p>数字は公開されています。ただ、載っている場所がばらばらで、並びも会社ごとに違います。探すだけで疲れてしまい、その先の「なぜ」を考えるところまで進めない。だから、先に道具を作りました。</p>
-        <p>もうひとつ、経営者同士で決算や会社の話をできる場が、思ったより少ないと感じています。株価の予想ではなく、会社そのものについて話せる場です。</p>
-        <p>大人数に広げるより、まずは顔が分かる方と、小さく続けたいと思っています。</p>
+        <p>経営者の方は、資金に余裕ができたタイミングで投資を考えることが多いと思います。ただ、そこで詐欺にあってしまったり、話題性だけで雑に決めてしまったり。もったいないな、と感じる場面を、何度も見てきました。</p>
+        <p>このアプリは、もともと自分のために作ったものでした。業績が好調な会社を探す時間を、少しでも短くしたかったからです。</p>
+        <p>いろいろな方とお話ししているうちに、気づいたことがありました。投資の勉強は、ひとりではなかなか続かない。やる気はあっても、何から手をつければいいか分からない。同じ話を、何度も聞きました。</p>
+        <p>一方で私自身は、「何か集まりを企画してほしい」と言っていただいたり、人と人をお繋ぎすることが多くありました。この二つをうまく合わせられないか、とずっと考えていました。</p>
+        <p>せっかく投資をするなら、中身を自分で確かめたうえで決めてほしい。せっかくなら、良い人同士をお繋ぎしたい。お互いの会社の成長の場にもなればいい。そう考えて、この仕組みにたどり着きました。</p>
+        <p>このページは、ホームページのどこからもリンクしていません。私が好きな方か、その方からのご紹介でしか届かないページです。</p>
+        <p>ここまでの考え方に賛同いただけましたら、ぜひご参加ください。</p>
         <p class="letter-sign"><small>株式会社GIA</small>五島 一将</p>
       </div>
     </div>
@@ -801,7 +654,7 @@ footer strong{ color:#d6e0e7; }
       <dl class="plan-sheet">
         <div class="plan-row">
           <dt>企業分析アプリ</dt>
-          <dd><strong>Company Noteの会員機能</strong><small>銘柄検索、5年の業績、財務・キャッシュフロー、企業分析レポートなど。</small></dd>
+          <dd><strong>Company Noteの会員機能</strong><small>銘柄検索、数年分の業績、財務・キャッシュフロー、企業分析レポートなど。</small></dd>
         </div>
         <div class="plan-row">
           <dt>学習</dt>
@@ -809,65 +662,17 @@ footer strong{ color:#d6e0e7; }
         </div>
         <div class="plan-row">
           <dt>研究会</dt>
-          <dd><strong>少人数のオフライン会・企業研究</strong><small>月1回を基本にご案内します。日程とテーマは参加者へ個別にお知らせします。</small></dd>
+          <dd><strong>ご紹介者のみのオフライン会・企業研究</strong><small>月1回を基本にご案内します。日程とテーマは参加者へ個別にお知らせします。</small></dd>
         </div>
         <div class="plan-row">
           <dt>月額</dt>
-          <dd><strong class="mono">11,000円（税込）</strong><small>Stripeによる月額決済。いつでも解約できます。</small></dd>
+          <dd><strong class="mono">11,000円（税込）</strong><small>システム利用および会費として。Stripeによる月額決済。いつでも解約できます。</small></dd>
         </div>
         <div class="plan-row">
-          <dt>別途かかるもの</dt>
-          <dd><strong>懇親会・飲食代の実費</strong><small>参加される場合だけ必要です。金額は開催案内で事前にお伝えします。</small></dd>
+          <dt>別途実費</dt>
+          <dd><strong>会場費や飲食代などの実費</strong><small>会場の手配や当日の運営にかかる分も含みます。金額は開催案内で事前にお伝えします。</small></dd>
         </div>
       </dl>
-    </div>
-  </section>
-
-  <section>
-    <div class="shell">
-      <div class="section-head">
-        <p class="section-code">FOR WHOM</p>
-        <div><h2>合う方と、合わない方。</h2></div>
-      </div>
-      <div class="fit-grid">
-        <div class="fit yes">
-          <h3>この会が合う方</h3>
-          <ul>
-            <li>企業の数字を、自分で読めるようになりたい</li>
-            <li>他社を見る目を、自社の経営にも生かしたい</li>
-            <li>少人数で考えを話し、ほかの経営者の視点も聞きたい</li>
-            <li>投資経験に関係なく、基礎から続けて学びたい</li>
-          </ul>
-        </div>
-        <div class="fit no">
-          <h3>この会では扱わないこと</h3>
-          <ul>
-            <li>今すぐ買う銘柄、売る銘柄の紹介</li>
-            <li>短期間で利益を出すための売買手法</li>
-            <li>利益や元本を保証する話</li>
-            <li>誰かの判断を、そのまま正解として受け取ること</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="white">
-    <div class="narrow">
-      <div class="section-head" style="grid-template-columns:150px minmax(0,1fr)">
-        <p class="section-code">HOST</p>
-        <div><h2>主催者について</h2></div>
-      </div>
-      <div class="profile">
-        <div>
-          <p class="profile-name">五島 一将</p>
-          <p class="profile-role mono">株式会社GIA</p>
-        </div>
-        <div class="profile-copy">
-          <p>企業分析アプリ「Company Note」を設計・開発。決算の数字から会社の状態を読む方法を、経営者向けのセミナーや勉強会で伝えています。</p>
-          <p>講師が一方的に答えを話すより、参加者自身が考え、話せる進め方を大切にしています。</p>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -879,20 +684,16 @@ footer strong{ color:#d6e0e7; }
       </div>
       <div class="faq">
         <details>
-          <summary>投資経験がなくても参加できますか？</summary>
-          <div class="answer">はい。決算書を読んだことがない方でも、見る順番から扱います。投資経験よりも、会社について考えてみたいという気持ちを大切にしています。</div>
+          <summary>どんな方が向いていますか？</summary>
+          <div class="answer">投資の経験は問いません。習い事のような気分で、株式や会社の見方を知りたい方。同じ関心を持つ経営者の知り合いを増やしたい方。決算書を読んだことがなくても、見る順番から一緒に扱います。</div>
         </details>
         <details>
           <summary>毎回、対面で参加する必要がありますか？</summary>
-          <div class="answer">参加できる回にお越しください。Company Noteと講義録画は、研究会に参加できない月も利用できます。</div>
-        </details>
-        <details>
-          <summary>今のCompany Noteアカウントはそのまま使えますか？</summary>
-          <div class="answer">使えます。決済時に現在のアカウントでログインしてください。新しく作り直す必要はありません。</div>
+          <div class="answer">できる限りご参加いただきたいのですが、ご無理のない範囲で、来られる回にお越しください。勉強会の内容はアプリの中にたまっていくので、参加できなかった回もあとから見返せます。</div>
         </details>
         <details>
           <summary>申し込む前に質問できますか？</summary>
-          <div class="answer">このページを送った方へ、そのままLINEでご返信ください。{% if inviter %}{{ inviter }}さんから届いたページであることを添えていただくとスムーズです。{% endif %}</div>
+          <div class="answer">このページをお送りした方へ、LINEでお気軽にご返信ください。無料の勉強会や説明会もありますので、まずはそちらで雰囲気を見ていただくこともできます。</div>
         </details>
       </div>
     </div>
@@ -902,11 +703,11 @@ footer strong{ color:#d6e0e7; }
     <div class="shell entry-grid">
       <div>
         <p class="section-code">ENTRY</p>
-        <h2>一緒に、会社を見る練習を<br>続けませんか。</h2>
-        <p>{% if inviter %}このご案内は、{{ inviter }}さんから届いた方へお渡ししています。{% else %}このご案内は、五島またはご紹介者から直接お渡ししています。{% endif %}</p>
+        <h2>会社の話ができる仲間を、<br class="wide-br">つくりませんか。</h2>
+        <p>{% if inviter %}このご案内は、{{ inviter }}さんから届いた方へお渡ししています。{% else %}このご案内は、主催者またはご紹介者から直接お渡ししています。{% endif %}</p>
         <ol class="steps">
-          <li><span class="mono">01</span><span>下のボタンから、GIAのログインまたは無料登録へ進みます。</span></li>
-          <li><span class="mono">02</span><span>ログイン後、自動で11,000円プランのStripe決済に戻ります。</span></li>
+          <li><span class="mono">01</span><span>参加ボタンを押すと、GIAのログイン（初めての方は無料登録）に進みます。</span></li>
+          <li><span class="mono">02</span><span>ログインが済むと、そのまま11,000円プランのStripe決済に進みます。</span></li>
           <li><span class="mono">03</span><span>決済が完了すると、Company Noteの会員機能が開きます。</span></li>
         </ol>
       </div>
