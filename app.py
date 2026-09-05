@@ -403,6 +403,14 @@ FREE_SCREEN_ROWS = 3
 # 着地して、買ったはずの機能に戻る道が示されない（gia-next 側がこの値を受ける）。
 UPGRADE_URL = 'https://gia2018.com/upgrade?from=note'
 
+# 会員の月額。⚠️ **画面に書く数字はここからだけ取る。**
+# 同じ金額が GIA の /upgrade・/plans・招待ページにもあり、値上げのときに
+# 直し漏れる。テンプレートに直書きさせない（tests/test_membership_page.py）。
+# 金額の正本は Stripe の Price。ここは表示用の写しなので、変えるときは
+# 必ず Stripe 側と突き合わせる。
+MEMBERSHIP_PRICE_YEN = 4980          # 税別
+MEMBERSHIP_PRICE_YEN_TAX_IN = 5478   # 税込
+
 # 段の表示名。内部キーをそのまま画面に出さないための対応表。
 # 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
 MEMBERSHIP_LABELS = {

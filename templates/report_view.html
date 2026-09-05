@@ -13,7 +13,13 @@
   </div>
   {% elif show_sample %}
   <div class="rp-actions">
+    {# 見本は非会員も読める。「企業を選ぶ」のは会員だけなので、行き先を分ける
+       （押した先が門前払いだと、見本を読んだ勢いがそこで切れる）。 #}
+    {% if is_member %}
     <a href="/report" class="rp-btn rp-btn-primary"><i class="fas fa-arrow-left"></i>企業を選んでレポートを作る</a>
+    {% else %}
+    <a href="/membership" class="rp-btn rp-btn-primary"><i class="fas fa-file-invoice"></i>自分の見たい会社で作る</a>
+    {% endif %}
     <span class="rp-actions-note">これはレポートの完成イメージです（固定データ）</span>
   </div>
   {% include '_report_sample.html' %}

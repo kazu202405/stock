@@ -575,9 +575,14 @@
                                 <i class="fas fa-code-compare"></i>企業比較
                             </a>
                             {% endif %}
+                            {# 会員限定。入力して結果を出す道具なので「数件だけ見せる」に
+                                相当する切り方が無く、長期の株価が揃っていない銘柄では
+                                最初の1回で何も出ない。押して門前払いより出さない。 #}
+                            {% if is_member %}
                             <a href="/simulator" class="nav-dropdown-item">
                                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
                             </a>
+                            {% endif %}
                             {% if is_logged_in and user_role == 'admin' %}
                             <a href="/themes" class="nav-dropdown-item">
                                 <i class="fas fa-tags"></i>テーマ・業種
@@ -800,9 +805,11 @@
                 <i class="fas fa-code-compare"></i>企業比較
             </a>
             {% endif %}
+            {% if is_member %}
             <a href="/simulator" class="slide-menu-link">
                 <i class="fas fa-clock-rotate-left"></i>過去シミュレーション
             </a>
+            {% endif %}
             {% if is_logged_in and user_role == 'admin' %}
             <a href="/themes" class="slide-menu-link">
                 <i class="fas fa-tags"></i>テーマ・業種

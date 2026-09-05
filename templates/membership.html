@@ -6,14 +6,32 @@
 {% block content %}
 <div style="max-width: 720px; margin: 0 auto; padding: 48px 20px 64px;">
 
-  <div style="text-align:center; margin-bottom:40px;">
+  {# 断り文句から始めない。ここに来た人は「何が足りないか」より
+     「会員になると何ができるか」を知りたい。理由は小さく1行で足りる。 #}
+  <div style="text-align:center; margin-bottom:32px;">
     <div style="width:40px; height:2px; background:#1b4332; margin:0 auto 20px;"></div>
-    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin-bottom:10px;">
-      この機能は会員限定です
+    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.08em; margin-bottom:12px;">
+      ただいまの機能は会員の方にご利用いただいています
+    </p>
+    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin-bottom:12px;">
+      会員になると、できること
     </h1>
     <p style="font-size:14px; color:#737373; line-height:1.9;">
-      銘柄を横断して選ぶ機能と、企業の中身を深く見る機能は<br class="hidden sm:inline">
-      会員の方にご利用いただいています。
+      銘柄を横断して選ぶことと、企業の中身を深く読むこと。<br class="hidden sm:inline">
+      その2つが開きます。
+    </p>
+  </div>
+
+  {# ⚠️ 価格はここで出し切る。以前は金額を書かず gia2018.com へ送っていたため、
+     いくらか知るまでに3画面かかっていた。数字は app.py の定数から。 #}
+  <div style="text-align:center; background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:24px; margin-bottom:24px;">
+    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:8px;">オンライン会員</p>
+    <p style="margin:0; color:#1a1a1a;">
+      <span style="font-size:30px; font-weight:700; letter-spacing:0.01em;">&yen;{{ '{:,}'.format(price_yen) }}</span>
+      <span style="font-size:13px; color:#737373;"> / 月（税別）</span>
+    </p>
+    <p style="font-size:11.5px; color:#a3a3a3; margin-top:6px;">
+      税込 &yen;{{ '{:,}'.format(price_yen_tax_in) }}／毎月自動更新・いつでも解約できます
     </p>
   </div>
 
@@ -38,16 +56,22 @@
   </div>
 
   <div style="text-align:center;">
-    <a href="https://gia2018.com/upgrade?from=note"
+    <a href="{{ upgrade_url }}"
        style="display:inline-flex; align-items:center; justify-content:center; gap:8px;
               background:#1b4332; color:#fff; text-decoration:none;
               font-size:14px; font-weight:600; letter-spacing:0.06em;
               padding:14px 32px; border-radius:10px;">
-      会員のご案内を見る
+      会員になる
     </a>
     <p style="font-size:11.5px; color:#a3a3a3; margin-top:14px; line-height:1.8;">
       お申し込みは gia2018.com で承ります。<br>
       Company Note とは同じメールアドレス・パスワードでご利用いただけます。
+    </p>
+    {# 買う前に中身を見てもらう。見本は固定データで既に作ってある。 #}
+    <p style="margin-top:18px;">
+      <a href="/report/sample" style="font-size:13px; color:#1b4332; text-decoration:none; border-bottom:1px solid #d5e0d9; padding-bottom:2px;">
+        企業分析レポートの見本を読む
+      </a>
     </p>
   </div>
 

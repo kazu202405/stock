@@ -341,14 +341,23 @@ def membership():
     gia_identity.clear_membership_cache(session.get('user_id'))
     if is_member():
         return redirect('/dashboard')
-    return render_template('membership.html', member_features=[
+    # ⚠️ 価格と申込先はテンプレートに直書きしない。金額は4か所（GIAの
+    #    /upgrade・/plans・招待ページ・ここ）にあり、直書きすると値上げの
+    #    ときに漏れる。定数は app.py。
+    from app import (UPGRADE_URL, MEMBERSHIP_PRICE_YEN,
+                     MEMBERSHIP_PRICE_YEN_TAX_IN)
+    return render_template('membership.html',
+                           upgrade_url=UPGRADE_URL,
+                           price_yen=MEMBERSHIP_PRICE_YEN,
+                           price_yen_tax_in=MEMBERSHIP_PRICE_YEN_TAX_IN,
+                           member_features=[
         'ホーム（好調企業・高配当企業・テクニカル分析）',
         'スクリーナー（全銘柄からの絞り込み・並べ替え）',
         '企業分析レポート',
         '決算情報（決算月ごとの銘柄一覧）',
         '銘柄ページの数年分のfinancials・キャッシュフロー・財務健全性',
         '会社予想・成長率・ROA と、12項目の合致度スコアの内訳',
-    ])
+                           ])
 
 
 @app.route('/dashboard')
@@ -453,8 +462,12 @@ def report_sample():
     実データが揃っていない銘柄でも、レポートがどこまで書けるものかを
     確認できるようにするためのページ。
     ⚠️ 中身は特定企業の実例なので、他銘柄のレポートには絶対に流用しない。
+
+    2026-09-06: 会員限定をやめた。「レポートがどこまで書けるか」を見せる
+    ために作ったページなのに、見せたい相手（まだ会員でない人）に見えて
+    いなかった。固定データなので、開いても実銘柄の中身は漏れない。
     """
-    guard = _require_member()
+    guard = _require_login()
     if guard: return guard
     return render_template('report_view.html', report=None, show_sample=True)
 
