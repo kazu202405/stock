@@ -40,10 +40,15 @@ class MessageTest(unittest.TestCase):
         self.assertIn('status === 403', self.html)
 
     def test_会員限定には案内先がある(self):
-        """「見られません」だけでは、どうすれば見られるか分からない。"""
+        """「見られません」だけでは、どうすれば見られるか分からない。
+
+        2026-09-06: 行き先を gia2018.com/upgrade から /membership に変えた。
+        価格・申込ボタン・レポートの見本が /membership に載ったので、
+        別ドメインへ直接飛ばすより、そこを通したほうが分かる。
+        """
         block = self.html.split('function loadErrorHtml(', 1)[1][:1400]
         self.assertIn('会員向け', block)
-        self.assertIn('gia2018.com/upgrade', block)
+        self.assertIn('/membership', block)
 
     def test_ログイン切れにはログイン先がある(self):
         block = self.html.split('function loadErrorHtml(', 1)[1][:1400]

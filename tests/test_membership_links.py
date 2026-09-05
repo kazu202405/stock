@@ -34,6 +34,11 @@ SCAN_DIRS = ('templates', 'models')
 SCAN_FILES = ('app.py',)
 GIA_URL = re.compile(r"https://gia2018\.com[^\"'\s)]*")
 
+# アプリ内の会員案内。2026-09-06、ログイン済みの人が使うゲート3か所
+# （勉強会・アカウント設定・ウォッチリスト）を、別ドメインへ直接飛ばすのを
+# やめてここへ通した。/membership に価格と申込ボタンと見本があるため。
+INTERNAL_GATE = 'href="/membership"'
+
 
 def _strip_comments(text, path):
     """注意書きに引っかからないよう、コメントを落としてから走査する。"""
@@ -61,12 +66,26 @@ class MembershipLinkTest(unittest.TestCase):
                 found.append((os.path.basename(path), url))
         return found
 
+    def _internal_gates(self):
+        """アプリ内の /membership へのリンク数。"""
+        count = 0
+        for directory in SCAN_DIRS:
+            base = os.path.join(ROOT, directory)
+            for name in sorted(os.listdir(base)):
+                if not name.endswith('.html'):
+                    continue
+                with open(os.path.join(base, name), encoding='utf-8') as f:
+                    count += f.read().count(INTERNAL_GATE)
+        return count
+
     def test_every_membership_link_points_at_the_same_place(self):
         found = self._found_links()
 
         # ⚠️ 0件でも通る形にしない。走査が壊れたら落とす。
-        self.assertGreaterEqual(len(found), 5,
-                                'GIAへのリンクを拾えていない（走査が壊れている可能性）')
+        #    行き先を /membership に寄せると gia2018.com のリンク自体は減るので、
+        #    「会員申込への導線の総数」で数える（減らすと落ちる、を保つ）。
+        self.assertGreaterEqual(len(found) + self._internal_gates(), 5,
+                                '会員申込への導線を拾えていない（走査が壊れている可能性）')
 
         stray = sorted({f'{name}: {url}' for name, url in found if url not in ALLOWED})
         self.assertEqual(stray, [],
