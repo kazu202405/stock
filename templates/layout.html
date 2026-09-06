@@ -1065,6 +1065,20 @@
                         会員のご案内を見る
                     </a>
                 </div>
+                {# ⚠️ 入る道（会員のご案内）だけあって、出る道が無かった。
+                    解約は gia2018.com の Stripe カスタマーポータルでできるのに、
+                    そこへの入口が Company Note のどこにも無く、探す人の言葉
+                    （解約・退会）も画面に出ていなかった。 #}
+                <div id="accountPlanManage" style="display:none; margin-top:8px;">
+                    <a href="https://gia2018.com/members/app/settings" target="_blank" rel="noopener"
+                       style="font-size:12px; color:#525252; text-decoration:none; border-bottom:1px solid #ebebeb;">
+                        お支払い・ご解約の手続き
+                    </a>
+                    <p style="font-size:11px; color:#a3a3a3; margin-top:6px; line-height:1.7;">
+                        gia2018.com のアカウント設定から手続きできます。<br>
+                        解約後も、お支払い済みの期間が終わるまではご利用いただけます。
+                    </p>
+                </div>
             </div>
             <!-- メールアドレス変更 -->
             <div style="margin-bottom:12px;">
@@ -1461,6 +1475,8 @@
         emailEl.textContent = '読み込み中...';
         planEl.textContent = '読み込み中...';
         upgradeEl.style.display = 'none';
+        var manageInit = document.getElementById('accountPlanManage');
+        if (manageInit) manageInit.style.display = 'none';
 
         fetch('/api/auth/me').then(function(r) { return r.json(); }).then(function(d) {
             // セッション切れ（logged_in:false）のとき、以前は何も書き換えず
@@ -1476,6 +1492,10 @@
             planEl.textContent = d.user.plan_label || '無料会員';
             // 会員でない人にだけ案内を出す（会員に売り込みを見せない）
             upgradeEl.style.display = d.user.is_member ? 'none' : 'block';
+            // 会員には「出る道」を出す。⚠️ 入る道だけ用意して出る道を出さない
+            //    のは、探しても見つからないのと同じ。
+            var manageEl = document.getElementById('accountPlanManage');
+            if (manageEl) manageEl.style.display = d.user.is_member ? 'block' : 'none';
         }).catch(function() {
             emailEl.textContent = '読み込みできませんでした';
             planEl.textContent = '—';

@@ -15,6 +15,11 @@ from unittest.mock import patch
 
 os.environ.setdefault('ENABLE_SCHEDULER', 'false')
 
+def read(path):
+    with open(path, encoding='utf-8') as f:
+        return f.read()
+
+
 MEMBERSHIP_TEMPLATE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'templates', 'membership.html')
@@ -88,6 +93,38 @@ class MembershipPageTest(unittest.TestCase):
         """
         body = self._free_client().get('/learning').get_data(as_text=True)
         self.assertNotIn('href="/simulator"', body)
+
+
+class CancellationPathTest(unittest.TestCase):
+    """解約の入口（2026-09-06）。
+
+    Stripe のカスタマーポータルでは解約できる設定になっていたのに、
+    Company Note のどこにも入口が無く、GIA側のボタン名も
+    「サブスクリプション管理」で、**探す人の言葉が画面に一度も出ていなかった**。
+    「どこからも退会できない」と受け取られた。
+    """
+
+    def setUp(self):
+        self.layout = read(os.path.join(
+            os.path.dirname(MEMBERSHIP_TEMPLATE), 'layout.html'))
+
+    def test_the_account_panel_offers_a_way_out(self):
+        """⚠️ 入る道（会員のご案内）だけ用意して、出る道を出さない。"""
+        self.assertIn('accountPlanManage', self.layout)
+        self.assertIn('ご解約', self.layout, '探す人の言葉が画面に無い')
+
+    def test_it_is_shown_to_members_only(self):
+        """非会員に解約の案内を出しても意味が無い。"""
+        start = self.layout.find("var manageEl = document.getElementById('accountPlanManage')")
+        self.assertNotEqual(start, -1, '会員かどうかで出し分けていない')
+        self.assertIn('is_member', self.layout[start:start + 200])
+
+    def test_it_says_access_continues_until_the_period_ends(self):
+        """規約（第10条）は「利用期間終了日まで使える／返金しない」。
+        画面もそう書いておかないと、押す前に不安になる。"""
+        start = self.layout.find('accountPlanManage')
+        block = self.layout[start:start + 900]
+        self.assertIn('期間が終わるまで', block)
 
 
 if __name__ == '__main__':
