@@ -282,6 +282,48 @@ class ScreenerOrderTest(unittest.TestCase):
         self.assertLess(i_score, i_note, 'メモが確かさより先に効いている')
 
 
+class NotePlacementTest(unittest.TestCase):
+    """メモの置き場所（2026-09-06 に事業概要と財務データの間へ移した）。"""
+
+    def setUp(self):
+        self.html = read('templates/stock_detail.html')
+
+    def test_it_sits_between_the_summary_and_the_financials(self):
+        """何の会社かを読んだ直後に、どこを見ると面白いかが来る。"""
+        summary = self.html.find('<!-- 事業概要 -->')
+        note = self.html.find('id="stockNoteBlock"')
+        financials = self.html.find('<!-- 財務データテーブル -->')
+        for name, pos in (('事業概要', summary), ('メモ', note),
+                          ('財務データ', financials)):
+            self.assertNotEqual(pos, -1, name)
+        self.assertLess(summary, note, 'メモが事業概要より前にある')
+        self.assertLess(note, financials, 'メモが財務データより後にある')
+
+
+class WideModalTest(unittest.TestCase):
+    """複数行のときだけモーダルを広げる。"""
+
+    def setUp(self):
+        self.layout = read('templates/layout.html')
+
+    def test_the_wide_style_exists(self):
+        self.assertIn('.ui-modal-card.is-wide', self.layout)
+
+    def test_the_width_is_toggled_not_left_on(self):
+        """⚠️ 同じモーダルを使い回しているので、付けっぱなしにすると
+        次に開いた1行入力まで広いままになる。"""
+        start = self.layout.find('function _promptField(')
+        self.assertNotEqual(start, -1)
+        block = self.layout[start:self.layout.find('function showPromptModal(', start)]
+        self.assertIn("classList.toggle('is-wide'", block)
+
+    def test_the_single_line_modal_is_not_widened(self):
+        """40文字の1行入力が横に間延びしないこと。"""
+        start = self.layout.find('.ui-modal-card {')
+        block = self.layout[start:start + 220]
+        self.assertIn('max-width: 420px', block)
+
+
 class SharedDialogTest(unittest.TestCase):
     """入力はアプリ内モーダルで行う（全プロジェクト共通ルール）。"""
 

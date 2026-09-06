@@ -494,6 +494,9 @@
         background: #fff; border-radius: 12px; padding: 24px 26px;
         max-width: 420px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,.16);
     }
+    /* 複数行のときだけ広げる。⚠️ 一律に広げない。40文字の1行入力
+       （会員番号など）が横に間延びして、何を入れる欄か分かりにくくなる。 */
+    .ui-modal-card.is-wide { max-width: 720px; }
     .ui-modal-title { font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 0 0 8px; }
     .ui-modal-note { font-size: 13px; color: #737373; line-height: 1.6; margin: 0 0 12px; white-space: pre-line; }
     .ui-modal-note:empty { display: none; }
@@ -976,8 +979,9 @@
             <input type="text" id="promptModalInput" class="ui-modal-input" autocomplete="off" maxlength="40">
             {# 複数行の入力（銘柄メモなど）。1行の input と同じモーダルを使い回す。
                ⚠️ 画面ごとに自作しない。文言も見た目も揃わなくなる。 #}
-            <textarea id="promptModalTextarea" class="ui-modal-input" rows="6" hidden
-                      style="resize:vertical; line-height:1.8; font-family:inherit;"></textarea>
+            <textarea id="promptModalTextarea" class="ui-modal-input" rows="12" hidden
+                      style="resize:vertical; line-height:1.9; font-family:inherit;
+                             min-height:220px; font-size:14px;"></textarea>
             <p id="promptModalError" class="ui-modal-error"></p>
             <div class="ui-modal-actions">
                 <button type="button" class="ui-btn-ghost" onclick="closePromptModal(null)">キャンセル</button>
@@ -1228,6 +1232,10 @@
         const area = document.getElementById('promptModalTextarea');
         line.hidden = !!multiline;
         area.hidden = !multiline;
+        // ⚠️ 幅は開くたびに付け外しする。付けっぱなしにすると、次に開いた
+        //    1行入力まで広いままになる（同じモーダルを使い回しているため）。
+        const card = document.querySelector('#promptModal .ui-modal-card');
+        if (card) card.classList.toggle('is-wide', !!multiline);
         return multiline ? area : line;
     }
     function _promptActiveField() {

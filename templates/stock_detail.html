@@ -1094,30 +1094,6 @@
         <span>｜公開情報を機械処理した補完データです。投資助言ではなく、重要な判断ではEDINET原本・企業IRも確認してください。</span>
     </div>
 
-    {# 運営のメモ。点数は機械の答えなので、「どこを見ると面白いか」は人が書く。
-       ⚠️ このページは公開。メモも公開になるので、非公開の話は書かない。
-       ⚠️ スコアの色（緑）や GC/DC の行の色とは別の見た目にする。
-          同じ色に3つ目の意味を載せると読み違いが起きる。 #}
-    <div id="stockNoteBlock" class="stock-note{% if not stock_note %} is-empty{% endif %}">
-        <div class="stock-note-head">
-            <span class="stock-note-label"><i class="fas fa-pen-nib"></i>この会社の見どころ</span>
-            {% if is_admin %}
-            <span class="stock-note-tools">
-                <button type="button" class="stock-note-btn" onclick="editStockNote()">
-                    {% if stock_note %}書き直す{% else %}メモを書く{% endif %}
-                </button>
-                {% if stock_note %}
-                <button type="button" class="stock-note-btn" onclick="deleteStockNote()">消す</button>
-                {% endif %}
-            </span>
-            {% endif %}
-        </div>
-        <p class="stock-note-body" id="stockNoteBody">{{ stock_note.body if stock_note else '' }}</p>
-        {% if is_admin and not stock_note %}
-        <p class="stock-note-hint">メモを書くと、一覧に印が付いて「取り上げた会社」に並びます。</p>
-        {% endif %}
-    </div>
-
     <!-- ローディング -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
@@ -1366,6 +1342,30 @@
                 {% endif %}
             </div>
         </div>
+    </div>
+
+    {# 運営のメモ。点数は機械の答えなので、「どこを見ると面白いか」は人が書く。
+       ⚠️ このページは公開。メモも公開になるので、非公開の話は書かない。
+       ⚠️ スコアの色（緑）や GC/DC の行の色とは別の見た目にする。
+          同じ色に3つ目の意味を載せると読み違いが起きる。 #}
+    <div id="stockNoteBlock" class="stock-note{% if not stock_note %} is-empty{% endif %}">
+        <div class="stock-note-head">
+            <span class="stock-note-label"><i class="fas fa-pen-nib"></i>この会社の見どころ</span>
+            {% if is_admin %}
+            <span class="stock-note-tools">
+                <button type="button" class="stock-note-btn" onclick="editStockNote()">
+                    {% if stock_note %}書き直す{% else %}メモを書く{% endif %}
+                </button>
+                {% if stock_note %}
+                <button type="button" class="stock-note-btn" onclick="deleteStockNote()">消す</button>
+                {% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <p class="stock-note-body" id="stockNoteBody">{{ stock_note.body if stock_note else '' }}</p>
+        {% if is_admin and not stock_note %}
+        <p class="stock-note-hint">メモを書くと、一覧に印が付いて「取り上げた会社」に並びます。</p>
+        {% endif %}
     </div>
 
     <!-- 財務データテーブル -->
