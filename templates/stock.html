@@ -2729,9 +2729,12 @@
             const payoutRatio = item.payout_ratio != null ? `${Number(item.payout_ratio).toFixed(1)}%` : '---';
             const matchRate = item.match_rate !== null && item.match_rate !== undefined ? `${item.match_rate}` : '---';
             const matchRateClass = getMatchRateClass(item);
+            // 好調企業の一覧と同じ薄い色を付ける。直近のクロスがGCなら緑、DCなら赤。
+            // 判定は getLatestCross の1本に寄せる（別々に書くと片方だけ基準がずれる）。
+            const favTrend = getLatestCross(item.gc_date, item.dc_date);
 
             html += `
-                <tr>
+                <tr class="${favTrend.cls ? 'row-' + favTrend.cls : ''}">
                     ${BulkSelect.cell('favorite', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
