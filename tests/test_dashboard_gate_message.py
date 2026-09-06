@@ -126,13 +126,36 @@ class SavedTabTest(unittest.TestCase):
         body = c.get(path).get_data(as_text=True)
         return set(re.findall(r'id="tabContent-([a-z]+)"', body))
 
-    def test_2つの画面でタブの数が違う(self):
-        """この前提が崩れたらテストの意味が無くなるので先に確かめる。"""
-        normal = self._tabs('/dashboard')
-        admin = self._tabs('/dashboard/admin')
-        self.assertTrue(normal)
-        self.assertTrue(admin - normal, '管理画面だけのタブが無くなった')
-        self.assertIn('gc', admin - normal)
+    def test_閉じたタブが本当に消えている(self):
+        """2026-09-06: GC銘柄・DC銘柄タブを閉じた。
+
+        同じことがテクニカル分析タブでできる（GC/DC発生日で並べ替え・絞り込み）。
+        しかもあちらは ma_crosses を見ていて日付が正しい。GC/DCタブが見ていた
+        signal_stocks は、gc_date にスクレイピング時刻が一律で入っている。
+
+        ⚠️ これで /dashboard と /dashboard/admin のタブは同じになった。
+           以前ここは「管理画面だけタブが多い」ことを前提にしていたが、
+           その前提はもう無い。**前提が消えたテストを残すより、いま本当に
+           守るものに書き換える。**
+        """
+        for path in ('/dashboard', '/dashboard/admin'):
+            with self.subTest(path=path):
+                tabs = self._tabs(path)
+                self.assertTrue(tabs, 'タブを拾えていない')
+                self.assertNotIn('gc', tabs)
+                self.assertNotIn('dc', tabs)
+
+    def test_保存された古いタブ名でも壊れない(self):
+        """⚠️ activeTab は sessionStorage に残る。
+
+        GC/DCタブを開いたことがある人のブラウザには 'gc' が残っている。
+        閉じたあとにそれを読みに行くと、存在しない要素へ書き込もうとする。
+        タブの存在を確かめてから読み込む作りが、その人たちを守っている。
+        """
+        html = read('templates', 'stock.html')
+        self.assertIn("document.getElementById('tabContent-' + savedTab)", html)
+        block = html.split("const savedTab = sessionStorage.getItem", 1)[1][:900]
+        self.assertIn('if (tabExists)', block)
 
     def test_タブの存在を確かめてから読み込む(self):
         html = read('templates', 'stock.html')
