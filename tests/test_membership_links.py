@@ -26,6 +26,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALLOWED = {
     'https://gia2018.com/upgrade?from=note',
     'https://gia2018.com/upgrade/invite?from=note',
+    # 解約・お支払いの手続き（Stripe カスタマーポータルへ入る口）。
+    # ⚠️ 申込の導線とは別物なので from=note は付けない。付けると
+    #    「Company Note から買いに来た人」と区別が付かなくなる。
+    'https://gia2018.com/members/app/settings',
 }
 
 # ⚠️ app.py も見る。2026-09-06、member_required_api の upgrade_url が
