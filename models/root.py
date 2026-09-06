@@ -324,6 +324,47 @@ def invite():
                            page_url=request.url_root.rstrip('/') + '/invite')
 
 
+@app.route('/curated')
+def curated():
+    """運営が取り上げた会社の一覧。
+
+    点数で並べると185社が同じ顔で並ぶ（しかも1000億円超は1社も入らない）。
+    ここは人が選んだ順で、読み物として上から読める場所にする。
+
+    ログイン必須。⚠️ 会員限定にしない。無料の人にこそ「どこから見ればいいか」
+    が要るし、メモ自体は公開の銘柄ページにも出ている。
+    """
+    guard = _require_login()
+    if guard:
+        return guard
+
+    import stock_notes
+    notes = stock_notes.listing()
+    codes = [n['company_code'] for n in notes]
+
+    names = {}
+    caps = {}
+    if codes:
+        try:
+            rows = (get_supabase_client().table('screened_latest')
+                    .select('company_code, company_name, industry_jp, '
+                            'market_cap, match_rate, score_complete')
+                    .in_('company_code', codes[:200]).execute().data or [])
+            for r in rows:
+                names[r['company_code']] = r
+        except Exception as e:
+            print(f'取り上げた会社の情報取得に失敗: {e}')
+
+    items = []
+    for n in notes:
+        info = names.get(n['company_code']) or {}
+        items.append({**n, **info})
+
+    return render_template('curated.html', items=items,
+                           table_ready=stock_notes.table_ready(),
+                           is_admin=session.get('user_role') == 'admin')
+
+
 @app.route('/membership')
 def membership():
     """会員限定機能に無料会員が来たときの案内。
@@ -744,6 +785,8 @@ def stock_detail(code):
                                listed_name=company_lookup.name_of(normalized),
                                is_admin=session.get('user_role') == 'admin'), 404
 
+    import stock_notes
+
     # テーマは検索エンジンにも読ませたいのでサーバー側で出す。
     # テーマページへの相互リンクにもなり、銘柄ページ同士がつながる。
     tags = []
@@ -794,6 +837,9 @@ def stock_detail(code):
         market_segment=company.get('market_segment'),
         is_logged_in=bool(session.get('user_id')),
         is_admin=session.get('user_role') == 'admin',
+        # 運営が「この会社は勉強になる」と思ったときの一言。
+        # ⚠️ 銘柄ページは公開なのでメモも公開になる。画面側にもそう書く。
+        stock_note=stock_notes.get(normalized),
     )
 
 

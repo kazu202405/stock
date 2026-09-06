@@ -439,6 +439,8 @@
                                     <span class="size-chip" x-show="SizeChip.of(row)"
                                           x-text="SizeChip.of(row)"
                                           title="時価総額から見た規模"></span>
+                                    <span class="note-mark" x-show="row.has_note"
+                                          title="運営のメモがあります"><i class="fas fa-pen-nib"></i>メモ</span>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <span class="scr-badge" x-text="row.industry_jp || row.sector || '---'"></span>

@@ -1825,7 +1825,7 @@
                     ${BulkSelect.cell('watchlist', code)}
                     <td>${code}</td>
                     <td class="company-name-cell">${name}</td>
-                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}</td>
+                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}${NoteMark.chip(item)}</td>
                     <td>${sector}</td>
                     <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
@@ -2738,7 +2738,7 @@
                     ${BulkSelect.cell('favorite', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
-                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}</td>
+                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}${NoteMark.chip(item)}</td>
                     <td>${sector}</td>
                     <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
@@ -2964,7 +2964,7 @@
                     ${BulkSelect.cell('dividend', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
-                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}</td>
+                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}${NoteMark.chip(item)}</td>
                     <td>${sector}</td>
                     <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>
@@ -3841,7 +3841,7 @@
                     ${BulkSelect.cell('technical', code)}
                     <td>${code}</td>
                     <td class="company-name-cell" onclick="window.open('/stock/${code.replace('.T','')}', '_blank')">${name}</td>
-                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}</td>
+                    <td class="${matchRateClass}">${matchRate}${SizeChip.chip(item)}${NoteMark.chip(item)}</td>
                     <td>${sector}</td>
                     <td class="${toneCell(toneMarketCap(item))}">${marketCap}</td>
                     <td>${price}</td>

@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+
+{% block title %}取り上げた会社 - Company Note{% endblock %}
+{% block meta_description %}Company Note の運営が「この会社は勉強になる」と選んだ会社と、その見どころ。{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 0 auto; padding: 40px 20px 64px;">
+
+  <div style="margin-bottom: 28px;">
+    <div style="width:40px; height:2px; background:#b8a06a; margin-bottom:18px;"></div>
+    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin:0 0 10px;">
+      取り上げた会社
+    </h1>
+    {# 点数だけでは選べない、という前提をここで書いておく。
+       書かないと「なぜスコア順でないのか」が伝わらない。 #}
+    <p style="font-size:13.5px; color:#737373; line-height:1.95; margin:0;">
+      12項目の点数は機械が数えた結果で、見る価値があるかどうかの答えではありません。
+      実際、100点を取れる会社は身軽な小型企業に偏ります。<br class="hidden sm:inline">
+      ここは「この会社の数字は読んでみると面白い」と思ったものを、人が選んで並べた場所です。
+    </p>
+  </div>
+
+  {% if not table_ready %}
+  {# ⚠️ migration が未適用のとき、空一覧と区別が付く言い方にする。
+     「0件」と出すと、書いたのに消えたのか作られていないのか分からない。 #}
+  <div style="border:1px solid #f0e0c0; background:#fdfaf2; border-radius:10px; padding:18px 20px; margin-bottom:24px;">
+    <p style="margin:0; font-size:13px; color:#8a7440; line-height:1.9;">
+      メモを保存する場所（<code>stock_notes</code> テーブル）がまだ作られていません。<br>
+      <code>supabase/migration_stock_notes.sql</code> を適用すると使えるようになります。
+    </p>
+  </div>
+  {% endif %}
+
+  {% if items %}
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    {% for item in items %}
+    <article style="border:1px solid #e8e4da; border-left:3px solid #b8a06a; border-radius:10px; background:#fff; padding:18px 20px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <div>
+          <a href="/stock/{{ item.company_code }}" style="font-size:16px; font-weight:600; color:#1a1a1a; text-decoration:none;">
+            {{ item.company_name or item.company_code }}
+          </a>
+          <span style="font-size:11.5px; color:#a3a3a3; margin-left:8px;">
+            {{ item.company_code }}{% if item.industry_jp %} / {{ item.industry_jp }}{% endif %}
+          </span>
+        </div>
+        <div style="font-size:12px; color:#737373; white-space:nowrap;">
+          {% if item.match_rate is not none %}スコア {{ item.match_rate }}{% endif %}
+          {# 規模は size-chip.js が唯一の正。ここでは市場から引かず、JSに描かせる #}
+          <span class="size-chip" data-market-cap="{{ item.market_cap if item.market_cap is not none else '' }}"></span>
+        </div>
+      </div>
+      <p style="margin:0; font-size:13.5px; color:#3f3f3f; line-height:1.95; white-space:pre-wrap;">{{ item.body }}</p>
+    </article>
+    {% endfor %}
+  </div>
+  {% elif table_ready %}
+  <div style="border:1px solid #ebebeb; background:#fafaf8; border-radius:10px; padding:32px 24px; text-align:center;">
+    <p style="margin:0; font-size:13.5px; color:#737373; line-height:1.9;">
+      まだ1社も取り上げていません。{% if is_admin %}<br>銘柄ページの「この会社の見どころ」からメモを書くと、ここに並びます。{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+  // 規模の呼び名は static/js/size-chip.js が唯一の正。
+  // テンプレートで「100億以上なら小型」と書くと、しきい値が2か所になる。
+  document.querySelectorAll('.size-chip[data-market-cap]').forEach(function (el) {
+    var raw = el.getAttribute('data-market-cap');
+    var label = raw === '' ? null : SizeChip.label(raw);
+    if (label) { el.textContent = label; el.title = '時価総額から見た規模'; }
+    else { el.remove(); }
+  });
+</script>
+{% endblock %}

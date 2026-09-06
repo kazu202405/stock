@@ -964,6 +964,39 @@
             line-height: 1.7;
             color: #6b5320;
         }
+
+/* 運営のメモ。
+   ⚠️ 緑・赤を使わない。スコアとGC/DCで既に意味が埋まっている。
+      3つ目をそこに載せると、以前の「1つの色に2つの意味」が再発する。 */
+.stock-note {
+    border: 1px solid #e8e4da;
+    border-left: 3px solid #b8a06a;
+    border-radius: 10px;
+    background: #fdfcf8;
+    padding: 14px 18px;
+    margin: 0 0 14px;
+}
+.stock-note.is-empty { background: #fafaf8; border-left-color: #e5e5e5; }
+.stock-note-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 6px;
+}
+.stock-note-label {
+    font-size: 11.5px; font-weight: 700; color: #8a7440; letter-spacing: 0.06em;
+}
+.stock-note-label i { margin-right: 6px; font-size: 11px; }
+.stock-note.is-empty .stock-note-label { color: #a3a3a3; }
+.stock-note-tools { display: flex; gap: 8px; }
+.stock-note-btn {
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 6px;
+    padding: 3px 10px; font-size: 11px; color: #525252; cursor: pointer;
+}
+.stock-note-btn:hover { background: #f5f5f3; }
+.stock-note-body {
+    margin: 0; font-size: 13.5px; color: #3f3f3f; line-height: 1.95;
+    white-space: pre-wrap;      /* 改行をそのまま出す */
+}
+.stock-note-hint { margin: 4px 0 0; font-size: 11px; color: #a3a3a3; }
 </style>
 
 <div class="detail-page-container">
@@ -1059,6 +1092,30 @@
     <div id="edinetDbAttribution" style="display:none; margin:-4px 0 12px; font-size:10.5px; color:#737373; line-height:1.6;">
         <a href="https://edinetdb.jp" target="_blank" rel="noopener noreferrer" style="color:#525252; text-decoration:underline;">Powered by EDINET DB</a>
         <span>｜公開情報を機械処理した補完データです。投資助言ではなく、重要な判断ではEDINET原本・企業IRも確認してください。</span>
+    </div>
+
+    {# 運営のメモ。点数は機械の答えなので、「どこを見ると面白いか」は人が書く。
+       ⚠️ このページは公開。メモも公開になるので、非公開の話は書かない。
+       ⚠️ スコアの色（緑）や GC/DC の行の色とは別の見た目にする。
+          同じ色に3つ目の意味を載せると読み違いが起きる。 #}
+    <div id="stockNoteBlock" class="stock-note{% if not stock_note %} is-empty{% endif %}">
+        <div class="stock-note-head">
+            <span class="stock-note-label"><i class="fas fa-pen-nib"></i>この会社の見どころ</span>
+            {% if is_admin %}
+            <span class="stock-note-tools">
+                <button type="button" class="stock-note-btn" onclick="editStockNote()">
+                    {% if stock_note %}書き直す{% else %}メモを書く{% endif %}
+                </button>
+                {% if stock_note %}
+                <button type="button" class="stock-note-btn" onclick="deleteStockNote()">消す</button>
+                {% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <p class="stock-note-body" id="stockNoteBody">{{ stock_note.body if stock_note else '' }}</p>
+        {% if is_admin and not stock_note %}
+        <p class="stock-note-hint">メモを書くと、一覧に印が付いて「取り上げた会社」に並びます。</p>
+        {% endif %}
     </div>
 
     <!-- ローディング -->
@@ -4189,6 +4246,55 @@
 
 <!-- ===== デモ売買ロジック ===== -->
 <script>
+
+    // ── 運営のメモ ───────────────────────────────────────────────
+    // 書けるのは管理者だけ。⚠️ 画面でボタンを隠すだけにしない（APIでも見ている）。
+    async function editStockNote() {
+        const current = document.getElementById('stockNoteBody').textContent.trim();
+        const body = await showPromptModal({
+            title: 'この会社の見どころ',
+            note: 'どこを見ると面白いかを数行で。このページは公開なので、非公開の話は書かないでください。（Ctrl+Enterで保存）',
+            value: current,
+            multiline: true,
+            maxLength: 2000,
+            okLabel: '保存',
+        });
+        if (body === null) return;
+        try {
+            const res = await fetch('/api/stock-notes/{{ stock_code }}', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: body }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                showErrorModal(data.error || 'メモを保存できませんでした。');
+                return;
+            }
+            document.getElementById('stockNoteBody').textContent = body;
+            document.getElementById('stockNoteBlock').classList.remove('is-empty');
+            showToast('メモを保存しました');
+        } catch (e) {
+            showErrorModal('メモを保存できませんでした。通信を確認してください。');
+        }
+    }
+
+    async function deleteStockNote() {
+        const ok = await showConfirmModal({
+            title: 'メモを消す',
+            message: 'この会社のメモを消します。一覧の印と「取り上げた会社」からも外れます。',
+            okLabel: '消す',
+            danger: true,
+        });
+        if (!ok) return;
+        try {
+            const res = await fetch('/api/stock-notes/{{ stock_code }}', { method: 'DELETE' });
+            if (!res.ok) { showErrorModal('メモを消せませんでした。'); return; }
+            location.reload();
+        } catch (e) {
+            showErrorModal('メモを消せませんでした。通信を確認してください。');
+        }
+    }
 (function() {
     /* 状態管理 */
     var demoState = {

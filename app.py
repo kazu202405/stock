@@ -965,7 +965,7 @@ def api_get_watchlist():
             item['dc_date'] = item.get('dc_date') or sig.get('dc_date')
             attach_score_quality(item)
 
-        return jsonify({"watchlist": data}), 200
+        return jsonify({"watchlist": _attach_notes(data)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2175,7 +2175,7 @@ def api_get_dividend_stocks():
         # 銘柄が緑で出てしまう（score-color.js は充足度が無いと点数だけで判定する）
         for row in stocks:
             attach_score_quality(row)
-        return jsonify({"dividend_stocks": stocks}), 200
+        return jsonify({"dividend_stocks": _attach_notes(stocks)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2361,7 +2361,7 @@ def api_get_favorite_stocks():
         for row in stocks:
             attach_score_quality(row)
         _attach_ma_crosses(stocks)
-        return jsonify({"favorite_stocks": stocks}), 200
+        return jsonify({"favorite_stocks": _attach_notes(stocks)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2805,7 +2805,7 @@ def api_get_technical_stocks():
         # 直近でGCした順を既定にする（何もしなくても「今どれがGCしたか」が分かる）
         result.sort(key=lambda r: (r.get('gc_date') or '', r.get('dc_date') or ''), reverse=True)
 
-        return jsonify({"technical_stocks": result, "source": source}), 200
+        return jsonify({"technical_stocks": _attach_notes(result), "source": source}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -3887,6 +3887,30 @@ def _codes_for_tags(client, tag_names=None, category=None):
     return codes
 
 
+def _attach_notes(rows):
+    """行に「運営のメモがあるか」を付ける。
+
+    ⚠️ **画面側で後から取りに行かない。** 一覧は取得済みのデータから同期的に
+       描くので、あとからコードの集合が届いても印が付かない行が残る
+       （描画とレースになる）。サーバーで付けて返す。
+
+    ⚠️ メモの本文は載せない。一覧に要るのは「あるか」だけで、本文まで返すと
+       一覧のレスポンスが重くなる。
+    """
+    if not rows:
+        return rows
+    try:
+        import stock_notes
+        marked = stock_notes.marked_codes()
+    except Exception as e:
+        print('銘柄メモの印を付けられませんでした: %s' % str(e)[:120])
+        return rows
+    for row in rows:
+        code = stock_notes.normalize_code(row.get('company_code'))
+        row['has_note'] = code in marked
+    return rows
+
+
 def _attach_gc(rows):
     """各行に gc_active（今ゴールデン状態か）を付ける。
 
@@ -3926,6 +3950,7 @@ def _screen_preview(client):
     res = query.range(0, FREE_SCREEN_ROWS - 1).execute()
     rows = res.data or []
     _attach_gc(rows)
+    _attach_notes(rows)
     for row in rows:
         attach_score_quality(row)
         row.pop('financial_history', None)
@@ -4093,6 +4118,7 @@ def api_screen_stocks():
 
         rows = res.data or []
         _attach_gc(rows)
+        _attach_notes(rows)
         for row in rows:
             attach_score_quality(row)
             # 判定にだけ使う履歴はレスポンスから外し、一覧APIを軽く保つ。
@@ -4686,6 +4712,62 @@ def api_earnings_by_month(month):
 # 段による出し分けはしない（2026-08-25 五島さん判断）ので、既存の
 # member_required_api をそのまま使う。**段の判定を新しく作らない。**
 # =============================================
+
+# ── 銘柄メモ（運営が「勉強になる」と思った会社に一言） ──────────────
+#
+# ⚠️ 読みは誰でも。銘柄ページは公開なので、そこに出るメモも公開になる。
+#    非公開にしたい話をここに書かせない（画面側にも注意書きを置く）。
+
+@app.route('/api/stock-notes/codes', methods=['GET'])
+def api_stock_note_codes():
+    """メモが付いている銘柄コードの一覧。一覧画面が印を出すために使う。
+
+    ⚠️ 銘柄ごとに問い合わせない。一覧の描画で数十本のリクエストになる。
+    """
+    import stock_notes
+    return jsonify({'codes': sorted(stock_notes.marked_codes())}), 200
+
+
+@app.route('/api/stock-notes/<company_code>', methods=['GET'])
+def api_stock_note_get(company_code):
+    import stock_notes
+    note = stock_notes.get(company_code)
+    return jsonify({'note': note}), 200
+
+
+@app.route('/api/stock-notes/<company_code>', methods=['PUT'])
+@admin_required_api
+def api_stock_note_save(company_code):
+    """メモを書く（上書き）。管理者だけ。
+
+    ⚠️ 失敗を握りつぶさない。表がまだ無い・権限が無いのに「保存しました」と
+       返すと、書いた本人が消えたことに気づけない。
+    """
+    import stock_notes
+    data = request.get_json(silent=True) or {}
+    try:
+        note = stock_notes.save(company_code, data.get('body'),
+                                session.get('user_id'))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print('銘柄メモの保存に失敗 (%s): %s' % (company_code, str(e)[:200]))
+        return jsonify({'error': 'メモを保存できませんでした。'
+                                 'テーブルが未作成の可能性があります。'}), 500
+    return jsonify({'note': note}), 200
+
+
+@app.route('/api/stock-notes/<company_code>', methods=['DELETE'])
+@admin_required_api
+def api_stock_note_delete(company_code):
+    import stock_notes
+    try:
+        stock_notes.delete(company_code)
+    except Exception as e:
+        print('銘柄メモの削除に失敗 (%s): %s' % (company_code, str(e)[:200]))
+        return jsonify({'error': 'メモを削除できませんでした'}), 500
+    return jsonify({'ok': True}), 200
+
 
 @app.route('/api/study-materials', methods=['GET'])
 @member_required_api

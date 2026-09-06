@@ -217,6 +217,23 @@
         vertical-align: 1px;
     }
 
+    /* 運営のメモがある印。判定は static/js/note-mark.js が唯一の正。
+       ⚠️ 緑・赤は使わない（スコアとGC/DCで埋まっている）。 */
+    .note-mark {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 7px;
+        border: 1px solid #e8e0cc;
+        border-radius: 4px;
+        background: #fdfaf2;
+        color: #8a7440;
+        font-size: 10.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        vertical-align: 1px;
+    }
+    .note-mark i { margin-right: 4px; font-size: 9.5px; }
+
     .score-tone-high        { color: #15803d; font-weight: 600; }
     .score-tone-medium      { color: #a16207; font-weight: 600; }
     /* low（点数が低い）と provisional（まだ判定できていない）はどちらも灰系だが、
@@ -387,6 +404,8 @@
     <!-- 会社の規模（時価総額）の言い方。点数の隣に添えて、同じ100点でも
          土俵が違うことを読めるようにする -->
     <script src="{{ url_for('static', filename='js/size-chip.js') }}"></script>
+    <!-- 運営がメモを書いた銘柄の印。点数とは別の軸なので別の記号で出す -->
+    <script src="{{ url_for('static', filename='js/note-mark.js') }}"></script>
     <!-- 会社名から銘柄ページへ飛ぶ検索窓。ヘッダーとスマホの全画面で共用 -->
     <script src="{{ url_for('static', filename='js/company-search.js') }}"></script>
     <!-- チャートの日付を日本語の並びにする。lightweight-charts は locale だけでは変わらない -->
@@ -584,6 +603,12 @@
                             {# 会社名で1社を開くのはヘッダーの検索窓に移した。
                                ここは「条件から探す」「2〜3社を並べる」という、
                                窓ではできないことを上から順に並べる。 #}
+                            {# 点数で探す前に、人が選んだものを見せる。
+                                12項目の100点は185社あり、しかも小型に偏るので、
+                                点数だけでは「どれから見るか」が決まらない。 #}
+                            <a href="/curated" class="nav-dropdown-item">
+                                <i class="fas fa-pen-nib"></i>取り上げた会社
+                            </a>
                             <a href="/screener" class="nav-dropdown-item">
                                 <i class="fas fa-filter"></i>スクリーニング
                             </a>
@@ -816,6 +841,10 @@
         </div>
         <!-- メニューリンク -->
         <div style="padding: 8px 0;">
+            {# ⚠️ デスクトップのドロップダウンと同じ扱いにすること。 #}
+            <a href="/curated" class="slide-menu-link">
+                <i class="fas fa-pen-nib"></i>取り上げた会社
+            </a>
             <a href="/screener" class="slide-menu-link">
                 <i class="fas fa-filter"></i>スクリーニング
             </a>
@@ -942,6 +971,10 @@
             <h3 id="promptModalTitle" class="ui-modal-title"></h3>
             <p id="promptModalNote" class="ui-modal-note"></p>
             <input type="text" id="promptModalInput" class="ui-modal-input" autocomplete="off" maxlength="40">
+            {# 複数行の入力（銘柄メモなど）。1行の input と同じモーダルを使い回す。
+               ⚠️ 画面ごとに自作しない。文言も見た目も揃わなくなる。 #}
+            <textarea id="promptModalTextarea" class="ui-modal-input" rows="6" hidden
+                      style="resize:vertical; line-height:1.8; font-family:inherit;"></textarea>
             <p id="promptModalError" class="ui-modal-error"></p>
             <div class="ui-modal-actions">
                 <button type="button" class="ui-btn-ghost" onclick="closePromptModal(null)">キャンセル</button>
@@ -1185,25 +1218,40 @@
     // ⚠ prompt() は見た人が「エラーが出た」と読むうえ、ブロックされる環境がある。
     //   新しく入力を求めるときは必ずこちらを使うこと。
     let _promptResolve = null;
+    // いま使っている入力欄を返す。複数行なら textarea、そうでなければ input。
+    // ⚠️ 判定を submit 側と別々に書くと、書いた内容と読む内容がずれる。
+    function _promptField(multiline) {
+        const line = document.getElementById('promptModalInput');
+        const area = document.getElementById('promptModalTextarea');
+        line.hidden = !!multiline;
+        area.hidden = !multiline;
+        return multiline ? area : line;
+    }
+    function _promptActiveField() {
+        const area = document.getElementById('promptModalTextarea');
+        return area.hidden ? document.getElementById('promptModalInput') : area;
+    }
+
     function showPromptModal(opts) {
         if (typeof opts === 'string') opts = { title: opts };
         opts = opts || {};
         const modal = document.getElementById('promptModal');
-        const input = document.getElementById('promptModalInput');
         const err = document.getElementById('promptModalError');
+        // 1行か複数行か。どちらも同じモーダルで、決定と検証の道は1本にする。
+        const input = _promptField(!!opts.multiline);
         document.getElementById('promptModalTitle').textContent = opts.title || '入力してください';
         document.getElementById('promptModalNote').textContent = opts.note || '';
         document.getElementById('promptModalOk').textContent = opts.okLabel || '保存';
         input.value = opts.value || '';
         input.placeholder = opts.placeholder || '';
-        input.maxLength = opts.maxLength || 40;
+        input.maxLength = opts.maxLength || (opts.multiline ? 2000 : 40);
         err.textContent = '';
         modal.classList.add('is-open');
-        setTimeout(() => { input.focus(); input.select(); }, 0);
+        setTimeout(() => { input.focus(); if (!opts.multiline) input.select(); }, 0);
         return new Promise(resolve => { _promptResolve = resolve; });
     }
     function submitPromptModal() {
-        const input = document.getElementById('promptModalInput');
+        const input = _promptActiveField();
         const value = (input.value || '').trim();
         // 空のまま押せてしまうと「押したのに何も起きない」になる。理由をその場に出す。
         if (!value) {
@@ -1244,6 +1292,15 @@
         if (input) {
             input.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') { e.preventDefault(); submitPromptModal(); }
+            });
+        }
+        // 複数行では Enter は改行。決定は Ctrl（Mac は ⌘）+ Enter。
+        const area = document.getElementById('promptModalTextarea');
+        if (area) {
+            area.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault(); submitPromptModal();
+                }
             });
         }
     });
