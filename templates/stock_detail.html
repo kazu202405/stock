@@ -4277,9 +4277,7 @@
                     showErrorModal('メモを書けるのは管理者だけです。');
                 } else {
                     showErrorModal((data.error || 'メモを保存できませんでした。')
-                                   + (data.detail ? '
-
-' + data.detail : ''));
+                                   + (data.detail ? String.fromCharCode(10, 10) + data.detail : ''));
                 }
                 return;
             }
