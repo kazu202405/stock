@@ -426,6 +426,16 @@ def price_fetch_failing(client=None):
        まさにこの形になり、古い株価が何の断りもなく出続ける。
        「いつ時点か」が言えなくても「取れていない」ことは言える。
     """
+    # ⚠️ **実行の失敗と「株価が古い」は別物。** 途中でプロセスが死んだ実行は
+    #    見回りが ok=False で終端する（2026-09-06 に導入）。その記録が最新に
+    #    なるだけで、保存済みの株価は前の実行で取れた新しいものかもしれない。
+    #    取得できた実績が新しいなら、利用者に告げることは何も無い。
+    #    ここを直さないと、プロセスが落ちるたびに帯が出て、**本当に古い日に
+    #    誰も読まなくなる**。
+    when, age = price_as_of(client)
+    if when is not None and age is not None and age <= PRICE_BANNER_STALE_DAYS:
+        return False
+
     try:
         run = last_run(client or _client(), 'price_update')
     except Exception:

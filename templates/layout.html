@@ -749,14 +749,17 @@
          2営業日以上あいたときだけ入る）。
     #}
     {% if price_stale_as_of or price_fetch_failing %}
-    <div style="background:#fff7ed; border-bottom:1px solid #fed7aa; color:#9a3412;
-                font-size:13px; padding:8px 16px; text-align:center;">
-        <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>
+    {# ⚠️ 不具合の知らせに見せない。読む人にとって必要なのは「壊れている」では
+        なく「いま見えている数字をどう扱えばよいか」。警告の赤系ではなく
+        落ち着いた色にして、次にやること（証券会社で確かめる）まで書く。 #}
+    <div style="background:#f7f7f5; border-bottom:1px solid #ebebeb; color:#525252;
+                font-size:12.5px; padding:8px 16px; text-align:center; line-height:1.7;">
+        <i class="fas fa-circle-info" style="margin-right:6px; color:#a3a3a3;"></i>
         {% if price_stale_as_of %}
-        株価は <strong>{{ price_stale_as_of }}時点</strong> のものです。取得が滞っているため、最新の株価ではありません。
+        株価は <strong>{{ price_stale_as_of }}時点</strong> の参考価格です。取得が遅れることがあります。正確な価格は証券会社などでご確認ください。
         {% else %}
         {# いつ時点かを言えなくても「取れていない」ことは言える。 #}
-        株価の取得が滞っています。表示中の株価は最新ではありません。
+        株価は参考価格です。ただいま取得が遅れています。正確な価格は証券会社などでご確認ください。
         {% endif %}
     </div>
     {% endif %}

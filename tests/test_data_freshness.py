@@ -15,6 +15,7 @@ import os
 import sys
 import re
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -747,6 +748,71 @@ class PanelTest(unittest.TestCase):
     def test_鮮度が出せなくてもダッシュボードを壊さない(self):
         block = self.html.split('async function loadDataFreshness(', 1)[1][:1800]
         self.assertIn('catch', block)
+
+
+class 株価の帯Test(unittest.TestCase):
+    """利用者に出す「株価が古い」の帯（2026-09-06 に文言と条件を直した）。"""
+
+    def setUp(self):
+        import data_freshness as df
+        self.df = df
+
+    def test_実行が失敗しても株価が新しければ帯を出さない(self):
+        """⚠️ 実行の失敗と「株価が古い」は別物。
+
+        途中でプロセスが死んだ実行は見回りが ok=False で終端する。その記録が
+        最新になるだけで、保存済みの株価は前の実行で取れた新しいものかも
+        しれない。ここで帯を出すと、プロセスが落ちるたびに出て、
+        **本当に古い日に誰も読まなくなる**。
+        """
+        with unittest.mock.patch.object(
+                self.df, 'price_as_of', return_value=(object(), 0)):
+            self.assertFalse(self.df.price_fetch_failing(client=object()))
+
+    def test_株価が古いときは実行記録を見て帯を出す(self):
+        import datetime as dt
+
+        with unittest.mock.patch.object(
+                self.df, 'price_as_of', return_value=(dt.datetime.now(), 5)):
+            with unittest.mock.patch.object(
+                    self.df, 'last_run', return_value={'ok': False}):
+                self.assertTrue(self.df.price_fetch_failing(client=object()))
+            with unittest.mock.patch.object(
+                    self.df, 'last_run', return_value={'ok': True}):
+                self.assertFalse(self.df.price_fetch_failing(client=object()))
+
+    def test_取れた実績が無いときは帯を出す(self):
+        """公開直後など、成功記録が1件も無い状態で古い株価を黙って出さない。"""
+        with unittest.mock.patch.object(
+                self.df, 'price_as_of', return_value=(None, None)):
+            with unittest.mock.patch.object(
+                    self.df, 'last_run', return_value={'ok': False}):
+                self.assertTrue(self.df.price_fetch_failing(client=object()))
+
+    def test_文言が不具合の知らせに見えない(self):
+        """⚠️ 利用者にとって必要なのは「壊れている」ではなく、
+        いま見えている数字をどう扱えばよいか。"""
+        layout = read('templates', 'layout.html')
+        start = layout.find('price_stale_as_of or price_fetch_failing')
+        self.assertNotEqual(start, -1)
+        block = layout[start:start + 1400]
+
+        self.assertIn('参考価格', block)
+        self.assertIn('証券会社', block, '次にやることが書かれていない')
+        # 「滞っています」「最新ではありません」は不具合と読まれる
+        for banned in ('取得が滞っています', '最新の株価ではありません',
+                       '最新ではありません'):
+            self.assertNotIn(banned, block, banned)
+        # 警告色・警告アイコンを使わない
+        self.assertNotIn('fa-triangle-exclamation', block)
+        self.assertIn('fa-circle-info', block)
+
+    def test_いつ時点かは残す(self):
+        """⚠️ 参考価格と言うだけにすると、本当に古い日の合図が消える。"""
+        layout = read('templates', 'layout.html')
+        start = layout.find('price_stale_as_of or price_fetch_failing')
+        block = layout[start:start + 1400]
+        self.assertIn('{{ price_stale_as_of }}時点', block)
 
 
 if __name__ == '__main__':
