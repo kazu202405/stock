@@ -95,6 +95,40 @@ class MissingTableTest(unittest.TestCase):
             self.assertFalse(stock_notes.table_ready())
 
 
+class AuthorFieldTest(unittest.TestCase):
+    """書いた人の記録欄で、本文を落とさない。"""
+
+    def test_a_malformed_user_id_does_not_lose_the_note(self):
+        """⚠️ updated_by は UUID 列。UUID でない値が来ると挿入ごと失敗する。
+        書いた人が分からないより、書いた文章が消えるほうが痛い。
+        """
+        import stock_notes
+
+        captured = {}
+
+        class Table:
+            def upsert(self, payload, **kw):
+                captured.update(payload)
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': [captured]})()
+
+        class Client:
+            def table(self, name):
+                return Table()
+
+        with patch.object(stock_notes, '_client', return_value=Client()):
+            stock_notes.save('7203', 'メモ', user_id='local')
+            self.assertNotIn('updated_by', captured, 'UUIDでない値を送っている')
+            self.assertEqual(captured['body'], 'メモ')
+
+            captured.clear()
+            uuid = '01d13939-3f29-4f1e-a5d2-a7186a0a3bb0'
+            stock_notes.save('7203', 'メモ', user_id=uuid)
+            self.assertEqual(captured.get('updated_by'), uuid)
+
+
 class ListMarkTest(unittest.TestCase):
     """一覧の印はサーバーが付ける。"""
 

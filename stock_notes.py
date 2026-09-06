@@ -17,7 +17,13 @@
    保存できたように見せると、書いた本人が消えたことに気づけない。
 """
 
+import re
+
 MAX_BODY_CHARS = 2000       # 数行のメモ。長文の解説はレポート側の仕事
+
+# updated_by は UUID 列。app_users.id（＝auth.users.id）が入る前提。
+_UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                   re.I)
 
 
 def _client():
@@ -102,8 +108,17 @@ def save(company_code: str, body: str, user_id=None) -> dict:
         raise ValueError('メモは%d文字までです' % MAX_BODY_CHARS)
 
     payload = {'company_code': code, 'body': text}
+    # ⚠️ **本文を、記録欄のせいで落とさない。** updated_by は UUID の列なので、
+    #    セッションに UUID でない値が入っていると挿入ごと失敗する（開発用の
+    #    偽ログインで実際に 22P02 になった）。書いた人が分からないのは痛手が
+    #    小さいが、書いた文章が消えるのは取り返せない。
+    #    ⚠️ ただし黙って捨てない。理由をログに残す。
     if user_id:
-        payload['updated_by'] = str(user_id)
+        if _UUID.fullmatch(str(user_id)):
+            payload['updated_by'] = str(user_id)
+        else:
+            print('銘柄メモ: updated_by が UUID ではないので記録しません (%r)'
+                  % (user_id,))
     # updated_at は既定値では更新されない（DEFAULT は INSERT のときだけ）
     from datetime import datetime, timezone
     payload['updated_at'] = datetime.now(timezone.utc).isoformat()
