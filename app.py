@@ -3892,21 +3892,43 @@ def _codes_for_tags(client, tag_names=None, category=None):
 #    コードが先行する期間がある（CLAUDE.md）。無い間は元表で今までどおり。
 SCREEN_VIEW = 'screened_with_notes'
 SCREEN_TABLE = 'screened_latest'
+
+# 「無い」と分かったあと、次に確かめ直すまでの間隔。
+#
+# ⚠️ **「無い」を永久に覚えない。** migration を適用しても、アプリを再起動
+#    するまで古い判断のままになる（適用は運用側が手で行うので、
+#    「デプロイ → SQL適用」の順は普通に起きる）。実際、ビューを作った直後に
+#    並びが変わらない、という形で踏みかけた。
+#    「有る」ほうは消えないので覚えたままでよい。
+SCREEN_VIEW_RECHECK_SECONDS = 300
 _screen_source_cache = {}
 
 
 def screen_source(client):
     """スクリーナーが読む表の名前と、メモで並べ替えられるかを返す。"""
-    if 'name' not in _screen_source_cache:
-        try:
-            client.table(SCREEN_VIEW).select('company_code').limit(1).execute()
-            _screen_source_cache['name'] = SCREEN_VIEW
-        except Exception as e:
+    import time
+
+    name = _screen_source_cache.get('name')
+    if name == SCREEN_VIEW:
+        return name, True                      # 有るものは消えない
+    checked_at = _screen_source_cache.get('checked_at', 0)
+    if name and (time.time() - checked_at) < SCREEN_VIEW_RECHECK_SECONDS:
+        return name, False                     # まだ確かめ直す時間ではない
+
+    try:
+        client.table(SCREEN_VIEW).select('company_code').limit(1).execute()
+        _screen_source_cache['name'] = SCREEN_VIEW
+        _screen_source_cache['checked_at'] = time.time()
+        if name == SCREEN_TABLE:
+            print('[Screener] %s が使えるようになりました' % SCREEN_VIEW)
+        return SCREEN_VIEW, True
+    except Exception as e:
+        if name != SCREEN_TABLE:               # 毎回は書かない（ログが埋まる）
             print('[Screener] %s が無いので %s を使います（%s）'
                   % (SCREEN_VIEW, SCREEN_TABLE, str(e)[:100]))
-            _screen_source_cache['name'] = SCREEN_TABLE
-    name = _screen_source_cache['name']
-    return name, name == SCREEN_VIEW
+        _screen_source_cache['name'] = SCREEN_TABLE
+        _screen_source_cache['checked_at'] = time.time()
+        return SCREEN_TABLE, False
 
 
 def _attach_notes(rows):

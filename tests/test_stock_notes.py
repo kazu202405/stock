@@ -202,6 +202,74 @@ class ScreenerOrderTest(unittest.TestCase):
         self.assertEqual(name, self.app_module.SCREEN_TABLE)
         self.assertFalse(can_sort, 'ビューが無いのにメモ順で並べようとしている')
 
+    def test_a_missing_view_is_rechecked_later(self):
+        """⚠️「無い」を永久に覚えない。
+
+        migration の適用は運用側が手で行うので「デプロイ → SQL適用」の順に
+        なる。永久に覚えると、SQLを流してもアプリを再起動するまで並びが
+        変わらない。
+        """
+        import time
+
+        calls = {'n': 0}
+
+        class Appearing:
+            """最初は無い。2回目以降は有る。"""
+            def table(self, name):
+                calls['n'] += 1
+                if calls['n'] == 1:
+                    raise RuntimeError('does not exist')
+                return self
+
+            def select(self, *a, **k):
+                return self
+
+            def limit(self, *a, **k):
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': []})()
+
+        client = Appearing()
+        self.assertEqual(self.app_module.screen_source(client)[0],
+                         self.app_module.SCREEN_TABLE)
+
+        # 間隔のうちは確かめ直さない（毎回問い合わせると回数が増える）
+        self.assertEqual(self.app_module.screen_source(client)[0],
+                         self.app_module.SCREEN_TABLE)
+        self.assertEqual(calls['n'], 1, '間隔を待たずに問い合わせている')
+
+        # 時間が経てば確かめ直し、見つけたら切り替わる
+        self.app_module._screen_source_cache['checked_at'] = (
+            time.time() - self.app_module.SCREEN_VIEW_RECHECK_SECONDS - 1)
+        name, can_sort = self.app_module.screen_source(client)
+        self.assertEqual(name, self.app_module.SCREEN_VIEW)
+        self.assertTrue(can_sort)
+
+    def test_an_existing_view_is_not_rechecked(self):
+        """有るものは消えないので、毎回確かめない。"""
+        calls = {'n': 0}
+
+        class Ok:
+            def table(self, name):
+                calls['n'] += 1
+                return self
+
+            def select(self, *a, **k):
+                return self
+
+            def limit(self, *a, **k):
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': []})()
+
+        client = Ok()
+        for _ in range(3):
+            self.assertEqual(self.app_module.screen_source(client)[0],
+                             self.app_module.SCREEN_VIEW)
+        self.assertEqual(calls['n'], 1, '有ると分かった後も問い合わせている')
+
     def test_the_order_is_decided_in_the_database(self):
         """⚠️ 取得後に並べ替えない。50件ずつ区切っているので順序が崩れる。"""
         source = read('app.py')
