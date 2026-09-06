@@ -2278,6 +2278,9 @@
 
     // 選択の一括操作が使えるタブ。お気に入りだけは「フォルダから外す」も出す。
     const BULK_TABS = ['watchlist', 'favorite', 'dividend', 'technical'];
+    // 「この一覧から外す」を出すタブ。テクニカル分析は自前計算の結果で
+    // 手で載せ外しするものではないので入れない。
+    const LIST_REMOVE_TABS = ['watchlist', 'dividend'];
 
     async function loadFavoriteFolders() {
         try {
@@ -2492,18 +2495,71 @@
         }
     }
 
+    // 一覧から外す（管理者だけ）。⚠️ お気に入りの解除とは別物。
+    //    こちらは「その一覧に載せるのをやめる」で、分析データは残る。
+    async function bulkRemoveFromList(tabName, codes) {
+        if (!codes || !codes.length) return;
+        const conf = {
+            watchlist: {
+                title: '好調企業の一覧から外します',
+                what: '好調企業の一覧',
+                url: '/api/watchlist/bulk',
+                reload: () => loadWatchlist(),
+            },
+            dividend: {
+                title: '高配当企業の一覧から外します',
+                what: '高配当の印',
+                url: '/api/dividend-stocks/bulk',
+                reload: () => loadDividendStocks(),
+            },
+        }[tabName];
+        if (!conf) return;
+
+        const ok = await showConfirmModal({
+            title: conf.title,
+            message: `選んだ ${codes.length} 件を${conf.what}から外します。`
+                   + '分析データ・お気に入りは消えません。'
+                   + 'この一覧は会員全員で共有しているので、全員の画面から消えます。',
+            okLabel: `${codes.length}件を外す`,
+            danger: true,
+        });
+        if (!ok) return;
+
+        try {
+            const res = await fetch(conf.url, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_codes: codes }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { showErrorModal(data.error || '外せませんでした'); return; }
+            BulkSelect.clear(tabName);
+            conf.reload();
+            showToast(`${data.removed || codes.length}件を一覧から外しました`);
+        } catch (e) {
+            showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');
+        }
+    }
+
     function mountBulkBar(tabName) {
         if (BULK_TABS.indexOf(tabName) < 0) return;
         BulkSelect.mountBar(tabName, {
             folders: favFolders,
             actionLabel: tabName === 'favorite' ? 'フォルダに追加' : 'お気に入りに追加',
             onRun: (codes, folderId) => bulkAddFavorites(codes, folderId),
-            // お気に入りタブだけ「解除」を出す。他のタブでの解除は
-            // 「その一覧から消す」という別の意味になるので混ぜない。
-            removeLabel: tabName === 'favorite' ? 'お気に入りから外す' : null,
+            // 解除の意味がタブごとに違うので、文言も行き先も分ける。
+            //   お気に入り … お気に入りそのものから外す（誰でも）
+            //   好調企業/高配当 … その一覧に載せるのをやめる（管理者だけ）
+            // ⚠️ 一覧の登録は会員全員で共有しているので、一般会員には出さない
+            //    （APIにも admin_required_api がある。画面だけで隠さない）。
+            removeLabel: tabName === 'favorite' ? 'お気に入りから外す'
+                       : (IS_ADMIN && LIST_REMOVE_TABS.indexOf(tabName) >= 0
+                          ? 'この一覧から外す' : null),
             onRemove: tabName === 'favorite'
                 ? (codes) => bulkRemoveFavorites(codes)
-                : null,
+                : (IS_ADMIN && LIST_REMOVE_TABS.indexOf(tabName) >= 0
+                   ? (codes) => bulkRemoveFromList(tabName, codes)
+                   : null),
         });
     }
 

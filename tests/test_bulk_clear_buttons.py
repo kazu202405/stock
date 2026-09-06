@@ -25,6 +25,19 @@ def read(path):
         return f.read()
 
 
+def route_block(source, route):
+    """そのルートの関数だけを切り出す。
+
+    ⚠️ **固定の文字数で窓を取らない。** 次の @app.route まで食い込んで、
+       隣の関数の中身を拾って合格／不合格になる（実際 .delete() を
+       隣から拾った）。範囲は構文で打ち切る。
+    """
+    start = source.find(route)
+    assert start != -1, route
+    nxt = source.find('@app.route(', start + len(route))
+    return source[start:nxt if nxt != -1 else len(source)]
+
+
 def handler(html, name):
     start = html.find('function %s(' % name)
     assert start != -1, name
@@ -85,27 +98,70 @@ class ButtonPlacementTest(unittest.TestCase):
         source = read('app.py')
         for route in ("'/api/watchlist/remove-all'",
                       "'/api/dividend-stocks/remove-all'"):
-            i = source.find(route)
-            self.assertNotEqual(i, -1, route)
-            self.assertIn('@admin_required_api', source[i:i + 200], route)
+            self.assertIn('@admin_required_api', route_block(source, route), route)
 
 
 class DividendClearTest(unittest.TestCase):
     """高配当は旗を落とすだけ。分析データを消さない。"""
 
     def test_it_only_lowers_the_flag(self):
-        source = read('app.py')
-        i = source.find("'/api/dividend-stocks/remove-all'")
-        block = source[i:i + 1200]
+        block = route_block(read('app.py'), "'/api/dividend-stocks/remove-all'")
         self.assertIn("update({'is_dividend': False})", block)
         # ⚠️ 行を消したら分析データごと失う
         self.assertNotIn('.delete()', block, '行そのものを消している')
 
     def test_it_reports_how_many_were_cleared(self):
-        source = read('app.py')
-        i = source.find("'/api/dividend-stocks/remove-all'")
-        self.assertIn('"removed"', source[i:i + 1200],
+        self.assertIn('"removed"',
+                      route_block(read('app.py'), "'/api/dividend-stocks/remove-all'"),
                       '何件外れたか返していない')
+
+
+class BulkRemoveFromListTest(unittest.TestCase):
+    """チェックした銘柄を、その一覧から外す（管理者だけ・2026-09-06）。"""
+
+    def setUp(self):
+        self.html = read('templates/stock.html')
+        self.app_source = read('app.py')
+
+    def test_it_reuses_the_shared_bar(self):
+        """⚠️ 画面ごとにバーを作らない。共通部品の onRemove を使う。"""
+        self.assertIn('onRemove:', self.html)
+        self.assertIn('bulkRemoveFromList(', self.html)
+        # 共通部品側に口があること（無ければ勝手に生やしたことになる）
+        self.assertIn('o.onRemove', read('static/js/bulk-select.js'))
+
+    def test_only_the_two_lists_offer_it(self):
+        """テクニカル分析は自前計算の結果。手で載せ外しするものではない。"""
+        self.assertIn("LIST_REMOVE_TABS = ['watchlist', 'dividend']", self.html)
+
+    def test_it_is_hidden_from_ordinary_members(self):
+        """一覧の登録は会員全員の共有。一般会員には出さない。"""
+        block = handler(self.html, 'mountBulkBar')
+        self.assertIn('IS_ADMIN', block, '管理者かどうかを見ていない')
+
+    def test_the_api_is_admin_only(self):
+        """⚠️ 画面で隠すだけにしない。"""
+        for route in ("'/api/watchlist/bulk'", "'/api/dividend-stocks/bulk'"):
+            self.assertIn('@admin_required_api',
+                          route_block(self.app_source, route), route)
+
+    def test_it_takes_the_codes_in_one_request(self):
+        """⚠️ 1件ずつ叩くと20件選んだだけで20往復になる。"""
+        for route in ("'/api/watchlist/bulk'", "'/api/dividend-stocks/bulk'"):
+            block = route_block(self.app_source, route)
+            self.assertIn('company_codes', block)
+            self.assertIn('.in_(', block, 'まとめて処理していない')
+
+    def test_the_dividend_bulk_only_lowers_the_flag(self):
+        block = route_block(self.app_source, "'/api/dividend-stocks/bulk'")
+        self.assertIn("update({'is_dividend': False})", block)
+        self.assertNotIn('.delete()', block, '行そのものを消している')
+
+    def test_the_confirm_says_what_survives(self):
+        block = handler(self.html, 'bulkRemoveFromList')
+        self.assertIn('分析データ', block)
+        self.assertIn('お気に入り', block)
+        self.assertIn('共有', block)
 
 
 if __name__ == '__main__':

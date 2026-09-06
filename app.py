@@ -1149,6 +1149,53 @@ def api_remove_from_watchlist(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/watchlist/bulk', methods=['DELETE'])
+@admin_required_api
+def api_bulk_remove_from_watchlist():
+    """選んだ銘柄をまとめて好調企業の一覧から外す。管理者だけ。
+
+    ⚠️ 1件ずつ叩くと、20件選んだだけで20往復になる。まとめて受ける。
+    ⚠️ **分析データは消さない。** 消すのは watched_tickers の行だけで、
+       screened_latest はそのまま。銘柄ページもスクリーナーも無傷。
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        if not codes:
+            return jsonify({"error": "銘柄が選ばれていません"}), 400
+
+        client = get_supabase_client()
+        (client.table('watched_tickers').delete()
+         .in_('company_code', codes[:500]).execute())
+        return jsonify({"removed": len(codes[:500])}), 200
+    except Exception as e:
+        print('好調企業の一括解除に失敗: %s' % str(e)[:200])
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dividend-stocks/bulk', methods=['DELETE'])
+@admin_required_api
+def api_bulk_remove_dividend_stocks():
+    """選んだ銘柄の高配当の印をまとめて外す。管理者だけ。
+
+    ⚠️ **旗を落とすだけ。** 高配当は screened_latest.is_dividend なので、
+       行を消すと分析データごと失う。
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        if not codes:
+            return jsonify({"error": "銘柄が選ばれていません"}), 400
+
+        client = get_supabase_client()
+        (client.table('screened_latest').update({'is_dividend': False})
+         .in_('company_code', codes[:500]).execute())
+        return jsonify({"removed": len(codes[:500])}), 200
+    except Exception as e:
+        print('高配当の一括解除に失敗: %s' % str(e)[:200])
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/watchlist/remove-all', methods=['DELETE'])
 @admin_required_api
 def api_remove_all_from_watchlist():
