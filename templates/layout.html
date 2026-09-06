@@ -199,6 +199,24 @@
        provisional を medium と別の色にしているのは、
        「点数が中くらい」と「まだ分からない」を同じ色にすると読み違えるため。
        ------------------------------------------------------------------ */
+    /* 会社の規模。判定は static/js/size-chip.js が唯一の正。
+       ⚠️ 色を付けない。緑と赤はスコアとGC/DCで使っており、3つ目の意味を
+          同じ色に載せると読み違いが起きる（適合度の色で一度やっている）。 */
+    .size-chip {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 6px;
+        border: 1px solid #e5e5e5;
+        border-radius: 4px;
+        background: #fafaf8;
+        color: #737373;
+        font-size: 10.5px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        vertical-align: 1px;
+    }
+
     .score-tone-high        { color: #15803d; font-weight: 600; }
     .score-tone-medium      { color: #a16207; font-weight: 600; }
     /* low（点数が低い）と provisional（まだ判定できていない）はどちらも灰系だが、
@@ -366,6 +384,9 @@
     <script src="{{ url_for('static', filename='js/score-color.js') }}"></script>
     <!-- 配当利回りを予想で出すか実績で出すか。一覧と銘柄ページで食い違っていたため集約 -->
     <script src="{{ url_for('static', filename='js/dividend-basis.js') }}"></script>
+    <!-- 会社の規模（時価総額）の言い方。点数の隣に添えて、同じ100点でも
+         土俵が違うことを読めるようにする -->
+    <script src="{{ url_for('static', filename='js/size-chip.js') }}"></script>
     <!-- 会社名から銘柄ページへ飛ぶ検索窓。ヘッダーとスマホの全画面で共用 -->
     <script src="{{ url_for('static', filename='js/company-search.js') }}"></script>
     <!-- チャートの日付を日本語の並びにする。lightweight-charts は locale だけでは変わらない -->
