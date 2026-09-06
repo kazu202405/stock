@@ -161,6 +161,59 @@ class ListMarkTest(unittest.TestCase):
             self.assertNotIn(banned, block, banned)
 
 
+class ScreenerOrderTest(unittest.TestCase):
+    """メモのある銘柄を、同じスコアの中で先に出す。"""
+
+    def setUp(self):
+        import app as app_module
+
+        self.app_module = app_module
+        app_module._screen_source_cache.clear()
+
+    def tearDown(self):
+        self.app_module._screen_source_cache.clear()
+
+    def test_it_uses_the_view_when_it_exists(self):
+        class Ok:
+            def table(self, name):
+                return self
+
+            def select(self, *a, **k):
+                return self
+
+            def limit(self, *a, **k):
+                return self
+
+            def execute(self):
+                return type('R', (), {'data': []})()
+
+        name, can_sort = self.app_module.screen_source(Ok())
+        self.assertEqual(name, self.app_module.SCREEN_VIEW)
+        self.assertTrue(can_sort)
+
+    def test_it_falls_back_when_the_view_is_missing(self):
+        """⚠️ migration の適用は運用側が手で行う。無い間も今までどおり動く。"""
+        class Missing:
+            def table(self, name):
+                raise RuntimeError(
+                    'relation "public.screened_with_notes" does not exist')
+
+        name, can_sort = self.app_module.screen_source(Missing())
+        self.assertEqual(name, self.app_module.SCREEN_TABLE)
+        self.assertFalse(can_sort, 'ビューが無いのにメモ順で並べようとしている')
+
+    def test_the_order_is_decided_in_the_database(self):
+        """⚠️ 取得後に並べ替えない。50件ずつ区切っているので順序が崩れる。"""
+        source = read('app.py')
+        self.assertIn("query.order('has_note', desc=True", source)
+        # スコア→確かさ→メモ の順であること（緑の中でメモが上、が崩れない）
+        i_score = source.find("query.order('score_complete'")
+        i_note = source.find("query.order('has_note'")
+        self.assertNotEqual(i_score, -1)
+        self.assertNotEqual(i_note, -1)
+        self.assertLess(i_score, i_note, 'メモが確かさより先に効いている')
+
+
 class SharedDialogTest(unittest.TestCase):
     """入力はアプリ内モーダルで行う（全プロジェクト共通ルール）。"""
 

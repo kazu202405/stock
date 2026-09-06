@@ -3887,6 +3887,28 @@ def _codes_for_tags(client, tag_names=None, category=None):
     return codes
 
 
+# スクリーナーが読む表。メモの有無で並べ替えるためにビューを使う。
+# ⚠️ **ビューが無くても動くこと。** migration の適用は運用側が手で行うので、
+#    コードが先行する期間がある（CLAUDE.md）。無い間は元表で今までどおり。
+SCREEN_VIEW = 'screened_with_notes'
+SCREEN_TABLE = 'screened_latest'
+_screen_source_cache = {}
+
+
+def screen_source(client):
+    """スクリーナーが読む表の名前と、メモで並べ替えられるかを返す。"""
+    if 'name' not in _screen_source_cache:
+        try:
+            client.table(SCREEN_VIEW).select('company_code').limit(1).execute()
+            _screen_source_cache['name'] = SCREEN_VIEW
+        except Exception as e:
+            print('[Screener] %s が無いので %s を使います（%s）'
+                  % (SCREEN_VIEW, SCREEN_TABLE, str(e)[:100]))
+            _screen_source_cache['name'] = SCREEN_TABLE
+    name = _screen_source_cache['name']
+    return name, name == SCREEN_VIEW
+
+
 def _attach_notes(rows):
     """行に「運営のメモがあるか」を付ける。
 
@@ -3936,7 +3958,8 @@ def _screen_preview(client):
     """
     from security_filter import exclude_delisted, exclude_non_operating
 
-    query = client.table('screened_latest').select(SCREEN_COLUMNS, count='exact')
+    source, can_sort_by_note = screen_source(client)
+    query = client.table(source).select(SCREEN_COLUMNS, count='exact')
     query = query.not_.is_('company_name', 'null')
     query = exclude_non_operating(query)
     query = exclude_delisted(query)
@@ -3946,6 +3969,11 @@ def _screen_preview(client):
         query = query.order('score_complete', desc=True, nullsfirst=False)
     except TypeError:
         query = query.order('score_complete', desc=True)
+    if can_sort_by_note:
+        try:
+            query = query.order('has_note', desc=True, nullsfirst=False)
+        except TypeError:
+            query = query.order('has_note', desc=True)
 
     res = query.range(0, FREE_SCREEN_ROWS - 1).execute()
     rows = res.data or []
@@ -3999,7 +4027,8 @@ def api_screen_stocks():
             sort = 'match_rate'
         desc = (request.args.get('order') or 'desc').lower() != 'asc'
 
-        query = client.table('screened_latest').select(SCREEN_COLUMNS, count='exact')
+        source, can_sort_by_note = screen_source(client)
+        query = client.table(source).select(SCREEN_COLUMNS, count='exact')
 
         # 社名が無い行は分析が成立していないので除外する
         query = query.not_.is_('company_name', 'null')
@@ -4113,6 +4142,14 @@ def api_screen_stocks():
             except TypeError:
                 # nullsfirst を受け取らない版のための保険
                 query = query.order('score_complete', desc=True)
+            # 同じスコア・同じ確かさなら、運営がメモを書いた会社を先に。
+            # ⚠️ **ここで並べる（取得後に並べ替えない）。** 50件ずつ区切って
+            #    いるので、あとから並べるとページをまたいだ順序が崩れる。
+            if can_sort_by_note:
+                try:
+                    query = query.order('has_note', desc=True, nullsfirst=False)
+                except TypeError:
+                    query = query.order('has_note', desc=True)
 
         res = query.range(offset, offset + per_page - 1).execute()
 
