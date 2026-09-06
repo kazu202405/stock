@@ -868,7 +868,8 @@
                 </div>
                 <div class="action-buttons">
                     {% if is_admin %}
-                    <button class="gc-fetch-btn" onclick="openDividendRegisterModal()">高配当企業登録</button>
+                    {# 高配当企業登録は高配当企業タブへ移した（2026-09-06）。
+                       登録するものと同じタブに置く。 #}
                     <button class="gc-fetch-btn" onclick="openBulkRegisterModal()">好調企業登録</button>
                     <button class="gc-fetch-btn" onclick="removeAllWatchlist()" style="background-color: #dc2626;">すべて削除</button>
                     {% endif %}
@@ -1033,6 +1034,10 @@
                     <button class="gc-fetch-btn" onclick="analyzeDivStocks()" id="divAnalyzeBtn">0件 詳細取得</button>
                     <button class="gc-fetch-btn" onclick="stopDivAnalyze()" id="divStopBtn" style="background-color: #dc2626; display: none;">停止</button>
                     #}
+                    {% if is_admin %}
+                    <button class="gc-fetch-btn" onclick="openDividendRegisterModal()">高配当企業登録</button>
+                    <button class="gc-fetch-btn" onclick="removeAllDividendStocks()" style="background-color: #dc2626;">すべて削除</button>
+                    {% endif %}
                 </div>
             </div>
             <!-- 表 / カード の切り替えボタンはJSが差し込む（共通部品 table-view.js） -->
@@ -2099,10 +2104,16 @@
     // ========================================
 
     async function removeAllWatchlist() {
+        // ⚠️ タブと同じ言葉で聞く。画面は「好調企業」なのに「ウォッチリスト」と
+        //    聞いていたため、お気に入りが消えると誤解された（2026-09-06）。
+        //    件数を出す・消えないものを書く・共有であることを言う。
+        const count = (watchlistCache || []).length;
         const ok = await showConfirmModal({
-            title: 'ウォッチリストを空にします',
-            message: '登録されている全銘柄を削除します。元には戻せません。',
-            okLabel: '全部削除する',
+            title: '好調企業の一覧を空にします',
+            message: '登録されている' + count + '件を一覧から外します。'
+                   + '分析データ・お気に入りは消えません。'
+                   + 'この一覧は会員全員で共有しているので、全員の画面から消えます。',
+            okLabel: '外す',
             danger: true,
         });
         if (!ok) return;
@@ -2123,6 +2134,34 @@
     // ========================================
     // 高配当企業登録機能
     // ========================================
+
+    async function removeAllDividendStocks() {
+        // 高配当は screened_latest.is_dividend という旗。落とすのは旗だけで、
+        // 銘柄の分析データは残る。好調企業の全削除（行を消す）とは別物。
+        const count = (dividendCache || []).length;
+        const ok = await showConfirmModal({
+            title: '高配当企業の一覧を空にします',
+            message: '登録されている' + count + '件の高配当の印を外します。'
+                   + '分析データは消えません。'
+                   + 'この一覧は会員全員で共有しているので、全員の画面から消えます。',
+            okLabel: '外す',
+            danger: true,
+        });
+        if (!ok) return;
+
+        try {
+            const res = await fetch('/api/dividend-stocks/remove-all', { method: 'DELETE' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showErrorModal(data.error || '外せませんでした。しばらくしてからもう一度お試しください。');
+                return;
+            }
+            showToast((data.removed || 0) + '件の印を外しました');
+            loadDividendStocks();
+        } catch (e) {
+            showErrorModal('接続がうまくいきませんでした。ページを再読み込みしてお試しください。');
+        }
+    }
 
     function openDividendRegisterModal() {
         document.getElementById('dividendRegisterModal').style.display = 'flex';

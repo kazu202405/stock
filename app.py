@@ -2209,6 +2209,30 @@ def api_remove_dividend_stock(company_code):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/dividend-stocks/remove-all', methods=['DELETE'])
+@admin_required_api
+def api_remove_all_dividend_stocks():
+    """高配当フラグを全件解除。
+
+    ⚠️ **分析データは消さない。** 高配当は screened_latest.is_dividend という
+       旗なので、落とすのは旗だけ。銘柄ページもスクリーナーもそのまま残る。
+       （好調企業の全削除は watched_tickers の行そのものを消すので別物）
+
+    件数を返す。押した人が「何件外れたか」を確かめられるようにする。
+    """
+    try:
+        client = get_supabase_client()
+        rows = (client.table('screened_latest').select('company_code')
+                .eq('is_dividend', True).execute().data or [])
+        if rows:
+            (client.table('screened_latest').update({'is_dividend': False})
+             .eq('is_dividend', True).execute())
+        return jsonify({"success": True, "removed": len(rows)}), 200
+    except Exception as e:
+        print('高配当フラグの一括解除に失敗: %s' % str(e)[:200])
+        return jsonify({"error": str(e)}), 500
+
+
 div_analyze_status = {"running": False, "done": 0, "total": 0, "errors": 0, "stop_requested": False}
 
 
