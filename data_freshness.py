@@ -172,6 +172,14 @@ def count_behind(ages, days=None):
 # 株価バッチは実測で十数分。倍の余裕を見てある。
 JOB_HUNG_MINUTES = 45
 
+# 自動で終端するまでの猶予。表示の JOB_HUNG_MINUTES より長くしてある。
+#
+# ⚠️ **表示と同じ45分で終端しない。** バックフィル系は正規に45分を超える
+#    ことがあり、生きている実行を「死んだ」と書くと、本物の終了が来たときに
+#    記録が二重になる。パネルは45分で警告を出し、終端はもっと確実になって
+#    から行う（それでも1日1回のジョブが24時間赤いままよりずっと早い）。
+JOB_SWEEP_MINUTES = 120
+
 # 開始の印は job_id の末尾にこれを付けて別行として残す。
 # 終わりの印と同じ job_id にすると、既存の「直近の実行」の意味が変わってしまう。
 START_SUFFIX = ':start'
@@ -214,6 +222,42 @@ def job_state(client, job_id, now=None):
     if finish:
         return ('ok' if finish.get('ok') else 'failed'), f_at, finish.get('detail') or ''
     return 'none', None, ''
+
+
+def hung_jobs(client, now=None, window=400, minutes=None):
+    """開始の印が残ったまま死んだジョブの job_id を返す。
+
+    ⚠️ **ジョブごとに job_state を呼ばない。** 5分おきの監視から使うので、
+       ジョブ数×2本の問い合わせになると回数が跳ね上がる。直近の記録を
+       1回だけ読み、Python 側で「最後の開始」と「最後の終了」を突き合わせる。
+
+    ⚠️ 読めなかったときは空で返す。**「分からない」を「死んだ」にしない。**
+    """
+    now = now or _now()
+    limit = JOB_SWEEP_MINUTES if minutes is None else minutes
+    try:
+        rows = (client.table('job_runs')
+                .select('job_id, ran_at')
+                .order('ran_at', desc=True).limit(window).execute().data or [])
+    except Exception as e:
+        print('実行記録の一括取得に失敗: %s' % str(e)[:120])
+        return []
+
+    latest = {}
+    for row in rows:                      # 新しい順なので、最初に見たものが最新
+        latest.setdefault(row.get('job_id'), _parse(row.get('ran_at')))
+
+    hung = []
+    for job_id, started in latest.items():
+        if not job_id or not job_id.endswith(START_SUFFIX) or not started:
+            continue
+        base = job_id[:-len(START_SUFFIX)]
+        finished = latest.get(base)
+        if finished and finished >= started:
+            continue                      # 終わっている
+        if (now - started).total_seconds() / 60.0 > limit:
+            hung.append(base)
+    return hung
 
 
 def _run_suffix(run):
@@ -468,7 +512,10 @@ def summary(jobs=None):
     #    それは手で流し直した結果かもしれない。仕組みの生死を最初に出す。
     items = [scheduler_item(jobs, now)]
 
-    # ── 株価（平日 9:25 / 11:45 / 15:20）────────────────────────────
+    # ── 株価（毎日 9:25 / 11:45 / 15:20）────────────────────────────
+    # ⚠️ 「平日」と書いていたが、cron に day_of_week は無く土日も動いている
+    #    （2026-09-06 に実行記録で確認）。休みの日は前営業日の終値を取り
+    #    直すだけで、金曜の取りこぼしを拾い直す役にも立つので止めていない。
     stamps = [_parse(r.get('price_updated_at')) for r in rows]
     ages = [business_days_since(s, now) for s in stamps]
     fresh = sum(1 for a in ages if a is not None and a <= 1)
@@ -489,7 +536,7 @@ def summary(jobs=None):
     items.append({
         'key': 'price',
         'label': '株価',
-        'schedule': '平日 9:25 / 11:45 / 15:20',
+        'schedule': '毎日 9:25 / 11:45 / 15:20（土日は前営業日の終値）',
         'as_of': newest.isoformat() if newest else None,
         'detail': '%d / %d 件が1営業日以内（%.1f%%）%s%s' % (
             fresh, total, fresh / total * 100,

@@ -239,6 +239,9 @@ def _jobs_health():
     #    再起動するまでその日のジョブが走らない。
     if jobs:
         revive_scheduler_if_stalled(jobs)
+    # ⚠️ 起こし直しただけでは、死んだ実行の「開始の印」は残ったまま。
+    #    パネルと監視が赤いままになるので、ここで一緒に片付ける。
+    sweep_hung_runs()
     return data_freshness.health(jobs)
 
 
@@ -5461,6 +5464,35 @@ def close_hung_run(job_id):
         # ⚠️ ここで例外を出して本体を止めない。記録の掃除は本筋ではない。
         print(f'[Scheduler] 死んだ実行の終端に失敗 ({job_id}): {str(e)[:120]}')
         return False
+
+
+def sweep_hung_runs():
+    """死んだまま残っている開始の印を、まとめて終端する。
+
+    ⚠️ **close_hung_run だけでは足りない。** あれを呼ぶのは「同じジョブの
+       次の実行」なので、1日1回のジョブ（daily_and_crosses など）が死ぬと
+       翌日まで赤いままになる。2026-09-04 は実際に手で終端していた。
+       ここは /health/db（5分おき）から呼ばれるので、遅くとも数分で片付く。
+
+    データには触らない。記録を正しくするだけ。
+    """
+    try:
+        import data_freshness
+
+        client = get_supabase_client()
+        closed = []
+        for job_id in data_freshness.hung_jobs(client):
+            record_job_run(
+                job_id, ok=False,
+                detail='開始したまま終わらなかった（見回りが終端した）')
+            closed.append(job_id)
+        if closed:
+            print('[Scheduler] 死んだ実行を終端しました: %s' % ', '.join(closed))
+        return closed
+    except Exception as e:
+        # ⚠️ ここで例外を出して監視そのものを落とさない。掃除は本筋ではない。
+        print(f'[Scheduler] 死んだ実行の見回りに失敗: {str(e)[:120]}')
+        return []
 
 
 def claim_job(job_id):
