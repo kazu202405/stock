@@ -4266,9 +4266,21 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ body: body }),
             });
-            const data = await res.json();
+            // ⚠️ 失敗の種類を1つの文言に潰さない。ログインが切れているのか、
+            //    権限が無いのか、DBが断ったのかで、次にやることが違う。
+            let data = {};
+            try { data = await res.json(); } catch (_) { /* HTMLが返ることがある */ }
             if (!res.ok) {
-                showErrorModal(data.error || 'メモを保存できませんでした。');
+                if (res.status === 401) {
+                    showErrorModal('ログインの有効期限が切れています。入り直してからもう一度お試しください。');
+                } else if (res.status === 403) {
+                    showErrorModal('メモを書けるのは管理者だけです。');
+                } else {
+                    showErrorModal((data.error || 'メモを保存できませんでした。')
+                                   + (data.detail ? '
+
+' + data.detail : ''));
+                }
                 return;
             }
             document.getElementById('stockNoteBody').textContent = body;

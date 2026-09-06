@@ -4751,9 +4751,14 @@ def api_stock_note_save(company_code):
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        print('銘柄メモの保存に失敗 (%s): %s' % (company_code, str(e)[:200]))
-        return jsonify({'error': 'メモを保存できませんでした。'
-                                 'テーブルが未作成の可能性があります。'}), 500
+        # ⚠️ **原因を決め打ちしない。** 以前ここは「テーブルが未作成の可能性が
+        #    あります」と固定で返していたが、テーブルを作った後も同じ文が出て、
+        #    見た人を間違った方向に調べさせる。叩けるのは管理者だけなので、
+        #    DBが言っていることをそのまま見せるほうが早く直る。
+        detail = str(e)[:300]
+        print('銘柄メモの保存に失敗 (%s): %s' % (company_code, detail))
+        return jsonify({'error': 'メモを保存できませんでした。',
+                        'detail': detail}), 500
     return jsonify({'note': note}), 200
 
 
@@ -4764,8 +4769,10 @@ def api_stock_note_delete(company_code):
     try:
         stock_notes.delete(company_code)
     except Exception as e:
-        print('銘柄メモの削除に失敗 (%s): %s' % (company_code, str(e)[:200]))
-        return jsonify({'error': 'メモを削除できませんでした'}), 500
+        detail = str(e)[:300]
+        print('銘柄メモの削除に失敗 (%s): %s' % (company_code, detail))
+        return jsonify({'error': 'メモを削除できませんでした。',
+                        'detail': detail}), 500
     return jsonify({'ok': True}), 200
 
 
