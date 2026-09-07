@@ -27,7 +27,9 @@
     }
 
     .report-container {
-        max-width: 1600px;
+        /* 一覧は最大15列ある。PCでは余白を残し過ぎず、表に幅を渡して
+           不要な横スクロールを出さない（1920px画面で左右40pxずつ）。 */
+        max-width: 1840px;
         margin: 20px auto;
         padding: 0 20px;
     }

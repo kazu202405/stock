@@ -97,6 +97,11 @@ class DashboardLayoutTest(unittest.TestCase):
         self.assertIn('flex: 0 0 auto', self.stock)
         self.assertIn('white-space: nowrap', self.stock)
 
+    def test_desktop_uses_available_width_before_table_scroll(self):
+        """1920px画面で1600pxに絞ると、余白があるのに表だけ横スクロールした。"""
+        container_css = self.stock.split('.report-container {')[1].split('}')[0]
+        self.assertIn('max-width: 1840px', container_css)
+
     def test_tabs_scroll_instead_of_squeezing(self):
         self.assertIn('.watchlist-tabs', self.stock)
         tabs_css = self.stock.split('.watchlist-tabs {')[1].split('}')[0]
