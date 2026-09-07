@@ -151,8 +151,18 @@ class GetMembershipErrorFlagTest(unittest.TestCase):
         self.assertFalse(result['found'])
 
 
-def _free_user_client():
-    """ログイン済みの無料会員。"""
+def _free_user_client(testcase):
+    """ログイン済みの無料会員。
+
+    ⚠️ **後始末は必ず呼んだテストに紐づける。** ここは以前
+       `unittest.addModuleCleanup(patcher.stop)` を使っていたが、これを
+       止めてくれるのは unittest 自身の doModuleCleanups() で、pytest は
+       それを呼ばない。結果 `is_member_session` が **False のまま
+       セッション全体に残り**、あとから走るテストが全部「非会員」に
+       なっていた（/api/stock/holders-officers が非会員向けの
+       別payloadを返し、test_missing_data_fills が5件落ちていた）。
+       単体では通り、まとめて走らせたときだけ落ちるので原因が見えにくい。
+    """
     import app as app_module
 
     app_module.app.config['TESTING'] = True
@@ -164,7 +174,7 @@ def _free_user_client():
     patcher = unittest.mock.patch.object(
         app_module, 'is_member_session', return_value=False)
     patcher.start()
-    unittest.addModuleCleanup(patcher.stop)
+    testcase.addCleanup(patcher.stop)
     return client
 
 
@@ -184,7 +194,7 @@ class LandingAfterLoginTest(unittest.TestCase):
         with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
             landing = self.root.home_path()
 
-        client = _free_user_client()
+        client = _free_user_client(self)
         self.assertEqual(client.get(landing).status_code, 200,
                          f'着地先 {landing} を無料会員が開けない')
 
@@ -203,7 +213,7 @@ class LandingAfterLoginTest(unittest.TestCase):
 
         # 着地先とは別のページを開き、そこのメニューに着地先が載っているか見る
         # （着地先ページ自身の自己リンクで通ってしまわないように）
-        body = _free_user_client().get('/learning').get_data(as_text=True)
+        body = _free_user_client(self).get('/learning').get_data(as_text=True)
         self.assertIn(f'href="{landing}"', body,
                       f'着地先 {landing} がメニューに無い（戻る道が無い）')
 
@@ -217,7 +227,7 @@ class LandingAfterLoginTest(unittest.TestCase):
         with unittest.mock.patch.object(self.root, 'is_member', return_value=False):
             landing = self.root.home_path()
 
-        body = _free_user_client().get('/learning').get_data(as_text=True)
+        body = _free_user_client(self).get('/learning').get_data(as_text=True)
         self.assertNotIn('href="" class="flex items-center', body,
                          'ロゴの行き先が空（home_path が渡っていない）')
         self.assertIn(f'href="{landing}" class="flex items-center', body,
