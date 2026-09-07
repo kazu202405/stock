@@ -56,13 +56,19 @@ def fetch_ohlc(symbol, period='1y', timeout=FETCH_TIMEOUT_SECONDS):
 
     ticker = yf.Ticker(symbol)
     try:
-        # yfinance の timeout は1リクエストあたり。リトライや複数回の
-        # 通信で合計はこれより延びるため、呼び出し側でも上限をかける
-        # （_call_with_deadline）。
-        hist = ticker.history(period=period, timeout=timeout)
-    except TypeError:
-        # timeout を受け取らない版のための保険
-        hist = ticker.history(period=period)
+        try:
+            # yfinance の timeout は1リクエストあたり。リトライや複数回の
+            # 通信で合計はこれより延びるため、呼び出し側でも上限をかける
+            # （_call_with_deadline）。
+            hist = ticker.history(period=period, timeout=timeout)
+        except TypeError:
+            # timeout を受け取らない版のための保険
+            hist = ticker.history(period=period)
+    except Exception as e:
+        # 取得元が扱わない市場（5075の名証単独上場など）でも、銘柄ページの
+        # API全体を500にしない。空配列なら画面側が「取得対象外」を案内できる。
+        print(f'株価履歴の取得失敗 {symbol}: {str(e)[:160]}')
+        return []
     if hist is None or hist.empty:
         return []
 

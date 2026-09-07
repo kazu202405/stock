@@ -21,6 +21,12 @@ import re
 
 MAX_BODY_CHARS = 2000       # 数行のメモ。長文の解説はレポート側の仕事
 
+# メモは会社の見方なので、株価ほど頻繁には古くならない。一方、四半期決算を
+# 1回またぐと前提が変わりうる。90日で見直し候補、さらに1か月そのままなら
+# 要確認にする。決算処理がメモより後なら、日数を待たず要確認。
+REVIEW_AFTER_DAYS = 90
+REVIEW_OVERDUE_DAYS = 120
+
 # updated_by は UUID 列。app_users.id（＝auth.users.id）が入る前提。
 _UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
                    re.I)
@@ -90,6 +96,117 @@ def listing(limit: int = 200) -> list:
             return []
         print('銘柄メモの一覧取得に失敗: %s' % str(e)[:150])
         return []
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    from datetime import datetime, timezone
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+    except (TypeError, ValueError):
+        return None
+
+
+def build_review_items(notes, company_names=None, earnings=None, now=None):
+    """見直しが必要なメモだけを、緊急度の高い順に返す純粋関数。"""
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    company_names = company_names or {}
+    earnings = earnings or {}
+    items = []
+
+    for note in notes or []:
+        code = normalize_code(note.get('company_code'))
+        updated = _parse_datetime(note.get('updated_at'))
+        if not code or not updated:
+            continue
+        age_days = max(0, int((now - updated).total_seconds() // 86400))
+        processed = _parse_datetime(earnings.get(code))
+
+        if processed and processed > updated:
+            status, reason = 'bad', 'earnings'
+            reason_label = '決算更新後に未確認'
+        elif age_days >= REVIEW_OVERDUE_DAYS:
+            status, reason = 'bad', 'overdue'
+            reason_label = '%d日以上未更新' % REVIEW_OVERDUE_DAYS
+        elif age_days >= REVIEW_AFTER_DAYS:
+            status, reason = 'warn', 'age'
+            reason_label = '前回の見直しから%d日' % age_days
+        else:
+            continue
+
+        items.append({
+            'company_code': code,
+            'company_name': company_names.get(code) or '',
+            'updated_at': note.get('updated_at'),
+            'age_days': age_days,
+            'status': status,
+            'reason': reason,
+            'reason_label': reason_label,
+        })
+
+    priority = {'earnings': 0, 'overdue': 1, 'age': 2}
+    items.sort(key=lambda item: (
+        priority.get(item['reason'], 9), -item['age_days'], item['company_code']))
+    return items
+
+
+def review_summary(limit: int = 20) -> dict:
+    """管理画面用。期限超過または決算後未確認のメモをまとめる。"""
+    client = _client()
+    try:
+        notes = (client.table('stock_notes')
+                 .select('company_code, updated_at')
+                 .order('updated_at').limit(2000).execute().data or [])
+    except Exception as e:
+        if _table_missing(e):
+            return {'total': 0, 'due_count': 0, 'items': []}
+        raise
+
+    codes = [normalize_code(n.get('company_code')) for n in notes]
+    codes = [c for c in dict.fromkeys(codes) if c]
+    company_names = {}
+    earnings = {}
+    if codes:
+        for start in range(0, len(codes), 500):
+            part = codes[start:start + 500]
+            companies = (client.table('screened_latest')
+                         .select('company_code, company_name')
+                         .in_('company_code', part).execute().data or [])
+            company_names.update({
+                normalize_code(r.get('company_code')): r.get('company_name') or ''
+                for r in companies
+            })
+            try:
+                processed = (client.table('earnings_queue')
+                             .select('company_code, processed_at')
+                             .in_('company_code', part)
+                             .not_.is_('processed_at', 'null')
+                             .execute().data or [])
+                earnings.update({
+                    normalize_code(r.get('company_code')): r.get('processed_at')
+                    for r in processed
+                })
+            except Exception as e:
+                # 時間経過の判定だけでも使える。決算キューの一時的な読み失敗で
+                # 見直しカード全体を消さない。
+                print('メモ見直し用の決算履歴を取得できませんでした: %s'
+                      % str(e)[:150])
+
+    items = build_review_items(notes, company_names, earnings)
+    return {
+        'total': len(notes),
+        'due_count': len(items),
+        'bad_count': sum(1 for item in items if item['status'] == 'bad'),
+        'warn_count': sum(1 for item in items if item['status'] == 'warn'),
+        'review_after_days': REVIEW_AFTER_DAYS,
+        'overdue_days': REVIEW_OVERDUE_DAYS,
+        'items': items[:limit],
+    }
 
 
 def save(company_code: str, body: str, user_id=None) -> dict:

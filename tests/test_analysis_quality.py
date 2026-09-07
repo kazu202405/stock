@@ -260,6 +260,53 @@ class AnalysisQualityTest(unittest.TestCase):
         self.assertEqual('会社予想非開示', by_key['revenue_forecast']['display'])
         self.assertEqual('会社予想非開示', by_key['op_forecast']['display'])
 
+    def test_tiny_positive_growth_does_not_display_as_zero(self):
+        """6224の+0.04%は合格だが、小数1桁表示では「✓ 0.0%」になっていた。"""
+        result = score_breakdown({
+            'financial_history': {
+                'op_income': [{'date': '2026-02-28', 'value': 100 * 1e8}],
+            },
+            'forecast_op_income': 100.04,
+        })
+        item = next(i for i in result['items'] if i['key'] == 'op_forecast')
+        self.assertTrue(item['passed'])
+        self.assertEqual('微増', item['display'])
+
+    def test_tiny_negative_growth_is_described_without_false_precision(self):
+        result = score_breakdown({
+            'financial_history': {
+                'op_income': [{'date': '2026-02-28', 'value': 100 * 1e8}],
+            },
+            'forecast_op_income': 99.96,
+        })
+        item = next(i for i in result['items'] if i['key'] == 'op_forecast')
+        self.assertFalse(item['passed'])
+        self.assertEqual('微減', item['display'])
+
+    def test_exactly_zero_growth_is_still_zero_and_does_not_pass(self):
+        result = score_breakdown({
+            'financial_history': {
+                'op_income': [{'date': '2026-02-28', 'value': 100 * 1e8}],
+            },
+            'forecast_op_income': 100,
+        })
+        item = next(i for i in result['items'] if i['key'] == 'op_forecast')
+        self.assertFalse(item['passed'])
+        self.assertEqual('0.0%', item['display'])
+
+    def test_zero_profit_forecast_is_a_decline_not_missing_data(self):
+        """会社予想が0円なら値は存在する。truthy判定で未取得にしてはいけない。"""
+        result = score_breakdown({
+            'financial_history': {
+                'op_income': [{'date': '2026-02-28', 'value': 100 * 1e8}],
+            },
+            'forecast_op_income': 0,
+        })
+        item = next(i for i in result['items'] if i['key'] == 'op_forecast')
+        self.assertTrue(item['judged'])
+        self.assertFalse(item['passed'])
+        self.assertEqual('-100.0%', item['display'])
+
     def test_sparse_report_explains_which_sections_are_missing(self):
         report = build_from_screened({
             'company_code': '164A',

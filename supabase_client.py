@@ -72,6 +72,35 @@ def add_to_watchlist(company_code: str) -> dict:
     return result.data
 
 
+def add_to_watchlist_bulk(codes: list) -> dict:
+    """複数銘柄を1回のDB操作でウォッチリストに追加する。
+
+    画面から1銘柄ずつHTTPリクエストを送ると、件数に比例して待ち時間が
+    増える。既存行を先にまとめて確認し、新しい行だけを一括upsertする。
+    """
+    codes = [c for c in dict.fromkeys(codes or []) if c]
+    if not codes:
+        return {'added': 0, 'already': 0, 'added_codes': []}
+
+    client = get_supabase_client()
+    existing_result = (client.table('watched_tickers')
+                       .select('company_code')
+                       .in_('company_code', codes).execute())
+    existing = {row['company_code'] for row in (existing_result.data or [])}
+    fresh = [code for code in codes if code not in existing]
+
+    if fresh:
+        client.table('watched_tickers').upsert(
+            [{'company_code': code} for code in fresh],
+            on_conflict='company_code').execute()
+
+    return {
+        'added': len(fresh),
+        'already': len(existing),
+        'added_codes': fresh,
+    }
+
+
 def remove_from_watchlist(company_code: str) -> dict:
     """銘柄をウォッチリストから削除"""
     client = get_supabase_client()
@@ -348,10 +377,10 @@ def evaluate_score_criteria(data: dict) -> list:
     # 今期予想との比較（予想値は億円、履歴は円）
     forecast_revenue = data.get('forecast_revenue')
     revenue_forecast_growth = growth(
-        forecast_revenue * 1e8 if forecast_revenue else None, revenue_last)
+        forecast_revenue * 1e8 if forecast_revenue is not None else None, revenue_last)
     forecast_op_income = data.get('forecast_op_income')
     op_forecast_growth = growth(
-        forecast_op_income * 1e8 if forecast_op_income else None, op_last)
+        forecast_op_income * 1e8 if forecast_op_income is not None else None, op_last)
 
     market_cap = data.get('market_cap')
     equity_ratio = data.get('equity_ratio')
@@ -377,7 +406,19 @@ def evaluate_score_criteria(data: dict) -> list:
             'display': (fmt(value) if (judged and fmt) else unavailable_display),
         }
 
-    pct = lambda v: f'{v:.1f}%'
+    def pct(v):
+        """割合を小数1桁で表示する。
+
+        丸めると0.0%になる小さな増減は、判定結果と表示が矛盾しないよう
+        計算値の精度を装わない言葉にする。6224で +0.04% が
+        「✓ 0.0%」に見えていたが、「+0.1%未満」も元データ以上に
+        細かく見えるため、ここは「微増／微減」と伝える。
+        """
+        if 0 < v < 0.05:
+            return '微増'
+        if -0.05 < v < 0:
+            return '微減'
+        return f'{v:.1f}%'
     oku = lambda v: f'{v:.1f}億'
     bai = lambda v: f'{v:.1f}倍'
 

@@ -13,6 +13,7 @@
 import os
 import re
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 os.environ.setdefault('ENABLE_SCHEDULER', 'false')
@@ -76,6 +77,17 @@ class ApiPermissionTest(unittest.TestCase):
         self.assertEqual(res.status_code, 500)
         self.assertIn('error', res.get_json())
 
+    def test_review_alert_needs_an_admin(self):
+        for client, expected in ((self._client(), 401),
+                                 (self._client('user'), 403)):
+            self.assertEqual(
+                client.get('/api/admin/stock-note-review').status_code, expected)
+
+        with patch('stock_notes.review_summary', return_value={
+                'total': 1, 'due_count': 0, 'items': []}):
+            res = self._client('admin').get('/api/admin/stock-note-review')
+        self.assertEqual(res.status_code, 200)
+
 
 class MissingTableTest(unittest.TestCase):
     """migration 未適用でも、読みは落ちない。"""
@@ -127,6 +139,40 @@ class AuthorFieldTest(unittest.TestCase):
             uuid = '01d13939-3f29-4f1e-a5d2-a7186a0a3bb0'
             stock_notes.save('7203', 'メモ', user_id=uuid)
             self.assertEqual(captured.get('updated_by'), uuid)
+
+
+class ReviewTimingTest(unittest.TestCase):
+    def test_90日で見直し120日で要確認(self):
+        import stock_notes
+        now = datetime(2026, 9, 7, tzinfo=timezone.utc)
+        notes = [
+            {'company_code': '1001', 'updated_at': (now - timedelta(days=89)).isoformat()},
+            {'company_code': '1002', 'updated_at': (now - timedelta(days=90)).isoformat()},
+            {'company_code': '1003', 'updated_at': (now - timedelta(days=120)).isoformat()},
+        ]
+        items = stock_notes.build_review_items(notes, now=now)
+        by_code = {item['company_code']: item for item in items}
+
+        self.assertNotIn('1001', by_code)
+        self.assertEqual('warn', by_code['1002']['status'])
+        self.assertEqual('age', by_code['1002']['reason'])
+        self.assertEqual('bad', by_code['1003']['status'])
+        self.assertEqual('overdue', by_code['1003']['reason'])
+
+    def test_決算処理がメモより新しければ日数を待たない(self):
+        import stock_notes
+        now = datetime(2026, 9, 7, tzinfo=timezone.utc)
+        updated = now - timedelta(days=10)
+        items = stock_notes.build_review_items(
+            [{'company_code': '7203', 'updated_at': updated.isoformat()}],
+            company_names={'7203': 'トヨタ自動車'},
+            earnings={'7203': (updated + timedelta(days=2)).isoformat()},
+            now=now)
+
+        self.assertEqual(1, len(items))
+        self.assertEqual('earnings', items[0]['reason'])
+        self.assertEqual('決算更新後に未確認', items[0]['reason_label'])
+        self.assertEqual('トヨタ自動車', items[0]['company_name'])
 
 
 class ListMarkTest(unittest.TestCase):
@@ -341,6 +387,46 @@ class SharedDialogTest(unittest.TestCase):
         layout = read('templates/layout.html')
         self.assertIn('promptModalTextarea', layout)
         self.assertIn('opts.multiline', layout)
+
+    def test_background_click_does_not_discard_the_admin_note(self):
+        """入力欄の外へ手が外れただけで、書きかけのメモを消さない。"""
+        layout = read('templates/layout.html')
+        self.assertNotIn('if (e.target === modal) closePromptModal(null)', layout)
+        self.assertIn('async function cancelPromptModal()', layout)
+
+    def test_explicit_cancel_confirms_only_when_the_draft_changed(self):
+        layout = read('templates/layout.html')
+        start = layout.find('async function cancelPromptModal()')
+        self.assertNotEqual(start, -1)
+        block = layout[start:layout.find('// トースト', start)]
+        self.assertIn("input.value || '') !== _promptInitialValue", block)
+        self.assertIn("title: '入力内容を破棄しますか？'", block)
+        self.assertIn("okLabel: '破棄する'", block)
+        self.assertIn("cancelLabel: '編集を続ける'", block)
+
+    def test_escape_closes_discard_confirmation_before_the_editor(self):
+        layout = read('templates/layout.html')
+        start = layout.find("document.addEventListener('keydown', function (e)",
+                            layout.find('async function cancelPromptModal()'))
+        block = layout[start:start + 700]
+        self.assertLess(block.find("getElementById('confirmModal')"),
+                        block.find("getElementById('promptModal')"))
+        self.assertIn("closeConfirmModal(false); return;", block)
+
+
+class NoteReviewPlacementTest(unittest.TestCase):
+    def test_it_is_a_separate_card_immediately_below_data_freshness(self):
+        html = read('templates/stock.html')
+        freshness = html.find('id="freshnessCard"')
+        review = html.find('id="noteReviewCard"')
+        watchlist = html.find('id="watchlistSection"')
+        self.assertTrue(-1 < freshness < review < watchlist)
+        self.assertIn('90日で見直し・120日で要確認', html)
+
+    def test_it_only_appears_when_there_are_due_notes(self):
+        html = read('templates/stock.html')
+        self.assertIn("if (!data.due_count)", html)
+        self.assertIn("card.style.display = 'none'", html)
 
 
 class CuratedPageTest(unittest.TestCase):

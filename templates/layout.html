@@ -984,7 +984,7 @@
                              min-height:220px; font-size:14px;"></textarea>
             <p id="promptModalError" class="ui-modal-error"></p>
             <div class="ui-modal-actions">
-                <button type="button" class="ui-btn-ghost" onclick="closePromptModal(null)">キャンセル</button>
+                <button type="button" class="ui-btn-ghost" onclick="cancelPromptModal()">キャンセル</button>
                 <button type="button" class="ui-btn-primary" id="promptModalOk" onclick="submitPromptModal()">保存</button>
             </div>
         </div>
@@ -1239,6 +1239,7 @@
     // ⚠ prompt() は見た人が「エラーが出た」と読むうえ、ブロックされる環境がある。
     //   新しく入力を求めるときは必ずこちらを使うこと。
     let _promptResolve = null;
+    let _promptInitialValue = '';
     // いま使っている入力欄を返す。複数行なら textarea、そうでなければ input。
     // ⚠️ 判定を submit 側と別々に書くと、書いた内容と読む内容がずれる。
     function _promptField(multiline) {
@@ -1268,6 +1269,7 @@
         document.getElementById('promptModalNote').textContent = opts.note || '';
         document.getElementById('promptModalOk').textContent = opts.okLabel || '保存';
         input.value = opts.value || '';
+        _promptInitialValue = input.value;
         input.placeholder = opts.placeholder || '';
         input.maxLength = opts.maxLength || (opts.multiline ? 2000 : 40);
         err.textContent = '';
@@ -1291,6 +1293,28 @@
         if (_promptResolve) { _promptResolve(result); _promptResolve = null; }
     }
 
+    async function cancelPromptModal() {
+        const modal = document.getElementById('promptModal');
+        if (!modal || !modal.classList.contains('is-open')) return;
+        const input = _promptActiveField();
+        // 何も変えていなければ確認は要らない。1文字でも編集していれば、
+        // Escやキャンセルで黙って捨てず、本人に選んでもらう。
+        if ((input.value || '') !== _promptInitialValue) {
+            const discard = await showConfirmModal({
+                title: '入力内容を破棄しますか？',
+                message: 'まだ保存していない内容があります。',
+                okLabel: '破棄する',
+                cancelLabel: '編集を続ける',
+                danger: true,
+            });
+            if (!discard) {
+                setTimeout(() => input.focus(), 0);
+                return;
+            }
+        }
+        closePromptModal(null);
+    }
+
     // トースト：alert() の置き換え。成功・軽い知らせはこちら（操作を止めない）。
     //   showToast('フォルダを作りました')            成功
     //   showToast('通信に失敗しました', 'error')     失敗
@@ -1306,13 +1330,11 @@
         setTimeout(() => el.remove(), ms || (type === 'error' ? 5000 : 3200));
     }
 
-    // Esc と背景クリックで入力モーダルを閉じる。Enter で決定。
+    // 背景クリックでは閉じない。入力中に手が外れても内容を失わないため。
+    // Enter で決定（複数行は Ctrl / Command + Enter）。
     document.addEventListener('DOMContentLoaded', function () {
         const modal = document.getElementById('promptModal');
         if (!modal) return;
-        modal.addEventListener('click', function (e) {
-            if (e.target === modal) closePromptModal(null);
-        });
         const input = document.getElementById('promptModalInput');
         if (input) {
             input.addEventListener('keydown', function (e) {
@@ -1331,10 +1353,12 @@
     });
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
-        const pm = document.getElementById('promptModal');
-        if (pm && pm.classList.contains('is-open')) { closePromptModal(null); return; }
         const cm = document.getElementById('confirmModal');
-        if (cm && cm.style.display === 'flex') { closeConfirmModal(false); }
+        // 入力破棄の確認が前面に出ている間は、先にその確認だけを閉じる。
+        // 入力モーダルを先に見ると、Escのたびに確認が重なってしまう。
+        if (cm && cm.style.display === 'flex') { closeConfirmModal(false); return; }
+        const pm = document.getElementById('promptModal');
+        if (pm && pm.classList.contains('is-open')) { cancelPromptModal(); }
     });
     // モーダル背景クリックで閉じる
     document.addEventListener('DOMContentLoaded', function() {
@@ -1342,7 +1366,11 @@
             var modal = document.getElementById(id);
             if (modal) {
                 modal.addEventListener('click', function(e) {
-                    if (e.target === modal) modal.style.display = 'none';
+                    if (e.target !== modal) return;
+                    // confirm はPromiseを返すため、displayだけ消すと呼び出し側が
+                    // 永久に待つ。背景クリックは「キャンセル」として完了させる。
+                    if (id === 'confirmModal') closeConfirmModal(false);
+                    else modal.style.display = 'none';
                 });
             }
         });

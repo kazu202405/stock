@@ -22,6 +22,7 @@ import os
 import sys
 import time
 import unittest
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault('ENABLE_SCHEDULER', 'false')
 
@@ -49,6 +50,66 @@ class TestCallWithDeadline(unittest.TestCase):
             raise ValueError('取得失敗')
         with self.assertRaises(ValueError):
             ph._call_with_deadline(boom, 5)
+
+
+class TestFetchFailure(unittest.TestCase):
+
+    @patch('yfinance.Ticker')
+    def test_取得元が扱わない銘柄でも空配列を返す(self, ticker):
+        """5075（名証単独上場）で例外がAPIの500まで漏れていた。"""
+        instance = MagicMock()
+        instance.history.side_effect = RuntimeError('symbol is not supported')
+        ticker.return_value = instance
+
+        self.assertEqual(ph.fetch_ohlc('5075.T'), [])
+
+
+class TestListingMarketDetection(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        import app as app_module
+        cls.app_module = app_module
+        app_module.app.config['TESTING'] = True
+
+    def test_名証単独と東証との重複上場を区別する(self):
+        detect = self.app_module._is_nagoya_only_listing
+        self.assertTrue(detect({'market': '名証メイン'}))
+        self.assertTrue(detect({'market_jp': '名古屋証券取引所 ネクスト'}))
+        self.assertFalse(detect({
+            'market': '名証プレミア', 'market_segment': 'プライム'}))
+        self.assertFalse(detect({'market': '東証スタンダード'}))
+
+    def test_名証単独は取得元を待たず空データの理由を返す(self):
+        with patch.object(self.app_module, 'get_screened_data', return_value={
+                'company_code': '5075', 'market': '名証メイン'}), \
+                patch('price_history.get_stored', return_value=None), \
+                patch('price_history.get_daily') as get_daily:
+            response = self.app_module.app.test_client().get(
+                '/api/stock/price-history/5075?range=1y')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual([], data['rows'])
+        self.assertEqual('nagoya_only_not_supported', data['unavailable_reason'])
+        self.assertEqual('名証メイン', data['market'])
+        get_daily.assert_not_called()
+
+    def test_名証単独でも保存済みチャートは即座に返す(self):
+        cached = [{'time': 1, 'open': 10, 'high': 11, 'low': 9,
+                   'close': 10, 'volume': 100}]
+        with patch.object(self.app_module, 'get_screened_data', return_value={
+                'company_code': '5075', 'market': '名証メイン'}), \
+                patch('price_history.get_stored', return_value={'daily_1y': cached}), \
+                patch('price_history.get_daily') as get_daily:
+            response = self.app_module.app.test_client().get(
+                '/api/stock/price-history/5075?range=1y')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(cached, data['rows'])
+        self.assertIsNone(data['unavailable_reason'])
+        get_daily.assert_not_called()
 
 
 class TestRefreshInBackground(unittest.TestCase):

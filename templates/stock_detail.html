@@ -1319,14 +1319,14 @@
             <div class="detail-content">
                 {#
                   概要はサーバー側で出す。JSで差し込むだけだと、クローラーが
-                  最初に読むHTMLが「更新ボタンを押すと…」のままになり、
+                  最初に読むHTMLが「準備中」のままになり、
                   全銘柄ページが同じ中身として扱われるため。
                 #}
                 <div id="business-summary-content" style="line-height: 1.8; color: var(--text-primary); font-size: 0.95rem;">
                     {% if _summary %}
                         <div style="line-height: 1.8; color: var(--text-primary);">{{ _summary }}</div>
                     {% else %}
-                        <div style="color: var(--text-secondary); text-align: center; padding: 20px;">更新ボタンを押すと事業概要が表示されます</div>
+                        <div style="color: var(--text-secondary); text-align: center; padding: 20px;">事業概要は現在準備中です</div>
                     {% endif %}
                 </div>
 
@@ -1626,6 +1626,20 @@
     // ページ用定数
     const STOCK_CODE = '{{ stock_code }}';
     const IS_ADMIN = false;  // 詳細ページは閲覧専用
+    window.currentMarket = '';
+    window.chartUnavailableReason = '';
+
+    function mergeMarketLabels() {
+        return Array.from(new Set(Array.from(arguments)
+            .map(v => String(v || '').trim()).filter(Boolean))).join(' / ');
+    }
+
+    function isNagoyaOnlyMarket(market) {
+        const label = String(market || '');
+        const hasNagoya = /(名古屋証券|名証)/i.test(label);
+        const hasTokyo = /(東京証券|東証|TOKYO|プライム|スタンダード|グロース|PRO\s*Market)/i.test(label);
+        return hasNagoya && !hasTokyo;
+    }
 
     // お気に入り状態
     let isFavorite = false;
@@ -1908,6 +1922,26 @@
         priceResizeObserver.observe(container);
     }
 
+    function chartUnavailableHtml() {
+        const market = String(window.currentMarket || '');
+        const isJapaneseCode = /^[0-9A-Z]{4}$/i.test(STOCK_CODE) && /\d/.test(STOCK_CODE);
+        const reason = window.chartUnavailableReason === 'nagoya_only_not_supported'
+            ? '名証単独上場銘柄は、現在の取得元ではチャートを表示できません'
+            : '上場市場や取得元の状況により表示できない場合があります';
+        let link = '';
+        if (isJapaneseCode) {
+            // Yahoo!ファイナンス日本版では名証単独銘柄は .N、東証は .T。
+            // 東証との重複上場なら .T を優先する。yfinance側に名証の日足が
+            // 無くても、人が外部ページで確認はできる。
+            const suffix = isNagoyaOnlyMarket(market) ? '.N' : '.T';
+            const symbol = encodeURIComponent(STOCK_CODE + suffix);
+            link = `<br><a href="https://finance.yahoo.co.jp/quote/${symbol}/chart" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;color:#2563eb;text-decoration:underline;">外部の株価ページで確認する</a>`;
+        }
+        return '<div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;line-height:1.7;text-align:center;padding:20px;">'
+            + '<div>株価チャートは現在取得できません<br><small>' + reason + '</small>'
+            + link + '</div></div>';
+    }
+
     // 市場平均との相対チャート（表示期間の初日=100）
     function showComparisonChart() {
         const container = document.getElementById('tradingview-chart-container');
@@ -2129,7 +2163,7 @@
             const rows = await fetchPriceHistory(key);
             if (!rows || rows.length === 0) {
                 if (container) {
-                    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:280px;color:#a3a3a3;font-size:13px;">${conf.label}のデータを取得できませんでした</div>`;
+                    container.innerHTML = chartUnavailableHtml();
                 }
                 return;
             }
@@ -2154,6 +2188,8 @@
             const res = await fetch(`/api/stock/price-history/${STOCK_CODE}?range=${encodeURIComponent(rangeKey)}`);
             if (!res.ok) return null;
             const data = await res.json();
+            window.currentMarket = mergeMarketLabels(data.market, window.currentMarket);
+            window.chartUnavailableReason = data.unavailable_reason || '';
             // 日足と同時にGC/DCも計算し直されて返る。チャートとトレンド表示が
             // 別々のデータを見てズレるのを防ぐため、こちらでバッジを更新する
             if (data.gc_date || data.dc_date) {
@@ -3363,6 +3399,7 @@
     function displayCachedData(data) {
         // screened_latest は通貨を持っていないので、銘柄コードから決める
         window.currentCurrency = defaultCurrencyForCode(data.company_code || STOCK_CODE);
+        window.currentMarket = mergeMarketLabels(data.market, data.market_segment);
         initCompareButton();
 
         // 会社名
@@ -3633,6 +3670,8 @@
         // 分析側が通貨を取れないことがある（yfinanceのfast_infoが空など）ので、
         // その場合も銘柄コードから補う
         window.currentCurrency = data.currency || defaultCurrencyForCode(STOCK_CODE);
+        window.currentMarket = mergeMarketLabels(
+            data.market_jp, data.market, data.market_segment, window.currentMarket);
         initCompareButton();   // 通貨が判明してから「日経平均/S&P500」の表記を確定させる
 
         const nameEl = document.getElementById('companyName');
@@ -3836,7 +3875,7 @@
         if (!chartLoaded) {
             const chartContainer = document.getElementById('tradingview-chart-container');
             if (chartContainer) {
-                chartContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:320px;color:#a3a3a3;font-size:13px;">「更新」ボタンを押すとチャートが表示されます</div>';
+                chartContainer.innerHTML = chartUnavailableHtml();
             }
         }
 

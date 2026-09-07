@@ -33,7 +33,7 @@ from analysis_quality import (
 )
 from supabase_client import (
     get_supabase_client,
-    add_to_watchlist, remove_from_watchlist, get_watchlist,
+    add_to_watchlist, add_to_watchlist_bulk, remove_from_watchlist, get_watchlist,
     is_in_watchlist, get_watchlist_with_details, upsert_screened_data,
     update_screened_data, upsert_screened_data_with_match_rate,
     calculate_match_rate, attach_score_quality, get_screened_data,
@@ -1135,6 +1135,32 @@ def api_add_to_watchlist():
         return jsonify({"success": True, "company_code": company_code}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+WATCHLIST_BULK_ADD_MAX = 200
+
+
+@app.route('/api/watchlist/add-bulk', methods=['POST'])
+@admin_required_api
+def api_add_to_watchlist_bulk():
+    """好調企業をまとめて登録する（管理者専用）。
+
+    ブラウザから銘柄ごとにPOSTせず、1リクエスト・1一括DB操作にする。
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        codes = [normalize_code(c) for c in (data.get('company_codes') or []) if c]
+        codes = list(dict.fromkeys(codes))
+        if not codes:
+            return jsonify({"error": "銘柄コードが指定されていません"}), 400
+        if len(codes) > WATCHLIST_BULK_ADD_MAX:
+            return jsonify({
+                "error": f"一度に登録できるのは{WATCHLIST_BULK_ADD_MAX}件までです"
+            }), 400
+        return jsonify(add_to_watchlist_bulk(codes)), 200
+    except Exception as e:
+        print(f'好調企業の一括登録エラー: {str(e)[:200]}')
+        return jsonify({"error": "登録できませんでした"}), 500
 
 
 @app.route('/api/watchlist/remove/<company_code>', methods=['DELETE'])
@@ -4270,6 +4296,31 @@ def api_screen_stocks():
         return jsonify({'error': '銘柄の絞り込みに失敗しました', 'rows': [], 'total': 0}), 500
 
 
+def _listing_market_label(screened):
+    """取得元ごとに分かれた市場名を、判定と画面表示用の1本にまとめる。"""
+    values = []
+    for key in ('market', 'market_jp', 'market_segment', 'listing_market'):
+        value = str((screened or {}).get(key) or '').strip()
+        if value and value not in values:
+            values.append(value)
+    return ' / '.join(values)
+
+
+def _is_nagoya_only_listing(screened):
+    """名証単独上場なら True。東証との重複上場は False にする。
+
+    Yahoo日本版由来の ``market`` とJPX由来の ``market_segment`` は別の列。
+    片方だけを見ると「名証にも東証にも上場」を名証単独と誤認するため、
+    保存されている市場名をすべて合わせて判定する。
+    """
+    label = _listing_market_label(screened)
+    is_nagoya = bool(re.search(r'名証|名古屋証券', label, re.IGNORECASE))
+    is_tokyo = bool(re.search(
+        r'東証|東京証券|TOKYO|プライム|スタンダード|グロース|PRO\s*Market',
+        label, re.IGNORECASE))
+    return is_nagoya and not is_tokyo
+
+
 @app.route('/api/stock/price-history/<company_code>', methods=['GET'])
 def api_price_history(company_code):
     """チャート用の株価履歴を返す。
@@ -4281,6 +4332,40 @@ def api_price_history(company_code):
         code = normalize_code(company_code)
         range_key = (request.args.get('range') or '1y').lower()
         granularity = ph.granularity_for_range(range_key)
+
+        # 5075のような名証単独銘柄を .T としてYahooへ問い合わせると、
+        # データが無いままタイムアウトまで待つ。市場情報はscreened_latestに
+        # あるので先に判定し、保存済みがあればそれだけを即返す。
+        try:
+            screened = get_screened_data(code) or {}
+        except Exception as e:
+            print(f'市場情報の取得エラー {code}: {e}')
+            screened = {}
+        market_label = _listing_market_label(screened)
+
+        if _is_nagoya_only_listing(screened):
+            stored = ph.get_stored(code) or {}
+            column = ('daily_1y' if granularity == 'daily'
+                      else 'weekly_10y' if granularity == 'weekly'
+                      else 'monthly_10y')
+            rows = stored.get(column) or []
+            if isinstance(rows, str):
+                try:
+                    rows = json.loads(rows)
+                except (TypeError, ValueError):
+                    rows = []
+            liquidity = ph.liquidity_summary(rows) if granularity == 'daily' else None
+            return jsonify({
+                'company_code': code,
+                'range': range_key,
+                'granularity': granularity,
+                'rows': rows,
+                'liquidity': liquidity,
+                'gc_date': screened.get('gc_date'),
+                'dc_date': screened.get('dc_date'),
+                'market': market_label,
+                'unavailable_reason': None if rows else 'nagoya_only_not_supported',
+            }), 200
 
         crosses = None
         if granularity == 'daily':
@@ -4309,6 +4394,8 @@ def api_price_history(company_code):
             'liquidity': liquidity,
             'gc_date': (crosses or {}).get('latest_gc_date'),
             'dc_date': (crosses or {}).get('latest_dc_date'),
+            'market': market_label,
+            'unavailable_reason': None,
         }), 200
     except Exception as e:
         print(f"株価履歴の取得エラー {company_code}: {e}")
@@ -6711,6 +6798,18 @@ def api_data_freshness():
     except Exception as e:
         print(f'データ鮮度の集計に失敗: {e}')
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/stock-note-review', methods=['GET'])
+@admin_required_api
+def api_stock_note_review():
+    """運営メモの見直し候補。データ障害とは別の編集上の注意として返す。"""
+    try:
+        import stock_notes
+        return jsonify(stock_notes.review_summary()), 200
+    except Exception as e:
+        print(f'メモの見直し候補を取得できませんでした: {e}')
+        return jsonify({'error': 'メモの見直し候補を取得できませんでした'}), 500
 
 
 @app.route('/api/scheduler/status', methods=['GET'])

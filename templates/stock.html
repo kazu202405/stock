@@ -718,9 +718,43 @@
     .fresh-ok   { background: #e8f5ec; color: #1b6b3a; }
     .fresh-warn { background: #fff4e0; color: #92610a; }
     .fresh-bad  { background: #fdeaea; color: #a02020; }
+
+    /* 人が書いたメモの見直し。機械データの障害と混同させないため、
+       データ鮮度の中には入れず、その直下に別の編集カードとして置く。 */
+    .note-review-card {
+        display: none; background: #fffdf7; border: 1px solid #eadfca;
+        border-left: 3px solid #a16207; border-radius: 12px;
+        padding: 14px 18px; margin: -4px 0 16px;
+    }
+    .note-review-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+    }
+    .note-review-title { font-size: 12px; font-weight: 700; color: #7c4a03; }
+    .note-review-sub { font-size: 10px; color: #8a7659; }
+    .note-review-row {
+        display: grid; grid-template-columns: 1fr auto; gap: 12px;
+        align-items: center; padding: 8px 0; border-top: 1px solid #f0e8d8;
+        color: #1a1a1a; text-decoration: none;
+    }
+    .note-review-row:hover .note-review-company { text-decoration: underline; }
+    .note-review-row:focus-visible { outline: 2px solid #a16207; outline-offset: 3px; }
+    .note-review-company { font-size: 12px; font-weight: 600; }
+    .note-review-company code {
+        color: #7c4a03; background: transparent; font-size: 11px; margin-right: 7px;
+    }
+    .note-review-reason { display: block; color: #8a7659; font-size: 10px; margin-top: 2px; }
+    .note-review-age { color: #7c4a03; font-size: 11px; white-space: nowrap; }
+    .note-review-badge {
+        display: inline-block; padding: 1px 6px; border-radius: 999px;
+        margin-right: 6px; font-size: 9px; font-weight: 700;
+    }
+    .note-review-badge.is-bad { background: #fdeaea; color: #a02020; }
+    .note-review-badge.is-warn { background: #fff1c7; color: #8a5a00; }
     @media (max-width: 640px) {
         .freshness-row { grid-template-columns: 1fr; gap: 2px; }
         .freshness-when { text-align: left; }
+        .note-review-card { padding: 13px 14px; }
     }
 </style>
 
@@ -791,6 +825,16 @@
             <span class="freshness-sub" id="freshnessSub"></span>
         </div>
         <div id="freshnessRows"></div>
+    </div>
+
+    <div class="note-review-card" id="noteReviewCard">
+        <div class="note-review-head">
+            <span class="note-review-title">
+                <i class="fas fa-rotate" style="margin-right:6px; font-size:11px;"></i>メモの見直し
+            </span>
+            <span class="note-review-sub" id="noteReviewSub"></span>
+        </div>
+        <div id="noteReviewRows"></div>
     </div>
     {% endif %}
 
@@ -1200,7 +1244,7 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-cancel-btn" onclick="closeBulkRegisterModal()">キャンセル</button>
-                <button class="modal-submit-btn" onclick="submitBulkRegister()">登録</button>
+                <button class="modal-submit-btn" id="bulkRegisterSubmitBtn" onclick="submitBulkRegister()">登録</button>
             </div>
         </div>
     </div>
@@ -1376,6 +1420,7 @@
         checkShikihoAlert();
         loadMarketComment();
         loadDataFreshness();
+        loadNoteReview();
         loadWatchlist();
         /*
          * 前回開いていたタブの中身を先に取りに行く。
@@ -1440,6 +1485,42 @@
         }
     }
 
+    async function loadNoteReview() {
+        const card = document.getElementById('noteReviewCard');
+        if (!card) return;
+        try {
+            const res = await fetch('/api/admin/stock-note-review');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.due_count) {
+                card.style.display = 'none';
+                return;
+            }
+            const rows = (data.items || []).map(function (item) {
+                const urgent = item.status === 'bad';
+                const badge = item.reason === 'earnings' ? '決算後'
+                            : urgent ? '要確認' : '見直し';
+                const name = item.company_name
+                    ? freshEscape(item.company_name) : '会社名未取得';
+                return '<a class="note-review-row" href="/stock/'
+                     + encodeURIComponent(item.company_code) + '">'
+                     + '<span><span class="note-review-company">'
+                     + '<span class="note-review-badge ' + (urgent ? 'is-bad' : 'is-warn') + '">'
+                     + badge + '</span><code>' + freshEscape(item.company_code) + '</code>' + name
+                     + '</span><small class="note-review-reason">'
+                     + freshEscape(item.reason_label || '') + '</small></span>'
+                     + '<span class="note-review-age">' + Number(item.age_days || 0) + '日前</span>'
+                     + '</a>';
+            }).join('');
+            document.getElementById('noteReviewRows').innerHTML = rows;
+            document.getElementById('noteReviewSub').textContent =
+                data.due_count + ' / ' + data.total + '件　90日で見直し・120日で要確認';
+            card.style.display = 'block';
+        } catch (e) {
+            // 編集用の注意が取れなくても、株価一覧はそのまま使える。
+        }
+    }
+
     function freshEscape(text) {
         const d = document.createElement('div');
         d.textContent = text == null ? '' : String(text);
@@ -1470,21 +1551,23 @@
     }
 
     // ウォッチリストを読み込んで表示
-    async function loadWatchlist() {
+    async function loadWatchlist(options = {}) {
+        const useCache = options.useCache !== false;
+        const showLoading = options.showLoading !== false;
         // キャッシュがあれば先に表示（ローディング回避）
-        const cached = sessionStorage.getItem('watchlistCache');
+        const cached = useCache ? sessionStorage.getItem('watchlistCache') : null;
         if (cached) {
             try {
                 renderWatchlist(JSON.parse(cached));
             } catch(e) {}
-        } else {
+        } else if (showLoading) {
             document.getElementById('watchlistContent').innerHTML =
                 '<div class="gc-loading"><div class="gc-spinner"></div><div class="gc-loading-text">読み込み中...</div></div>';
         }
 
         // バックグラウンドで最新データを取得
         try {
-            const response = await fetch('/api/watchlist');
+            const response = await fetch('/api/watchlist', { cache: 'no-store' });
             const data = await response.json();
 
             if (response.ok) {
@@ -1507,6 +1590,32 @@
 
     // ウォッチリストデータをキャッシュ
     let watchlistCache = [];
+
+    // 書き込み成功後は、遅い再取得を待たずに画面とsessionStorageを同時に直す。
+    // そのあとサーバーの正本を取り直して最終的に一致させる。
+    function commitWatchlistView(list) {
+        const next = Array.isArray(list) ? list : [];
+        sessionStorage.setItem('watchlistCache', JSON.stringify(next));
+        renderWatchlist(next);
+    }
+
+    function removeCodesFromWatchlistView(codes) {
+        const removed = new Set((codes || []).map(code => String(code).replace(/\.T$/i, '')));
+        const next = watchlistCache.filter(item =>
+            !removed.has(String(item.company_code || '').replace(/\.T$/i, ''))
+        );
+        commitWatchlistView(next);
+    }
+
+    function addCodesToWatchlistView(codes) {
+        const existing = new Set(watchlistCache.map(item => String(item.company_code || '').toUpperCase()));
+        const now = new Date().toISOString();
+        const fresh = (codes || [])
+            .map(code => String(code).toUpperCase())
+            .filter(code => code && !existing.has(code))
+            .map(code => ({ company_code: code, created_at: now }));
+        if (fresh.length) commitWatchlistView([...fresh, ...watchlistCache]);
+    }
 
     // ウォッチリストを描画
     // ソート状態
@@ -1854,7 +1963,9 @@
             const data = await response.json();
 
             if (response.ok) {
-                loadWatchlist();
+                removeCodesFromWatchlistView([code]);
+                showToast(`${code.replace(/\.T$/i, '')} を一覧から外しました`);
+                loadWatchlist({ useCache: false, showLoading: false });
             } else {
                 showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
             }
@@ -2051,7 +2162,9 @@
         try {
             const response = await fetch('/api/watchlist/remove-all', { method: 'DELETE' });
             if (response.ok) {
-                loadWatchlist();
+                commitWatchlistView([]);
+                showToast(count + '件を一覧から外しました');
+                loadWatchlist({ useCache: false, showLoading: false });
             } else {
                 const data = await response.json();
                 showErrorModal('削除できませんでした。しばらくしてからもう一度お試しください。');
@@ -2182,7 +2295,7 @@
     async function submitBulkRegister() {
         const input = document.getElementById('bulkCodesInput').value.trim();
         const statusDiv = document.getElementById('bulkRegisterStatus');
-        const submitBtn = document.querySelector('.modal-submit-btn');
+        const submitBtn = document.getElementById('bulkRegisterSubmitBtn');
 
         if (!input) {
             statusDiv.innerHTML = '<span style="color: #dc2626;">銘柄コードを入力してください</span>';
@@ -2202,37 +2315,36 @@
         submitBtn.textContent = '登録中...';
         statusDiv.innerHTML = `<span style="color: #3b82f6;">登録中... (0/${uniqueCodes.length})</span>`;
 
-        let successCount = 0;
-        let failedCodes = [];
-
-        for (let i = 0; i < uniqueCodes.length; i++) {
-            const code = uniqueCodes[i] + '.T';
-            try {
-                const response = await fetch('/api/watchlist/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ company_code: code })
-                });
-                if (response.ok) { successCount++; } else { failedCodes.push(uniqueCodes[i]); }
-            } catch (error) { failedCodes.push(uniqueCodes[i]); }
-            statusDiv.innerHTML = `<span style="color: #3b82f6;">登録中... (${i + 1}/${uniqueCodes.length})</span>`;
+        let result;
+        try {
+            const response = await fetch('/api/watchlist/add-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_codes: uniqueCodes })
+            });
+            result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.error || '登録できませんでした');
+        } catch (error) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '登録';
+            statusDiv.innerHTML = `<span style="color: #dc2626;">${freshEscape(error.message || '登録できませんでした')}</span>`;
+            return;
         }
 
         submitBtn.disabled = false;
         submitBtn.textContent = '登録';
+        const added = result.added || 0;
+        const already = result.already || 0;
+        const alreadyText = already ? `（${already}件は登録済み）` : '';
+        statusDiv.innerHTML = `<span style="color: #10b981;">${added}件を登録しました${alreadyText}</span>`;
 
-        if (failedCodes.length === 0) {
-            statusDiv.innerHTML = `<span style="color: #10b981;">${successCount}件の銘柄を登録しました。財務データを取得しています...</span>`;
-        } else {
-            statusDiv.innerHTML = `<span style="color: #f59e0b;">${successCount}件登録、${failedCodes.length}件失敗 (${failedCodes.join(', ')})</span>`;
-        }
-
-        loadWatchlist();
-        setTimeout(() => { closeBulkRegisterModal(); }, 2000);
+        addCodesToWatchlistView(result.added_codes || []);
+        loadWatchlist({ useCache: false, showLoading: false });
+        setTimeout(() => { closeBulkRegisterModal(); }, 1200);
 
         // 登録しただけでは財務データが空のため、未分析銘柄の詳細取得を自動起動する
         // （バックグラウンドで分析し、完了までポーリングで表を随時更新）
-        if (successCount > 0) {
+        if (added > 0) {
             analyzeWlStocks(false, true);
         }
     }
@@ -2534,7 +2646,12 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok) { showErrorModal(data.error || '外せませんでした'); return; }
             BulkSelect.clear(tabName);
-            conf.reload();
+            if (tabName === 'watchlist') {
+                removeCodesFromWatchlistView(codes);
+                loadWatchlist({ useCache: false, showLoading: false });
+            } else {
+                conf.reload();
+            }
             showToast(`${data.removed || codes.length}件を一覧から外しました`);
         } catch (e) {
             showErrorModal('通信に失敗しました。ページを再読み込みしてお試しください。');

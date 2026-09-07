@@ -155,6 +155,20 @@ class 銘柄ページの更新ボタン(unittest.TestCase):
         self.assertIn('id="safeRefreshBtn"', self.render_detail(ADMIN))
         self.assertNotIn('id="safeRefreshBtn"', self.render_detail(MEMBER))
 
+    def test_会員に見えない更新ボタンを空データ案内で指さない(self):
+        """チャート・概要が空でも、会員には押せる更新ボタンが無い。"""
+        body = self.render_detail(MEMBER)
+        self.assertNotIn('更新」ボタンを押す', body)
+        self.assertNotIn('更新ボタンを押す', body)
+        self.assertIn('株価チャートは現在取得できません', body)
+        self.assertIn('事業概要は現在準備中です', body)
+
+    def test_名証銘柄の外部確認先は_nになる(self):
+        body = self.render_detail(MEMBER)
+        self.assertIn("isNagoyaOnlyMarket(market) ? '.N' : '.T'", body)
+        self.assertIn('名証単独上場銘柄は、現在の取得元ではチャートを表示できません', body)
+        self.assertIn('外部の株価ページで確認する', body)
+
 
 if __name__ == '__main__':
     unittest.main()
