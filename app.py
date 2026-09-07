@@ -402,17 +402,78 @@ FREE_COMMUNITY_QUESTIONS = 3
 # 門前払いだと、そこで終わる。上位数件だけ実物を見せる。
 FREE_SCREEN_ROWS = 3
 
-# 会員申込の行き先。`from=note` を落とすと、決済のあとGIA側のマイページに
-# 着地して、買ったはずの機能に戻る道が示されない（gia-next 側がこの値を受ける）。
-UPGRADE_URL = 'https://gia2018.com/upgrade?from=note'
+# 会員の段ごとの申込先と金額。
+#
+# ⚠️ **画面に書く数字と行き先はここからだけ取る。** 同じ金額が GIA の
+#    /upgrade・/plans・招待ページにもあり、直書きすると値上げのときに漏れる
+#    （tests/test_membership_page.py が直書きを見張っている）。
+#    金額の正本は Stripe の Price。ここは表示用の写しなので、変えるときは
+#    必ず Stripe 側と突き合わせる。
+#
+# ⚠️ **`from=note` を落とさないこと。** 落とすと決済のあとGIA側のマイページに
+#    着地して、買ったはずの機能に戻る道が示されない（gia-next 側がこの値を受ける）。
+#
+# online … 公開の段。誰でも申し込める
+# invite … 招待された人だけの段。URLを個別に渡す運用で、募集画面には出さない。
+#          ⚠️ **online より高い。** アプリの中で開くものは online と同じで、
+#          差は講義録画と月1回のオフライン企業研究会（＝アプリの外）。
+#          招待された人に両方並べると必ず安いほうを選ぶので、
+#          その人には招待の段だけを出す（upgrade_url_for_user）。
+MEMBERSHIP_TIERS = {
+    'online': {
+        'label': 'オンライン会員',
+        'upgrade_url': 'https://gia2018.com/upgrade?from=note',
+        'price_yen': 4980,          # 税別
+        'price_yen_tax_in': 5478,   # 税込
+        'tax_basis': '税別',
+        'cta': '会員になる',
+        'extras': [],
+        'notes': [],
+    },
+    'invite': {
+        'label': 'ご招待会員',
+        'upgrade_url': 'https://gia2018.com/upgrade/invite?from=note',
+        'price_yen': 11000,         # 招待の段は税込表示（/invite と揃える）
+        'price_yen_tax_in': 11000,
+        'tax_basis': '税込',
+        'cta': 'ご招待の内容で申し込む',
+        'extras': [
+            '講義録画の視聴（参加できなかった回も、あとから見られます）',
+            'ご紹介者のみのオフライン企業研究会（月1回を基本にご案内）',
+        ],
+        # ⚠️ **実費のことを書かずに金額だけ出さない。** /invite には
+        #    「別途実費（会場費や飲食代）」と明記してある。ここで落とすと、
+        #    同じ段の案内なのに月額だけが一人歩きする。
+        'notes': [
+            '研究会の会場費・飲食代などの実費は別途申し受けます'
+            '（金額は開催案内で事前にお知らせします）。',
+        ],
+    },
+}
 
-# 会員の月額。⚠️ **画面に書く数字はここからだけ取る。**
-# 同じ金額が GIA の /upgrade・/plans・招待ページにもあり、値上げのときに
-# 直し漏れる。テンプレートに直書きさせない（tests/test_membership_page.py）。
-# 金額の正本は Stripe の Price。ここは表示用の写しなので、変えるときは
-# 必ず Stripe 側と突き合わせる。
-MEMBERSHIP_PRICE_YEN = 4980          # 税別
-MEMBERSHIP_PRICE_YEN_TAX_IN = 5478   # 税込
+# 既定（招待を持たない人）の段。既存の呼び出し元が参照している名前は残す。
+DEFAULT_MEMBERSHIP_TIER = 'online'
+UPGRADE_URL = MEMBERSHIP_TIERS[DEFAULT_MEMBERSHIP_TIER]['upgrade_url']
+
+# APIが「会員限定です」と返すときに添える行き先。
+# ⚠️ ここに gia2018.com の申込URLを直接入れない。招待された人には招待の段を
+#    出す必要があり、その判定を持っているのはアプリ内の /membership だけ。
+#    外部URLを直に返すと、受け取った画面が公開の段（4,980円）へ送ってしまう。
+UPGRADE_PATH = '/membership'
+MEMBERSHIP_PRICE_YEN = MEMBERSHIP_TIERS[DEFAULT_MEMBERSHIP_TIER]['price_yen']
+MEMBERSHIP_PRICE_YEN_TAX_IN = (
+    MEMBERSHIP_TIERS[DEFAULT_MEMBERSHIP_TIER]['price_yen_tax_in'])
+
+
+def membership_tier_for(invited_plan):
+    """その人に見せる段。招待を持っていればその段、無ければ公開の段。
+
+    ⚠️ **これは会員判定ではない。** 「いま会員か」は GIA 側が正本
+    （gia_identity.is_paid_member）。ここが決めるのは、まだ会員でない人を
+    どの申込ページへ送るかだけ。
+    """
+    plan = (invited_plan or '').strip().lower()
+    return MEMBERSHIP_TIERS.get(plan, MEMBERSHIP_TIERS[DEFAULT_MEMBERSHIP_TIER])
 
 # 段の表示名。内部キーをそのまま画面に出さないための対応表。
 # 表示名は後から変えられるが、内部キー（online/real/...）は決済と紐づくので変えない。
@@ -454,7 +515,7 @@ def member_required_api(f):
         if not is_member_session():
             return jsonify({
                 "error": "この機能は会員限定です",
-                "upgrade_url": UPGRADE_URL,
+                "upgrade_url": UPGRADE_PATH,
             }), 403
         return f(*args, **kwargs)
     return decorated
@@ -4115,7 +4176,7 @@ def _screen_preview(client):
         # 画面が「見本を出している」と分かるように明示する
         'preview': True,
         'locked': max(total - len(rows), 0),
-        'upgrade_url': UPGRADE_URL,
+        'upgrade_url': UPGRADE_PATH,
     }), 200
 
 
@@ -5512,7 +5573,7 @@ def api_get_question_detail(question_id):
             if question_id not in free_ids:
                 return jsonify({
                     "error": "この質問は会員限定です",
-                    "upgrade_url": UPGRADE_URL,
+                    "upgrade_url": UPGRADE_PATH,
                 }), 403
 
         # 質問者名を解決（poster_name > display_name > name）

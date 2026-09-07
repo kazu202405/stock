@@ -23,17 +23,36 @@
   </div>
 
   {# ⚠️ 価格はここで出し切る。以前は金額を書かず gia2018.com へ送っていたため、
-     いくらか知るまでに3画面かかっていた。数字は app.py の定数から。 #}
+     いくらか知るまでに3画面かかっていた。数字も段の名前も app.py の
+     MEMBERSHIP_TIERS から。招待された人にはその人の段が入ってくる。 #}
   <div style="text-align:center; background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:24px; margin-bottom:24px;">
-    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:8px;">オンライン会員</p>
+    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:8px;">{{ tier_label }}</p>
     <p style="margin:0; color:#1a1a1a;">
       <span style="font-size:30px; font-weight:700; letter-spacing:0.01em;">&yen;{{ '{:,}'.format(price_yen) }}</span>
-      <span style="font-size:13px; color:#737373;"> / 月（税別）</span>
+      <span style="font-size:13px; color:#737373;"> / 月（{{ tax_basis }}）</span>
     </p>
     <p style="font-size:11.5px; color:#a3a3a3; margin-top:6px;">
-      税込 &yen;{{ '{:,}'.format(price_yen_tax_in) }}／毎月自動更新・いつでも解約できます
+      {% if price_yen_tax_in != price_yen %}税込 &yen;{{ '{:,}'.format(price_yen_tax_in) }}／{% endif %}毎月自動更新・いつでも解約できます
     </p>
   </div>
+
+  {# 招待された方だけ。アプリの外の中身（講義録画・研究会）はここでしか出ない。 #}
+  {% if invited_extras %}
+  <div style="background:#fff; border:1px solid #d5e0d9; border-radius:12px; padding:28px 24px; margin-bottom:24px;">
+    <p style="font-size:12px; color:#1b4332; letter-spacing:0.1em; margin-bottom:16px;">ご招待の方に含まれるもの</p>
+    <ul style="list-style:none; padding:0; margin:0;">
+      {% for item in invited_extras %}
+      <li style="display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f5f5f3;">
+        <span style="color:#1b4332; font-size:13px; line-height:1.7;">◆</span>
+        <span style="font-size:14px; color:#525252; line-height:1.7;">{{ item }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% for note in tier_notes %}
+    <p style="font-size:11.5px; color:#a3a3a3; line-height:1.8; margin-top:14px;">{{ note }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div style="background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:28px 24px; margin-bottom:24px;">
     <p style="font-size:12px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:16px;">会員でご覧いただけるもの</p>
@@ -61,7 +80,7 @@
               background:#1b4332; color:#fff; text-decoration:none;
               font-size:14px; font-weight:600; letter-spacing:0.06em;
               padding:14px 32px; border-radius:10px;">
-      会員になる
+      {{ tier_cta }}
     </a>
     <p style="font-size:11.5px; color:#a3a3a3; margin-top:14px; line-height:1.8;">
       お申し込みは gia2018.com で承ります。<br>

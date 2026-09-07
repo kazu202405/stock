@@ -602,7 +602,11 @@ footer a{ color: var(--muted); }
       <div class="body">
         <div class="btn-line">
           <a class="btn" href="{{ register_url }}">無料でアカウントを作る</a>
-          <a class="btn-sub" href="https://gia2018.com/upgrade?from=note">会員のご案内を見る</a>
+          {# ⚠️ 申込先を直書きしない。招待された人には招待の段を出す必要が
+             あり、その判定を持っているのは /membership（app.py の
+             MEMBERSHIP_TIERS）。ここに gia2018.com のURLを直接置くと、
+             招待された人が公開の段に落ちる。 #}
+          <a class="btn-sub" href="/membership">会員のご案内を見る</a>
         </div>
         <p class="closing" style="margin-top:var(--r)">合わなければ、使わないでください。<br>それで何も変わりません。</p>
       </div>

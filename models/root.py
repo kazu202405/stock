@@ -15,6 +15,10 @@ def _store_session(user, email):
     管理者判定はメールで行う（GIA_ADMIN_EMAILS。既定は gia-next の
     is_admin() と同じアドレス）。app_users.role も見るのは、株アプリ側で
     agent 等を付けている運用を壊さないため。
+
+    ⚠️ **ログインと登録が合流する唯一の場所。** 招待の印の付け替えをここで
+       やるのは、片方だけに書くと「登録では効くがログインでは効かない」
+       （＝招待を受け取ってから後日ログインした人だけ落ちる）になるため。
     """
     session['user_id'] = user['id']
     session['user_name'] = user.get('name') or (email or '').split('@')[0]
@@ -22,6 +26,7 @@ def _store_session(user, email):
     session['user_role'] = ('admin' if gia_identity.is_admin_email(email)
                             else (user.get('role') or 'user'))
     session.permanent = True
+    apply_pending_invite(user['id'])
 
 
 def normalize_code(code):
@@ -268,6 +273,44 @@ INVITE_HEADLINES = {
 #    受け取る側は gia-next の /upgrade/[plan] と /upgrade/success。
 INVITE_CHECKOUT_URL = 'https://gia2018.com/upgrade/invite?from=note'
 
+# /invite が配っている段。app.py の MEMBERSHIP_TIERS のキーと合わせる
+# （合っていないと申込ページの行き先が公開の段に落ちる）。
+INVITE_PLAN = 'invite'
+
+# 招待の印をセッションに預けるときのキー。
+_PENDING_INVITE_KEY = 'pending_invited_plan'
+
+
+def remember_invite(plan):
+    """「この人は<plan>に招かれた」を預かる。
+
+    ログイン済みならその場で app_users に書く。未ログインなら登録／ログインを
+    通ったあとに書けるようセッションに預ける。
+    """
+    from supabase_client import mark_invited_plan
+
+    user_id = session.get('user_id')
+    if user_id:
+        if mark_invited_plan(user_id, plan):
+            session.pop(_PENDING_INVITE_KEY, None)
+            return
+        # 書けなかった（列が未適用など）。次のログインで拾えるよう残す
+    session[_PENDING_INVITE_KEY] = plan
+
+
+def apply_pending_invite(user_id):
+    """登録／ログインの直後に、預かっていた招待の印を本人の行へ移す。
+
+    ⚠️ 書けなかったときはセッションから消さない。招待URLを再訪しない人が
+       多いので、次のログインでもう一度試せるようにしておく。
+    """
+    plan = session.get(_PENDING_INVITE_KEY)
+    if not plan or not user_id:
+        return
+    from supabase_client import mark_invited_plan
+    if mark_invited_plan(user_id, plan):
+        session.pop(_PENDING_INVITE_KEY, None)
+
 
 @app.route('/seminar')
 def seminar():
@@ -307,6 +350,14 @@ def invite():
 
     `?v=a|b|c` で見出しをテストでき、`?from=<名前>` で誰から届いた案内かを
     ページ内に出せる。任意文字列なので表示前に文字種と長さを制限する。
+
+    2026-09-07: いきなり11,000円の決済しか道が無かったのを、
+    「まず無料で中を見てから決める」を選べる形にした。そのとき問題になるのが、
+    無料で入った人がアプリ内の /membership で見るのは公開の段（4,980円）だけで、
+    **招待の段に二度と戻れない**こと。なのでこのページを踏んだ時点で
+    「この人は招待の段に招かれている」を預かる:
+      ログイン済み … app_users に印を付ける（端末を変えても残る）
+      未ログイン   … セッションに預け、登録／ログインの直後に付け替える
     """
     import re
 
@@ -317,10 +368,21 @@ def invite():
     inviter = re.sub(r'[^0-9A-Za-z぀-ゟ゠-ヿ一-鿿々ー・\s]', '', raw)
     inviter = ' '.join(inviter.split())[:24]
 
+    remember_invite(INVITE_PLAN)
+
+    # ログイン済みの人に「まず無料ではじめる」を出すと、押しても
+    # /register が本人をホームへ返すだけの空振りになる。
+    # 既にアカウントがある人の一歩目は「中を見る」か「申し込む」。
+    signed_in = bool(session.get('user_id'))
+
     return render_template('invite.html',
                            head=head,
                            inviter=inviter,
+                           signed_in=signed_in,
                            checkout_url=INVITE_CHECKOUT_URL,
+                           register_url='/register?invited=1',
+                           login_url='/login?invited=1',
+                           membership_url='/membership',
                            page_url=request.url_root.rstrip('/') + '/invite')
 
 
@@ -385,12 +447,23 @@ def membership():
     # ⚠️ 価格と申込先はテンプレートに直書きしない。金額は4か所（GIAの
     #    /upgrade・/plans・招待ページ・ここ）にあり、直書きすると値上げの
     #    ときに漏れる。定数は app.py。
-    from app import (UPGRADE_URL, MEMBERSHIP_PRICE_YEN,
-                     MEMBERSHIP_PRICE_YEN_TAX_IN)
+    #
+    # 招待された人には招待の段（11,000円）を出す。公開の段（4,980円）を
+    # 並べない理由: アプリの中で開くものは両者で同じなので、並べれば必ず
+    # 安いほうが選ばれ、招待した側の案内（講義録画・研究会）が消える。
+    from app import membership_tier_for
+    from supabase_client import get_invited_plan
+
+    tier = membership_tier_for(get_invited_plan(session.get('user_id')))
     return render_template('membership.html',
-                           upgrade_url=UPGRADE_URL,
-                           price_yen=MEMBERSHIP_PRICE_YEN,
-                           price_yen_tax_in=MEMBERSHIP_PRICE_YEN_TAX_IN,
+                           upgrade_url=tier['upgrade_url'],
+                           price_yen=tier['price_yen'],
+                           price_yen_tax_in=tier['price_yen_tax_in'],
+                           tier_label=tier['label'],
+                           tier_cta=tier['cta'],
+                           tax_basis=tier['tax_basis'],
+                           invited_extras=tier['extras'],
+                           tier_notes=tier['notes'],
                            member_features=[
         'ホーム（好調企業・高配当企業・テクニカル分析）',
         'スクリーナー（全銘柄からの絞り込み・並べ替え）',
@@ -569,6 +642,11 @@ def community():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """ログインページ"""
+    # 招待ページから来た人。セッションのクッキーが無い状態（別のブラウザで
+    # リンクを開き直した等）でも招待を拾えるよう、URLでも受ける。
+    if request.args.get('invited'):
+        remember_invite(INVITE_PLAN)
+
     # 既にログイン済みなら、その人が使える場所へ
     if session.get('user_id'):
         return redirect(home_path())
@@ -660,6 +738,10 @@ def reset_password():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     """ユーザー登録ページ"""
+    # 招待ページから来た人。理由は login() と同じ。
+    if request.args.get('invited'):
+        remember_invite(INVITE_PLAN)
+
     # 既にログイン済みなら、その人が使える場所へ
     if session.get('user_id'):
         return redirect(home_path())

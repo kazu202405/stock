@@ -3,6 +3,7 @@ import json
 import os
 import string
 import random
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1237,6 +1238,71 @@ def ensure_app_user(user_id: str, email: str, name: str = None,
     if not result.data:
         raise ValueError("ユーザー情報の作成に失敗しました")
     return result.data[0]
+
+
+def mark_invited_plan(user_id: str, plan: str) -> bool:
+    """「この人は<plan>に招かれた」を app_users に残す。
+
+    招待ページを踏んだ日と、入会を決める日は別の日で、別の端末のことも多い。
+    セッションでは持たないので列に残す（supabase/migration_app_users_invited_plan.sql）。
+
+    上書きしない: 既に招待の印がある人に別の段を書くと、先にもらった案内が
+    黙って消える。招待は人から人へ渡るもので、あとから踏んだURLが正しいとは
+    限らない。最初の1回だけ記録する。
+
+    ⚠️ **失敗しても例外にしない。** ここは登録とログインの途中で呼ぶ。
+       列が未適用（デプロイがSQLより先だった）だとしても、登録そのものは
+       通さなければならない。印が付かなければ公開の段が出るだけで、
+       締め出しは起きない。
+
+    Returns:
+        その人の行に招待の印がある状態になったら True（既に付いていた場合も
+        含む）。書けなかったときだけ False。呼び出し側はこれを見て、
+        セッションに預かった印を捨ててよいか決める（False なら次のログインで
+        もう一度試せるよう残す）。
+    """
+    if not user_id or not plan or not _looks_like_uuid(user_id):
+        return False
+
+    client = get_supabase_client()
+    try:
+        existing = client.table('app_users').select(
+            'invited_plan').eq('id', user_id).execute()
+        if not existing.data:
+            return False
+        if (existing.data[0].get('invited_plan') or '').strip():
+            return True  # 既に招かれている。上書きしない
+
+        client.table('app_users').update({
+            'invited_plan': plan,
+            'invited_at': datetime.now(timezone.utc).isoformat(),
+        }).eq('id', user_id).execute()
+        return True
+    except Exception as e:
+        # 列がまだ無い / 通信失敗。登録を止める理由にはならない。
+        print(f'招待の印を付けられませんでした user={user_id} plan={plan}: {e}')
+        return False
+
+
+def get_invited_plan(user_id: str):
+    """その人が招かれた段。無ければ None。
+
+    ⚠️ 会員判定には使わない。「いま会員か」は GIA 側が正本
+    （gia_identity.is_paid_member）。ここが決めるのは申込ページの行き先だけ。
+    """
+    if not user_id or not _looks_like_uuid(user_id):
+        return None
+    client = get_supabase_client()
+    try:
+        result = client.table('app_users').select(
+            'invited_plan').eq('id', user_id).execute()
+    except Exception as e:
+        # 列が未適用でも画面は出す（公開の段が出るだけ）
+        print(f'招待の印を読めませんでした user={user_id}: {e}')
+        return None
+    if not result.data:
+        return None
+    return (result.data[0].get('invited_plan') or '').strip() or None
 
 
 def authenticate_user(email: str, password: str) -> dict:
