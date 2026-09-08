@@ -27,42 +27,43 @@ a{color:inherit}img{display:block;max-width:100%}.shell{width:min(1120px,calc(10
 .hero{padding:92px 0 104px}.hero-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(460px,1.1fr);gap:70px;align-items:center}
 .eyebrow{display:flex;align-items:center;gap:13px;margin:0 0 24px;color:var(--green-mid);font:600 11px "Inter",sans-serif;letter-spacing:.18em}
 .eyebrow::before{content:"";width:30px;height:1px;background:var(--gold)}
-.hero h1{margin:0;font:600 clamp(38px,5vw,66px)/1.45 "Noto Serif JP",serif;letter-spacing:-.035em}.hero h1 span{display:block;color:var(--green)}
+.hero h1{margin:0;font:600 clamp(38px,5vw,66px)/1.45 "Noto Serif JP",serif;letter-spacing:-.035em}.hero h1 .heading-line{display:block}.hero h1 .accent{color:var(--green)}
 .hero-thesis{margin:30px 0 0;padding-left:18px;border-left:2px solid var(--gold);font-size:17px;font-weight:600;line-height:1.8}
 .hero-copy{max-width:610px;margin:22px 0 0;color:var(--muted);font-size:14px}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
 .button{min-height:50px;display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:0 25px;border:1px solid var(--green);border-radius:5px;color:#fff;background:var(--green);font-size:14px;font-weight:600;text-decoration:none;transition:.2s}
 .button::after{content:"→";font:16px "Inter",sans-serif}.button:hover{background:#102f22}.button.secondary{color:var(--green);background:transparent}.button.secondary:hover{color:#fff;background:var(--green)}
-.hero-note{margin:13px 0 0;color:#858c87;font-size:11px}
 .product-window{position:relative;padding:40px 0 0 34px}.product-window::before{content:"";position:absolute;inset:0 34px 34px 0;border:1px solid #b8c9bd;background:var(--green-pale)}
 .product-frame{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:0 22px 55px rgba(24,63,46,.12)}
 .window-bar{height:34px;display:flex;align-items:center;gap:6px;padding:0 13px;border-bottom:1px solid #eceeea;background:#fafaf8}.window-bar span{width:7px;height:7px;border-radius:50%;background:#c6cbc7}
 .product-frame img{width:100%}.product-caption{position:relative;margin:13px 0 0;color:#788079;font-size:11px;text-align:right}
 .section{padding:108px 0}.section.white{background:#fff}.section.green{color:#fff;background:var(--green)}
 .section-heading{max-width:720px;margin-bottom:54px}.section-heading h2{margin:0;font:600 clamp(30px,4vw,44px)/1.55 "Noto Serif JP",serif;letter-spacing:-.025em}.section-heading p:last-child{margin:18px 0 0;color:var(--muted)}
+.phrase{display:inline-block;white-space:nowrap}.heading-line{display:block;white-space:nowrap}.section-heading h2,.lens h3,.community-item h3,.plan-summary h2,.story-side h2,.story-quote,.last-step h2{line-break:strict;text-wrap:balance}
 .lens-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line)}
 .lens{min-height:276px;padding:31px 27px;border-right:1px solid var(--line);background:var(--paper)}.lens:last-child{border-right:0}
 .lens-label{margin:0 0 44px;color:var(--green-mid);font-size:10px;font-weight:600;letter-spacing:.16em}.lens h3{margin:0;font:600 19px/1.65 "Noto Serif JP",serif}.lens p:last-child{margin:14px 0 0;color:var(--muted);font-size:13px;line-height:1.85}
-.chart-proof{display:grid;grid-template-columns:230px 1fr;gap:36px;align-items:center;margin-top:54px;padding-top:38px;border-top:1px solid var(--line)}
+.chart-proof{display:grid;grid-template-columns:230px minmax(0,620px);gap:36px;align-items:center;justify-content:space-between;margin-top:54px;padding-top:38px;border-top:1px solid var(--line)}
 .chart-proof strong{display:block;margin-bottom:9px;font:600 18px "Noto Serif JP",serif}.chart-proof p{margin:0;color:var(--muted);font-size:13px}.chart-image{overflow:hidden;border:1px solid var(--line);border-radius:7px}
 .community-intro{display:grid;grid-template-columns:.82fr 1.18fr;gap:76px;align-items:start}.community-intro .section-heading{margin:0}.community-statement{padding:31px 0 31px 34px;border-left:1px solid rgba(255,255,255,.25)}
 .community-statement p{margin:0 0 17px;color:rgba(255,255,255,.76)}.community-statement p:last-child{margin-bottom:0;color:#fff;font-weight:600}
 .community-grid{display:grid;grid-template-columns:repeat(3,1fr);margin-top:68px;border-top:1px solid rgba(255,255,255,.2)}.community-item{padding:35px 30px 0 0}.community-item+.community-item{padding-left:30px;border-left:1px solid rgba(255,255,255,.2)}
 .community-item .label{margin:0 0 28px;color:#9dc5ad;font-size:10px;font-weight:600;letter-spacing:.16em}.community-item h3{margin:0;font:600 20px/1.65 "Noto Serif JP",serif}.community-item p:last-child{margin:15px 0 0;color:rgba(255,255,255,.64);font-size:13px}
 .community-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:48px}.community-tags span{padding:7px 12px;border:1px solid rgba(255,255,255,.25);border-radius:99px;color:rgba(255,255,255,.72);font-size:11px}
-.plan-wrap{display:grid;grid-template-columns:.72fr minmax(480px,1.28fr);gap:72px;align-items:start}.plan-summary{position:sticky;top:112px}
-.plan-summary h2{margin:0;font:600 clamp(30px,4vw,44px)/1.55 "Noto Serif JP",serif}.price{margin:32px 0 0;color:var(--green);font:600 42px "Inter",sans-serif;letter-spacing:-.03em}.price small{color:var(--muted);font:400 13px "Noto Sans JP",sans-serif;letter-spacing:0}.price-note{margin:6px 0 0;color:#858c87;font-size:11px}
+.plan-wrap{display:grid;grid-template-columns:.72fr minmax(480px,1.28fr);gap:72px;align-items:start}#plan{scroll-margin-top:72px}.plan-summary{position:sticky;top:112px}
+.plan-summary h2{margin:0;font:600 clamp(30px,4vw,44px)/1.55 "Noto Serif JP",serif}.price{margin:32px 0 0;color:var(--green);font:600 42px "Inter",sans-serif;letter-spacing:-.03em;white-space:nowrap}.price small{color:var(--muted);font:400 13px "Noto Sans JP",sans-serif;letter-spacing:0}.price-note{margin:6px 0 0;color:#858c87;font-size:11px}
 .plan-summary .actions{flex-direction:column;max-width:290px}.plan-summary .button{width:100%}.plan-list{border-top:1px solid var(--line)}.plan-row{display:grid;grid-template-columns:88px 1fr;gap:24px;padding:25px 0;border-bottom:1px solid var(--line)}
 .plan-row dt{color:var(--green-mid);font-size:11px;font-weight:600;letter-spacing:.12em}.plan-row dd{margin:0}.plan-row strong{display:block;margin-bottom:5px;font-size:15px}.plan-row small{display:block;color:var(--muted);font-size:12px;line-height:1.8}
 .sample-link{display:inline-block;margin-top:21px;color:var(--green);font-size:12px;text-decoration:none;border-bottom:1px solid #afc4b6}
-.story{padding:118px 0;border-top:1px solid var(--line)}.story-grid{display:grid;grid-template-columns:300px minmax(0,660px);gap:90px;justify-content:center}.story-side h2{margin:0;font:600 31px/1.65 "Noto Serif JP",serif}
+.story{padding:118px 0;border-top:1px solid var(--line)}.story-grid{display:grid;grid-template-columns:350px minmax(0,660px);gap:60px;justify-content:center}.story-side h2{margin:0;font:600 31px/1.65 "Noto Serif JP",serif}
 .story-quote{margin:39px 0 0;padding:22px 0 0;border-top:2px solid var(--gold);color:var(--green);font:600 18px/2 "Noto Serif JP",serif}.story-body p{margin:0 0 22px;color:#444d47}.story-body .closing{color:var(--ink);font-weight:600}
 .signature{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);font-family:"Noto Serif JP",serif;line-height:2}.signature strong{font-size:18px}
 .last-step{padding:62px 0;color:#fff;background:#102f22}.last-step .shell{display:flex;justify-content:space-between;align-items:center;gap:36px}.last-step h2{margin:0;font:600 25px "Noto Serif JP",serif}.last-step p{margin:8px 0 0;color:rgba(255,255,255,.62);font-size:13px}.last-step .button{border-color:#fff;color:var(--green);background:#fff}.last-step .button:hover{color:#fff;background:transparent}
 footer{padding:43px 0;border-top:1px solid #294939;color:rgba(255,255,255,.58);background:#102f22}footer .shell{display:grid;grid-template-columns:170px 1fr;gap:40px}footer strong{color:rgba(255,255,255,.88);font-family:"Noto Serif JP",serif}footer p{margin:0;font-size:10px;line-height:1.9}
 a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
 @media(max-width:900px){.hero-grid,.community-intro,.plan-wrap,.story-grid{grid-template-columns:1fr}.hero-grid{gap:50px}.product-window{max-width:700px}.lens-grid{grid-template-columns:repeat(2,1fr)}.lens:nth-child(2){border-right:0}.lens:nth-child(-n+2){border-bottom:1px solid var(--line)}.community-intro,.plan-wrap,.story-grid{gap:46px}.plan-summary{position:static}.plan-summary .actions{max-width:100%}.story-grid{max-width:720px;margin:auto}}
-@media(max-width:640px){body{font-size:14px}.shell{width:min(calc(100% - 34px),1120px)}.site-header .shell{min-height:62px}.brand{font-size:16px}.header-actions{gap:12px}.header-cta{min-height:36px;padding:0 13px;font-size:12px}.text-link{font-size:12px}.hero{padding:64px 0 74px}.hero h1{font-size:37px}.hero-thesis{font-size:15px}.actions{flex-direction:column}.button{width:100%}.product-window{padding:22px 0 0 17px}.product-window::before{inset:0 17px 17px 0}.section{padding:76px 0}.section-heading{margin-bottom:38px}.section-heading h2{font-size:29px}.lens-grid{grid-template-columns:1fr}.lens{min-height:0;padding:26px 22px;border-right:0;border-bottom:1px solid var(--line)}.lens:last-child{border-bottom:0}.lens-label{margin-bottom:20px}.chart-proof{grid-template-columns:1fr;gap:22px}.community-statement{padding:25px 0 0;border-top:1px solid rgba(255,255,255,.25);border-left:0}.community-grid{grid-template-columns:1fr;margin-top:48px}.community-item,.community-item+.community-item{padding:29px 0;border-left:0;border-bottom:1px solid rgba(255,255,255,.2)}.community-item .label{margin-bottom:15px}.plan-wrap{grid-template-columns:1fr}.price{font-size:38px}.plan-row{grid-template-columns:64px 1fr;gap:16px}.story{padding:78px 0}.story-side h2{font-size:28px}.last-step .shell{align-items:flex-start;flex-direction:column}footer .shell{grid-template-columns:1fr;gap:18px}}
+@media(max-width:640px){body{font-size:14px}.shell{width:min(calc(100% - 34px),1120px)}.site-header .shell{min-height:62px}.brand{font-size:16px}.header-actions{gap:12px}.header-cta{min-height:36px;padding:0 13px;font-size:12px}.text-link{font-size:12px}.hero{padding:64px 0 74px}.hero h1{font-size:37px}.hero-thesis{font-size:15px}.actions{flex-direction:column}.button{width:100%}.product-window{padding:22px 0 0 17px}.product-window::before{inset:0 17px 17px 0}.section{padding:76px 0}.section-heading{margin-bottom:38px}.section-heading h2{font-size:29px}.lens-grid{grid-template-columns:1fr}.lens{min-height:0;padding:26px 22px;border-right:0;border-bottom:1px solid var(--line)}.lens:last-child{border-bottom:0}.lens-label{margin-bottom:20px}.chart-proof{grid-template-columns:1fr;gap:22px}.community-statement{padding:25px 0 0;border-top:1px solid rgba(255,255,255,.25);border-left:0}.community-grid{grid-template-columns:1fr;margin-top:48px}.community-item,.community-item+.community-item{padding:29px 0;border-left:0;border-bottom:1px solid rgba(255,255,255,.2)}.community-item .label{margin-bottom:15px}.plan-wrap{grid-template-columns:1fr}.price{font-size:36px}.plan-row{grid-template-columns:64px 1fr;gap:16px}.story{padding:78px 0}.story-side h2{font-size:28px}.last-step .shell{align-items:flex-start;flex-direction:column}footer .shell{grid-template-columns:1fr;gap:18px}}
+@media(max-width:360px){.hero h1{font-size:34px}.section-heading h2,.plan-summary h2{font-size:27px}.story-side h2{font-size:25px}.last-step h2{font-size:22px}.price{font-size:33px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important}}
 </style>
 </head>
@@ -81,19 +82,17 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
     <div class="shell hero-grid">
       <div>
         <p class="eyebrow">COMPANY NOTE / 企業分析アプリ</p>
-        <h1>投資する前に、<span>会社を知る。</span></h1>
+        <h1><span class="heading-line">投資する前に、</span><span class="heading-line accent">会社を知る。</span></h1>
         <p class="hero-thesis">なんとなく選ぶ投資から、<br>根拠を持って選ぶ投資へ。</p>
         <p class="hero-copy">決算や財務データをわかりやすく整理。話題や値動きだけに流されず、成長性・収益性・財務健全性・割安性から、会社の実力を分析するアプリです。</p>
         <div class="actions">
-          <a class="button" href="/themes">会社を調べてみる</a>
-          <a class="button secondary" href="/register">無料で始める</a>
+          <a class="button" href="#plan">オンラインプランを見る</a>
         </div>
-        <p class="hero-note">登録なしでも、銘柄検索と基本情報をご覧いただけます。</p>
       </div>
       <div class="product-window" aria-label="Company Noteの実際の画面">
         <div class="product-frame">
           <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
-          <img src="/static/images/seminar/app-metrics.png" alt="Company Noteで業績指標を整理して表示している画面">
+          <img src="/static/images/lp/kioxia-company-overview.png" alt="Company Noteでキオクシアの指標と株価推移を表示している画面">
         </div>
         <p class="product-caption">実際の企業分析画面</p>
       </div>
@@ -102,7 +101,7 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
   <section class="section white">
     <div class="shell">
       <div class="section-heading">
-        <p class="eyebrow">FOUR LENSES</p><h2>会社の実力を、ひと目で。</h2>
+        <p class="eyebrow">FOUR LENSES</p><h2><span class="phrase">会社の実力を、</span><span class="phrase">ひと目で。</span></h2>
         <p>企業を考えるための情報を、4つの視点で見やすく整理します。</p>
       </div>
       <div class="lens-grid">
@@ -113,14 +112,14 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
       </div>
       <div class="chart-proof">
         <div><strong>一つの数字ではなく、変化を見る。</strong><p>数年分の業績と株価を並べ、会社がどう変わってきたかを追えます。</p></div>
-        <div class="chart-image"><img src="/static/images/seminar/app-chart.png" alt="Company Noteの株価推移チャート画面"></div>
+        <div class="chart-image"><img src="/static/images/lp/financial-trends.png" alt="売上高・営業利益・自己資本比率・ROAの推移グラフ"></div>
       </div>
     </div>
   </section>
   <section class="section green">
     <div class="shell">
       <div class="community-intro">
-        <div class="section-heading"><p class="eyebrow" style="color:#9dc5ad">READ, THINK, SHARE</p><h2>企業分析に、<br>みんなの視点を。</h2></div>
+        <div class="section-heading"><p class="eyebrow" style="color:#9dc5ad">READ, THINK, SHARE</p><h2><span class="heading-line">企業分析に、</span><span class="heading-line">みんなの視点を。</span></h2></div>
         <div class="community-statement">
           <p>Company Noteは、企業の数字を見るだけのアプリではありません。決算や財務情報を整理して会社の変化を読み、自分の考えをノートに残す。さらに、ほかのユーザーのノートや質問から、自分にはなかった視点にも出会えます。</p>
           <p>企業分析を通じて、自分なりの判断軸を育てていくアプリです。</p>
@@ -138,7 +137,7 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
     <div class="shell plan-wrap">
       <div class="plan-summary">
         <p class="eyebrow">ONLINE PLAN</p>
-        <h2>数字を見る。<br>考える。残す。<br>人の視点に触れる。</h2>
+        <h2><span class="heading-line">数字を見る。</span><span class="heading-line">考える。残す。</span><span class="heading-line">人の視点に触れる。</span></h2>
         <p class="price">¥{{ '{:,}'.format(online_plan['price_yen']) }} <small>/ 月（{{ online_plan['tax_basis'] }}）</small></p>
         <p class="price-note">税込 ¥{{ '{:,}'.format(online_plan['price_yen_tax_in']) }}・毎月自動更新・いつでも解約できます</p>
         <div class="actions">
@@ -159,7 +158,7 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
   <section class="story">
     <div class="shell story-grid">
       <div class="story-side">
-        <p class="eyebrow">WHY I BUILT IT</p><h2>なぜ、アプリまで作ったのか。</h2>
+        <p class="eyebrow">WHY I BUILT IT</p><h2><span class="phrase">なぜ、</span><span class="phrase">アプリまで作ったのか。</span></h2>
         <p class="story-quote">会社の中身を、<br>自分で確かめてから<br>判断してほしい。</p>
       </div>
       <div class="story-body">
@@ -178,7 +177,7 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
   </section>
   <section class="last-step">
     <div class="shell">
-      <div><h2>まずは、気になる会社を一社。</h2><p>登録なしでも、基本情報からご覧いただけます。</p></div>
+      <div><h2><span class="phrase">まずは、</span><span class="phrase">気になる会社を一社。</span></h2><p>登録なしでも、基本情報からご覧いただけます。</p></div>
       <a class="button" href="/themes">会社を調べてみる</a>
     </div>
   </section>

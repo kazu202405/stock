@@ -71,6 +71,7 @@ class LandingPageEntryPointTest(unittest.TestCase):
     def test_landing_page_explains_the_product_community_and_story(self):
         """トップだけで「何を見る・どう使う・なぜ作った」が分かる。"""
         body = self._anonymous().get('/').get_data(as_text=True)
+        visible_text = re.sub(r'<[^>]+>', '', body)
 
         for copy in (
             '投資する前に、',
@@ -82,7 +83,19 @@ class LandingPageEntryPointTest(unittest.TestCase):
             'なぜ、アプリまで作ったのか。',
             '五島 一将',
         ):
-            self.assertIn(copy, body)
+            self.assertIn(copy, visible_text)
+
+    def test_hero_uses_the_requested_images_and_plan_anchor(self):
+        """ヒーローは料金欄へ進み、登録CTAを重ねて置かない。"""
+        body = self._anonymous().get('/').get_data(as_text=True)
+        hero = body.split('<section class="hero">', 1)[1].split('</section>', 1)[0]
+
+        self.assertIn('href="#plan">オンラインプランを見る</a>', hero)
+        self.assertNotIn('会社を調べてみる', hero)
+        self.assertNotIn('無料で始める', hero)
+        self.assertNotIn('登録なしでも、銘柄検索と基本情報をご覧いただけます。', hero)
+        self.assertIn('/static/images/lp/kioxia-company-overview.png', hero)
+        self.assertIn('/static/images/lp/financial-trends.png', body)
 
     def test_landing_page_price_comes_from_the_public_tier(self):
         """LPの金額だけが決済・会員案内とずれない。"""
