@@ -150,6 +150,16 @@ class DesignTest(unittest.TestCase):
         block = self.src.split("'key': 'price'", 1)[0][-900:]
         self.assertIn('behind', block)
 
+    def test_正常取得後に残る少数の値動きなし銘柄は正常(self):
+        """本番で正常取得直後に残った11/3658件を要確認にしない。"""
+        self.assertEqual('ok', df.price_status(11, 3658, 'ok'))
+        self.assertEqual('warn', df.price_status(25, 3658, 'ok'))
+        self.assertEqual('bad', df.price_status(40, 3658, 'ok'))
+
+    def test_直近実行が止まったら件数が少なくても異常(self):
+        self.assertEqual('bad', df.price_status(0, 3658, 'hung'))
+        self.assertEqual('bad', df.price_status(0, 3658, 'failed'))
+
 
 class SchedulerLivenessTest(unittest.TestCase):
     """定期実行そのものが生きているかを見る行（2026-08-31）。
@@ -240,7 +250,8 @@ class JobRunRecordTest(unittest.TestCase):
         """データが新しく見えても、取れていないなら赤にする。"""
         src = read('data_freshness.py')
         block = src.split("'key': 'price'", 1)[1][:1200]
-        self.assertIn("'bad' if price_run_ok is False", block)
+        self.assertIn('price_status(behind, total, price_state)', block)
+        self.assertEqual('bad', df.price_status(0, 3658, 'failed'))
 
     def test_取得0件は例外にする(self):
         """0件を「変化なし」として正常に通すと、誰も気づけない。"""

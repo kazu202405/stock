@@ -159,6 +159,13 @@ def last_run(client, job_id):
 #    「取得◯◯/◯◯件」と直近の実行の成否で見る。
 PRICE_STALE_DAYS = 4
 
+# 値が動かず price_updated_at が進まない銘柄は正常時にも少数出る。
+# 2026-09-08、全3,658銘柄を正常取得した直後にも11件（0.30%）残った。
+# 「少し出るのは正常」という説明と判定をそろえ、0.5%までは正常とする。
+# 1%超は従来どおり異常。直近実行が失敗・停止なら件数に関係なく異常。
+PRICE_BEHIND_WARN_RATIO = 0.005
+PRICE_BEHIND_BAD_RATIO = 0.01
+
 def count_behind(ages, days=None):
     """更新が止まっている銘柄の数。境界は「以上」（days日ちょうども入る）。
 
@@ -166,6 +173,17 @@ def count_behind(ages, days=None):
     """
     days = PRICE_STALE_DAYS if days is None else days
     return sum(1 for a in ages if a is not None and a >= days)
+
+
+def price_status(behind, total, run_state):
+    """株価行の状態。正常時にも残る値動きなし銘柄を誤警告しない。"""
+    if run_state in ('failed', 'hung'):
+        return 'bad'
+    if behind > total * PRICE_BEHIND_BAD_RATIO:
+        return 'bad'
+    if behind > total * PRICE_BEHIND_WARN_RATIO:
+        return 'warn'
+    return 'ok'
 
 
 # 開始の印が残ったまま、これだけ経っても終わりの印が来なければ「死んだ」とみなす。
@@ -541,8 +559,6 @@ def summary(jobs=None):
                           '⚠️ ' if price_state in ('failed', 'hung') else '',
                           price_at.strftime('%m-%d %H:%M') if price_at else '',
                           price_note))
-    # ⚠️ running は赤にしない（正常に走っている最中）。hung と failed だけ落とす。
-    price_run_ok = False if price_state in ('failed', 'hung') else None
     items.append({
         'key': 'price',
         'label': '株価',
@@ -564,9 +580,7 @@ def summary(jobs=None):
         #    0件で終わってもこの列は前回のまま残り、古くならない。
         #    2026-08-31、3回の実行がすべて0件で終わり、スクリーナーが丸1日
         #    前営業日の終値を出していたのに、ここは98.3%で緑寄りだった。
-        'status': ('bad' if price_run_ok is False
-                   else 'bad' if behind > total * 0.01
-                   else 'warn' if behind > total * 0.002 else 'ok'),
+        'status': price_status(behind, total, price_state),
         'note': '一括取得は回によって数銘柄取りこぼすが、次の実行で拾い直す。'
                 '%d営業日以上のものが増えたら止まっている疑い（いまは%d件）。'
                 '値が動いていない小型株もここに入るので、少し出るのは正常。'
