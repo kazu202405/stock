@@ -96,6 +96,8 @@ class LandingPageEntryPointTest(unittest.TestCase):
         self.assertNotIn('登録なしでも、銘柄検索と基本情報をご覧いただけます。', hero)
         self.assertIn('/static/images/lp/kioxia-company-overview.png', hero)
         self.assertIn('/static/images/lp/financial-trends.png', body)
+        self.assertNotIn('会社を調べてみる', body)
+        self.assertNotIn('product-window::before', body)
 
     def test_landing_page_price_comes_from_the_public_tier(self):
         """LPの金額だけが決済・会員案内とずれない。"""
