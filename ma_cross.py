@@ -220,84 +220,107 @@ def calculate_for_all(progress=None, should_stop=None,
     from supabase_client import get_supabase_client
     client = get_supabase_client()
 
-    # 日足を一括で読む
-    rows = []
+    # company_code だけなら小さいので、先に総数を数えて進捗の母数にする。
+    # daily_1y は1銘柄あたり約250本ある。全3,700銘柄をひとつの配列にすると
+    # 実測でプロセスが約760MBになり、Render Free（512MB）では落ちる。
+    total = 0
+    count_page = 0
+    while count_page < 50:
+        count_res = (client.table('stock_price_history')
+                     .select('company_code')
+                     .range(count_page * 1000, count_page * 1000 + 999)
+                     .execute())
+        count_chunk = count_res.data or []
+        total += len(count_chunk)
+        if len(count_chunk) < 1000:
+            break
+        count_page += 1
+
+    now = datetime.now(timezone.utc).isoformat()
+    page_size = 200
     page = 0
-    while page < 20:
+    done = 0
+    calculated = 0
+    saved = 0
+    synced = 0
+    skipped = 0
+    first_error = None
+    stopped = False
+
+    while page < 50:
         res = (client.table('stock_price_history')
                .select('company_code, daily_1y')
-               .range(page * 500, page * 500 + 499)
+               .range(page * page_size, page * page_size + page_size - 1)
                .execute())
-        chunk = res.data or []
-        if not chunk:
+        rows = res.data or []
+        if not rows:
             break
-        rows.extend(chunk)
-        if len(chunk) < 500:
+
+        payloads = []
+        for r in rows:
+            if should_stop and should_stop():
+                stopped = True
+                break
+            daily = r.get('daily_1y')
+            if isinstance(daily, str):
+                import json
+                try:
+                    daily = json.loads(daily)
+                except Exception:
+                    daily = None
+            if not daily:
+                skipped += 1
+            else:
+                result = detect_crosses(daily, short_window, long_window)
+                if result['cross_count'] or result['latest_gc_date'] or result['latest_dc_date']:
+                    payloads.append({
+                        'company_code': r['company_code'],
+                        'latest_gc_date': result['latest_gc_date'],
+                        'latest_dc_date': result['latest_dc_date'],
+                        'cross_count': result['cross_count'],
+                        'crosses': result['crosses'],
+                        'short_window': short_window,
+                        'long_window': long_window,
+                        'calculated_at': now,
+                    })
+                else:
+                    skipped += 1
+
+        calculated += len(payloads)
+        # 200件を計算したら、その場で保存して日足JSONを解放する。
+        # 全件ぶんの payloads も保持しない。
+        if payloads:
+            try:
+                client.table('ma_crosses').upsert(payloads).execute()
+                saved += len(payloads)
+                synced += sync_gc_to_screened(client, payloads)
+            except Exception as e:
+                print(f'ma_crosses 保存エラー: {e}')
+                if first_error is None:
+                    first_error = str(e)
+
+        done += len(rows)
+        if progress:
+            progress(done=done, total=total, saved=saved)
+
+        # Supabaseのレスポンスは日足JSONを抱える。参照を切ってページごとに回収し、
+        # PythonのGC任せで全ページ分が残る時間を作らない。
+        del rows, payloads
+        import gc
+        gc.collect()
+
+        if stopped or done >= total:
             break
         page += 1
-
-    total = len(rows)
-    now = datetime.now(timezone.utc).isoformat()
-    payloads = []
-    skipped = 0
-
-    for i, r in enumerate(rows):
-        if should_stop and should_stop():
-            break
-        daily = r.get('daily_1y')
-        if isinstance(daily, str):
-            import json
-            try:
-                daily = json.loads(daily)
-            except Exception:
-                daily = None
-        if not daily:
-            skipped += 1
-        else:
-            result = detect_crosses(daily, short_window, long_window)
-            if result['cross_count'] or result['latest_gc_date'] or result['latest_dc_date']:
-                payloads.append({
-                    'company_code': r['company_code'],
-                    'latest_gc_date': result['latest_gc_date'],
-                    'latest_dc_date': result['latest_dc_date'],
-                    'cross_count': result['cross_count'],
-                    'crosses': result['crosses'],
-                    'short_window': short_window,
-                    'long_window': long_window,
-                    'calculated_at': now,
-                })
-            else:
-                skipped += 1
-
-        if progress and (i % 50 == 0 or i == total - 1):
-            progress(done=i + 1, total=total, saved=len(payloads))
-
-    # まとめて保存（1件ずつupsertすると件数分の往復が発生して遅い）
-    saved = 0
-    first_error = None
-    for i in range(0, len(payloads), 200):
-        batch = payloads[i:i + 200]
-        try:
-            client.table('ma_crosses').upsert(batch).execute()
-            saved += len(batch)
-        except Exception as e:
-            print(f'ma_crosses 保存エラー: {e}')
-            if first_error is None:
-                first_error = str(e)
-        if progress:
-            progress(done=total, total=total, saved=saved)
 
     # 保存が1件も通らなかった場合は失敗として扱う。
     # ログに出すだけだと画面上は「完了」と表示され、
     # テーブル未作成などの原因に気づけないため。
-    if payloads and saved == 0:
+    if calculated and saved == 0:
         raise RuntimeError(
-            f'計算は{len(payloads)}件成功しましたが、保存が1件も通りませんでした。'
+            f'計算は{calculated}件成功しましたが、保存が1件も通りませんでした。'
             f'migration_ma_crosses.sql を適用済みか確認してください。原因: {first_error}'
         )
-
-    # スクリーナーで並べ替えられるよう、GC/DC日を screened_latest にも複製する
-    synced = sync_gc_to_screened(client, payloads)
 
     return {'total': total, 'saved': saved, 'skipped': skipped, 'synced': synced}
 

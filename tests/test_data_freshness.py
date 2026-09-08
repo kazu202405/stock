@@ -785,6 +785,13 @@ class BatchMemoryLimitTest(unittest.TestCase):
         block = body_of(read('app.py'), 'def _update_daily_and_recalc_background(')
         self.assertIn('CHUNK = 50', block)
 
+    def test_GCDC計算は全銘柄の日足をメモリに貯めない(self):
+        block = body_of(read('ma_cross.py'), 'def calculate_for_all(')
+        self.assertIn('page_size = 200', block)
+        self.assertNotIn('rows.extend(', block)
+        self.assertIn("upsert(payloads)", block)
+        self.assertIn('del rows, payloads', block)
+
 
 class 株価の帯Test(unittest.TestCase):
     """利用者に出す「株価が古い」の帯（2026-09-06 に文言と条件を直した）。"""
