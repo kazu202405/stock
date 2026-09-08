@@ -89,7 +89,10 @@ def fetch_ohlc(symbol, period='1y', timeout=FETCH_TIMEOUT_SECONDS):
     return rows
 
 
-def fetch_ohlc_batch(codes, period='1y', chunk_size=100):
+BATCH_DOWNLOAD_THREADS = 4
+
+
+def fetch_ohlc_batch(codes, period='1y', chunk_size=50):
     """複数銘柄の日足をまとめて取得する。{code: rows} を返す。
 
     1銘柄ずつ取ると3,900件で約40分かかる。yfinanceのバッチ取得なら
@@ -105,8 +108,11 @@ def fetch_ohlc_batch(codes, period='1y', chunk_size=100):
         chunk = codes[i:i + chunk_size]
         symbols = [to_symbol(c) for c in chunk]
         try:
+            # 自動並列はホストのCPU数を見て大量のスレッドを作る。
+            # Render Free（512MB）で日足更新中にOOMしたため、明示的に抑える。
             df = yf.download(' '.join(symbols), period=period, progress=False,
-                             threads=True, auto_adjust=False, group_by='ticker')
+                             threads=BATCH_DOWNLOAD_THREADS, auto_adjust=False,
+                             group_by='ticker')
         except Exception as e:
             print(f'日足のバッチ取得エラー ({i}-{i + len(chunk)}): {e}')
             continue

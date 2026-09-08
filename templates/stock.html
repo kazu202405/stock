@@ -717,6 +717,18 @@
         display: inline-block; padding: 1px 7px; border-radius: 10px;
         font-size: 10px; font-weight: 600; margin-right: 6px;
     }
+    .freshness-loading,
+    .freshness-unavailable {
+        display: flex; align-items: center; gap: 8px;
+        min-height: 42px; padding: 7px 0; color: #737373; font-size: 12px;
+    }
+    .freshness-retry {
+        margin-left: auto; padding: 4px 10px; border: 1px solid #d8ddd9;
+        border-radius: 6px; background: #fff; color: #1b4332;
+        font: inherit; cursor: pointer;
+    }
+    .freshness-retry:hover { background: #f0f7f3; border-color: #9db5a7; }
+    .freshness-retry:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
     .fresh-ok   { background: #e8f5ec; color: #1b6b3a; }
     .fresh-warn { background: #fff4e0; color: #92610a; }
     .fresh-bad  { background: #fdeaea; color: #a02020; }
@@ -819,14 +831,19 @@
     {# データ鮮度。定期実行が「ちゃんと動いているか」をデータ側から見る。
        ⚠️ 出しているのは**最後に実際に値が動いた実績**であって、
           次回実行時刻ではない。予定はジョブが空振りしていても正常に見える。 #}
-    <div class="freshness-card" id="freshnessCard" style="display:none;">
+    <div class="freshness-card" id="freshnessCard" aria-busy="true">
         <div class="freshness-head">
             <span class="freshness-title">
                 <i class="fas fa-heartbeat" style="margin-right:6px; font-size:11px;"></i>データ鮮度
             </span>
-            <span class="freshness-sub" id="freshnessSub"></span>
+            <span class="freshness-sub" id="freshnessSub">確認中</span>
         </div>
-        <div id="freshnessRows"></div>
+        <div id="freshnessRows" aria-live="polite">
+            <div class="freshness-loading" role="status">
+                <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+                <span>最新の状態を確認しています…</span>
+            </div>
+        </div>
     </div>
 
     <div class="note-review-card" id="noteReviewCard">
@@ -1457,9 +1474,17 @@
     async function loadDataFreshness() {
         const card = document.getElementById('freshnessCard');
         if (!card) return;                 // 管理者以外にはそもそも無い
+        const rowsEl = document.getElementById('freshnessRows');
+        const subEl = document.getElementById('freshnessSub');
+        card.style.display = 'block';
+        card.setAttribute('aria-busy', 'true');
+        subEl.textContent = '確認中';
+        rowsEl.innerHTML = '<div class="freshness-loading" role="status">'
+                         + '<i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>'
+                         + '<span>最新の状態を確認しています…</span></div>';
         try {
             const res = await fetch('/api/admin/data-freshness');
-            if (!res.ok) return;           // 権限が無いだけなら黙って出さない
+            if (!res.ok) throw new Error('freshness request failed');
             const data = await res.json();
             const rows = (data.items || []).map(function (i) {
                 const cls = i.status === 'bad' ? 'fresh-bad'
@@ -1478,12 +1503,19 @@
                      + '<div class="freshness-when">' + freshWhen(i.as_of, i.age, i.when_text) + '</div>'
                      + '</div>';
             }).join('');
-            document.getElementById('freshnessRows').innerHTML = rows;
-            document.getElementById('freshnessSub').textContent =
+            rowsEl.innerHTML = rows;
+            subEl.textContent =
                 '最後に値が動いた実績で判定（対象 ' + (data.total || 0) + '銘柄）';
-            card.style.display = 'block';
+            card.setAttribute('aria-busy', 'false');
         } catch (e) {
-            // 鮮度が出せないこと自体でダッシュボードを壊さない
+            // 取得失敗を「カードが無い」に見せない。再試行できる状態を残す。
+            subEl.textContent = '取得できませんでした';
+            rowsEl.innerHTML = '<div class="freshness-unavailable">'
+                             + '<i class="fas fa-exclamation-circle" aria-hidden="true"></i>'
+                             + '<span>データ鮮度を確認できませんでした。</span>'
+                             + '<button type="button" class="freshness-retry" '
+                             + 'onclick="loadDataFreshness()">再試行</button></div>';
+            card.setAttribute('aria-busy', 'false');
         }
     }
 

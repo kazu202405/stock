@@ -741,13 +741,49 @@ class PanelTest(unittest.TestCase):
         block = self.html.split('async function loadDataFreshness(', 1)[1][:400]
         self.assertIn('if (!card) return;', block)
 
+    def test_読み込み前からカードと確認中を出す(self):
+        """集計に約10秒かかる間、カード自体が消えていると故障に見える。"""
+        card = self.html.split('id="freshnessCard"', 1)[1][:700]
+        self.assertNotIn('display:none', card)
+        self.assertIn('最新の状態を確認しています', card)
+        self.assertIn('aria-busy="true"', self.html)
+
+    def test_取得失敗時もカードを消さず再試行できる(self):
+        block = self.html.split('async function loadDataFreshness(', 1)[1][:3200]
+        self.assertIn('データ鮮度を確認できませんでした。', block)
+        self.assertIn('onclick="loadDataFreshness()">再試行', block)
+        self.assertIn("card.setAttribute('aria-busy', 'false')", block)
+
     def test_本文をエスケープする(self):
         self.assertIn('function freshEscape(', self.html)
         self.assertIn('freshEscape(i.label)', self.html)
 
     def test_鮮度が出せなくてもダッシュボードを壊さない(self):
-        block = self.html.split('async function loadDataFreshness(', 1)[1][:1800]
+        block = self.html.split('async function loadDataFreshness(', 1)[1].split(
+            'async function loadNoteReview(', 1
+        )[0]
         self.assertIn('catch', block)
+
+
+class BatchMemoryLimitTest(unittest.TestCase):
+
+    def test_株価一括取得の並列数を512MB向けに固定する(self):
+        import app as app_module
+        block = body_of(read('app.py'), 'def fetch_prices_batch(')
+        self.assertLessEqual(app_module.YFINANCE_BATCH_THREADS, 4)
+        self.assertIn('threads=YFINANCE_BATCH_THREADS', block)
+        self.assertNotIn('threads=True', block)
+
+    def test_日足一括取得も同じ並列上限を使う(self):
+        import price_history
+        block = body_of(read('price_history.py'), 'def fetch_ohlc_batch(')
+        self.assertLessEqual(price_history.BATCH_DOWNLOAD_THREADS, 4)
+        self.assertIn('threads=BATCH_DOWNLOAD_THREADS', block)
+        self.assertNotIn('threads=True', block)
+
+    def test_日足は50銘柄ずつ保存する(self):
+        block = body_of(read('app.py'), 'def _update_daily_and_recalc_background(')
+        self.assertIn('CHUNK = 50', block)
 
 
 class 株価の帯Test(unittest.TestCase):

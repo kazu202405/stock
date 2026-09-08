@@ -3315,7 +3315,9 @@ def _update_daily_and_recalc_background():
         daily_update_status.update({"phase": "日足を取得中", "total": len(codes), "done": 0})
 
         # まとめて取得し、まとめて保存する
-        CHUNK = 100
+        # 1年分OHLCを100銘柄まとめると、yfinanceの一時DataFrameとJSON化した
+        # 行が同時に残る。512MB環境でも余裕を残すため50銘柄ずつ保存する。
+        CHUNK = 50
         saved = 0
         for i in range(0, len(codes), CHUNK):
             if daily_update_status["stop_requested"]:
@@ -5929,7 +5931,10 @@ def last_job_finish(job_id):
     return rows[0]['ran_at'] if rows else None
 
 
-def fetch_prices_batch(codes, chunk_size=200, stats=None):
+YFINANCE_BATCH_THREADS = 4
+
+
+def fetch_prices_batch(codes, chunk_size=100, stats=None):
     """複数銘柄の最新終値をまとめて取得する。{code: price} を返す。
 
     1銘柄ずつ叩くと3,875件で約23分かかるうえ、リクエスト数もそのまま
@@ -5963,8 +5968,11 @@ def fetch_prices_batch(codes, chunk_size=200, stats=None):
         # 一過性の失敗をそのまま捨てるのは高くつく。
         for attempt in (1, 2):
             try:
+                # 自動並列はホストのCPU数×2まで広がる。Render Freeでは
+                # 100本超のスレッドが立ち、2026-09-08に512MBを超えてプロセスが
+                # 3回落ちた。外部I/Oは4本までに固定し、メモリ上限を守る。
                 df = yf.download(' '.join(symbols), period='2d', progress=False,
-                                 threads=True, auto_adjust=False)
+                                 threads=YFINANCE_BATCH_THREADS, auto_adjust=False)
                 break
             except Exception as e:
                 if attempt == 1:
