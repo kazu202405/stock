@@ -160,7 +160,10 @@ def inject_price_freshness():
 @app.route('/')
 def index():
     """ランディングページ"""
-    return render_template('lp.html')
+    # 料金はLPに直書きしない。公開プランの正本は app.py の
+    # MEMBERSHIP_TIERS で、決済画面・会員案内と同じ値を使う。
+    from app import membership_tier_for
+    return render_template('lp.html', online_plan=membership_tier_for(None))
 
 
 @app.route('/welcome')
@@ -581,8 +584,6 @@ def report_sample():
     ために作ったページなのに、見せたい相手（まだ会員でない人）に見えて
     いなかった。固定データなので、開いても実銘柄の中身は漏れない。
     """
-    guard = _require_login()
-    if guard: return guard
     return render_template('report_view.html', report=None, show_sample=True)
 
 

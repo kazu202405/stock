@@ -68,6 +68,34 @@ class LandingPageEntryPointTest(unittest.TestCase):
         # 登録画面そのものが未ログインで開けること
         self.assertEqual(self._anonymous().get('/register').status_code, 200)
 
+    def test_landing_page_explains_the_product_community_and_story(self):
+        """トップだけで「何を見る・どう使う・なぜ作った」が分かる。"""
+        body = self._anonymous().get('/').get_data(as_text=True)
+
+        for copy in (
+            '投資する前に、',
+            '会社を知る。',
+            '会社の実力を、ひと目で。',
+            '企業分析に、',
+            'みんなの視点を。',
+            '公開ノートと質問・回答をすべて読む',
+            'なぜ、アプリまで作ったのか。',
+            '五島 一将',
+        ):
+            self.assertIn(copy, body)
+
+    def test_landing_page_price_comes_from_the_public_tier(self):
+        """LPの金額だけが決済・会員案内とずれない。"""
+        import app as app_module
+
+        body = self._anonymous().get('/').get_data(as_text=True)
+        tier = app_module.MEMBERSHIP_TIERS['online']
+        self.assertIn(f"¥{tier['price_yen']:,}", body)
+        self.assertIn(f"税込 ¥{tier['price_yen_tax_in']:,}", body)
+        self.assertIn(tier['upgrade_url'], body)
+        # 公開プランにはリアル会・会場費の別途実費は含めない。
+        self.assertNotIn('別途実費', body)
+
 
 if __name__ == '__main__':
     unittest.main()

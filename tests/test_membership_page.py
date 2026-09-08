@@ -79,6 +79,11 @@ class MembershipPageTest(unittest.TestCase):
         self.assertEqual(
             self._free_client().get('/report/sample').status_code, 200)
 
+    def test_the_sample_report_is_open_without_an_account(self):
+        """トップページから、登録前でも見本を読める。"""
+        client = self.app_module.app.test_client()
+        self.assertEqual(client.get('/report/sample').status_code, 200)
+
     def test_the_report_picker_is_still_members_only(self):
         """見本を開けても、実銘柄のレポートは会員のまま。"""
         response = self._free_client().get('/report', follow_redirects=False)
