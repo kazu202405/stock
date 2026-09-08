@@ -165,12 +165,14 @@ class InvitedPlanTest(unittest.TestCase):
         client = self._client()
         self._sign_in(client)
         body = client.get('/invite').get_data(as_text=True)
-        self.assertNotIn('まず無料ではじめる', body)
-        self.assertIn('/membership', body)
+        self.assertNotIn('まず無料で中を見る', body)
+        self.assertNotIn('会員のご案内を見る', body)
+        self.assertIn('招待を受け取って参加する', body)
+        self.assertIn('https://gia2018.com/upgrade/invite?from=note', body)
 
     def test_the_free_door_exists_for_new_visitors(self):
         body = self._client().get('/invite').get_data(as_text=True)
-        self.assertIn('まず無料ではじめる', body)
+        self.assertIn('まず無料で中を見る', body)
         self.assertIn('/register', body)
         self.assertIn('/login', body)
         # 有料の扉も消さない

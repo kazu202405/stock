@@ -21,6 +21,9 @@ class InvitePageTest(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn('¥11,000', body)
         self.assertIn('https://gia2018.com/upgrade/invite', body)
+        self.assertIn('招待を受け取って参加する', body)
+        self.assertNotIn('いますぐ参加する', body)
+        self.assertNotIn('会員のご案内を見る', body)
         self.assertIn('noindex, nofollow', body)
         # 宣伝色を落とすため THE TOOL / HOST の節は撤去済み（再追加の検知）
         self.assertNotIn('THE TOOL', body)

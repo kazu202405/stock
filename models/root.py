@@ -372,7 +372,8 @@ def invite():
 
     # ログイン済みの人に「まず無料ではじめる」を出すと、押しても
     # /register が本人をホームへ返すだけの空振りになる。
-    # 既にアカウントがある人の一歩目は「中を見る」か「申し込む」。
+    # また、このページ自体が招待内容の案内なので、同じ内容を載せた
+    # /membership をもう一度挟まず、そのまま申込へ進める。
     signed_in = bool(session.get('user_id'))
 
     return render_template('invite.html',
@@ -382,7 +383,6 @@ def invite():
                            checkout_url=INVITE_CHECKOUT_URL,
                            register_url='/register?invited=1',
                            login_url='/login?invited=1',
-                           membership_url='/membership',
                            page_url=request.url_root.rstrip('/') + '/invite')
 
 

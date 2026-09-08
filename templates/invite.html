@@ -711,31 +711,30 @@ footer strong{ color:#d6e0e7; }
         <p>{% if inviter %}このご案内は、{{ inviter }}さんから届いた方へお渡ししています。{% else %}このご案内は、主催者またはご紹介者から直接お渡ししています。{% endif %}</p>
         <ol class="steps">
           <li><span class="mono">01</span><span>無料の登録（メールアドレスとパスワード）で、Company Note をすぐお使いいただけます。</span></li>
-          <li><span class="mono">02</span><span>中をご覧になってから、アプリ内の「会員のご案内」でご招待の内容にお申し込みいただけます。</span></li>
-          <li><span class="mono">03</span><span>いま決めていただける場合は、そのままStripeの決済に進むこともできます。</span></li>
+          <li><span class="mono">02</span><span>先に中をご覧になる場合も、このご招待の内容はアカウントに残ります。</span></li>
+          <li><span class="mono">03</span><span>参加される場合は、このページからStripeの決済へお進みください。</span></li>
         </ol>
       </div>
       <div class="entry-box">
         <p class="small mono">INVITED MEMBER</p>
         <p class="price">¥11,000<small> / 月</small></p>
         <p class="tax">税込・いつでも解約可能</p>
-        {# まず中を見てもらう。⚠️ 無料で入った人にも、この招待の内容が
+        {# ⚠️ 無料で入った人にも、この招待の内容が
            残るようにしてある（/invite を踏んだ時点で記録し、アプリ内の
            「会員のご案内」に公開の段ではなくこの段を出す）。
            ここを普通の新規登録リンクに変えると、その人は二度と
            この招待に戻れなくなる。 #}
         {% if signed_in %}
-        <a class="button" href="{{ membership_url }}">会員のご案内を見る</a>
-        <a class="button ghost" href="{{ checkout_url }}">いますぐ参加する</a>
+        <a class="button" href="{{ checkout_url }}">招待を受け取って参加する</a>
         <p class="note">
-          ログイン済みです。このご招待の内容は、アプリ内の「会員のご案内」からいつでもお申し込みいただけます。決済はStripeの安全な画面で行います。
+          決済はStripeの安全な画面で行います。決済完了後は、Company Noteへ戻る画面が表示されます。
         </p>
         {% else %}
-        <a class="button" href="{{ register_url }}">まず無料ではじめる</a>
-        <a class="button ghost" href="{{ checkout_url }}">いますぐ参加する</a>
+        <a class="button" href="{{ checkout_url }}">招待を受け取って参加する</a>
+        <a class="button ghost" href="{{ register_url }}">まず無料で中を見る</a>
         <p class="note">
           すでにアカウントをお持ちの方は<a href="{{ login_url }}">こちら</a>。<br>
-          無料ではじめた方も、あとからこのご招待の内容でお申し込みいただけます。決済はStripeの安全な画面で行います。
+          無料で中を見てから、あとでこのご招待の内容で参加することもできます。決済はStripeの安全な画面で行います。
         </p>
         {% endif %}
       </div>
@@ -751,11 +750,7 @@ footer strong{ color:#d6e0e7; }
 </footer>
 
 <div class="mobile-dock">
-  {% if signed_in %}
-  <a class="button" href="{{ membership_url }}">会員のご案内を見る</a>
-  {% else %}
-  <a class="button" href="{{ register_url }}">まず無料ではじめる</a>
-  {% endif %}
+  <a class="button" href="{{ checkout_url }}">招待を受け取って参加する</a>
 </div>
 </body>
 </html>
