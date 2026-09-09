@@ -603,6 +603,31 @@
     return Math.ceil(max / digits * 1.15) * digits;
   }
 
+  // 利益とROAは赤字年度にマイナスになる。下限を0に固定すると、点・線・
+  // 値ラベルが描画領域の外へ落ちるので、負の値がある軸だけ上下に余白を作る。
+  // 目盛りはおおむね6区間になる「1 / 2 / 5 × 10のn乗」に丸める。
+  function axisBounds(values) {
+    const nums = (values || []).filter(v => v != null && !isNaN(v)).map(Number);
+    if (!nums.length) return { min: 0, max: 10 };
+
+    const dataMin = Math.min(...nums, 0);
+    if (dataMin >= 0) return { min: 0, max: axisMax(nums) };
+
+    const dataMax = Math.max(...nums, 0);
+    const span = Math.max(dataMax - dataMin, 1);
+    const roughStep = span / 6;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const normalized = roughStep / magnitude;
+    const niceStep = (normalized <= 1 ? 1 : normalized <= 2 ? 2 :
+                      normalized <= 5 ? 5 : 10) * magnitude;
+    const padding = span * 0.08;
+
+    return {
+      min: Math.floor((dataMin - padding) / niceStep) * niceStep,
+      max: Math.ceil((dataMax + padding) / niceStep) * niceStep,
+    };
+  }
+
   // A. 売上高（棒）・営業利益（折れ線）
   if (RP.revenue) new Chart(document.getElementById('chartRevenue'), {
     data: {
@@ -634,7 +659,7 @@
       scales: {
         x: { grid: { display: false }, ticks: { font: { ...baseFont, size: 10 } } },
         y: { min: 0, max: axisMax(RP.revenue.revenue), ticks: { font: baseFont }, grid: { color: '#e6e6e6' } },
-        y1: { position: 'right', min: 0, max: axisMax(RP.revenue.op_income), ticks: { font: baseFont }, grid: { drawOnChartArea: false } },
+        y1: { position: 'right', ...axisBounds(RP.revenue.op_income), ticks: { font: baseFont }, grid: { drawOnChartArea: false } },
       },
     },
     plugins: [valueLabels],
@@ -672,7 +697,7 @@
       scales: {
         x: { grid: { display: false }, ticks: { font: { ...baseFont, size: 10 } } },
         y: { min: 0, max: 100, ticks: { stepSize: 20, font: baseFont }, grid: { color: '#e6e6e6' } },
-        y1: { position: 'right', min: 0, max: axisMax(RP.equity.roa), ticks: { font: baseFont }, grid: { drawOnChartArea: false } },
+        y1: { position: 'right', ...axisBounds(RP.equity.roa), ticks: { font: baseFont }, grid: { drawOnChartArea: false } },
       },
     },
     plugins: [valueLabels],
