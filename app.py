@@ -1855,6 +1855,11 @@ def _save_analysis_to_screened(symbol, stock_data):
         'major_shareholders_jp': json.dumps(_convert_timestamps(stock_data.get('major_shareholders_jp', [])), ensure_ascii=False) if stock_data.get('major_shareholders_jp') else None,
         'financial_history': history_json_or_none(financial_history, _convert_timestamps),
         'cf_history': history_json_or_none(cf_history, _convert_timestamps),
+        # 手動の「更新」でも夜間分析と同じ決算月を保存する。
+        # ここが無いと、取得済みなのに決算監視の対象へ入れない。
+        'fiscal_month': derive_fiscal_month(
+            financial_history, cf_history,
+            authoritative=_authoritative_fiscal_month(company_code)),
         'analyzed_at': now,
         # 株価と倍率を同じ snapshot から書くので、この時点で揃っている。
         # multiples.py の不変条件（派生値は同じ行の stock_price と同時点）の印。
@@ -1867,7 +1872,7 @@ def _save_analysis_to_screened(symbol, stock_data):
     # Noneのフィールドを除外（既存データを保護）
     screened_data = {k: v for k, v in screened_data_full.items() if v is not None or k == 'company_code'}
 
-    upsert_screened_data_with_match_rate(screened_data)
+    _save_screened_tolerating_new_columns(screened_data)
     print(f"分析結果をscreened_latestに保存しました: {company_code} ({len(screened_data)}フィールド)")
 
     # signal_stocksにも反映（テクニカル分析タブ用）
@@ -6705,6 +6710,73 @@ def _recalculate_scores_after_price_move():
 NIGHTLY_PROFILE_LIMIT = 60
 NIGHTLY_PROFILE_SLEEP = 5.0
 
+# 初回の全銘柄取得で漏れた銘柄を、外部へ負荷を掛けすぎない範囲で拾い直す。
+# 通常の財務分析は1銘柄数秒かかるため、Yahoo項目バックフィルより少なくする。
+MISSING_STOCK_NIGHTLY_LIMIT = 10
+MISSING_STOCK_SLEEP_SECONDS = 3.0
+
+
+def scheduled_backfill_missing_stocks():
+    """定期実行: マスターにあるのに未分析の銘柄を少数ずつ補完する。"""
+    import time as _time
+    from missing_stock_backfill import (
+        ATTEMPT_JOB_PREFIX, find_missing_analysis_targets,
+    )
+
+    job_id = 'missing_stock_backfill'
+    if not claim_job(job_id):
+        return
+
+    try:
+        client = get_supabase_client()
+        targets, missing_total = find_missing_analysis_targets(
+            client, MISSING_STOCK_NIGHTLY_LIMIT)
+    except Exception as e:
+        record_job_run(job_id, ok=False,
+                       detail='対象抽出に失敗: %s' % str(e)[:300])
+        raise
+
+    if not targets:
+        record_job_run(job_id, ok=True, detail='未取得銘柄なし')
+        print('[Scheduler] 未取得銘柄バックフィル: 対象なし')
+        return
+
+    analyzer = StockAnalyzer()
+    saved = 0
+    failures = []
+    print('[Scheduler] 未取得銘柄バックフィル開始: 対象%d件 / 未取得%d件' %
+          (len(targets), missing_total))
+
+    for index, code in enumerate(targets):
+        attempt_job_id = ATTEMPT_JOB_PREFIX + code
+        try:
+            result = _analyze_stock_and_save(analyzer, code)
+            if result is None:
+                reason = '取得元が銘柄情報を返しませんでした'
+                failures.append((code, reason))
+                record_job_run(attempt_job_id, ok=False, detail=reason)
+            else:
+                saved += 1
+                record_job_run(attempt_job_id, ok=True,
+                               detail='screened_latestに保存')
+        except Exception as e:
+            reason = '%s: %s' % (type(e).__name__, str(e)[:160])
+            failures.append((code, reason))
+            record_job_run(attempt_job_id, ok=False, detail=reason)
+            print('[Scheduler] 未取得銘柄 %s の分析に失敗: %s' %
+                  (code, reason))
+
+        if index + 1 < len(targets):
+            _time.sleep(MISSING_STOCK_SLEEP_SECONDS)
+
+    remaining = max(0, missing_total - saved)
+    detail = '対象%d件・保存%d件・失敗%d件・残り%d件' % (
+        len(targets), saved, len(failures), remaining)
+    if failures:
+        detail += ' / ' + '; '.join('%s=%s' % item for item in failures[:5])
+    record_job_run(job_id, ok=not failures, detail=detail)
+    print('[Scheduler] 未取得銘柄バックフィル終了: ' + detail)
+
 
 def scheduled_backfill_yahoo_profile():
     """定期実行: Yahoo日本版由来の項目（大株主・設立日・業績予想など）を少しずつ埋める。
@@ -6852,6 +6924,11 @@ def register_scheduler_jobs(scheduler):
     scheduler.add_job(recorded('yahoo_profile_backfill', scheduled_backfill_yahoo_profile),
                       'cron', hour=2, minute=0,
                       id='yahoo_profile_backfill')
+    # 初回バックフィルで漏れた銘柄を拾う。成功した銘柄は次回から自然に外れ、
+    # 失敗した銘柄は job_runs に理由を残して後日再試行する。
+    scheduler.add_job(scheduled_backfill_missing_stocks,
+                      'cron', hour=1, minute=0,
+                      id='missing_stock_backfill')
 
     # 株主・役員のバックフィルは23:00。
     # **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
@@ -6871,7 +6948,7 @@ ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'true').lower() not in ('false'
 if ENABLE_SCHEDULER:
     scheduler.start()
     print("[Scheduler] スケジューラ起動（GC/DC取得: 9:15/17:15, 株価更新: 9:25/11:45/15:20, "
-          "決算検知: 15:30/21:00, Yahoo項目バックフィル: 2:00, "
+          "決算検知: 15:30/21:00, 未取得銘柄バックフィル: 1:00, Yahoo項目バックフィル: 2:00, "
           "日足＋GC/DC再計算: 3:30, 株主・役員バックフィル: 23:00 JST）")
     # アプリ終了時にスケジューラも停止
     atexit.register(lambda: scheduler.shutdown(wait=False))
