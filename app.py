@@ -158,6 +158,7 @@ def revive_scheduler_if_stalled(jobs, now=None):
 
     Returns: 起こしにいったら True。
     """
+    global scheduler
     import time as _time
     from datetime import datetime, timezone
 
@@ -203,17 +204,22 @@ def revive_scheduler_if_stalled(jobs, now=None):
             scheduler.wakeup()
         except Exception as e:
             print(f'[Scheduler] wakeup に失敗: {str(e)[:120]}')
-        # 2. ループそのものが死んでいたら、立ち上げ直す。
-        #    ⚠️ ジョブの登録は消えない（MemoryJobStore に残る）。
+        # 2. ループそのものが死んでいたら、新しいスケジューラへ入れ替える。
+        #    ⚠️ MemoryJobStore は shutdown() で全ジョブを消す。同じインスタンスを
+        #       shutdown → start すると、動いているがジョブ0本の状態になる。
         if not thread.is_alive():
             print('[Scheduler] ループが死んでいます。起動し直します')
+            previous = scheduler
+            replacement = build_scheduler()
+            register_scheduler_jobs(replacement)
+            replacement.start()
+            scheduler = replacement
             try:
-                scheduler.shutdown(wait=False)
+                previous.shutdown(wait=False)
             except Exception:
                 pass
-            scheduler.start()
             record_job_run('scheduler_revive', ok=True,
-                           detail='ループが死んでいたので起動し直した（%s）' % detail)
+                           detail='新しいスケジューラへ入れ替えた（%s）' % detail)
             return True
         record_job_run('scheduler_revive', ok=True, detail='起こした（%s）' % detail)
         return True
@@ -237,7 +243,19 @@ def _jobs_health():
         jobs = None                  # 正常には倒さない
     # ⚠️ 見つけたら直す。気づくだけで放っておくと、誰かが Render の画面から
     #    再起動するまでその日のジョブが走らない。
-    if jobs:
+    # 過去の復旧処理は MemoryJobStore を空にしてから同じインスタンスを
+    # start() していた。デプロイ直後でなくても、0本ならその場で登録を戻す。
+    if jobs == [] and ENABLE_SCHEDULER:
+        try:
+            register_scheduler_jobs(scheduler)
+            scheduler.wakeup()
+            jobs = scheduler_jobs()
+            record_job_run('scheduler_revive', ok=True,
+                           detail='消えていた定期ジョブを再登録した')
+            print(f'[Scheduler] 消えていた定期ジョブを再登録しました（{len(jobs or [])}本）')
+        except Exception as e:
+            print(f'[Scheduler] 定期ジョブの再登録に失敗: {str(e)[:150]}')
+    elif jobs:
         revive_scheduler_if_stalled(jobs)
     # ⚠️ 起こし直しただけでは、死んだ実行の「開始の印」は残ったまま。
     #    パネルと監視が赤いままになるので、ここで一緒に片付ける。
@@ -6771,66 +6789,80 @@ def scheduled_backfill_yahoo_profile():
 #    False（既定）だと、止まっていた間の回数ぶん一気に走る。
 # ⚠️ max_instances=1 … 前回が走っている間は重ねない。株価の一括取得が
 #    二重に走ると、外部APIを倍叩くことになる。
-scheduler = BackgroundScheduler(
-    timezone=pytz.timezone('Asia/Tokyo'),
-    job_defaults={'misfire_grace_time': 1800, 'coalesce': True,
-                  'max_instances': 1})
-scheduler.add_job(recorded('gc_dc_morning', scheduled_fetch_gc_dc), 'cron',
-                  hour=9, minute=15, id='gc_dc_morning')
-scheduler.add_job(recorded('gc_dc_evening', scheduled_fetch_gc_dc), 'cron',
-                  hour=17, minute=15, id='gc_dc_evening')
-# 株価バッチ更新（9:25 / 11:45 / 15:20 JST）
-scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25, id='price_update_morning')
-scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45, id='price_update_midday')
-scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20, id='price_update_closing')
-# 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
-scheduler.add_job(recorded('earnings_detect_afternoon', scheduled_enqueue_earnings),
-                  'cron', hour=15, minute=30, id='earnings_detect_afternoon')
-scheduler.add_job(recorded('earnings_detect_evening', scheduled_enqueue_earnings),
-                  'cron', hour=21, minute=0, id='earnings_detect_evening')
+def build_scheduler():
+    """空のスケジューラを作る。死んだループを同じインスタンスで再利用しない。"""
+    return BackgroundScheduler(
+        timezone=pytz.timezone('Asia/Tokyo'),
+        job_defaults={'misfire_grace_time': 1800, 'coalesce': True,
+                      'max_instances': 1})
 
-# 検知した銘柄の再分析。21:00の検知が終わってから動かす
-scheduler.add_job(recorded('earnings_process_queue', scheduled_process_earnings_queue),
-                  'cron', hour=22, minute=0,
-                  id='earnings_process_queue')
 
-# TDnetの決算短信から業績予想を取り込む。短信は15:00〜20:00に出るので、
-# 出そろってから。⚠️ **直近31日しか公開されないので毎日走らせること。**
-scheduler.add_job(scheduled_fetch_tdnet_forecasts, 'cron', hour=20, minute=0,
-                  id='tdnet_forecast')
-# 上場廃止の検出。全銘柄の日足を読むので週1回、他が動いていない時間に
-scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
-                  hour=4, minute=30, id='detect_delisted')
-# EDINETの提出者一覧。週1回で足りる（変わるのは新規上場・商号変更・本店移転のみ）。
-# 外部への負荷は1リクエストだけなので、他と重ならない時間に軽く置く。
-scheduler.add_job(scheduled_sync_edinet_codes, 'cron', day_of_week='sun',
-                  hour=5, minute=0, id='edinet_codes')
-# 新しく出た有報の取り込み。ふだんは数社なので毎晩でも軽い。
-# 決算期だけ数百社ぶん出るので、1晩150件・25分の上限で数晩に分けて崩す。
-scheduler.add_job(scheduled_sync_edinet_reports, 'cron', hour=5, minute=40,
-                  id='edinet_reports')
-# 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
-scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3, minute=30, id='daily_and_crosses')
-# JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
-scheduler.add_job(recorded('margin_weekly', scheduled_update_margin_balances),
-                  'cron', day_of_week='thu',
-                  hour=4, minute=10, id='margin_weekly')
-# 決算の再分析（22:00）が終わったころに、拾えていない銘柄が無いか数える。
-# 見つかったぶんは翌日のキューに積むので、次の晩に取り直される。
-scheduler.add_job(recorded('earnings_freshness', scheduled_check_earnings_freshness),
-                  'cron', hour=23, minute=30,
-                  id='earnings_freshness')
-# Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
-scheduler.add_job(recorded('yahoo_profile_backfill', scheduled_backfill_yahoo_profile),
-                  'cron', hour=2, minute=0,
-                  id='yahoo_profile_backfill')
+def register_scheduler_jobs(scheduler):
+    """全定期ジョブを1か所で登録する。初回起動と障害復旧の両方で使う。"""
+    scheduler.add_job(recorded('gc_dc_morning', scheduled_fetch_gc_dc), 'cron',
+                      hour=9, minute=15, id='gc_dc_morning')
+    scheduler.add_job(recorded('gc_dc_evening', scheduled_fetch_gc_dc), 'cron',
+                      hour=17, minute=15, id='gc_dc_evening')
+    # 株価バッチ更新（9:25 / 11:45 / 15:20 JST）
+    scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=9, minute=25,
+                      id='price_update_morning')
+    scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=11, minute=45,
+                      id='price_update_midday')
+    scheduler.add_job(scheduled_update_stock_prices, 'cron', hour=15, minute=20,
+                      id='price_update_closing')
+    # 決算検知（15:30 場中の発表 / 21:00 引け後の発表）。検知のみ、更新は手動
+    scheduler.add_job(recorded('earnings_detect_afternoon', scheduled_enqueue_earnings),
+                      'cron', hour=15, minute=30, id='earnings_detect_afternoon')
+    scheduler.add_job(recorded('earnings_detect_evening', scheduled_enqueue_earnings),
+                      'cron', hour=21, minute=0, id='earnings_detect_evening')
 
-# 株主・役員のバックフィルは23:00。
-# **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
-# 朝に回すと、閲覧より先にバックフィルが枠を取ってしまう。
-scheduler.add_job(recorded('holders_backfill', scheduled_backfill_holders_officers),
-                  'cron', hour=23, minute=0,
-                  id='holders_backfill')
+    # 検知した銘柄の再分析。21:00の検知が終わってから動かす
+    scheduler.add_job(recorded('earnings_process_queue', scheduled_process_earnings_queue),
+                      'cron', hour=22, minute=0,
+                      id='earnings_process_queue')
+
+    # TDnetの決算短信から業績予想を取り込む。短信は15:00〜20:00に出るので、
+    # 出そろってから。⚠️ **直近31日しか公開されないので毎日走らせること。**
+    scheduler.add_job(scheduled_fetch_tdnet_forecasts, 'cron', hour=20, minute=0,
+                      id='tdnet_forecast')
+    # 上場廃止の検出。全銘柄の日足を読むので週1回、他が動いていない時間に
+    scheduler.add_job(scheduled_detect_delisted, 'cron', day_of_week='sun',
+                      hour=4, minute=30, id='detect_delisted')
+    # EDINETの提出者一覧。週1回で足りる（変わるのは新規上場・商号変更・本店移転のみ）。
+    # 外部への負荷は1リクエストだけなので、他と重ならない時間に軽く置く。
+    scheduler.add_job(scheduled_sync_edinet_codes, 'cron', day_of_week='sun',
+                      hour=5, minute=0, id='edinet_codes')
+    # 新しく出た有報の取り込み。ふだんは数社なので毎晩でも軽い。
+    # 決算期だけ数百社ぶん出るので、1晩150件・25分の上限で数晩に分けて崩す。
+    scheduler.add_job(scheduled_sync_edinet_reports, 'cron', hour=5, minute=40,
+                      id='edinet_reports')
+    # 日足の全銘柄更新＋GC/DC再計算（3:30 JST）。引け後の値が確定してから走らせる
+    scheduler.add_job(scheduled_update_daily_and_crosses, 'cron', hour=3,
+                      minute=30, id='daily_and_crosses')
+    # JPXは前週末の残高を火曜〜水曜に出す。木曜の朝に取れば確実に最新が載っている。
+    scheduler.add_job(recorded('margin_weekly', scheduled_update_margin_balances),
+                      'cron', day_of_week='thu',
+                      hour=4, minute=10, id='margin_weekly')
+    # 決算の再分析（22:00）が終わったころに、拾えていない銘柄が無いか数える。
+    # 見つかったぶんは翌日のキューに積むので、次の晩に取り直される。
+    scheduler.add_job(recorded('earnings_freshness', scheduled_check_earnings_freshness),
+                      'cron', hour=23, minute=30,
+                      id='earnings_freshness')
+    # Yahoo項目の穴埋め。他のジョブと重ならない時間に置く（1晩60件・約8分）
+    scheduler.add_job(recorded('yahoo_profile_backfill', scheduled_backfill_yahoo_profile),
+                      'cron', hour=2, minute=0,
+                      id='yahoo_profile_backfill')
+
+    # 株主・役員のバックフィルは23:00。
+    # **その日の残り予算を使う**ので、日中の閲覧が終わってから走らせる。
+    # 朝に回すと、閲覧より先にバックフィルが枠を取ってしまう。
+    scheduler.add_job(recorded('holders_backfill', scheduled_backfill_holders_officers),
+                      'cron', hour=23, minute=0,
+                      id='holders_backfill')
+
+
+scheduler = build_scheduler()
+register_scheduler_jobs(scheduler)
 
 # スケジューラは1プロセスでのみ起動させる。
 # ENABLE_SCHEDULER=false にすると起動しない（将来worker側へcronを分離する際に、

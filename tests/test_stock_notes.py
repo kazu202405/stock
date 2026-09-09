@@ -459,6 +459,43 @@ class CuratedPageTest(unittest.TestCase):
         for word in ('超小型', '中型'):
             self.assertNotIn(word, body, '規模の呼び名を自前で持っている')
 
+    def test_cards_show_the_same_core_facts_as_the_dashboard(self):
+        """選定理由だけの長文一覧へ戻らないよう、判断材料も同居させる。"""
+        template = read('templates/curated.html')
+        route = read('models/root.py')
+        for field in ('stock_price', 'market_cap', 'equity_ratio', 'per_forward',
+                      'pbr', 'dividend_yield_forward'):
+            self.assertIn(field, route)
+            self.assertIn('item.%s' % field, template)
+        self.assertIn('curated-grid', template)
+        self.assertIn('grid-template-columns: repeat(2', template)
+        self.assertIn("DividendBasis.cell", template)
+
+    def test_long_notes_can_be_expanded(self):
+        template = read('templates/curated.html')
+        self.assertIn('curated-note-toggle', template)
+        self.assertIn("aria-expanded=\"false\"", template)
+        self.assertIn("classList.toggle('is-expanded'", template)
+
+    def test_a_card_renders_with_realistic_financial_data(self):
+        from flask import render_template
+
+        item = {
+            'company_code': '285A', 'company_name': 'サンプル株式会社',
+            'industry_jp': '電気機器', 'body': '数字の変化に注目しています。',
+            'stock_price': 1630.0, 'market_cap': 24500.0,
+            'equity_ratio': 42.3, 'per_forward': 18.4, 'pbr': 1.27,
+            'dividend_yield': 2.1, 'dividend_yield_forward': 2.4,
+            'match_rate': 72, 'score_complete': True,
+        }
+        with self.app_module.app.test_request_context('/curated'):
+            html = render_template('curated.html', items=[item],
+                                   table_ready=True, is_admin=False)
+        self.assertIn('サンプル株式会社', html)
+        self.assertIn('data-value="1630.0"', html)
+        self.assertIn('data-forward="2.4"', html)
+        self.assertEqual(html.count('class="curated-metric"'), 6)
+
 
 if __name__ == '__main__':
     unittest.main()

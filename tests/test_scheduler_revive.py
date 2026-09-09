@@ -112,6 +112,50 @@ class 未起動なら触らない(unittest.TestCase):
             app.scheduler._thread = original
 
 
+class 死んだ個体は入れ替える(unittest.TestCase):
+
+    def test_新しい個体を登録してから起動する(self):
+        import app
+
+        events = []
+
+        class DeadThread:
+            def is_alive(self):
+                return False
+
+        class Previous:
+            _thread = DeadThread()
+
+            def wakeup(self):
+                events.append('wakeup-old')
+
+            def shutdown(self, wait=False):
+                events.append('shutdown-old')
+
+        class Replacement:
+            def start(self):
+                events.append('start-new')
+
+        previous = Previous()
+        replacement = Replacement()
+        originals = (app.scheduler, app.build_scheduler,
+                     app.register_scheduler_jobs, app.record_job_run)
+        app.scheduler = previous
+        app.build_scheduler = lambda: replacement
+        app.register_scheduler_jobs = lambda target: events.append('register-new')
+        app.record_job_run = lambda *args, **kwargs: events.append('record')
+        app._last_revive['at'] = None
+        try:
+            self.assertTrue(app.revive_scheduler_if_stalled(jobs_at(60)))
+            self.assertIs(app.scheduler, replacement)
+            self.assertLess(events.index('register-new'), events.index('start-new'))
+            self.assertLess(events.index('start-new'), events.index('shutdown-old'))
+        finally:
+            (app.scheduler, app.build_scheduler,
+             app.register_scheduler_jobs, app.record_job_run) = originals
+            app._last_revive['at'] = None
+
+
 class 作りの決まり(unittest.TestCase):
 
     def setUp(self):
@@ -131,8 +175,23 @@ class 作りの決まり(unittest.TestCase):
         self.assertGreaterEqual(head.count('try:'), 2)
 
     def test_死んでいたら起動し直す(self):
-        self.assertIn('scheduler.shutdown(wait=False)', self.block)
-        self.assertIn('scheduler.start()', self.block)
+        # MemoryJobStore は shutdown() で全ジョブを消すため、同じ
+        # インスタンスを再利用しない。登録済みの新しい個体へ入れ替える。
+        self.assertIn('replacement = build_scheduler()', self.block)
+        self.assertIn('register_scheduler_jobs(replacement)', self.block)
+        self.assertIn('replacement.start()', self.block)
+        self.assertIn('previous.shutdown(wait=False)', self.block)
+        self.assertLess(self.block.index('register_scheduler_jobs(replacement)'),
+                        self.block.index('replacement.start()'))
+
+    def test_ジョブ0本も監視から復旧する(self):
+        """以前の不具合で空になった個体も、次の監視で戻せること。"""
+        src = read('app.py')
+        i = src.index('def _jobs_health():')
+        block = src[i:i + 1800]
+        self.assertIn('if jobs == [] and ENABLE_SCHEDULER:', block)
+        self.assertIn('register_scheduler_jobs(scheduler)', block)
+        self.assertIn('jobs = scheduler_jobs()', block)
 
     def test_監視から呼ばれている(self):
         """気づくだけで放っておかない。"""

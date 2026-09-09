@@ -3,28 +3,344 @@
 {% block title %}取り上げた会社 - Company Note{% endblock %}
 {% block meta_description %}Company Note の運営が「この会社は勉強になる」と選んだ会社と、その見どころ。{% endblock %}
 
-{% block content %}
-<div style="max-width: 860px; margin: 0 auto; padding: 40px 20px 64px;">
+{% block head_extra %}
+{{ super() }}
+<style>
+  .curated-page {
+    --curated-ink: #21332c;
+    --curated-muted: #68756f;
+    --curated-line: #dce4df;
+    --curated-mist: #f3f7f4;
+    --curated-green: #174c38;
+    --curated-gold: #b59a5b;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 48px 24px 76px;
+    color: var(--curated-ink);
+  }
+  .curated-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 680px) auto;
+    align-items: end;
+    justify-content: space-between;
+    gap: 32px;
+    margin-bottom: 30px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--curated-line);
+  }
+  .curated-kicker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 13px;
+    color: var(--curated-green);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+  }
+  .curated-kicker::before {
+    content: "";
+    width: 24px;
+    height: 2px;
+    background: var(--curated-gold);
+  }
+  .curated-title {
+    margin: 0 0 12px;
+    color: var(--curated-ink);
+    font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+    font-size: clamp(28px, 3.3vw, 42px);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: .035em;
+  }
+  .curated-lead {
+    max-width: 650px;
+    margin: 0;
+    color: var(--curated-muted);
+    font-size: 14px;
+    line-height: 1.9;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    line-break: strict;
+    text-wrap: pretty;
+  }
+  .curated-count {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding-bottom: 3px;
+    color: var(--curated-muted);
+    white-space: nowrap;
+  }
+  .curated-count strong {
+    color: var(--curated-green);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .curated-count span { font-size: 12px; }
+  .curated-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .curated-card {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--curated-line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 7px 22px rgba(27, 57, 45, .045);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .curated-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--curated-gold);
+  }
+  .curated-card:hover {
+    transform: translateY(-2px);
+    border-color: #c8d5ce;
+    box-shadow: 0 12px 28px rgba(27, 57, 45, .08);
+  }
+  .curated-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 21px 22px 17px 24px;
+  }
+  .curated-company { min-width: 0; }
+  .curated-company-name {
+    display: inline-block;
+    color: var(--curated-ink);
+    font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  .curated-company-name:hover { color: var(--curated-green); }
+  .curated-company-name:focus-visible,
+  .curated-card-link:focus-visible,
+  .curated-note-toggle:focus-visible {
+    outline: 2px solid var(--curated-green);
+    outline-offset: 3px;
+  }
+  .curated-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px 7px;
+    margin-top: 5px;
+    color: #87918d;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .curated-meta .size-chip { margin-left: 0; }
+  .curated-score {
+    flex: 0 0 auto;
+    min-width: 54px;
+    padding-top: 2px;
+    text-align: right;
+  }
+  .curated-score-label {
+    display: block;
+    margin-bottom: 3px;
+    color: #9aa39f;
+    font-family: Arial, sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+  .curated-score-value {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 23px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .curated-note {
+    margin: 0 22px 20px 24px;
+    padding: 16px 17px 15px;
+    border-radius: 8px;
+    background: var(--curated-mist);
+  }
+  .curated-note-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--curated-green);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .curated-note-label::after {
+    content: "";
+    width: 28px;
+    height: 1px;
+    background: #c8d8cf;
+  }
+  .curated-note-body {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: #405049;
+    font-size: 13px;
+    line-height: 1.85;
+    white-space: pre-line;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    line-break: strict;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+  }
+  .curated-note-body.is-expanded {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+  .curated-note-toggle {
+    margin: 9px 0 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid #aebdb5;
+    background: transparent;
+    color: #53675e;
+    font-size: 11px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+  .curated-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: auto;
+    border-top: 1px solid var(--curated-line);
+    border-bottom: 1px solid var(--curated-line);
+    background: #fbfcfb;
+  }
+  .curated-metric {
+    min-width: 0;
+    padding: 12px 12px 11px;
+    border-right: 1px solid #e7ece9;
+    border-bottom: 1px solid #e7ece9;
+  }
+  .curated-metric:nth-child(3n) { border-right: 0; }
+  .curated-metric:nth-last-child(-n + 3) { border-bottom: 0; }
+  .curated-metric-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #8a9490;
+    font-size: 9.5px;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  .curated-metric-value {
+    display: block;
+    overflow: hidden;
+    color: #2d4037;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .curated-card-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 15px 22px 17px 24px;
+  }
+  .curated-card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    color: var(--curated-green);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .curated-card-link span { transition: transform .18s ease; }
+  .curated-card-link:hover span { transform: translateX(3px); }
+  .curated-notice,
+  .curated-empty {
+    border: 1px solid var(--curated-line);
+    border-radius: 10px;
+    background: #fff;
+    padding: 26px 24px;
+    color: var(--curated-muted);
+    font-size: 13px;
+    line-height: 1.9;
+  }
+  .curated-notice {
+    margin-bottom: 22px;
+    border-color: #eadfca;
+    background: #fdfaf3;
+    color: #806b3c;
+  }
+  .curated-empty { text-align: center; }
+  .curated-notice p,
+  .curated-empty p { margin: 0; }
 
-  <div style="margin-bottom: 28px;">
-    <div style="width:40px; height:2px; background:#b8a06a; margin-bottom:18px;"></div>
-    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin:0 0 10px;">
-      取り上げた会社
-    </h1>
-    {# 点数だけでは選べない、という前提をここで書いておく。
-       書かないと「なぜスコア順でないのか」が伝わらない。 #}
-    <p style="font-size:13.5px; color:#737373; line-height:1.95; margin:0;">
-      12項目の点数は機械が数えた結果で、見る価値があるかどうかの答えではありません。
-      実際、100点を取れる会社は身軽な小型企業に偏ります。<br class="hidden sm:inline">
-      ここは「この会社の数字は読んでみると面白い」と思ったものを、人が選んで並べた場所です。
-    </p>
-  </div>
+  @media (max-width: 820px) {
+    .curated-page { padding: 38px 20px 64px; }
+    .curated-heading { grid-template-columns: 1fr; gap: 15px; }
+    .curated-count { justify-self: start; }
+    .curated-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .curated-page { padding: 30px 14px 54px; }
+    .curated-heading { margin-bottom: 20px; padding: 0 4px 20px; }
+    .curated-title { font-size: 28px; }
+    .curated-lead { font-size: 13px; line-height: 1.85; }
+    .curated-card-head { padding: 18px 17px 14px 19px; }
+    .curated-company-name { font-size: 16px; }
+    .curated-note { margin: 0 16px 17px 19px; padding: 14px 15px; }
+    .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 6; }
+    .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .curated-metric:nth-child(3n) { border-right: 1px solid #e7ece9; }
+    .curated-metric:nth-child(2n) { border-right: 0; }
+    .curated-metric:nth-last-child(-n + 3) { border-bottom: 1px solid #e7ece9; }
+    .curated-metric:nth-last-child(-n + 2) { border-bottom: 0; }
+    .curated-card-foot { padding: 14px 17px 16px 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .curated-card,
+    .curated-card-link span { transition: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="curated-page">
+  <header class="curated-heading">
+    <div>
+      <p class="curated-kicker">CURATED COMPANIES</p>
+      <h1 class="curated-title">取り上げた会社</h1>
+      <p class="curated-lead">
+        点数だけでは見つけにくい、数字の変化が気になる会社を選びました。
+        まずは運営がどこに注目したのかを読み、必要な数字を確かめられます。
+      </p>
+    </div>
+    {% if items %}
+    <div class="curated-count" aria-label="掲載企業数 {{ items|length }}社">
+      <strong>{{ items|length }}</strong><span>社を掲載</span>
+    </div>
+    {% endif %}
+  </header>
 
   {% if not table_ready %}
-  {# ⚠️ migration が未適用のとき、空一覧と区別が付く言い方にする。
-     「0件」と出すと、書いたのに消えたのか作られていないのか分からない。 #}
-  <div style="border:1px solid #f0e0c0; background:#fdfaf2; border-radius:10px; padding:18px 20px; margin-bottom:24px;">
-    <p style="margin:0; font-size:13px; color:#8a7440; line-height:1.9;">
+  <div class="curated-notice">
+    <p>
       メモを保存する場所（<code>stock_notes</code> テーブル）がまだ作られていません。<br>
       <code>supabase/migration_stock_notes.sql</code> を適用すると使えるようになります。
     </p>
@@ -32,46 +348,156 @@
   {% endif %}
 
   {% if items %}
-  <div style="display:flex; flex-direction:column; gap:14px;">
+  <section class="curated-grid" aria-label="取り上げた会社の一覧">
     {% for item in items %}
-    <article style="border:1px solid #e8e4da; border-left:3px solid #b8a06a; border-radius:10px; background:#fff; padding:18px 20px;">
-      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
-        <div>
-          <a href="/stock/{{ item.company_code }}" style="font-size:16px; font-weight:600; color:#1a1a1a; text-decoration:none;">
+    <article class="curated-card">
+      <div class="curated-card-head">
+        <div class="curated-company">
+          <a class="curated-company-name" href="/stock/{{ item.company_code }}">
             {{ item.company_name or item.company_code }}
           </a>
-          <span style="font-size:11.5px; color:#a3a3a3; margin-left:8px;">
-            {{ item.company_code }}{% if item.industry_jp %} / {{ item.industry_jp }}{% endif %}
+          <div class="curated-meta">
+            <span>{{ item.company_code }}</span>
+            {% if item.industry_jp %}<span aria-hidden="true">/</span><span>{{ item.industry_jp }}</span>{% endif %}
+            <span class="size-chip" data-market-cap="{{ item.market_cap if item.market_cap is not none else '' }}"></span>
+          </div>
+        </div>
+        <div class="curated-score">
+          <span class="curated-score-label">SCORE</span>
+          <span class="curated-score-value"
+                data-curated-score="{{ item.match_rate if item.match_rate is not none else '' }}"
+                data-score-complete="{% if item.score_complete is sameas true %}true{% elif item.score_complete is sameas false %}false{% endif %}">
+            {{ item.match_rate if item.match_rate is not none else '—' }}
           </span>
         </div>
-        <div style="font-size:12px; color:#737373; white-space:nowrap;">
-          {% if item.match_rate is not none %}スコア {{ item.match_rate }}{% endif %}
-          {# 規模は size-chip.js が唯一の正。ここでは市場から引かず、JSに描かせる #}
-          <span class="size-chip" data-market-cap="{{ item.market_cap if item.market_cap is not none else '' }}"></span>
+      </div>
+
+      <div class="curated-note">
+        <div class="curated-note-label">運営の見どころ</div>
+        <p class="curated-note-body" id="curated-note-{{ loop.index }}">{{ item.body }}</p>
+        <button class="curated-note-toggle" type="button" hidden
+                aria-expanded="false" aria-controls="curated-note-{{ loop.index }}">
+          続きを読む
+        </button>
+      </div>
+
+      <div class="curated-metrics" aria-label="主な指標">
+        <div class="curated-metric">
+          <span class="curated-metric-label">株価</span>
+          <span class="curated-metric-value" data-format="price" data-value="{{ item.stock_price if item.stock_price is not none else '' }}">—</span>
+        </div>
+        <div class="curated-metric">
+          <span class="curated-metric-label">時価総額</span>
+          <span class="curated-metric-value" data-format="market-cap" data-value="{{ item.market_cap if item.market_cap is not none else '' }}">—</span>
+        </div>
+        <div class="curated-metric">
+          <span class="curated-metric-label">自己資本比率</span>
+          <span class="curated-metric-value" data-format="percent-1" data-value="{{ item.equity_ratio if item.equity_ratio is not none else '' }}">—</span>
+        </div>
+        <div class="curated-metric">
+          <span class="curated-metric-label">予想PER</span>
+          <span class="curated-metric-value" data-format="times-1" data-value="{{ item.per_forward if item.per_forward is not none else '' }}">—</span>
+        </div>
+        <div class="curated-metric">
+          <span class="curated-metric-label">PBR</span>
+          <span class="curated-metric-value" data-format="times-2" data-value="{{ item.pbr if item.pbr is not none else '' }}">—</span>
+        </div>
+        <div class="curated-metric">
+          <span class="curated-metric-label">配当利回り</span>
+          <span class="curated-metric-value curated-dividend"
+                data-forward="{{ item.dividend_yield_forward if item.dividend_yield_forward is not none else '' }}"
+                data-trailing="{{ item.dividend_yield if item.dividend_yield is not none else '' }}">—</span>
         </div>
       </div>
-      <p style="margin:0; font-size:13.5px; color:#3f3f3f; line-height:1.95; white-space:pre-wrap;">{{ item.body }}</p>
+
+      <div class="curated-card-foot">
+        <a class="curated-card-link" href="/stock/{{ item.company_code }}">企業ページを見る <span aria-hidden="true">→</span></a>
+      </div>
     </article>
     {% endfor %}
-  </div>
+  </section>
   {% elif table_ready %}
-  <div style="border:1px solid #ebebeb; background:#fafaf8; border-radius:10px; padding:32px 24px; text-align:center;">
-    <p style="margin:0; font-size:13.5px; color:#737373; line-height:1.9;">
+  <div class="curated-empty">
+    <p>
       まだ1社も取り上げていません。{% if is_admin %}<br>銘柄ページの「この会社の見どころ」からメモを書くと、ここに並びます。{% endif %}
     </p>
   </div>
   {% endif %}
-
-</div>
+</main>
 
 <script>
-  // 規模の呼び名は static/js/size-chip.js が唯一の正。
-  // テンプレートで「100億以上なら小型」と書くと、しきい値が2か所になる。
-  document.querySelectorAll('.size-chip[data-market-cap]').forEach(function (el) {
-    var raw = el.getAttribute('data-market-cap');
-    var label = raw === '' ? null : SizeChip.label(raw);
-    if (label) { el.textContent = label; el.title = '時価総額から見た規模'; }
-    else { el.remove(); }
-  });
+  (function () {
+    function number(raw) {
+      if (raw === '') return null;
+      var value = Number(raw);
+      return Number.isFinite(value) ? value : null;
+    }
+
+    document.querySelectorAll('.size-chip[data-market-cap]').forEach(function (el) {
+      var raw = el.getAttribute('data-market-cap');
+      var label = raw === '' ? null : SizeChip.label(raw);
+      if (label) {
+        el.textContent = label;
+        el.title = '時価総額から見た規模';
+      } else {
+        el.remove();
+      }
+    });
+
+    document.querySelectorAll('[data-curated-score]').forEach(function (el) {
+      var score = number(el.getAttribute('data-curated-score'));
+      var complete = el.getAttribute('data-score-complete');
+      var row = {
+        match_rate: score,
+        score_complete: complete === 'true' ? true : complete === 'false' ? false : null
+      };
+      el.classList.add(ScoreColor.toneClass(row));
+      el.title = ScoreColor.title(row);
+    });
+
+    document.querySelectorAll('.curated-metric-value[data-format]').forEach(function (el) {
+      var value = number(el.getAttribute('data-value'));
+      if (value === null) return;
+      switch (el.getAttribute('data-format')) {
+        case 'price':
+          el.textContent = '¥' + Math.round(value).toLocaleString();
+          break;
+        case 'market-cap':
+          el.textContent = value >= 10000
+            ? (value / 10000).toFixed(1) + '兆'
+            : Math.round(value).toLocaleString() + '億';
+          break;
+        case 'percent-1':
+          el.textContent = value.toFixed(1) + '%';
+          break;
+        case 'times-1':
+          el.textContent = value.toFixed(1) + '倍';
+          break;
+        case 'times-2':
+          el.textContent = value.toFixed(2) + '倍';
+          break;
+      }
+    });
+
+    document.querySelectorAll('.curated-dividend').forEach(function (el) {
+      el.innerHTML = DividendBasis.cell({
+        dividend_yield_forward: number(el.getAttribute('data-forward')),
+        dividend_yield: number(el.getAttribute('data-trailing'))
+      });
+    });
+
+    document.querySelectorAll('.curated-note-toggle').forEach(function (button) {
+      var note = document.getElementById(button.getAttribute('aria-controls'));
+      // 文字数ではなく実際の高さで決める。画面幅や会社名の長さが変わっても、
+      // 途中で切れた文章だけに「続きを読む」が出る。
+      if (note.scrollHeight > note.clientHeight + 1) button.hidden = false;
+      button.addEventListener('click', function () {
+        var expanded = button.getAttribute('aria-expanded') === 'true';
+        note.classList.toggle('is-expanded', !expanded);
+        button.setAttribute('aria-expanded', String(!expanded));
+        button.textContent = expanded ? '続きを読む' : '閉じる';
+      });
+    });
+  })();
 </script>
 {% endblock %}
