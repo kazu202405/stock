@@ -483,10 +483,14 @@ class CuratedPageTest(unittest.TestCase):
             self.assertNotIn(word, body, '規模の呼び名を自前で持っている')
 
     def test_cards_show_the_same_core_facts_as_the_dashboard(self):
-        """選定理由だけの長文一覧へ戻らないよう、判断材料も同居させる。"""
+        """選定理由だけの長文一覧へ戻らないよう、判断材料も同居させる。
+
+        2026-09-11 に6つ→4つ（1段）へ。株価は単独では判断材料になりにくく、
+        時価総額は規模（market_cap から出すチップ）と重なるので外した。
+        """
         template = read('templates/curated.html')
         route = read('models/root.py')
-        for field in ('stock_price', 'market_cap', 'equity_ratio', 'per_forward',
+        for field in ('market_cap', 'equity_ratio', 'per_forward',
                       'pbr', 'dividend_yield_forward'):
             self.assertIn(field, route)
             self.assertIn('item.%s' % field, template)
@@ -542,6 +546,44 @@ class CuratedPageTest(unittest.TestCase):
         html = self._render(is_admin=False)
         self.assertNotIn('class="curated-note-edit"', html)
 
+
+    def test_long_notes_can_be_expanded(self):
+        template = read('templates/curated.html')
+        self.assertIn('curated-note-toggle', template)
+        self.assertIn("aria-expanded=\"false\"", template)
+        self.assertIn("classList.toggle('is-expanded'", template)
+
+    def test_a_card_renders_with_realistic_financial_data(self):
+        from flask import render_template
+
+        item = {
+            'company_code': '285A', 'company_name': 'サンプル株式会社',
+            'industry_jp': '電気機器', 'body': '数字の変化に注目しています。',
+            'stock_price': 1630.0, 'market_cap': 24500.0,
+            'equity_ratio': 42.3, 'per_forward': 18.4, 'pbr': 1.27,
+            'dividend_yield': 2.1, 'dividend_yield_forward': 2.4,
+            'match_rate': 72, 'score_complete': True,
+        }
+        with self.app_module.app.test_request_context('/curated'):
+            html = render_template('curated.html', items=[item],
+                                   table_ready=True, is_admin=False)
+        self.assertIn('サンプル株式会社', html)
+        self.assertIn('data-value="42.3"', html)
+        self.assertIn('data-forward="2.4"', html)
+        self.assertEqual(html.count('class="curated-metric"'), 4)
+
+    def test_the_card_is_compact(self):
+        """1枚が画面の半分を占めていた。指標は1段、下の1行は無し、抜粋は3行。"""
+        template = read('templates/curated.html')
+        self.assertIn('grid-template-columns: repeat(4, minmax(0, 1fr));', template)
+        # ⚠️ 細いカードでは2列に戻す。画面幅で切ると830px付近で数字が切れた。
+        self.assertIn('container-type: inline-size;', template)
+        self.assertIn('@container (max-width: 489px)', template)
+        self.assertNotIn('curated-card-foot', template)
+        self.assertIn('-webkit-line-clamp: 3;', template)
+        # 企業ページへの道は残す（社名＋スコアの下の小さなリンク）
+        html = self._render(is_admin=False)
+        self.assertEqual(html.count('href="/stock/285A"'), 2)
 
 class CuratedFilterTest(unittest.TestCase):
     """記事は一気に書くので日付では分かれない。セクターのタブ＋規模・高配当で絞る（2026-09-11）。"""
@@ -610,31 +652,6 @@ class CuratedFilterTest(unittest.TestCase):
         self.assertIn('.curated-note-body:not(.is-expanded) .curated-note-heading', self.template)
         self.assertIn('document.createTextNode(body.slice(m[0].length))', self.template)
         self.assertIn('renderNoteBody(note, body)', self.template)
-
-    def test_long_notes_can_be_expanded(self):
-        template = read('templates/curated.html')
-        self.assertIn('curated-note-toggle', template)
-        self.assertIn("aria-expanded=\"false\"", template)
-        self.assertIn("classList.toggle('is-expanded'", template)
-
-    def test_a_card_renders_with_realistic_financial_data(self):
-        from flask import render_template
-
-        item = {
-            'company_code': '285A', 'company_name': 'サンプル株式会社',
-            'industry_jp': '電気機器', 'body': '数字の変化に注目しています。',
-            'stock_price': 1630.0, 'market_cap': 24500.0,
-            'equity_ratio': 42.3, 'per_forward': 18.4, 'pbr': 1.27,
-            'dividend_yield': 2.1, 'dividend_yield_forward': 2.4,
-            'match_rate': 72, 'score_complete': True,
-        }
-        with self.app_module.app.test_request_context('/curated'):
-            html = render_template('curated.html', items=[item],
-                                   table_ready=True, is_admin=False)
-        self.assertIn('サンプル株式会社', html)
-        self.assertIn('data-value="1630.0"', html)
-        self.assertIn('data-forward="2.4"', html)
-        self.assertEqual(html.count('class="curated-metric"'), 6)
 
 
 if __name__ == '__main__':

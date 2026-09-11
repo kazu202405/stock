@@ -127,6 +127,9 @@
     text-decoration: none;
     word-break: normal;
     overflow-wrap: anywhere;
+    /* 長いカタカナ社名がスマホで「…メン／ト」と1文字だけ落ちるので、2行の長さを
+       そろえて折る。未対応の古いSafariでは通常の折り返しになるだけ。 */
+    text-wrap: balance;
   }
   .curated-company-name:hover { color: var(--curated-green); }
   .curated-company-name:focus-visible,
@@ -226,7 +229,7 @@
     overflow-wrap: anywhere;
     line-break: strict;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: 3;
   }
   .curated-note-body.is-expanded {
     display: block;
@@ -249,9 +252,18 @@
      どこから読めばいいか分からない）。 */
   .curated-metrics {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
-    margin: auto 22px 0 24px;
+    margin: auto 22px 20px 24px;
+  }
+  /* 4列にするのはカードの幅が490px以上のときだけ。いちばん長いラベル「自己資本比率」
+     の残りの余白が、実測でカード幅509px→19px／484px→13px／459px→7px。
+     日本語フォントが広めの環境（Macなど）でも切れないよう、15px前後を残して切る。
+     ⚠️ 画面幅ではなくカードの幅で切る。2列のグリッドは画面幅830px付近でカードが
+        370pxまで細くなり、画面幅のメディアクエリだと数字が途中で切れた。 */
+  .curated-card { container-type: inline-size; }
+  @container (max-width: 489px) {
+    .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   .curated-metric {
     min-width: 0;
@@ -290,7 +302,6 @@
     font-weight: 500;
     letter-spacing: 0;
   }
-  .curated-unit.is-prefix { margin: 0 2px 0 0; }
   /* 高配当（DividendBasis.isHigh）。ダッシュボード・スクリーナー・銘柄ページで
      3%以上の配当に付けている「良い」の緑と同じ色・同じ意味にそろえる。 */
   .curated-metric.is-high-dividend {
@@ -299,6 +310,8 @@
   }
   .curated-metric.is-high-dividend .curated-metric-value { color: #15803d; }
   .curated-metric-tag {
+    display: inline-block;
+    margin-top: 5px;
     padding: 0 5px;
     border-radius: 4px;
     background: #dcfce7;
@@ -308,19 +321,18 @@
     letter-spacing: .04em;
     line-height: 1.6;
   }
-  .curated-card-foot {
-    display: flex;
-    justify-content: flex-end;
-    padding: 16px 22px 17px 24px;
-  }
+  /* スコアの下に小さく置く。下の1行（企業ページを見る）を無くしてカードを低くした。 */
   .curated-card-link {
-    display: inline-flex;
+    display: flex;             /* スコアの数字と同じ行に並ぶと「83 企業ページ」と読める */
+    justify-content: flex-end;
     align-items: center;
-    gap: 11px;
+    gap: 5px;
+    margin-top: 9px;
     color: var(--curated-green);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-decoration: none;
+    white-space: nowrap;
   }
   .curated-card-link span { transition: transform .18s ease; }
   .curated-card-link:hover span { transform: translateX(3px); }
@@ -463,6 +475,9 @@
      どのカードも同じ見出しで始まると、一覧で見比べる材料にならない。
      開いたとき（全文）には出す。 */
   .curated-note-body:not(.is-expanded) .curated-note-heading { display: none; }
+  /* 閉じているときは改行を詰める。メモは章ごとに空行が入るので、改行のまま
+     3行に切ると3行目が空行（「…」だけ）になっていた。開けば元の改行で出る。 */
+  .curated-note-body:not(.is-expanded) { white-space: normal; }
   .curated-notice p,
   .curated-empty p { margin: 0; }
 
@@ -480,11 +495,13 @@
     .curated-card-head { padding: 18px 17px 14px 19px; }
     .curated-company-name { font-size: 16px; }
     .curated-note { margin: 0 16px 17px 19px; padding: 14px 15px; }
-    .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 5; }
+    .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 4; }
     .curated-sort { margin-left: 0; }
-    .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: auto 16px 0 19px; }
+    .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: auto 16px 17px 19px; }
+    /* スマホでは隠す。スコアの列が広がって長い社名が「…メ／ント」と割れる。
+       社名そのものが企業ページへのリンクなので、行き先は残る。 */
+    .curated-card-link { display: none; }
     .curated-metric-value { font-size: 15.5px; }
-    .curated-card-foot { padding: 14px 17px 16px 19px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .curated-card,
@@ -578,6 +595,8 @@
                 data-score-complete="{% if item.score_complete is sameas true %}true{% elif item.score_complete is sameas false %}false{% endif %}">
             {{ item.match_rate if item.match_rate is not none else '—' }}
           </span>
+          {# 社名もリンクだが、押せると気づかない人のために小さく添える（下の1行を無くした代わり） #}
+          <a class="curated-card-link" href="/stock/{{ item.company_code }}">企業ページ <span aria-hidden="true">→</span></a>
         </div>
       </div>
 
@@ -600,15 +619,9 @@
         </button>
       </div>
 
+      {# 指標は4つを1段に。株価はそれだけでは判断の材料になりにくく、時価総額は
+         社名の下の規模（小型・中型…）とほぼ同じことを言っているので外した。 #}
       <div class="curated-metrics" aria-label="主な指標">
-        <div class="curated-metric">
-          <span class="curated-metric-label">株価</span>
-          <span class="curated-metric-value" data-format="price" data-value="{{ item.stock_price if item.stock_price is not none else '' }}">—</span>
-        </div>
-        <div class="curated-metric">
-          <span class="curated-metric-label">時価総額</span>
-          <span class="curated-metric-value" data-format="market-cap" data-value="{{ item.market_cap if item.market_cap is not none else '' }}">—</span>
-        </div>
         <div class="curated-metric">
           <span class="curated-metric-label">自己資本比率</span>
           <span class="curated-metric-value" data-format="percent-1" data-value="{{ item.equity_ratio if item.equity_ratio is not none else '' }}">—</span>
@@ -627,10 +640,6 @@
                 data-forward="{{ item.dividend_yield_forward if item.dividend_yield_forward is not none else '' }}"
                 data-trailing="{{ item.dividend_yield if item.dividend_yield is not none else '' }}">—</span>
         </div>
-      </div>
-
-      <div class="curated-card-foot">
-        <a class="curated-card-link" href="/stock/{{ item.company_code }}">企業ページを見る <span aria-hidden="true">→</span></a>
       </div>
     </article>
     {% endfor %}
@@ -687,15 +696,6 @@
       var value = number(el.getAttribute('data-value'));
       if (value === null) return;
       switch (el.getAttribute('data-format')) {
-        case 'price':
-          el.innerHTML = '<span class="curated-unit is-prefix">¥</span>'
-            + Math.round(value).toLocaleString();
-          break;
-        case 'market-cap':
-          el.innerHTML = value >= 10000
-            ? withUnit((value / 10000).toFixed(1), '兆')
-            : withUnit(Math.round(value).toLocaleString(), '億');
-          break;
         case 'percent-1':
           el.innerHTML = withUnit(value.toFixed(1), '%');
           break;
@@ -723,10 +723,12 @@
         el.closest('.curated-card').setAttribute('data-high-dividend', 'true');
         var metric = el.closest('.curated-metric');
         metric.classList.add('is-high-dividend');
+        // 札は数字の下に置く。4列だとタイルが狭く、ラベルの横でも数字の横でも、
+        // フォントが少し違うだけで途中で切れた（カード幅545pxで15社ぶん）。
         var tag = document.createElement('span');
         tag.className = 'curated-metric-tag';
         tag.textContent = '高配当';
-        metric.querySelector('.curated-metric-label').appendChild(tag);
+        metric.appendChild(tag);
       }
     });
 

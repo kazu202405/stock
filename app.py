@@ -3,8 +3,17 @@ import re
 import json
 import base64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+import sys
 import uuid
 from functools import wraps
+
+# `python app.py` で起動すると、このファイルは `__main__` として読まれる。
+# models/root.py などが関数の中で `from app import …` すると、app.py が `app` として
+# もう一度読み込まれ、@app.after_request の登録で Flask に止められていた
+# （手元でトップページが500。本番の gunicorn は最初から `app` として読むので起きない）。
+# どちらの起動でも、`app` という名前が今動いているこのモジュールを指すようにする。
+sys.modules.setdefault('app', sys.modules[__name__])
+
 from flask import jsonify, request, session, redirect
 from config import *
 # from models.login import *  # ログイン機能無効化

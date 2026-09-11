@@ -412,7 +412,7 @@ def curated():
         try:
             rows = (get_supabase_client().table('screened_latest')
                     .select('company_code, company_name, industry_jp, sector, '
-                            'stock_price, market_cap, equity_ratio, '
+                            'market_cap, equity_ratio, '
                             'per_forward, pbr, dividend_yield, '
                             'dividend_yield_forward, match_rate, score_complete')
                     .in_('company_code', codes[:200]).execute().data or [])
