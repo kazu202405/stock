@@ -374,13 +374,36 @@ class SharedDialogTest(unittest.TestCase):
     """入力はアプリ内モーダルで行う（全プロジェクト共通ルール）。"""
 
     def test_the_note_editor_does_not_use_a_browser_dialog(self):
+        """書き直しの部品は static/js/stock-note-editor.js に1つだけ（2026-09-11）。"""
         source = read('templates/stock_detail.html')
         block_start = source.find('function editStockNote(')
         self.assertNotEqual(block_start, -1)
-        block = source[block_start:block_start + 1800]
+        block = source[block_start:block_start + 800]
+        self.assertIn('StockNoteEditor.edit(', block)
+
+        editor = read('static/js/stock-note-editor.js')
         for banned in ('prompt(', 'alert(', 'confirm('):
-            self.assertNotIn('window.' + banned, block, banned)
-        self.assertIn('showPromptModal(', block)
+            self.assertNotIn('window.' + banned, editor, banned)
+        self.assertIn('showPromptModal(', editor)
+        self.assertIn('multiline: true', editor)
+
+    def test_both_pages_share_one_editor(self):
+        """⚠️ 画面ごとに保存処理を書かない。注意書きや失敗の文言がずれる。"""
+        self.assertIn("filename='js/stock-note-editor.js'", read('templates/layout.html'))
+        for page in ('templates/stock_detail.html', 'templates/curated.html'):
+            html = read(page)
+            self.assertIn('StockNoteEditor.edit(', html, page)
+            # 「消す」（DELETE）は銘柄ページだけにあるので対象外。保存（PUT）だけを見る。
+            saves = [m.start() for m in re.finditer(r"fetch\('/api/stock-notes/", html)
+                     if "'PUT'" in html[m.start():m.start() + 200]]
+            self.assertEqual([], saves, '%s が保存処理を自前で持っている' % page)
+
+    def test_failures_keep_their_own_messages(self):
+        """ログイン切れ・権限なし・DBの拒否で、次にやることが違う。"""
+        editor = read('static/js/stock-note-editor.js')
+        self.assertIn('status === 401', editor)
+        self.assertIn('status === 403', editor)
+        self.assertIn('data.detail', editor)
 
     def test_the_shared_modal_gained_multiline_instead_of_a_new_one(self):
         """⚠️ 画面ごとに自作しない。共通部品のほうを複数行対応にする。"""
@@ -469,7 +492,55 @@ class CuratedPageTest(unittest.TestCase):
             self.assertIn('item.%s' % field, template)
         self.assertIn('curated-grid', template)
         self.assertIn('grid-template-columns: repeat(2', template)
-        self.assertIn("DividendBasis.cell", template)
+        # 予想か実績かは DividendBasis が決める。画面で基準を持たない。
+        self.assertIn("DividendBasis.value(row)", template)
+        self.assertIn("DividendBasis.marker(row)", template)
+
+    def test_high_dividend_uses_the_shared_line(self):
+        """高配当の線（3%）を画面に直書きしない。ダッシュボード等と同じ判定を使う。"""
+        template = read('templates/curated.html')
+        self.assertIn('DividendBasis.isHigh(row)', template)
+        self.assertNotRegex(template, r'>=\s*3\b', '高配当の線を自前で持っている')
+        basis = read('static/js/dividend-basis.js')
+        self.assertIn('var HIGH_YIELD = 3;', basis)
+        # ダッシュボードとスクリーナーの緑も3%。線がずれたら気づけるようにする。
+        self.assertIn('dividend_yield_display >= 3', read('templates/stock.html'))
+        self.assertIn('dividend_yield_forward >= 3', read('templates/screener.html'))
+
+    def test_the_metrics_are_not_a_ruled_table(self):
+        """罫線で区切った表（のっぺりして見える）に戻さない。"""
+        template = read('templates/curated.html')
+        start = template.find('.curated-metric {')
+        block = template[start:template.find('}', start)]
+        self.assertNotIn('border-right', block)
+        self.assertIn('border-radius', block)
+
+    def _render(self, is_admin, **overrides):
+        from flask import render_template
+
+        item = {
+            'company_code': '285A', 'company_name': 'サンプル株式会社',
+            'industry_jp': '電気機器', 'body': '数字の変化に注目しています。',
+            'stock_price': 1630.0, 'market_cap': 24500.0,
+            'equity_ratio': 42.3, 'per_forward': 18.4, 'pbr': 1.27,
+            'dividend_yield': 2.1, 'dividend_yield_forward': 2.4,
+            'match_rate': 72, 'score_complete': True,
+        }
+        item.update(overrides)
+        with self.app_module.app.test_request_context('/curated'):
+            return render_template('curated.html', items=[item],
+                                   table_ready=True, is_admin=is_admin)
+
+    def test_admins_can_rewrite_the_note_here(self):
+        """銘柄ページへ入り直さずに、この一覧から書き直せる。"""
+        html = self._render(is_admin=True)
+        self.assertIn('class="curated-note-edit"', html)
+        self.assertIn('data-code="285A"', html)
+        self.assertIn('aria-controls="curated-note-1"', html)
+
+    def test_members_do_not_see_the_rewrite_button(self):
+        html = self._render(is_admin=False)
+        self.assertNotIn('class="curated-note-edit"', html)
 
     def test_long_notes_can_be_expanded(self):
         template = read('templates/curated.html')

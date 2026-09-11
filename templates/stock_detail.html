@@ -4289,43 +4289,13 @@
     // ── 運営のメモ ───────────────────────────────────────────────
     // 書けるのは管理者だけ。⚠️ 画面でボタンを隠すだけにしない（APIでも見ている）。
     async function editStockNote() {
+        // 入力・保存・失敗の伝え方は static/js/stock-note-editor.js が唯一の正
+        // （「取り上げた会社」からも同じ部品で書き直す）。
         const current = document.getElementById('stockNoteBody').textContent.trim();
-        const body = await showPromptModal({
-            title: 'この会社の見どころ',
-            note: 'どこを見ると面白いかを数行で。このページは公開なので、非公開の話は書かないでください。（Ctrl+Enterで保存）',
-            value: current,
-            multiline: true,
-            maxLength: 2000,
-            okLabel: '保存',
-        });
+        const body = await StockNoteEditor.edit({ code: '{{ stock_code }}', current: current });
         if (body === null) return;
-        try {
-            const res = await fetch('/api/stock-notes/{{ stock_code }}', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ body: body }),
-            });
-            // ⚠️ 失敗の種類を1つの文言に潰さない。ログインが切れているのか、
-            //    権限が無いのか、DBが断ったのかで、次にやることが違う。
-            let data = {};
-            try { data = await res.json(); } catch (_) { /* HTMLが返ることがある */ }
-            if (!res.ok) {
-                if (res.status === 401) {
-                    showErrorModal('ログインの有効期限が切れています。入り直してからもう一度お試しください。');
-                } else if (res.status === 403) {
-                    showErrorModal('メモを書けるのは管理者だけです。');
-                } else {
-                    showErrorModal((data.error || 'メモを保存できませんでした。')
-                                   + (data.detail ? String.fromCharCode(10, 10) + data.detail : ''));
-                }
-                return;
-            }
-            document.getElementById('stockNoteBody').textContent = body;
-            document.getElementById('stockNoteBlock').classList.remove('is-empty');
-            showToast('メモを保存しました');
-        } catch (e) {
-            showErrorModal('メモを保存できませんでした。通信を確認してください。');
-        }
+        document.getElementById('stockNoteBody').textContent = body;
+        document.getElementById('stockNoteBlock').classList.remove('is-empty');
     }
 
     async function deleteStockNote() {

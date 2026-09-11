@@ -27,10 +27,16 @@ window.BulkSelect = (function () {
         return sets[key];
     }
 
+    /* 属性の中にも書けるように、引用符まで変換する。
+       ⚠️ textContent → innerHTML だけでは < > & しか変わらず、" が残る。
+          見出しの全選択は onclick="…toggleAll('key', ["7203",…], …)" と
+          一覧をJSONで属性に埋めるため、最初の " で属性が閉じて onclick が
+          「toggleAll('key', [」で途切れ、押しても1件も選ばれなかった
+          （2026-09-11 まで。見出しの✔だけは付くので効いたように見えていた）。 */
     function esc(s) {
         var d = document.createElement('div');
         d.textContent = s == null ? '' : String(s);
-        return d.innerHTML;
+        return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function count(key) { return set(key).size; }

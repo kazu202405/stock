@@ -75,6 +75,18 @@
         return text(row, digits) + marker(row);
     }
 
+    /*
+     * 高配当とみなす線（%）。出している方の値（予想、無ければ実績）で見る。
+     * ダッシュボード・スクリーナー・銘柄ページも 3% 以上を緑にしている。
+     * ⚠️ 線を変えるときはそちらも揃えること（まだ各画面に 3 が直書きされている）。
+     */
+    var HIGH_YIELD = 3;
+
+    function isHigh(row) {
+        var v = value(row);
+        return v !== null && v >= HIGH_YIELD;
+    }
+
     /**
      * 一覧に並べ替え・絞り込み用の列を足す。**取得直後に必ず1回通すこと。**
      * 既存の並べ替えは行オブジェクトのキーを直接読むので、
@@ -92,5 +104,6 @@
     global.DividendBasis = {
         pick: pick, value: value, basisLabel: basisLabel,
         text: text, marker: marker, cell: cell, normalize: normalize,
+        HIGH_YIELD: HIGH_YIELD, isHigh: isHigh,
     };
 })(window);

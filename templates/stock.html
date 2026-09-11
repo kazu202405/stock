@@ -1441,6 +1441,10 @@
         loadDataFreshness();
         loadNoteReview();
         loadWatchlist();
+        // 選択の操作バーと「フォルダに追加」の行き先。⚠️ 以前はタブを切り替えるか
+        // お気に入りを開くまで呼ばれず、最初に開いたタブではチェックしても
+        // 操作バーが出なかった（2026-09-11）。取れても取れなくてもバーは付く。
+        loadFavoriteFolders();
         /*
          * 前回開いていたタブの中身を先に取りに行く。
          *
@@ -2436,9 +2440,13 @@
             favFolders = data.folders || [];
             favUnfiled = data.unfiled || 0;
             renderFavFolderBar();
-            mountBulkBar(sessionStorage.getItem('activeTab') || 'watchlist');
         } catch (e) {
             // フォルダが出せないことで一覧まで止めない
+        } finally {
+            // ⚠️ 選択の操作バーは、フォルダが取れなくても付ける（行き先が「未分類」
+            //    だけになるだけ）。以前は取れたときだけ付けていたため、取得に失敗すると
+            //    チェックは入るのに操作バーが出ず、選んでも何もできなかった。
+            mountBulkBar(sessionStorage.getItem('activeTab') || 'watchlist');
         }
     }
 
