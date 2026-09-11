@@ -6863,10 +6863,15 @@ def scheduled_backfill_yahoo_profile():
 #    二重に走ると、外部APIを倍叩くことになる。
 def build_scheduler():
     """空のスケジューラを作る。死んだループを同じインスタンスで再利用しない。"""
-    return BackgroundScheduler(
+    import memory_watch
+    built = BackgroundScheduler(
         timezone=pytz.timezone('Asia/Tokyo'),
         job_defaults={'misfire_grace_time': 1800, 'coalesce': True,
                       'max_instances': 1})
+    # ジョブごとのメモリ使用量をログに残す（Render 512MB で OOM が続いたため）。
+    # 入れ替えたあとの個体にも付くよう、作る場所で付ける。
+    memory_watch.attach(built)
+    return built
 
 
 def register_scheduler_jobs(scheduler):
