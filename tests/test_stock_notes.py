@@ -578,12 +578,26 @@ class CuratedPageTest(unittest.TestCase):
         self.assertIn('grid-template-columns: repeat(4, minmax(0, 1fr));', template)
         # ⚠️ 細いカードでは2列に戻す。画面幅で切ると830px付近で数字が切れた。
         self.assertIn('container-type: inline-size;', template)
-        self.assertIn('@container (max-width: 489px)', template)
+        self.assertIn('@container (max-width: 529px)', template)
         self.assertNotIn('curated-card-foot', template)
         self.assertIn('-webkit-line-clamp: 3;', template)
-        # 企業ページへの道は残す（社名＋スコアの下の小さなリンク）
+        # 企業ページへの道は社名のリンク1つ。押せると見て分かるよう下線と「›」を常に出す
+        # （スマホには「マウスを乗せる」が無いので、乗せたときだけの合図では伝わらない）。
         html = self._render(is_admin=False)
-        self.assertEqual(html.count('href="/stock/285A"'), 2)
+        self.assertEqual(html.count('href="/stock/285A"'), 1)
+        self.assertIn('class="curated-company-name" href="/stock/285A"', html)
+        self.assertNotIn('curated-card-link', template)
+        start = template.index('  .curated-company-name {')
+        block = template[start:template.index('}', start)]
+        self.assertIn('text-decoration: underline;', block)
+        self.assertIn('.curated-company-name::after', template)
+
+    def test_high_dividend_tag_stays_on_the_label_line(self):
+        """札を別の段に置くと、そのタイルだけ1行ぶん高くなる。ラベルの後ろに1文字で。"""
+        template = read('templates/curated.html')
+        self.assertIn("tag.textContent = '高';", template)
+        self.assertIn("metric.querySelector('.curated-metric-label').appendChild(tag)", template)
+        self.assertIn("tag.setAttribute('aria-label', '高配当')", template)
 
 class CuratedFilterTest(unittest.TestCase):
     """記事は一気に書くので日付では分かれない。セクターのタブ＋規模・高配当で絞る（2026-09-11）。"""

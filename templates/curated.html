@@ -124,16 +124,35 @@
     font-size: 18px;
     font-weight: 600;
     line-height: 1.5;
-    text-decoration: none;
+    /* 社名が企業ページへのリンクだと見て分かるように、薄い下線と「›」を常に出す。
+       スマホには「マウスを乗せる」が無いので、乗せたときだけの合図では伝わらない。 */
+    text-decoration: underline;
+    text-decoration-color: #c9d7cf;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 5px;
     word-break: normal;
     overflow-wrap: anywhere;
     /* 長いカタカナ社名がスマホで「…メン／ト」と1文字だけ落ちるので、2行の長さを
        そろえて折る。未対応の古いSafariでは通常の折り返しになるだけ。 */
     text-wrap: balance;
+    transition: color .15s ease, text-decoration-color .15s ease;
   }
-  .curated-company-name:hover { color: var(--curated-green); }
+  .curated-company-name::after {
+    content: "›";
+    display: inline-block;
+    margin-left: 6px;
+    color: var(--curated-green);
+    font-family: Inter, Arial, sans-serif;
+    font-weight: 500;
+    text-decoration: none;
+    transition: transform .15s ease;
+  }
+  .curated-company-name:hover {
+    color: var(--curated-green);
+    text-decoration-color: currentColor;
+  }
+  .curated-company-name:hover::after { transform: translateX(2px); }
   .curated-company-name:focus-visible,
-  .curated-card-link:focus-visible,
   .curated-note-toggle:focus-visible,
   .curated-note-edit:focus-visible {
     outline: 2px solid var(--curated-green);
@@ -256,13 +275,13 @@
     gap: 8px;
     margin: auto 22px 20px 24px;
   }
-  /* 4列にするのはカードの幅が490px以上のときだけ。いちばん長いラベル「自己資本比率」
-     の残りの余白が、実測でカード幅509px→19px／484px→13px／459px→7px。
+  /* 4列にするのはカードの幅が530px以上のときだけ。いちばん長いラベル「配当利回り＋高」
+     の残りの余白が、実測でカード幅546px→16px／509px→6px。
      日本語フォントが広めの環境（Macなど）でも切れないよう、15px前後を残して切る。
      ⚠️ 画面幅ではなくカードの幅で切る。2列のグリッドは画面幅830px付近でカードが
         370pxまで細くなり、画面幅のメディアクエリだと数字が途中で切れた。 */
   .curated-card { container-type: inline-size; }
-  @container (max-width: 489px) {
+  @container (max-width: 529px) {
     .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   .curated-metric {
@@ -309,33 +328,18 @@
     box-shadow: inset 0 0 0 1px #bbf7d0;
   }
   .curated-metric.is-high-dividend .curated-metric-value { color: #15803d; }
+  /* 「配当利回り」の後ろに付ける1文字の札。「高配当」の3文字は4列のタイルに
+     収まらない（カード幅546pxで数px足りない）ので「高」だけにし、意味は title で補う。
+     札を別の段に置くと、そのタイルだけ1行ぶん高くなる。 */
   .curated-metric-tag {
-    display: inline-block;
-    margin-top: 5px;
-    padding: 0 5px;
+    padding: 0 4px;
     border-radius: 4px;
     background: #dcfce7;
     color: #15803d;
     font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: .04em;
     line-height: 1.6;
   }
-  /* スコアの下に小さく置く。下の1行（企業ページを見る）を無くしてカードを低くした。 */
-  .curated-card-link {
-    display: flex;             /* スコアの数字と同じ行に並ぶと「83 企業ページ」と読める */
-    justify-content: flex-end;
-    align-items: center;
-    gap: 5px;
-    margin-top: 9px;
-    color: var(--curated-green);
-    font-size: 11px;
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-  .curated-card-link span { transition: transform .18s ease; }
-  .curated-card-link:hover span { transform: translateX(3px); }
   .curated-notice,
   .curated-empty {
     border: 1px solid var(--curated-line);
@@ -498,14 +502,12 @@
     .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 4; }
     .curated-sort { margin-left: 0; }
     .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: auto 16px 17px 19px; }
-    /* スマホでは隠す。スコアの列が広がって長い社名が「…メ／ント」と割れる。
-       社名そのものが企業ページへのリンクなので、行き先は残る。 */
-    .curated-card-link { display: none; }
     .curated-metric-value { font-size: 15.5px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .curated-card,
-    .curated-card-link span,
+    .curated-company-name,
+    .curated-company-name::after,
     .curated-note-edit { transition: none; }
   }
 </style>
@@ -595,8 +597,6 @@
                 data-score-complete="{% if item.score_complete is sameas true %}true{% elif item.score_complete is sameas false %}false{% endif %}">
             {{ item.match_rate if item.match_rate is not none else '—' }}
           </span>
-          {# 社名もリンクだが、押せると気づかない人のために小さく添える（下の1行を無くした代わり） #}
-          <a class="curated-card-link" href="/stock/{{ item.company_code }}">企業ページ <span aria-hidden="true">→</span></a>
         </div>
       </div>
 
@@ -723,12 +723,13 @@
         el.closest('.curated-card').setAttribute('data-high-dividend', 'true');
         var metric = el.closest('.curated-metric');
         metric.classList.add('is-high-dividend');
-        // 札は数字の下に置く。4列だとタイルが狭く、ラベルの横でも数字の横でも、
-        // フォントが少し違うだけで途中で切れた（カード幅545pxで15社ぶん）。
+        // 「配当利回り」の後ろに「高」の札。1文字なので意味は title と読み上げで補う。
         var tag = document.createElement('span');
         tag.className = 'curated-metric-tag';
-        tag.textContent = '高配当';
-        metric.appendChild(tag);
+        tag.textContent = '高';
+        tag.title = '高配当（配当利回り' + DividendBasis.HIGH_YIELD + '%以上）';
+        tag.setAttribute('aria-label', '高配当');
+        metric.querySelector('.curated-metric-label').appendChild(tag);
       }
     });
 
