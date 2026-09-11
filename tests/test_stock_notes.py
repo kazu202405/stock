@@ -542,6 +542,75 @@ class CuratedPageTest(unittest.TestCase):
         html = self._render(is_admin=False)
         self.assertNotIn('class="curated-note-edit"', html)
 
+
+class CuratedFilterTest(unittest.TestCase):
+    """記事は一気に書くので日付では分かれない。セクターのタブ＋規模・高配当で絞る（2026-09-11）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        import app as app_module
+        cls.app_module = app_module
+        app_module.app.config['TESTING'] = True
+        cls.template = read('templates/curated.html')
+
+    def test_tabs_are_sectors_ordered_by_count(self):
+        from models.root import curated_sectors
+        items = [{'sector': '情報技術'}, {'sector': '資本財'}, {'sector': '資本財'},
+                 {'sector': None}, {'sector': 'ヘルスケア'}, {'sector': '情報技術'}]
+        self.assertEqual([('情報技術', 2), ('資本財', 2), ('ヘルスケア', 1)],
+                         curated_sectors(items))
+
+    def test_the_route_reads_the_sector(self):
+        route = read('models/root.py')
+        start = route.index("@app.route('/curated')")
+        block = route[start:route.index('def curated_sectors', start)]
+        self.assertIn('sector', block)
+        self.assertIn('sectors=curated_sectors(items)', block)
+
+    def test_a_tab_is_rendered_for_each_sector_with_its_count(self):
+        from flask import render_template
+        items = [
+            {'company_code': '1111', 'company_name': 'A', 'body': 'a', 'sector': '資本財'},
+            {'company_code': '2222', 'company_name': 'B', 'body': 'b', 'sector': '資本財'},
+            {'company_code': '3333', 'company_name': 'C', 'body': 'c', 'sector': '情報技術'},
+        ]
+        from models.root import curated_sectors
+        with self.app_module.app.test_request_context('/curated'):
+            html = render_template('curated.html', items=items,
+                                   sectors=curated_sectors(items),
+                                   table_ready=True, is_admin=False)
+        self.assertRegex(html, r'data-sector=""[^>]*>\s*すべて <span class="curated-tab-count">3</span>')
+        self.assertRegex(html, r'data-sector="資本財"[^>]*>\s*資本財 <span class="curated-tab-count">2</span>')
+        self.assertEqual(html.count('class="curated-tab"'), 3)
+        self.assertEqual(html.count('<article class="curated-card"'), 3)
+
+    def test_size_and_dividend_come_from_the_shared_rules(self):
+        """規模の境目・高配当の線を画面に持たない。"""
+        self.assertIn('SizeChip.THRESHOLDS', self.template)
+        self.assertIn('SizeChip.label(', self.template)
+        # 高配当の判定は DividendBasis.isHigh → カードの印（data-high-dividend）。
+        # ⚠️ 色の class はタイルに付くので、カードで class を見ると0社になる（実際に書き間違えた）。
+        self.assertIn("setAttribute('data-high-dividend', 'true')", self.template)
+        self.assertIn("card.hasAttribute('data-high-dividend')", self.template)
+        self.assertNotIn("c.classList.contains('is-high-dividend')", self.template)
+        self.assertNotIn("card.classList.contains('is-high-dividend')", self.template)
+
+    def test_hidden_cards_really_disappear(self):
+        """⚠️ カードは display:flex。hidden 属性だけでは消えない。"""
+        self.assertIn('.curated-card[hidden]', self.template)
+        self.assertIn('card.hidden = !matches(card)', self.template)
+
+    def test_the_choice_is_kept_in_the_url(self):
+        """企業ページから戻ったときに、同じ絞り込みで開くこと。"""
+        self.assertIn('new URLSearchParams(location.search)', self.template)
+        self.assertIn('history.replaceState', self.template)
+
+    def test_the_excerpt_hides_the_heading_without_dropping_text(self):
+        """⚠️ 見出しを消すと「書き直す」に渡す本文が欠ける。包んで隠すだけ。"""
+        self.assertIn('.curated-note-body:not(.is-expanded) .curated-note-heading', self.template)
+        self.assertIn('document.createTextNode(body.slice(m[0].length))', self.template)
+        self.assertIn('renderNoteBody(note, body)', self.template)
+
     def test_long_notes_can_be_expanded(self):
         template = read('templates/curated.html')
         self.assertIn('curated-note-toggle', template)

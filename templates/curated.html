@@ -226,7 +226,7 @@
     overflow-wrap: anywhere;
     line-break: strict;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 5;
+    -webkit-line-clamp: 4;
   }
   .curated-note-body.is-expanded {
     display: block;
@@ -341,6 +341,128 @@
     color: #806b3c;
   }
   .curated-empty { text-align: center; }
+
+  /* ── 絞り込み（タブ＝セクター／規模・高配当・並び順） ──────────────
+     記事は一気に書くことがあり、日付では分かれない。読む人が自分の関心から
+     入れるよう、セクターで分け、その中を規模・高配当で絞る。 */
+  .curated-controls { margin: -6px 0 22px; }
+  .curated-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--curated-line);
+    scrollbar-width: none;
+  }
+  .curated-tabs::-webkit-scrollbar { display: none; }
+  .curated-tab {
+    display: inline-flex;
+    flex: 0 0 auto;          /* 狭い画面で潰れて縦積みにならないように */
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: -1px;
+    padding: 9px 12px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--curated-muted);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .curated-tab:hover { color: var(--curated-ink); }
+  .curated-tab[aria-pressed="true"] {
+    border-bottom-color: var(--curated-green);
+    color: var(--curated-green);
+    font-weight: 700;
+  }
+  .curated-tab-count {
+    color: #a0aaa5;
+    font-family: Inter, Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .curated-tab[aria-pressed="true"] .curated-tab-count { color: var(--curated-green); }
+  .curated-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+  .curated-filter-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .curated-filter-label {
+    margin-right: 2px;
+    color: #8a9490;
+    font-size: 11px;
+  }
+  .curated-chip {
+    padding: 4px 11px;
+    border: 1px solid #d8e1dc;
+    border-radius: 999px;
+    background: #fff;
+    color: #4a5c54;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .curated-chip:hover { border-color: #b4c7bc; }
+  .curated-chip[aria-pressed="true"] {
+    border-color: var(--curated-green);
+    background: var(--curated-green);
+    color: #fff;
+  }
+  .curated-sort {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: #8a9490;
+    font-size: 11px;
+  }
+  .curated-sort select {
+    padding: 4px 8px;
+    border: 1px solid #d8e1dc;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--curated-ink);
+    font-size: 12px;
+  }
+  .curated-result {
+    margin: 12px 0 0;
+    color: #8a9490;
+    font-size: 11.5px;
+  }
+  .curated-result button {
+    margin-left: 8px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid #aebdb5;
+    background: transparent;
+    color: #53675e;
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .curated-tab:focus-visible,
+  .curated-chip:focus-visible,
+  .curated-sort select:focus-visible,
+  .curated-result button:focus-visible {
+    outline: 2px solid var(--curated-green);
+    outline-offset: 2px;
+  }
+  /* ⚠️ カードと絞り込みの塊は display を持つので、hidden 属性だけでは消えない。 */
+  .curated-card[hidden],
+  .curated-filter-group[hidden] { display: none; }
+  /* 抜粋では冒頭の「1. どんな会社？」を飛ばし、中身の1文目から見せる。
+     どのカードも同じ見出しで始まると、一覧で見比べる材料にならない。
+     開いたとき（全文）には出す。 */
+  .curated-note-body:not(.is-expanded) .curated-note-heading { display: none; }
   .curated-notice p,
   .curated-empty p { margin: 0; }
 
@@ -358,7 +480,8 @@
     .curated-card-head { padding: 18px 17px 14px 19px; }
     .curated-company-name { font-size: 16px; }
     .curated-note { margin: 0 16px 17px 19px; padding: 14px 15px; }
-    .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 6; }
+    .curated-note-body { font-size: 12.5px; -webkit-line-clamp: 5; }
+    .curated-sort { margin-left: 0; }
     .curated-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: auto 16px 0 19px; }
     .curated-metric-value { font-size: 15.5px; }
     .curated-card-foot { padding: 14px 17px 16px 19px; }
@@ -399,9 +522,44 @@
   {% endif %}
 
   {% if items %}
-  <section class="curated-grid" aria-label="取り上げた会社の一覧">
+  <div class="curated-controls">
+    <nav class="curated-tabs" aria-label="セクターで分ける">
+      <button class="curated-tab" type="button" data-sector="" aria-pressed="true">
+        すべて <span class="curated-tab-count">{{ items|length }}</span>
+      </button>
+      {% for name, count in sectors %}
+      <button class="curated-tab" type="button" data-sector="{{ name }}" aria-pressed="false">
+        {{ name }} <span class="curated-tab-count">{{ count }}</span>
+      </button>
+      {% endfor %}
+    </nav>
+    <div class="curated-filters">
+      {# 規模の呼び名は size-chip.js が唯一の正。ボタンは画面側で作る。 #}
+      <div class="curated-filter-group" id="curatedSizeChips" aria-label="規模で絞る">
+        <span class="curated-filter-label">規模</span>
+      </div>
+      <div class="curated-filter-group">
+        <button class="curated-chip" type="button" id="curatedHighDividend" aria-pressed="false">高配当だけ</button>
+      </div>
+      <label class="curated-sort">並び順
+        <select id="curatedSort">
+          <option value="updated">更新が新しい順</option>
+          <option value="score">スコアが高い順</option>
+          <option value="dividend">配当利回りが高い順</option>
+          <option value="market-cap">時価総額が大きい順</option>
+        </select>
+      </label>
+    </div>
+    <p class="curated-result" id="curatedResult" aria-live="polite"></p>
+  </div>
+
+  <section class="curated-grid" id="curatedGrid" aria-label="取り上げた会社の一覧">
     {% for item in items %}
-    <article class="curated-card">
+    <article class="curated-card"
+             data-sector="{{ item.sector or '' }}"
+             data-order="{{ loop.index0 }}"
+             data-market-cap="{{ item.market_cap if item.market_cap is not none else '' }}"
+             data-score="{{ item.match_rate if item.match_rate is not none else '' }}">
       <div class="curated-card-head">
         <div class="curated-company">
           <a class="curated-company-name" href="/stock/{{ item.company_code }}">
@@ -477,6 +635,9 @@
     </article>
     {% endfor %}
   </section>
+  <div class="curated-empty" id="curatedNoMatch" hidden>
+    <p>この条件に合う会社はまだありません。</p>
+  </div>
   {% elif table_ready %}
   <div class="curated-empty">
     <p>
@@ -555,8 +716,11 @@
       };
       var value = DividendBasis.value(row);
       if (value === null) return;
+      el.closest('.curated-card').setAttribute('data-dividend', String(value));   // 並び順用
       el.innerHTML = withUnit(value.toFixed(2), '%') + DividendBasis.marker(row);
       if (DividendBasis.isHigh(row)) {
+        // 絞り込み（高配当だけ）はカードの印を見る。タイルの色とは別に付ける。
+        el.closest('.curated-card').setAttribute('data-high-dividend', 'true');
         var metric = el.closest('.curated-metric');
         metric.classList.add('is-high-dividend');
         var tag = document.createElement('span');
@@ -564,6 +728,27 @@
         tag.textContent = '高配当';
         metric.querySelector('.curated-metric-label').appendChild(tag);
       }
+    });
+
+    // 抜粋では冒頭の番号付き見出し（「1. どんな会社？」など）を飛ばす。その前に
+    // 「7575 日本ライフライン｜運営からのメモ」のような短い題名の行（2行まで）が
+    // あれば一緒に飛ばす（会社名はカードの上に出ている）。40字を超える行は本文と
+    // みなして飛ばさない。
+    // ⚠️ 本文は消さずに span で包むだけ。textContent は全文のまま残るので、
+    //    「書き直す」に渡す現在の本文が欠けない。
+    var FIRST_HEADING = /^(?:[^\n]{1,40}\n+){0,2}?\s*[1１][.．、]\s*[^\n]{1,20}\n+/;
+    function renderNoteBody(el, body) {
+      var m = body.match(FIRST_HEADING);
+      el.textContent = '';
+      if (!m) { el.textContent = body; return; }
+      var heading = document.createElement('span');
+      heading.className = 'curated-note-heading';
+      heading.textContent = m[0];
+      el.appendChild(heading);
+      el.appendChild(document.createTextNode(body.slice(m[0].length)));
+    }
+    document.querySelectorAll('.curated-note-body').forEach(function (el) {
+      renderNoteBody(el, el.textContent);
     });
 
     // 「続きを読む」は文字数ではなく実際の高さで決める。画面幅や会社名の長さが
@@ -603,11 +788,163 @@
           title: button.getAttribute('data-name') + ' の見どころ'
         });
         if (body === null) return;
-        note.textContent = body;
+        renderNoteBody(note, body);
         var toggle = note.parentNode.querySelector('.curated-note-toggle');
         if (toggle) refreshToggle(toggle);
       });
     });
+
+    // ── 絞り込みと並び順 ────────────────────────────────────────────
+    // 全社をサーバーが描き終えているので、切り替えは画面の中だけで行う。
+    // 状態は URL に残す（企業ページから戻ったとき・URLを送ったときに同じ絞り込みで開く）。
+    var grid = document.getElementById('curatedGrid');
+    if (!grid) return;
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.curated-card'));
+    var tabList = document.querySelector('.curated-tabs');
+    var tabs = document.querySelectorAll('.curated-tab');
+    var sizeBox = document.getElementById('curatedSizeChips');
+    var highButton = document.getElementById('curatedHighDividend');
+    var sortSelect = document.getElementById('curatedSort');
+    var result = document.getElementById('curatedResult');
+    var noMatch = document.getElementById('curatedNoMatch');
+    var SORTS = ['updated', 'score', 'dividend', 'market-cap'];
+
+    // 規模の呼び名と境目は SizeChip が唯一の正。ここで線を持たない。
+    cards.forEach(function (card) {
+      card._size = SizeChip.label(card.getAttribute('data-market-cap'));
+    });
+    // 載っている会社がいる規模だけボタンにする（押しても0社、を作らない）
+    SizeChip.THRESHOLDS.forEach(function (t) {
+      if (!cards.some(function (c) { return c._size === t.label; })) return;
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'curated-chip';
+      button.setAttribute('data-size', t.label);
+      button.setAttribute('aria-pressed', 'false');
+      button.textContent = t.label;
+      sizeBox.appendChild(button);
+    });
+    if (!sizeBox.querySelector('[data-size]')) sizeBox.hidden = true;
+    // 高配当の会社が1社もいなければ、押しても0社になるボタンは出さない
+    if (!cards.some(function (c) { return c.hasAttribute('data-high-dividend'); })) {
+      highButton.parentNode.hidden = true;
+    }
+
+    var params = new URLSearchParams(location.search);
+    var state = {
+      sector: params.get('sector') || '',
+      sizes: (params.get('size') || '').split(',').filter(Boolean),
+      high: params.get('high') === '1',
+      sort: SORTS.indexOf(params.get('sort')) >= 0 ? params.get('sort') : 'updated'
+    };
+    // URLのセクターが今は無い（手で書いた・会社が外れた）ときは「すべて」に戻す
+    if (state.sector && !cards.some(function (c) {
+      return c.getAttribute('data-sector') === state.sector;
+    })) state.sector = '';
+
+    function orderOf(card) { return Number(card.getAttribute('data-order')); }
+    function valueOf(card, attr) {
+      var raw = card.getAttribute(attr);
+      return raw === null || raw === '' ? null : Number(raw);
+    }
+    // 大きい順。値の無い会社は後ろにまとめ、同じ値なら元の順（更新が新しい順）。
+    function descending(attr) {
+      return function (a, b) {
+        var x = valueOf(a, attr), y = valueOf(b, attr);
+        if (x === null || y === null) {
+          return (x === null) - (y === null) || orderOf(a) - orderOf(b);
+        }
+        return y - x || orderOf(a) - orderOf(b);
+      };
+    }
+    var COMPARE = {
+      updated: function (a, b) { return orderOf(a) - orderOf(b); },
+      score: descending('data-score'),
+      dividend: descending('data-dividend'),
+      'market-cap': descending('data-market-cap')
+    };
+
+    function matches(card) {
+      if (state.sector && card.getAttribute('data-sector') !== state.sector) return false;
+      if (state.sizes.length && state.sizes.indexOf(card._size) < 0) return false;
+      if (state.high && !card.hasAttribute('data-high-dividend')) return false;
+      return true;
+    }
+
+    function writeUrl() {
+      var p = new URLSearchParams(location.search);
+      [['sector', state.sector], ['size', state.sizes.join(',')],
+       ['high', state.high ? '1' : ''], ['sort', state.sort === 'updated' ? '' : state.sort]]
+        .forEach(function (kv) { if (kv[1]) p.set(kv[0], kv[1]); else p.delete(kv[0]); });
+      var qs = p.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+    }
+
+    function writeResult(shown) {
+      result.textContent = shown + '社を表示';
+      if (!state.sizes.length && !state.high) return;
+      var reset = document.createElement('button');
+      reset.type = 'button';
+      reset.textContent = '規模・高配当の条件をはずす';
+      reset.addEventListener('click', function () {
+        state.sizes = [];
+        state.high = false;
+        apply();
+      });
+      result.appendChild(reset);
+    }
+
+    function apply() {
+      tabs.forEach(function (tab) {
+        tab.setAttribute('aria-pressed', String(tab.getAttribute('data-sector') === state.sector));
+      });
+      sizeBox.querySelectorAll('[data-size]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(state.sizes.indexOf(b.getAttribute('data-size')) >= 0));
+      });
+      highButton.setAttribute('aria-pressed', String(state.high));
+      sortSelect.value = state.sort;
+
+      var shown = 0;
+      cards.slice().sort(COMPARE[state.sort]).forEach(function (card) {
+        grid.appendChild(card);            // 同じ要素を並べ直すだけ（作り直さない）
+        card.hidden = !matches(card);
+        if (!card.hidden) shown++;
+      });
+      noMatch.hidden = shown > 0;
+      writeResult(shown);
+      // 隠れていた間は高さが測れないので、出てきたカードの「続きを読む」を測り直す
+      grid.querySelectorAll('.curated-card:not([hidden]) .curated-note-toggle')
+        .forEach(refreshToggle);
+      writeUrl();
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        state.sector = tab.getAttribute('data-sector');
+        apply();
+      });
+    });
+    sizeBox.addEventListener('click', function (e) {
+      var button = e.target.closest('[data-size]');
+      if (!button) return;
+      var size = button.getAttribute('data-size');
+      var at = state.sizes.indexOf(size);
+      if (at >= 0) state.sizes.splice(at, 1); else state.sizes.push(size);
+      apply();
+    });
+    highButton.addEventListener('click', function () {
+      state.high = !state.high;
+      apply();
+    });
+    sortSelect.addEventListener('change', function () {
+      state.sort = sortSelect.value;
+      apply();
+    });
+
+    apply();
+    // URLでセクターを選んで開いたとき、スマホでそのタブが画面外に隠れないように
+    var current = document.querySelector('.curated-tab[aria-pressed="true"]');
+    if (current && state.sector) tabList.scrollLeft = current.offsetLeft - 16;
   })();
 </script>
 {% endblock %}

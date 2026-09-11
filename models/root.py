@@ -411,7 +411,7 @@ def curated():
     if codes:
         try:
             rows = (get_supabase_client().table('screened_latest')
-                    .select('company_code, company_name, industry_jp, '
+                    .select('company_code, company_name, industry_jp, sector, '
                             'stock_price, market_cap, equity_ratio, '
                             'per_forward, pbr, dividend_yield, '
                             'dividend_yield_forward, match_rate, score_complete')
@@ -427,8 +427,22 @@ def curated():
         items.append({**n, **info})
 
     return render_template('curated.html', items=items,
+                           sectors=curated_sectors(items),
                            table_ready=stock_notes.table_ready(),
                            is_admin=session.get('user_role') == 'admin')
+
+
+def curated_sectors(items):
+    """「取り上げた会社」のタブ。[(セクター名, 社数)] を多い順に。
+
+    ⚠️ 業種（industry_jp）ではなくセクターで分ける。業種は26社で11種類に割れ、
+       「情報・通信」と「情報・通信業」のような表記揺れもあって1社だけのタブが並ぶ。
+       セクターは最大11種類で頭打ちになり、ダッシュボードの「セクター」列とも同じ呼び方。
+    ⚠️ セクターが無い会社はタブを作らない（「すべて」には出る）。
+    """
+    from collections import Counter
+    counts = Counter(i.get('sector') for i in items if i.get('sector'))
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 @app.route('/membership')
