@@ -5970,8 +5970,23 @@ def last_job_finish(job_id):
 
 YFINANCE_BATCH_THREADS = 4
 
+# 1回のバッチに渡す銘柄数。
+#
+# ⚠️ **`threads=4` は効かない。** yfinance の threads は「銘柄ごとの並列取得」の
+#    上限で、こちらは銘柄をまとめて1つの文字列で渡すため、内部で銘柄ごとに
+#    スレッドが立つ。2026-09-12 の本番ログで、1回100銘柄の取得中に
+#    **スレッド104本・412MB** まで増えてプロセスが落ちていた
+#    （Yahooが遅いと、返らないスレッドが積み上がる）。
+#    待ちスレッドの上限を下げるには、1回に渡す銘柄数そのものを減らす。
+YFINANCE_BATCH_SIZE = 50
 
-def fetch_prices_batch(codes, chunk_size=100, stats=None):
+# 1銘柄あたりの待ち時間の上限（秒）。yfinance の既定は10秒だが、本番ログでは
+# 60〜115秒待っているものがあった（既定が効く経路と効かない経路がある）。
+# 明示して、返らない銘柄を待ち続けないようにする。取りこぼしは次の回で拾う。
+YFINANCE_TIMEOUT_SECONDS = 15
+
+
+def fetch_prices_batch(codes, chunk_size=YFINANCE_BATCH_SIZE, stats=None):
     """複数銘柄の最新終値をまとめて取得する。{code: price} を返す。
 
     1銘柄ずつ叩くと3,875件で約23分かかるうえ、リクエスト数もそのまま
@@ -6005,11 +6020,11 @@ def fetch_prices_batch(codes, chunk_size=100, stats=None):
         # 一過性の失敗をそのまま捨てるのは高くつく。
         for attempt in (1, 2):
             try:
-                # 自動並列はホストのCPU数×2まで広がる。Render Freeでは
-                # 100本超のスレッドが立ち、2026-09-08に512MBを超えてプロセスが
-                # 3回落ちた。外部I/Oは4本までに固定し、メモリ上限を守る。
+                # ⚠️ threads の指定だけでは足りない（YFINANCE_BATCH_SIZE の
+                #    コメント参照）。1回に渡す銘柄数と待ち時間の上限で抑える。
                 df = yf.download(' '.join(symbols), period='2d', progress=False,
-                                 threads=YFINANCE_BATCH_THREADS, auto_adjust=False)
+                                 threads=YFINANCE_BATCH_THREADS, auto_adjust=False,
+                                 timeout=YFINANCE_TIMEOUT_SECONDS)
                 break
             except Exception as e:
                 if attempt == 1:
