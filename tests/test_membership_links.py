@@ -16,19 +16,16 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 行き先はこの2つだけ。どちらも `from=note` が要る。
-#   /upgrade?from=note        … 公開の申込ページ（¥4,980）。会員限定ゲートからはここへ
-#   /upgrade/invite?from=note … 紹介限定の ¥11,000（models/root.py の INVITE_CHECKOUT_URL）
+# 2026-09-12: **申し込みはアプリの中で始める。** それまでは公開の段も招待の段も
+# gia2018.com の申込ページへ送っていたが、別ドメインで Cookie が別なので、
+# Company Note にログイン済みの人にもログインし直しを求めていた。
+# いまは /upgrade（アプリ内）→ Stripe の支払いページ → /upgrade/complete。
 #
-# ⚠️ **`from=note` を落とさないこと。** これが無いと、決済のあとGIA側のマイページに
-#    着地して、買ったはずの機能に戻る道が示されない。GIA側は
-#    gia-next の app/(form)/upgrade/ でこの値を受けている。
+# ⚠️ **申込の行き先に gia2018.com を増やさない。** 増やすと、その導線だけ
+#    ログインし直しが復活する。
 ALLOWED = {
-    'https://gia2018.com/upgrade?from=note',
-    'https://gia2018.com/upgrade/invite?from=note',
     # 解約・お支払いの手続き（Stripe カスタマーポータルへ入る口）。
-    # ⚠️ 申込の導線とは別物なので from=note は付けない。付けると
-    #    「Company Note から買いに来た人」と区別が付かなくなる。
+    # 申込ではないので、こちらは GIA 側のまま。
     'https://gia2018.com/members/app/settings',
 }
 
@@ -42,6 +39,9 @@ GIA_URL = re.compile(r"https://gia2018\.com[^\"'\s)]*")
 # （勉強会・アカウント設定・ウォッチリスト）を、別ドメインへ直接飛ばすのを
 # やめてここへ通した。/membership に価格と申込ボタンと見本があるため。
 INTERNAL_GATE = 'href="/membership"'
+
+# 申込ページ（アプリ内）。会員案内・招待ページのボタンはここへ集まる。
+INTERNAL_CHECKOUT = '/upgrade'
 
 
 def _strip_comments(text, path):
@@ -94,6 +94,14 @@ class MembershipLinkTest(unittest.TestCase):
         stray = sorted({f'{name}: {url}' for name, url in found if url not in ALLOWED})
         self.assertEqual(stray, [],
                          '会員申込の行き先がそろっていない: ' + ', '.join(stray))
+
+    def test_the_application_starts_inside_the_app(self):
+        """⚠️ 申込を別ドメインへ戻さない（ログインし直しが復活する）。"""
+        import app as app_module
+        root = __import__('models.root', fromlist=['root'])
+        self.assertEqual(root.INVITE_CHECKOUT_URL, INTERNAL_CHECKOUT)
+        for key, tier in app_module.MEMBERSHIP_TIERS.items():
+            self.assertEqual(tier['upgrade_url'], INTERNAL_CHECKOUT, key)
 
 
 if __name__ == '__main__':

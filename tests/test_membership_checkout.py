@@ -1,0 +1,145 @@
+# -*- coding: utf-8 -*-
+"""会員の申し込みを Company Note の中で始める（2026-09-12）。
+
+これまでは公開の段も招待の段も gia2018.com の申込ページへ送っていた。
+別ドメインなので Cookie が別＝Company Note にログイン済みの人にも
+ログインし直しを求めていた。申し込みはこのアプリの中で始め、支払いのときだけ
+Stripe へ出る。会員の印を書くのは、これまで通り gia-next の webhook。
+"""
+
+import os
+import unittest
+from unittest.mock import patch
+
+os.environ.setdefault('ENABLE_SCHEDULER', 'false')
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def read(name):
+    with open(os.path.join(ROOT, name), encoding='utf-8') as f:
+        return f.read()
+
+
+class MetadataTest(unittest.TestCase):
+    """⚠️ webhook が読む印。1つでも欠けると「課金は通ったのに会員にならない」。"""
+
+    def test_it_matches_what_the_webhook_reads(self):
+        source = read('membership_checkout.py')
+        for key in ("'purpose': 'membership'", "'plan': plan", "'user_id': user_id"):
+            self.assertIn(key, source, key)
+        # 更新・解約は subscription で飛んでくるので、そちらにも同じ印が要る
+        self.assertIn("'subscription_data': {'metadata': metadata}", source)
+
+    def test_the_plans_match_the_gia_side(self):
+        import membership_checkout
+        self.assertEqual(sorted(membership_checkout.PLAN_PRICE_ENV),
+                         ['invite', 'online'])
+
+    def test_an_unknown_plan_is_refused(self):
+        import membership_checkout
+        with self.assertRaises(membership_checkout.CheckoutUnavailable):
+            membership_checkout._price_id('terakoya')
+
+
+class GuardTest(unittest.TestCase):
+    """二重契約と、状態が読めないときの扱い。"""
+
+    def setUp(self):
+        import membership_checkout
+        self.mc = membership_checkout
+
+    def _create(self, membership):
+        with patch.object(self.mc.gia_identity, 'get_membership',
+                          return_value=membership):
+            return self.mc.create_checkout(
+                'online', 'user-1', 'a@example.com', 'https://x/ok', 'https://x/ng')
+
+    def test_an_active_member_is_refused(self):
+        with self.assertRaises(self.mc.AlreadyMember):
+            self._create({'plan': 'online', 'subscription_status': 'active',
+                          'error': False})
+
+    def test_it_stops_when_the_state_cannot_be_read(self):
+        """⚠️ 分からないまま作ると、同じ人に2本の契約が立つ。"""
+        with self.assertRaises(self.mc.CheckoutUnavailable):
+            self._create({'plan': None, 'subscription_status': None, 'error': True})
+
+    def test_a_missing_key_is_reported_as_unavailable(self):
+        """設定漏れで生の500を出さない（画面は「準備中」に倒す）。"""
+        with patch.dict(os.environ, {self.mc.SECRET_ENV: ''}, clear=False):
+            with self.assertRaises(self.mc.CheckoutUnavailable):
+                self._create({'plan': None, 'subscription_status': None,
+                              'error': False})
+
+
+class RouteTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import app as app_module
+        cls.app_module = app_module
+        app_module.app.config['TESTING'] = True
+        cls.root = __import__('models.root', fromlist=['root'])
+
+    def _client(self, member=False):
+        client = self.app_module.app.test_client()
+        with client.session_transaction() as sess:
+            sess['user_id'] = 'test-user'
+            sess['user_email'] = 'test@example.com'
+            sess['user_role'] = 'user'
+        for target, name in ((self.app_module, 'is_member_session'),
+                             (self.root, 'is_member')):
+            patcher = patch.object(target, name, return_value=member)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return client
+
+    def test_it_sends_the_person_to_stripe(self):
+        with patch('membership_checkout.create_checkout',
+                   return_value='https://checkout.stripe.com/c/pay/cs_test_123') as create:
+            response = self._client().get('/upgrade/checkout')
+        self.assertEqual(response.status_code, 303)
+        self.assertIn('checkout.stripe.com', response.headers['Location'])
+        # 戻り先はこのアプリの中
+        kwargs = create.call_args.kwargs
+        self.assertIn('/upgrade/complete', kwargs['success_url'])
+        self.assertIn('/upgrade', kwargs['cancel_url'])
+
+    def test_the_plan_is_decided_by_the_server(self):
+        """⚠️ 画面から段を受け取らない。受けると招待の段を誰でも叩ける。"""
+        source = read(os.path.join('models', 'root.py'))
+        start = source.index('def upgrade_checkout():')
+        block = source[start:source.index('def upgrade_complete():')]
+        self.assertNotIn("request.args.get('plan')", block)
+        self.assertIn('get_invited_plan', block)
+
+    def test_it_needs_a_login(self):
+        """⚠️ 戻り先はここ（押した場所）。申込ページに戻すと、もう一度押させる。"""
+        response = self.app_module.app.test_client().get('/upgrade/checkout')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], '/login?next=/upgrade/checkout')
+
+    def test_members_are_not_charged_twice(self):
+        response = self._client(member=True).get('/upgrade/checkout')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/dashboard', response.headers['Location'])
+
+    def test_a_failure_falls_back_to_a_calm_message(self):
+        import membership_checkout
+        with patch('membership_checkout.create_checkout',
+                   side_effect=membership_checkout.CheckoutUnavailable('鍵が無い')):
+            response = self._client().get('/upgrade/checkout')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/upgrade', response.headers['Location'])
+
+    def test_the_completion_page_waits_for_the_webhook(self):
+        """⚠️ 支払い直後は会員の印がまだ付いていない。失敗と読ませない。"""
+        with patch('membership_checkout.session_is_paid', return_value=True):
+            body = self._client().get(
+                '/upgrade/complete?session_id=cs_test_1').get_data(as_text=True)
+        self.assertIn('お支払いを確認しました', body)
+        self.assertIn('反映', body)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -156,6 +156,8 @@
 
             <!-- 登録フォーム -->
             <form action="/register" method="post" class="space-y-5" id="registerForm">
+                {# 申込の途中で登録した人を元の画面へ戻す（login.html と同じ理由）。 #}
+                {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
                 <div>
                     <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">名前</label>
                     <input type="text" name="name" class="reg-input" placeholder="表示名を入力"

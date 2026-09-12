@@ -437,8 +437,11 @@ FREE_SCREEN_ROWS = 3
 #    金額の正本は Stripe の Price。ここは表示用の写しなので、変えるときは
 #    必ず Stripe 側と突き合わせる。
 #
-# ⚠️ **`from=note` を落とさないこと。** 落とすと決済のあとGIA側のマイページに
-#    着地して、買ったはずの機能に戻る道が示されない（gia-next 側がこの値を受ける）。
+# ⚠️ **申込の行き先はアプリの中（/upgrade）。** 2026-09-12 まで gia2018.com の
+#    申込ページ（?from=note 付き）へ送っていたが、別ドメインで Cookie が
+#    別なので、Company Note にログイン済みの人にもログインし直しを求めていた。
+#    決済は Company Note が Stripe に作り、支払いのときだけ Stripe のページに出る。
+#    会員の印を書くのは、これまで通り gia-next の webhook。
 #
 # online … 公開の段。誰でも申し込める
 # invite … 招待された人だけの段。URLを個別に渡す運用で、募集画面には出さない。
@@ -449,7 +452,7 @@ FREE_SCREEN_ROWS = 3
 MEMBERSHIP_TIERS = {
     'online': {
         'label': 'オンライン会員',
-        'upgrade_url': 'https://gia2018.com/upgrade?from=note',
+        'upgrade_url': '/upgrade',
         'price_yen': 4980,          # 税別
         'price_yen_tax_in': 5478,   # 税込
         'tax_basis': '税別',
@@ -459,13 +462,15 @@ MEMBERSHIP_TIERS = {
     },
     'invite': {
         'label': 'ご招待会員',
-        'upgrade_url': 'https://gia2018.com/upgrade/invite?from=note',
+        'upgrade_url': '/upgrade',
         'price_yen': 11000,         # 招待の段は税込表示（/invite と揃える）
         'price_yen_tax_in': 11000,
         'tax_basis': '税込',
         'cta': 'ご招待の内容で申し込む',
+        # ⚠️ オンライン会員との差は「リアルで集まる機会があるかどうか」だけ
+        #    （2026-09-12 五島さん確認）。講義の録画は両方に含まれるので、
+        #    ここに書くと差が無いものを差のように見せてしまう。
         'extras': [
-            '講義録画の視聴（参加できなかった回も、あとから見られます）',
             'ご紹介者のみのオフライン企業研究会（月1回を基本にご案内）',
         ],
         # ⚠️ **実費のことを書かずに金額だけ出さない。** /invite には

@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block title %}会員のお申し込み - Company Note{% endblock %}
+{% block meta_description %}Company Note の会員申し込み。銘柄を横断して選ぶ機能と、企業の中身を深く読む機能が使えるようになります。{% endblock %}
+
+{% block content %}
+{#
+  Company Note の中の申込ページ（2026-09-12）。
+
+  ⚠️ **gia2018.com の /upgrade へ送らない。** あちらは、セミナーや人の繋がりから
+     来た人に向けた別のページで、言葉づかいも違う。しかも別ドメインなので
+     ログインし直しを求められる（Cookieはドメインごとに別）。
+     Company Note を見に来た人は、ここで申し込んで、ここへ戻ってくる。
+     決済の仕組み（価格・二重契約の防止・会員の印）は GIA 側のものを使う。
+
+  ⚠️ **金額をここに直書きしない。** 同じ数字が GIA の /upgrade・/plans・
+     招待ページ・/membership にもある。直書きすると値上げのときに漏れる
+     （tests/test_upgrade_page.py が見張っている）。
+#}
+<div style="max-width: 720px; margin: 0 auto; padding: 48px 20px 64px;">
+
+  <div style="text-align:center; margin-bottom:32px;">
+    <div style="width:40px; height:2px; background:#1b4332; margin:0 auto 20px;"></div>
+    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.08em; margin-bottom:12px;">
+      Company Note 会員
+    </p>
+    <h1 style="font-size:24px; font-weight:600; color:#1a1a1a; letter-spacing:0.02em; margin-bottom:12px;">
+      会社の数字を読む力をつける
+    </h1>
+    <p style="font-size:14px; color:#737373; line-height:1.9;">
+      銘柄を横断して選ぶことと、企業の中身を深く読むこと。<br>
+      その2つが開きます。
+    </p>
+  </div>
+
+  <div style="text-align:center; background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:24px; margin-bottom:24px;">
+    <p style="font-size:11.5px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:8px;">{{ tier_label }}</p>
+    <p style="margin:0; color:#1a1a1a;">
+      <span style="font-size:30px; font-weight:700; letter-spacing:0.01em;">&yen;{{ '{:,}'.format(price_yen) }}</span>
+      <span style="font-size:13px; color:#737373;"> / 月（{{ tax_basis }}）</span>
+    </p>
+    <p style="font-size:11.5px; color:#a3a3a3; margin-top:6px;">
+      {% if price_yen_tax_in != price_yen %}税込 &yen;{{ '{:,}'.format(price_yen_tax_in) }}／{% endif %}毎月自動更新・いつでも解約できます
+    </p>
+  </div>
+
+  <div style="background:#fff; border:1px solid #ebebeb; border-radius:12px; padding:28px 24px; margin-bottom:24px;">
+    <p style="font-size:12px; color:#a3a3a3; letter-spacing:0.1em; margin-bottom:16px;">会員になると使えるもの</p>
+    <ul style="list-style:none; padding:0; margin:0;">
+      {% for item in member_features %}
+      <li style="display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f5f5f3;">
+        <span style="color:#2d6a4f; font-size:13px; line-height:1.7;">◆</span>
+        <span style="font-size:14px; color:#525252; line-height:1.7;">{{ item }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {# 招待された方だけ。アプリの外の中身（講義録画・研究会）はここでしか出ない。 #}
+  {% if invited_extras %}
+  <div style="background:#fff; border:1px solid #d5e0d9; border-radius:12px; padding:28px 24px; margin-bottom:24px;">
+    <p style="font-size:12px; color:#1b4332; letter-spacing:0.1em; margin-bottom:16px;">ご招待の方に含まれるもの</p>
+    <ul style="list-style:none; padding:0; margin:0;">
+      {% for item in invited_extras %}
+      <li style="display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f5f5f3;">
+        <span style="color:#1b4332; font-size:13px; line-height:1.7;">◆</span>
+        <span style="font-size:14px; color:#525252; line-height:1.7;">{{ item }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% for note in tier_notes %}
+    <p style="font-size:11.5px; color:#a3a3a3; line-height:1.8; margin-top:14px;">{{ note }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="text-align:center;">
+    {# 押した先もこのアプリの中。決済の画面はここに埋め込む（別サイトへ飛ばさない）。 #}
+    <a href="{{ checkout_path }}"
+       style="display:inline-flex; align-items:center; justify-content:center; gap:8px;
+              background:#1b4332; color:#fff; text-decoration:none;
+              font-size:14px; font-weight:600; letter-spacing:0.06em;
+              padding:14px 32px; border-radius:10px;">
+      {{ tier_cta }}
+    </a>
+    <p style="font-size:11.5px; color:#a3a3a3; margin-top:14px; line-height:1.8;">
+      お支払いはクレジットカード（Stripe）です。<br>
+      カード番号は Stripe の画面で扱われ、Company Note のサーバーは受け取りません。
+    </p>
+    <p style="margin-top:18px;">
+      <a href="/report/sample" style="font-size:13px; color:#1b4332; text-decoration:none; border-bottom:1px solid #d5e0d9; padding-bottom:2px;">
+        企業分析レポートの見本を読む
+      </a>
+    </p>
+  </div>
+
+  <div style="text-align:center; margin-top:32px;">
+    <a href="/membership" style="font-size:13px; color:#525252; text-decoration:none; border-bottom:1px solid #ebebeb; padding-bottom:2px;">
+      会員のご案内に戻る
+    </a>
+  </div>
+
+</div>
+{% endblock %}

@@ -20,7 +20,8 @@ class InvitePageTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn('¥11,000', body)
-        self.assertIn('https://gia2018.com/upgrade/invite', body)
+        # 2026-09-12: 申し込みはアプリの中で始める（別ドメインだとログインし直しになる）
+        self.assertIn('href="/upgrade"', body)
         self.assertIn('招待を受け取って参加する', body)
         self.assertNotIn('いますぐ参加する', body)
         self.assertNotIn('会員のご案内を見る', body)

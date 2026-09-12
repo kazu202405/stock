@@ -138,6 +138,9 @@
 
             <!-- ログインフォーム -->
             <form action="/login" method="post" class="space-y-5">
+                {# 申込の途中でログインを挟んだ人を元の画面へ戻す。
+                   POSTではURLのクエリが消えるので、フォームに持たせる。 #}
+                {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
                 <div>
                     <label class="block text-sm font-medium mb-2" style="color: var(--lp-text);">メールアドレス</label>
                     <input type="email" name="email" class="login-input" placeholder="mail@example.com"

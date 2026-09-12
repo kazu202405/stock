@@ -114,8 +114,10 @@ class InvitedPlanTest(unittest.TestCase):
         public = self.app_module.MEMBERSHIP_TIERS['online']
         self.assertIn(f"{public['price_yen']:,}", body)
         self.assertIn(public['upgrade_url'], body)
-        self.assertNotIn(self.app_module.MEMBERSHIP_TIERS['invite']['upgrade_url'],
-                         body)
+        # 2026-09-12: 申込の行き先は段によらず同じ（/upgrade）になったので、
+        # 「どの段を見せているか」は金額で見る。招待の金額が混ざっていないこと。
+        self.assertNotIn(
+            f"{self.app_module.MEMBERSHIP_TIERS['invite']['price_yen']:,}", body)
 
     def test_the_invited_tier_is_not_cheaper_by_accident(self):
         """招待の段が公開の段より安くなったら、招待は値引きになっている。
@@ -168,7 +170,7 @@ class InvitedPlanTest(unittest.TestCase):
         self.assertNotIn('まず無料で中を見る', body)
         self.assertNotIn('会員のご案内を見る', body)
         self.assertIn('招待を受け取って参加する', body)
-        self.assertIn('https://gia2018.com/upgrade/invite?from=note', body)
+        self.assertIn('href="/upgrade"', body)
 
     def test_the_free_door_exists_for_new_visitors(self):
         body = self._client().get('/invite').get_data(as_text=True)
@@ -176,7 +178,7 @@ class InvitedPlanTest(unittest.TestCase):
         self.assertIn('/register', body)
         self.assertIn('/login', body)
         # 有料の扉も消さない
-        self.assertIn('https://gia2018.com/upgrade/invite', body)
+        self.assertIn('href="/upgrade"', body)
 
 
 if __name__ == '__main__':

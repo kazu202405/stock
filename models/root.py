@@ -274,7 +274,23 @@ INVITE_HEADLINES = {
 # ⚠️ **from=note を落とさないこと。** これが無いと、決済のあと GIA 側の
 #    マイページに着地して、買った本人が何を買ったのか分からなくなる。
 #    受け取る側は gia-next の /upgrade/[plan] と /upgrade/success。
-INVITE_CHECKOUT_URL = 'https://gia2018.com/upgrade/invite?from=note'
+# 招待された方の申し込みも、このアプリの中で始める（2026-09-12）。
+# ⚠️ 以前は gia2018.com/upgrade/invite へ送っていたが、別ドメインなので
+#    Company Note にログイン済みの人にもログインし直しを求めていた。
+#    段（invite / online）はサーバーが決めるので、URLに段を書かない。
+INVITE_CHECKOUT_URL = '/upgrade'
+
+# 会員になると使えるもの。会員案内（/membership）と申込ページ（/upgrade）で
+# 同じものを出す。⚠️ 2箇所に書くと、機能を足したとき片方が古いまま残る。
+MEMBER_FEATURES = [
+    'ホーム（好調企業・高配当企業・テクニカル分析）',
+    'スクリーナー（全銘柄からの絞り込み・並べ替え）',
+    '企業分析レポート',
+    '銘柄ページの数年分のfinancials・キャッシュフロー・財務健全性',
+    '会社予想・成長率・ROA と、12項目の合致度スコアの内訳',
+    # アプリの外の特典。2026-09-12 五島さん確認：オンライン会員に含まれる。
+    '講義の録画（参加できなかった回も、あとから見られます）',
+]
 
 # /invite が配っている段。app.py の MEMBERSHIP_TIERS のキーと合わせる
 # （合っていないと申込ページの行き先が公開の段に落ちる）。
@@ -482,14 +498,115 @@ def membership():
                            tax_basis=tier['tax_basis'],
                            invited_extras=tier['extras'],
                            tier_notes=tier['notes'],
-                           member_features=[
-        'ホーム（好調企業・高配当企業・テクニカル分析）',
-        'スクリーナー（全銘柄からの絞り込み・並べ替え）',
-        '企業分析レポート',
-        '決算情報（決算月ごとの銘柄一覧）',
-        '銘柄ページの数年分のfinancials・キャッシュフロー・財務健全性',
-        '会社予想・成長率・ROA と、12項目の合致度スコアの内訳',
-                           ])
+                           member_features=MEMBER_FEATURES)
+
+
+@app.route('/upgrade')
+def upgrade():
+    """Company Note の中の申込ページ（2026-09-12）。
+
+    ⚠️ **gia2018.com/upgrade へ送らない。** あちらは、セミナーや人の繋がりから
+       来た人に向けた別のページで、言葉づかいも違う。しかも別ドメインなので
+       Cookieが別で、Company Note にログイン済みの人にもログインし直しを
+       求めていた。Company Note を見に来た人は、ここで申し込んで、ここへ戻る。
+
+    決済の仕組み（価格・二重契約の防止・会員の印を書く webhook）は
+    gia2018.com 側のものを使う。2箇所で作ると、どちらが正しいか分からなくなる。
+    """
+    # ⚠️ **ログインを先に求めない。** 申し込むか決めるための中身（何が使えるか・
+    #    いくらか）は、アカウントが無い人にも見せる。トップの料金欄からも
+    #    ここへ来るので、ログイン必須にすると「読む前にログイン画面」になる
+    #    （GIA側で同じ失敗をしている）。ログインが要るのは押したあと。
+    if session.get('user_id'):
+        # 会員になった直後の人がここへ来ることがあるので、最新の状態を見る。
+        gia_identity.clear_membership_cache(session.get('user_id'))
+        if is_member():
+            return redirect('/dashboard')
+
+    from app import (DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_TIERS,
+                     membership_tier_for)
+    from supabase_client import get_invited_plan
+
+    tier = membership_tier_for(get_invited_plan(session.get('user_id'))
+                               if session.get('user_id') else None)
+    # 公開の段も招待の段も、申し込みはこのアプリの中で始める。
+    # ⚠️ gia2018.com の申込ページへ送らない（別ドメインでログインし直しになる）。
+    return render_template('upgrade.html',
+                           checkout_path='/upgrade/checkout',
+                           price_yen=tier['price_yen'],
+                           price_yen_tax_in=tier['price_yen_tax_in'],
+                           tier_label=tier['label'],
+                           tier_cta=tier['cta'],
+                           tax_basis=tier['tax_basis'],
+                           invited_extras=tier['extras'],
+                           tier_notes=tier['notes'],
+                           member_features=MEMBER_FEATURES)
+
+
+@app.route('/upgrade/checkout')
+def upgrade_checkout():
+    """Stripe の支払いページを作って送り出す（2026-09-12）。
+
+    支払いの画面だけは Stripe 側に出る（カード番号をこちらのサーバーが
+    受け取らないため）。終わったら /upgrade/complete に戻る。
+    公開キー（pk_live_）が用意できたら、この画面の中に埋め込む形へ変えられる。
+
+    ⚠️ **どの段を売るかを画面から受け取らない。** クエリで受けると、招待を
+       持たない人が招待の段のURLを叩けてしまう。段はサーバーが決める。
+    """
+    if not session.get('user_id'):
+        # ⚠️ 戻り先は申込ページではなく**ここ**にする。申込ページに戻すと、
+        #    ログインした人がもう一度ボタンを押すことになる。
+        return redirect('/login?next=/upgrade/checkout')
+
+    gia_identity.clear_membership_cache(session.get('user_id'))
+    if is_member():
+        return redirect('/dashboard')
+
+    import membership_checkout
+    from app import membership_tier_for
+    from supabase_client import get_invited_plan
+
+    tier_key = (get_invited_plan(session.get('user_id')) or '').strip().lower()
+    if tier_key not in membership_checkout.PLAN_PRICE_ENV:
+        tier_key = 'online'
+
+    root_url = request.url_root.rstrip('/')
+    try:
+        url = membership_checkout.create_checkout(
+            tier_key,
+            session.get('user_id'),
+            session.get('user_email') or '',
+            success_url=root_url + '/upgrade/complete?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=root_url + '/upgrade?canceled=1')
+    except membership_checkout.AlreadyMember:
+        # webhook の反映待ちでここに来ることがある。案内は会員案内に任せる。
+        flash('すでにご契約中です。反映まで少しお待ちください。', 'error')
+        return redirect('/membership')
+    except membership_checkout.CheckoutUnavailable as e:
+        # ⚠️ 生の例外文を画面に出さない。原因はログに残す。
+        print('会員の決済を開始できません: %s' % e)
+        flash('ただいま決済の準備中です。少し時間をおいてお試しください。', 'error')
+        return redirect('/upgrade')
+    return redirect(url, code=303)
+
+
+@app.route('/upgrade/complete')
+def upgrade_complete():
+    """支払いのあとの戻り先（2026-09-12）。
+
+    ⚠️ **会員の印は webhook が書く。** 支払い直後はまだ付いていないことが
+       あるので、ここでは「支払いが終わったか」だけを Stripe に確認し、
+       反映待ちの場合はその旨を出す（失敗と読ませない）。
+    """
+    if not session.get('user_id'):
+        return redirect('/login?next=/upgrade/complete')
+
+    import membership_checkout
+    paid = membership_checkout.session_is_paid(request.args.get('session_id') or '')
+    gia_identity.clear_membership_cache(session.get('user_id'))
+    return render_template('upgrade_complete.html',
+                           paid=paid, is_member_now=is_member())
 
 
 @app.route('/dashboard')
@@ -655,6 +772,30 @@ def community():
     return render_template('community.html')
 
 
+def safe_next_path():
+    """`?next=` （またはフォームの next）を、アプリ内のパスに限って受ける。
+
+    申込の途中でログイン・新規登録を挟んだ人を、元の画面へ戻すために使う。
+    これが無いと、申し込もうとした人がログイン後にホームへ落ちる。
+
+    ⚠️ **外部URLを受けない。** 受けるとフィッシングの踏み台になる。
+       `//example.com` はブラウザが別ドメインとして扱うので弾く。
+    """
+    raw = (request.args.get('next') or request.form.get('next') or '').strip()
+    if not raw.startswith('/') or raw.startswith('//'):
+        return ''
+    return raw
+
+
+@app.context_processor
+def inject_next_path():
+    """ログイン・登録のフォームが next を持ち回れるようにする。
+
+    POST では URL のクエリが消えるので、フォームに埋めておく必要がある。
+    """
+    return {'next_path': safe_next_path()}
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """ログインページ"""
@@ -698,7 +839,8 @@ def login():
             session.pop('guest_user_id', None)
 
         _store_session(user, account['email'])
-        return redirect(home_path())
+        # 申込の途中でログインを挟んだ人は、元の画面（/upgrade など）へ戻す。
+        return redirect(safe_next_path() or home_path())
 
     return render_template('login.html')
 
@@ -810,7 +952,8 @@ def register():
                 session.pop('guest_user_id', None)
 
             _store_session(user, account['email'])
-            return redirect(home_path())
+            # 申込の途中で登録した人は、元の画面（/upgrade など）へ戻す。
+            return redirect(safe_next_path() or home_path())
         except gia_identity.GiaIdentityUnavailable as e:
             print(f'GIA接続の設定不備: {e}')
             flash('登録機能の設定が完了していません。管理者にご連絡ください。', 'error')
