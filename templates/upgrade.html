@@ -90,8 +90,10 @@
   {% endif %}
 
   <div style="text-align:center;">
-    {# 押した先もこのアプリの中。決済の画面はここに埋め込む（別サイトへ飛ばさない）。 #}
-    <a href="{{ checkout_path }}"
+    {# 押すとサーバーがStripeの決済を作ってから移動するので、1〜3秒かかる。
+       ⚠️ その間、押しても何も起きないように見えるので、押した合図を出して
+          二度押しを止める（連打しても二重契約にはならないが、不安にさせる）。 #}
+    <a id="checkoutButton" href="{{ checkout_path }}"
        style="display:inline-flex; align-items:center; justify-content:center; gap:8px;
               background:#1b4332; color:#fff; text-decoration:none;
               font-size:14px; font-weight:600; letter-spacing:0.06em;
@@ -116,4 +118,37 @@
   </div>
 
 </div>
+
+<script>
+  // 決済の用意ができるまで1〜3秒かかる。押した合図を出し、二度押しを止める。
+  // ⚠️ リンクのまま（JavaScriptが動かない環境でも押せる）ことを崩さない。
+  //    失敗して同じ画面に戻ったときは、読み込み直しでボタンは元に戻る。
+  (function () {
+    var button = document.getElementById('checkoutButton');
+    if (!button) return;
+    var label = button.textContent;
+
+    // ⚠️ ブラウザの「戻る」で帰ってきたとき、押せないままのボタンが残る
+    //    （キャッシュから戻すと click より前の状態に戻らない）。ここで戻す。
+    window.addEventListener('pageshow', function () {
+      button.dataset.started = '';
+      button.textContent = label;
+      button.style.opacity = '';
+      button.style.pointerEvents = '';
+      button.removeAttribute('aria-disabled');
+    });
+
+    button.addEventListener('click', function (event) {
+      if (button.dataset.started === '1') {
+        event.preventDefault();          // 2回目以降は進ませない
+        return;
+      }
+      button.dataset.started = '1';
+      button.textContent = '決済画面をご用意しています…';
+      button.style.opacity = '0.7';
+      button.style.pointerEvents = 'none';
+      button.setAttribute('aria-disabled', 'true');
+    });
+  })();
+</script>
 {% endblock %}

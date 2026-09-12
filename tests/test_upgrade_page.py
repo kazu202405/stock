@@ -111,6 +111,29 @@ class UpgradePageTest(unittest.TestCase):
         self.assertEqual(source.count('member_features=MEMBER_FEATURES'), 2)
 
 
+class DoubleClickGuardTest(unittest.TestCase):
+    """決済の用意に1〜3秒かかるので、押した合図を出して二度押しを止める。
+
+    ⚠️ 連打しても二重契約にはならない（同じ引数なら同じセッションを使い回す）。
+       ここで直すのは「押しても反応が無いように見える」こと。
+    ⚠️ リンクのままにする。JavaScriptが動かない環境でも押せること。
+    """
+
+    def setUp(self):
+        self.template = read(TEMPLATE)
+
+    def test_the_button_shows_that_it_started(self):
+        self.assertIn("button.textContent = '決済画面をご用意しています…'", self.template)
+
+    def test_the_second_click_is_blocked(self):
+        self.assertIn("dataset.started === '1'", self.template)
+        self.assertIn('event.preventDefault()', self.template)
+
+    def test_it_is_still_a_plain_link(self):
+        """⚠️ JavaScript前提にしない（押せなくなる環境を作らない）。"""
+        self.assertIn('<a id="checkoutButton" href="{{ checkout_path }}"', self.template)
+
+
 class TierComesFromTheEntranceTest(unittest.TestCase):
     """⚠️ 段は「人」ではなく「入口」で決まる（2026-09-12 五島さん確認）。
 
