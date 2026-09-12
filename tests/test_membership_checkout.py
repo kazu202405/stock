@@ -153,6 +153,23 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/upgrade', response.headers['Location'])
 
+    def test_the_reason_is_shown_on_the_page(self):
+        """⚠️ 黙って同じ画面に戻さない（2026-09-12 本番で実際に起きた）。
+
+        決済を作れないとき /upgrade へ戻しているが、申込ページが
+        メッセージを出していなかったため、押した人には「押しても同じ画面に
+        戻るだけ」に見えていた。原因が分からず、こちらにも伝わらない。
+        """
+        import membership_checkout
+        client = self._client()
+        with patch('membership_checkout.create_checkout',
+                   side_effect=membership_checkout.CheckoutUnavailable('鍵が無い')):
+            body = client.get('/upgrade/checkout',
+                              follow_redirects=True).get_data(as_text=True)
+        self.assertIn('決済の準備中', body)
+        # テンプレート側にメッセージの出し口があること（次に消されないように）
+        self.assertIn('get_flashed_messages', read(os.path.join('templates', 'upgrade.html')))
+
     def test_the_completion_page_waits_for_the_webhook(self):
         """⚠️ 支払い直後は会員の印がまだ付いていない。失敗と読ませない。"""
         with patch('membership_checkout.session_is_paid', return_value=True):
