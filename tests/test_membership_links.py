@@ -96,10 +96,15 @@ class MembershipLinkTest(unittest.TestCase):
                          '会員申込の行き先がそろっていない: ' + ', '.join(stray))
 
     def test_the_application_starts_inside_the_app(self):
-        """⚠️ 申込を別ドメインへ戻さない（ログインし直しが復活する）。"""
+        """⚠️ 申込を別ドメインへ戻さない（ログインし直しが復活する）。
+
+        2026-09-12: 段は入口で決まるので、招待ページからは ?plan=invite を付ける。
+        """
         import app as app_module
         root = __import__('models.root', fromlist=['root'])
-        self.assertEqual(root.INVITE_CHECKOUT_URL, INTERNAL_CHECKOUT)
+        self.assertTrue(root.INVITE_CHECKOUT_URL.startswith(INTERNAL_CHECKOUT),
+                        root.INVITE_CHECKOUT_URL)
+        self.assertIn('plan=invite', root.INVITE_CHECKOUT_URL)
         for key, tier in app_module.MEMBERSHIP_TIERS.items():
             self.assertEqual(tier['upgrade_url'], INTERNAL_CHECKOUT, key)
 

@@ -83,10 +83,16 @@ class InvitedPlanTest(unittest.TestCase):
 
     # ── 本体：無料をまたいで残るか ────────────────────────
 
-    def test_invited_visitor_who_signs_up_free_still_sees_the_invited_tier(self):
-        """/invite → （無料の）ログイン → /membership に11,000円の段が出る。
+    def test_the_invited_entrance_survives_a_free_signup(self):
+        """/invite → （無料の）ログイン → 招待ページから¥11,000で申し込める。
 
         同じブラウザで続けて操作する、いちばん普通の流れをそのまま通す。
+
+        ⚠️ 2026-09-12 にルールが変わった。**段は「人」ではなく「入口」で決まる。**
+           以前はここで「/membership に¥11,000が出ること」を見ていたが、
+           いまアプリ内のゲート（/membership）は公開の段（¥4,980）を出す。
+           招待（¥11,000・リアルの会あり）は /invite からの入口でだけ案内する。
+           招待の印を本人の行へ移す仕組み自体は、この見張りのまま残す。
         """
         client = self._client()
         client.get('/invite')  # 未ログインなのでセッションに預かる
@@ -97,13 +103,16 @@ class InvitedPlanTest(unittest.TestCase):
         self.assertEqual(self.stored.get(USER_ID), self.root.INVITE_PLAN,
                          '招待の印が本人の行に移っていない')
 
-        body = client.get('/membership').get_data(as_text=True)
-
         invited = self.app_module.MEMBERSHIP_TIERS['invite']
+        body = client.get('/invite').get_data(as_text=True)
         self.assertIn(f"{invited['price_yen']:,}", body,
-                      '招待された人の会員案内に招待の金額が出ていない')
-        self.assertIn(invited['upgrade_url'], body,
-                      '申込先が招待の段になっていない')
+                      '招待ページに招待の金額が出ていない')
+        self.assertIn('href="/upgrade?plan=invite"', body,
+                      '招待ページの申込ボタンが招待の段を指していない')
+
+        page = client.get('/upgrade?plan=invite').get_data(as_text=True)
+        self.assertIn(f"{invited['price_yen']:,}", page,
+                      '招待の入口から進んだ申込ページに招待の金額が出ていない')
 
     def test_a_plain_free_user_still_sees_the_public_tier(self):
         """招待を踏んでいない人まで11,000円にしない。"""
@@ -170,7 +179,7 @@ class InvitedPlanTest(unittest.TestCase):
         self.assertNotIn('まず無料で中を見る', body)
         self.assertNotIn('会員のご案内を見る', body)
         self.assertIn('招待を受け取って参加する', body)
-        self.assertIn('href="/upgrade"', body)
+        self.assertIn('href="/upgrade?plan=invite"', body)
 
     def test_the_free_door_exists_for_new_visitors(self):
         body = self._client().get('/invite').get_data(as_text=True)
@@ -178,7 +187,7 @@ class InvitedPlanTest(unittest.TestCase):
         self.assertIn('/register', body)
         self.assertIn('/login', body)
         # 有料の扉も消さない
-        self.assertIn('href="/upgrade"', body)
+        self.assertIn('href="/upgrade?plan=invite"', body)
 
 
 if __name__ == '__main__':

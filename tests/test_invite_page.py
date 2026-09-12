@@ -20,8 +20,9 @@ class InvitePageTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn('¥11,000', body)
-        # 2026-09-12: 申し込みはアプリの中で始める（別ドメインだとログインし直しになる）
-        self.assertIn('href="/upgrade"', body)
+        # 2026-09-12: 申し込みはアプリの中で始める（別ドメインだとログインし直しになる）。
+        # 段は入口で決まるので、招待ページからは招待の段へ進む。
+        self.assertIn('href="/upgrade?plan=invite"', body)
         self.assertIn('招待を受け取って参加する', body)
         self.assertNotIn('いますぐ参加する', body)
         self.assertNotIn('会員のご案内を見る', body)

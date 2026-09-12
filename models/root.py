@@ -162,6 +162,10 @@ def index():
     """ランディングページ"""
     # 料金はLPに直書きしない。公開プランの正本は app.py の
     # MEMBERSHIP_TIERS で、決済画面・会員案内と同じ値を使う。
+    #
+    # ⚠️ **ここは常に公開の段（¥4,980）。** 段は「人」ではなく「入口」で決まる。
+    #    トップはオンラインからの流入向けでリアルの会は含まない。
+    #    招待（¥11,000・リアルの会あり）は /invite でだけ案内する。
     from app import membership_tier_for
     return render_template('lp.html', online_plan=membership_tier_for(None))
 
@@ -278,7 +282,7 @@ INVITE_HEADLINES = {
 # ⚠️ 以前は gia2018.com/upgrade/invite へ送っていたが、別ドメインなので
 #    Company Note にログイン済みの人にもログインし直しを求めていた。
 #    段（invite / online）はサーバーが決めるので、URLに段を書かない。
-INVITE_CHECKOUT_URL = '/upgrade'
+INVITE_CHECKOUT_URL = '/upgrade?plan=invite'
 
 # 会員になると使えるもの。会員案内（/membership）と申込ページ（/upgrade）で
 # 同じものを出す。⚠️ 2箇所に書くと、機能を足したとき片方が古いまま残る。
@@ -482,13 +486,13 @@ def membership():
     #    /upgrade・/plans・招待ページ・ここ）にあり、直書きすると値上げの
     #    ときに漏れる。定数は app.py。
     #
-    # 招待された人には招待の段（11,000円）を出す。公開の段（4,980円）を
-    # 並べない理由: アプリの中で開くものは両者で同じなので、並べれば必ず
-    # 安いほうが選ばれ、招待した側の案内（講義録画・研究会）が消える。
+    # ⚠️ **ここは公開の段（¥4,980）**（2026-09-12 五島さん確認）。段は「人」では
+    #    なく「入口」で決まる。ここはアプリの中で会員限定に当たった人の受け皿＝
+    #    オンラインからの流入なので、リアルの会を含まない公開の段を出す。
+    #    招待（¥11,000・リアルの会あり）は /invite でだけ案内する。
     from app import membership_tier_for
-    from supabase_client import get_invited_plan
 
-    tier = membership_tier_for(get_invited_plan(session.get('user_id')))
+    tier = membership_tier_for(None)
     return render_template('membership.html',
                            upgrade_url=tier['upgrade_url'],
                            price_yen=tier['price_yen'],
@@ -499,6 +503,22 @@ def membership():
                            invited_extras=tier['extras'],
                            tier_notes=tier['notes'],
                            member_features=MEMBER_FEATURES)
+
+
+def _requested_tier():
+    """どの段を申し込もうとしているか。既定は公開の段（¥4,980）。
+
+    ⚠️ **段は「人」ではなく「入口」で決まる**（2026-09-12 五島さん確認）。
+       /invite（知人にだけ渡すURL・リアルの会あり）から来たら invite、
+       トップ・会員案内から来たら online。
+
+    ⚠️ URLで受けても値引きにはならない（招待の段のほうが高い）。逆向き
+       ——安い段をURLで選ばせる形——にはしないこと。
+    """
+    from app import DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_TIERS
+
+    requested = (request.args.get('plan') or '').strip().lower()
+    return requested if requested in MEMBERSHIP_TIERS else DEFAULT_MEMBERSHIP_TIER
 
 
 @app.route('/upgrade')
@@ -527,12 +547,21 @@ def upgrade():
                      membership_tier_for)
     from supabase_client import get_invited_plan
 
-    tier = membership_tier_for(get_invited_plan(session.get('user_id'))
-                               if session.get('user_id') else None)
-    # 公開の段も招待の段も、申し込みはこのアプリの中で始める。
-    # ⚠️ gia2018.com の申込ページへ送らない（別ドメインでログインし直しになる）。
+    # ⚠️ **段は「人」ではなく「入口」で決まる**（2026-09-12 五島さん確認）。
+    #    /invite（知人にだけ渡すURL・リアルの会あり）から来たら ¥11,000、
+    #    トップや会員案内から来たら ¥4,980（オンラインのみ）。
+    #    以前は「一度 /invite を踏んだ人にはアプリのどこでも ¥11,000」だったため、
+    #    トップで ¥4,980 を見た人が、押した先で ¥11,000 を見ることになっていた。
+    #    URLで受けても安い方を選べるわけではない（招待の段のほうが高い）。
+    from app import DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_TIERS
+
+    tier_key = _requested_tier()
+    tier = MEMBERSHIP_TIERS[tier_key]
+    checkout_path = '/upgrade/checkout'
+    if tier_key != DEFAULT_MEMBERSHIP_TIER:
+        checkout_path += '?plan=' + tier_key
     return render_template('upgrade.html',
-                           checkout_path='/upgrade/checkout',
+                           checkout_path=checkout_path,
                            price_yen=tier['price_yen'],
                            price_yen_tax_in=tier['price_yen_tax_in'],
                            tier_label=tier['label'],
@@ -551,25 +580,26 @@ def upgrade_checkout():
     受け取らないため）。終わったら /upgrade/complete に戻る。
     公開キー（pk_live_）が用意できたら、この画面の中に埋め込む形へ変えられる。
 
-    ⚠️ **どの段を売るかを画面から受け取らない。** クエリで受けると、招待を
-       持たない人が招待の段のURLを叩けてしまう。段はサーバーが決める。
+    ⚠️ **段は入口で決まる**（/invite から来たら invite、それ以外は online）。
+       URLで受けても値引きにはならない（招待の段のほうが高い）。
     """
+    tier_key = _requested_tier()
+    entry = '/upgrade/checkout'
+    if tier_key != 'online':
+        entry += '?plan=' + tier_key
+
     if not session.get('user_id'):
         # ⚠️ 戻り先は申込ページではなく**ここ**にする。申込ページに戻すと、
         #    ログインした人がもう一度ボタンを押すことになる。
-        return redirect('/login?next=/upgrade/checkout')
+        #    段の指定も落とさない（落とすと招待の人が公開の段で申し込む）。
+        from urllib.parse import quote
+        return redirect('/login?next=' + quote(entry, safe=''))
 
     gia_identity.clear_membership_cache(session.get('user_id'))
     if is_member():
         return redirect('/dashboard')
 
     import membership_checkout
-    from app import membership_tier_for
-    from supabase_client import get_invited_plan
-
-    tier_key = (get_invited_plan(session.get('user_id')) or '').strip().lower()
-    if tier_key not in membership_checkout.PLAN_PRICE_ENV:
-        tier_key = 'online'
 
     root_url = request.url_root.rstrip('/')
     try:
@@ -578,7 +608,10 @@ def upgrade_checkout():
             session.get('user_id'),
             session.get('user_email') or '',
             success_url=root_url + '/upgrade/complete?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=root_url + '/upgrade?canceled=1')
+            # ⚠️ キャンセルも段を保って戻す。落とすと、招待の人が
+            #    公開の段（安いほう）の画面に戻ってしまう。
+            cancel_url=root_url + '/upgrade?canceled=1'
+                       + ('' if tier_key == 'online' else '&plan=' + tier_key))
     except membership_checkout.AlreadyMember:
         # webhook の反映待ちでここに来ることがある。案内は会員案内に任せる。
         flash('すでにご契約中です。反映まで少しお待ちください。', 'error')

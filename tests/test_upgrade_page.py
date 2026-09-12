@@ -74,7 +74,8 @@ class UpgradePageTest(unittest.TestCase):
         """⚠️ 戻り先を申込ページにしない。もう一度押させることになる。"""
         response = self.app_module.app.test_client().get('/upgrade/checkout')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers['Location'], '/login?next=/upgrade/checkout')
+        self.assertEqual(response.headers['Location'],
+                         '/login?next=%2Fupgrade%2Fcheckout')
 
     def test_members_do_not_see_it(self):
         response = self._client(member=True).get('/upgrade')
@@ -108,6 +109,73 @@ class UpgradePageTest(unittest.TestCase):
         self.assertGreaterEqual(len(root.MEMBER_FEATURES), 5)
         source = read(os.path.join(ROOT, 'models', 'root.py'))
         self.assertEqual(source.count('member_features=MEMBER_FEATURES'), 2)
+
+
+class TierComesFromTheEntranceTest(unittest.TestCase):
+    """⚠️ 段は「人」ではなく「入口」で決まる（2026-09-12 五島さん確認）。
+
+    /invite（知人にだけ渡すURL・リアルの会あり）から来たら ¥11,000、
+    トップ・会員案内から来たら ¥4,980（オンラインのみ）。
+    それまでは「一度 /invite を踏んだ人にはアプリのどこでも ¥11,000」だったため、
+    トップで ¥4,980 を見た人が、押した先で ¥11,000 を見ることになっていた。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import app as app_module
+        cls.app_module = app_module
+        app_module.app.config['TESTING'] = True
+        cls.root = __import__('models.root', fromlist=['root'])
+
+    def _client(self):
+        client = self.app_module.app.test_client()
+        with client.session_transaction() as sess:
+            sess['user_id'] = '00000000-0000-4000-8000-000000000009'
+            sess['user_role'] = 'user'
+        for target, name in ((self.app_module, 'is_member_session'),
+                             (self.root, 'is_member')):
+            patcher = patch.object(target, name, return_value=False)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return client
+
+    def test_the_invite_entrance_shows_the_invited_price(self):
+        invite = self.app_module.MEMBERSHIP_TIERS['invite']
+        body = self._client().get('/upgrade?plan=invite').get_data(as_text=True)
+        self.assertIn(f"{invite['price_yen']:,}", body)
+        self.assertIn('href="/upgrade/checkout?plan=invite"', body)
+
+    def test_the_public_entrance_shows_the_public_price(self):
+        """⚠️ 招待の印が付いた人でも、トップから来たら公開の段。"""
+        public = self.app_module.MEMBERSHIP_TIERS['online']
+        invite = self.app_module.MEMBERSHIP_TIERS['invite']
+        with patch('supabase_client.get_invited_plan', return_value='invite'):
+            body = self._client().get('/upgrade').get_data(as_text=True)
+        self.assertIn(f"{public['price_yen']:,}", body)
+        self.assertNotIn(f"{invite['price_yen']:,}", body)
+
+    def test_an_unknown_plan_falls_back_to_the_public_one(self):
+        public = self.app_module.MEMBERSHIP_TIERS['online']
+        body = self._client().get('/upgrade?plan=premium').get_data(as_text=True)
+        self.assertIn(f"{public['price_yen']:,}", body)
+
+    def test_the_invite_page_points_at_the_invited_entrance(self):
+        self.assertEqual(self.root.INVITE_CHECKOUT_URL, '/upgrade?plan=invite')
+
+    def test_the_login_detour_keeps_the_plan(self):
+        """⚠️ 段の指定を落とすと、招待の人がログイン後に公開の段で申し込む。"""
+        response = self.app_module.app.test_client().get(
+            '/upgrade/checkout?plan=invite')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('plan%3Dinvite', response.headers['Location'])
+
+    def test_the_membership_gate_shows_the_public_tier(self):
+        """アプリの中のゲートはオンライン流入の受け皿＝公開の段。"""
+        invite = self.app_module.MEMBERSHIP_TIERS['invite']
+        with patch('supabase_client.get_invited_plan', return_value='invite'):
+            body = self._client().get('/membership').get_data(as_text=True)
+        self.assertIn(f"{self.app_module.MEMBERSHIP_PRICE_YEN:,}", body)
+        self.assertNotIn(f"{invite['price_yen']:,}", body)
 
 
 class NextPathTest(unittest.TestCase):

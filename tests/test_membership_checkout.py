@@ -105,19 +105,40 @@ class RouteTest(unittest.TestCase):
         self.assertIn('/upgrade/complete', kwargs['success_url'])
         self.assertIn('/upgrade', kwargs['cancel_url'])
 
-    def test_the_plan_is_decided_by_the_server(self):
-        """⚠️ 画面から段を受け取らない。受けると招待の段を誰でも叩ける。"""
+    def test_the_plan_comes_from_the_entrance(self):
+        """段は入口で決まる（2026-09-12 五島さん確認）。
+
+        /invite から来たら invite（¥11,000・リアルの会あり）、
+        それ以外は online（¥4,980）。
+
+        ⚠️ **URLで選べるのは高いほうだけ**、という向きを保つこと。
+           安い段をURLで選ばせる形にすると、招待した人が値引きで入れてしまう。
+        """
         source = read(os.path.join('models', 'root.py'))
-        start = source.index('def upgrade_checkout():')
-        block = source[start:source.index('def upgrade_complete():')]
-        self.assertNotIn("request.args.get('plan')", block)
-        self.assertIn('get_invited_plan', block)
+        start = source.index('def _requested_tier():')
+        block = source[start:source.index('@app.route(\'/upgrade\')', start)]
+        self.assertIn("request.args.get('plan')", block)
+        self.assertIn('DEFAULT_MEMBERSHIP_TIER', block)
+
+        import app as app_module
+        tiers = app_module.MEMBERSHIP_TIERS
+        self.assertGreater(tiers['invite']['price_yen_tax_in'],
+                           tiers[app_module.DEFAULT_MEMBERSHIP_TIER]['price_yen_tax_in'],
+                           'URLで選べる段が既定より安い＝値引きになっている')
+
+    def test_the_plan_reaches_stripe(self):
+        """⚠️ 画面で招待の段を出したのに、決済が公開の段では意味が無い。"""
+        with patch('membership_checkout.create_checkout',
+                   return_value='https://checkout.stripe.com/c/pay/cs_test_9') as create:
+            self._client().get('/upgrade/checkout?plan=invite')
+        self.assertEqual(create.call_args.args[0], 'invite')
 
     def test_it_needs_a_login(self):
         """⚠️ 戻り先はここ（押した場所）。申込ページに戻すと、もう一度押させる。"""
         response = self.app_module.app.test_client().get('/upgrade/checkout')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers['Location'], '/login?next=/upgrade/checkout')
+        self.assertEqual(response.headers['Location'],
+                         '/login?next=%2Fupgrade%2Fcheckout')
 
     def test_members_are_not_charged_twice(self):
         response = self._client(member=True).get('/upgrade/checkout')
