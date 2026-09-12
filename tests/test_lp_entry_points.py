@@ -106,7 +106,15 @@ class LandingPageEntryPointTest(unittest.TestCase):
         body = self._anonymous().get('/').get_data(as_text=True)
         tier = app_module.MEMBERSHIP_TIERS['online']
         self.assertIn(f"¥{tier['price_yen']:,}", body)
-        self.assertIn(f"税込 ¥{tier['price_yen_tax_in']:,}", body)
+        # ⚠️ 税込の額は、金額と違うときだけ添える。Stripeの価格は税込なので、
+        #    同じ額を「税込」としてもう一度出すと、払う額が2つあるように読める。
+        # ⚠️ 探すのは重複表示そのもの（「税込 ¥4,980」）。ページ全体から
+        #    「税込」を探すと、規約の文言など無関係な箇所を拾って落ちる。
+        if tier['price_yen_tax_in'] != tier['price_yen']:
+            self.assertIn(f"税込 ¥{tier['price_yen_tax_in']:,}", body)
+        else:
+            self.assertNotIn(f"税込 ¥{tier['price_yen']:,}", body,
+                             '同じ額を税込としてもう一度出している')
         self.assertIn(tier['upgrade_url'], body)
         # 公開プランにはリアル会・会場費の別途実費は含めない。
         self.assertNotIn('別途実費', body)

@@ -144,21 +144,27 @@ class DesignTest(unittest.TestCase):
         src = read('data_freshness.py')
         self.assertIn('変わったとき', src)
 
-    def test_株価は件数で判定する(self):
-        """いちばん古い1件で判定すると、廃止手前の銘柄が1つあるだけで
-        常に警告になる。"""
+    def test_古い件数は数えて文言に出す(self):
+        """色には使わないが、件数そのものは出し続ける（消さない）。"""
         block = self.src.split("'key': 'price'", 1)[0][-900:]
         self.assertIn('behind', block)
+        note = self.src.split("'key': 'price'", 1)[1][:1400]
+        self.assertIn('PRICE_STALE_DAYS, behind', note)
 
-    def test_正常取得後に残る少数の値動きなし銘柄は正常(self):
-        """本番で正常取得直後に残った11/3658件を要確認にしない。"""
-        self.assertEqual('ok', df.price_status(11, 3658, 'ok'))
-        self.assertEqual('warn', df.price_status(25, 3658, 'ok'))
-        self.assertEqual('bad', df.price_status(40, 3658, 'ok'))
+    def test_値動きなし銘柄が何件あっても色は変えない(self):
+        """⚠️ price_updated_at は株価が**変わったとき**しか動かない。
 
-    def test_直近実行が止まったら件数が少なくても異常(self):
-        self.assertEqual('bad', df.price_status(0, 3658, 'hung'))
-        self.assertEqual('bad', df.price_status(0, 3658, 'failed'))
+        2026-09-12、売買のない小型株19件（3,658件中0.52%）だけで「注意」が
+        出た。実測すると19件すべて取得できていて、保存値＝現在値だった。
+        「取れなかった」と「変わらなかった」を同じ数字で判定しない。
+        """
+        self.assertEqual('ok', df.price_status('ok'))
+        self.assertEqual('ok', df.price_status('none'))
+
+    def test_直近実行が止まったら異常(self):
+        """取得が本当に止まれば、直近の実行が失敗・停止する。"""
+        self.assertEqual('bad', df.price_status('hung'))
+        self.assertEqual('bad', df.price_status('failed'))
 
 
 class SchedulerLivenessTest(unittest.TestCase):
@@ -250,8 +256,8 @@ class JobRunRecordTest(unittest.TestCase):
         """データが新しく見えても、取れていないなら赤にする。"""
         src = read('data_freshness.py')
         block = src.split("'key': 'price'", 1)[1][:1200]
-        self.assertIn('price_status(behind, total, price_state)', block)
-        self.assertEqual('bad', df.price_status(0, 3658, 'failed'))
+        self.assertIn('price_status(price_state)', block)
+        self.assertEqual('bad', df.price_status('failed'))
 
     def test_取得0件は例外にする(self):
         """0件を「変化なし」として正常に通すと、誰も気づけない。"""

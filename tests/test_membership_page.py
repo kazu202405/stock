@@ -47,11 +47,24 @@ class MembershipPageTest(unittest.TestCase):
         return client
 
     def test_the_price_is_shown(self):
+        """⚠️ 税込の額は、金額と違うときだけ添える（2026-09-12）。
+
+        Stripe の価格は税込（実測: tax_behavior=inclusive・請求合計4,980円）。
+        「税別4,980／税込5,478」と書いていたが、5,478円は請求されない。
+        払う額と違う金額を並べないこと。
+        """
         body = self._free_client().get('/membership').get_data(as_text=True)
         self.assertIn(f'{self.app_module.MEMBERSHIP_PRICE_YEN:,}', body,
                       '会員案内に金額が出ていない')
-        self.assertIn(f'{self.app_module.MEMBERSHIP_PRICE_YEN_TAX_IN:,}', body,
-                      '税込の金額が出ていない')
+        # ⚠️ 探すのは重複表示そのもの。ページ全体から「税込」を探すと、
+        #    規約の文言など無関係な箇所を拾って落ちる。
+        price = self.app_module.MEMBERSHIP_PRICE_YEN
+        tax_in = self.app_module.MEMBERSHIP_PRICE_YEN_TAX_IN
+        if tax_in != price:
+            self.assertIn(f'{tax_in:,}', body, '税込の金額が出ていない')
+        else:
+            self.assertNotIn(f'税込 &yen;{price:,}', body,
+                             '同じ額を税込としてもう一度出している')
 
     def test_the_price_is_not_hardcoded_in_the_template(self):
         """値上げのとき、定数を直せば画面も変わること。

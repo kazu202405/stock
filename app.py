@@ -453,9 +453,13 @@ MEMBERSHIP_TIERS = {
     'online': {
         'label': 'オンライン会員',
         'upgrade_url': '/upgrade',
-        'price_yen': 4980,          # 税別
-        'price_yen_tax_in': 5478,   # 税込
-        'tax_basis': '税別',
+        # ⚠️ **Stripe の価格は税込**（2026-09-12 実測: tax_behavior=inclusive・
+        #    自動課税なし・セッションの請求合計4,980円・税額0）。
+        #    それまで「税別4,980／税込5,478」と書いていたが、**5,478円は
+        #    請求されない**。払う額と違う金額を案内していた。
+        'price_yen': 4980,
+        'price_yen_tax_in': 4980,
+        'tax_basis': '税込',
         'cta': '会員になる',
         'extras': [],
         'notes': [],

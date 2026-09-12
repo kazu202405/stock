@@ -175,14 +175,22 @@ def count_behind(ages, days=None):
     return sum(1 for a in ages if a is not None and a >= days)
 
 
-def price_status(behind, total, run_state):
-    """株価行の状態。正常時にも残る値動きなし銘柄を誤警告しない。"""
+def price_status(run_state):
+    """株価行の状態。
+
+    ⚠️ **色は「直近の実行の成否」だけで決める**（2026-09-12 五島さん確認）。
+       以前は「古い銘柄の件数」でも色を変えていたが、price_updated_at は
+       株価が**変わったとき**しか動かないので、売買のない小型株が並ぶだけで
+       注意が出た（19件/3,658件＝0.52%で注意。実測すると19件すべて取得でき、
+       保存値＝現在値だった）。
+       **「取れなかった」と「変わらなかった」を同じ数字で判定しない。**
+
+       古い銘柄の件数は説明文（note）に残す。取得が本当に止まれば、直近の
+       実行が失敗・停止するので、ここが赤になる（今日の9:25・11:45の
+       途中終了も、その判定で赤になっていた）。
+    """
     if run_state in ('failed', 'hung'):
         return 'bad'
-    if behind > total * PRICE_BEHIND_BAD_RATIO:
-        return 'bad'
-    if behind > total * PRICE_BEHIND_WARN_RATIO:
-        return 'warn'
     return 'ok'
 
 
@@ -580,10 +588,11 @@ def summary(jobs=None):
         #    0件で終わってもこの列は前回のまま残り、古くならない。
         #    2026-08-31、3回の実行がすべて0件で終わり、スクリーナーが丸1日
         #    前営業日の終値を出していたのに、ここは98.3%で緑寄りだった。
-        'status': price_status(behind, total, price_state),
+        'status': price_status(price_state),
         'note': '一括取得は回によって数銘柄取りこぼすが、次の実行で拾い直す。'
-                '%d営業日以上のものが増えたら止まっている疑い（いまは%d件）。'
-                '値が動いていない小型株もここに入るので、少し出るのは正常。'
+                'この行の色は直近の実行の成否で決まる。'
+                '%d営業日以上のものは%d件（値が動いていない小型株もここに入るので、'
+                '取得できていないという意味ではない）。'
                 % (PRICE_STALE_DAYS, behind),
     })
 

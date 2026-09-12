@@ -138,7 +138,9 @@ a:focus-visible{outline:3px solid rgba(180,149,84,.55);outline-offset:3px}
         <p class="eyebrow">ONLINE PLAN</p>
         <h2><span class="heading-line">数字を見る。</span><span class="heading-line">考える。残す。</span><span class="heading-line">人の視点に触れる。</span></h2>
         <p class="price">¥{{ '{:,}'.format(online_plan['price_yen']) }} <small>/ 月（{{ online_plan['tax_basis'] }}）</small></p>
-        <p class="price-note">税込 ¥{{ '{:,}'.format(online_plan['price_yen_tax_in']) }}・毎月自動更新・いつでも解約できます</p>
+        {# 金額が税込と同じときは二重に書かない（2026-09-12。Stripeの価格は税込で、
+           税別の額を並べると払う額と違う金額を案内することになる）。 #}
+        <p class="price-note">{% if online_plan['price_yen_tax_in'] != online_plan['price_yen'] %}税込 ¥{{ '{:,}'.format(online_plan['price_yen_tax_in']) }}・{% endif %}毎月自動更新・いつでも解約できます</p>
         <div class="actions">
           <a class="button" href="{{ online_plan['upgrade_url'] }}">会員になる</a>
           <a class="button secondary" href="/register">無料で始める</a>
