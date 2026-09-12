@@ -73,6 +73,66 @@ class GuardTest(unittest.TestCase):
                               'error': False})
 
 
+class IdempotencyKeyTest(unittest.TestCase):
+    """連打対策の鍵が、その人を締め出さないこと（2026-09-12 本番で発生）。
+
+    Stripe: "Keys for idempotent requests can only be used with the same
+    parameters they were first used with."
+    鍵を日付だけで区切っていたため、戻り先の作りを変えた日に、同じ人が
+    その日いっぱい「決済の準備中です」になり申し込めなかった。
+    """
+
+    def setUp(self):
+        import membership_checkout
+        self.mc = membership_checkout
+
+    def test_the_key_changes_when_the_parameters_change(self):
+        base = {'mode': 'subscription', 'success_url': 'https://x/ok'}
+        changed = {'mode': 'subscription', 'success_url': 'https://x/ok2'}
+        self.assertNotEqual(self.mc._idempotency_key('online', 'u1', base),
+                            self.mc._idempotency_key('online', 'u1', changed))
+
+    def test_the_same_request_keeps_the_same_key(self):
+        """同じ引数での連打は、同じセッションを使い回す（増やさない）。"""
+        params = {'mode': 'subscription', 'success_url': 'https://x/ok'}
+        self.assertEqual(self.mc._idempotency_key('online', 'u1', params),
+                         self.mc._idempotency_key('online', 'u1', dict(params)))
+
+    def test_different_people_get_different_keys(self):
+        params = {'mode': 'subscription'}
+        self.assertNotEqual(self.mc._idempotency_key('online', 'u1', params),
+                            self.mc._idempotency_key('online', 'u2', params))
+
+    def test_a_key_clash_is_retried_without_the_key(self):
+        """⚠️ 万一衝突しても申し込めること（締め出さない）。"""
+        calls = []
+
+        class FakeSession:
+            @staticmethod
+            def create(**kwargs):
+                calls.append(kwargs)
+                if 'idempotency_key' in kwargs:
+                    raise Exception(
+                        'Keys for idempotent requests can only be used with '
+                        'the same parameters they were first used with.')
+                return {'url': 'https://checkout.stripe.com/c/pay/cs_test_1'}
+
+        class FakeStripe:
+            checkout = type('c', (), {'Session': FakeSession})
+
+        with patch.object(self.mc, '_client', return_value=FakeStripe()), \
+             patch.object(self.mc, '_price_id', return_value='price_x'), \
+             patch.object(self.mc, '_customer_id', return_value=None), \
+             patch.object(self.mc.gia_identity, 'get_membership',
+                          return_value={'plan': None, 'subscription_status': None,
+                                        'error': False}):
+            url = self.mc.create_checkout('online', 'u1', 'a@example.com',
+                                          'https://x/ok', 'https://x/ng')
+        self.assertIn('checkout.stripe.com', url)
+        self.assertEqual(len(calls), 2, '鍵なしでの作り直しが行われていない')
+        self.assertNotIn('idempotency_key', calls[1])
+
+
 class RouteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

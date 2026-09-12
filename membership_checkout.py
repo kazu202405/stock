@@ -25,6 +25,8 @@ GIA側は何も変えない:
     embedded=True で自分のページに埋め込める。作る処理は同じで、渡す引数だけ違う。
 """
 
+import hashlib
+import json
 import os
 import threading
 from datetime import datetime, timezone
@@ -139,11 +141,6 @@ def _create(plan: str, user_id: str, email: str, extra: dict):
     metadata = {'purpose': 'membership', 'plan': plan, 'user_id': user_id}
     customer = _customer_id(user_id)
 
-    # 連打・再読み込みでセッションが増えないよう、日付で区切った決定的なキーにする
-    # （gia-next の createMembershipCheckout と同じ考え方）。
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    idempotency_key = 'checkout:membership:%s:%s:%s' % (plan, user_id, today)
-
     params = {
         'mode': 'subscription',
         'line_items': [{'price': _price_id(plan), 'quantity': 1}],
@@ -158,16 +155,46 @@ def _create(plan: str, user_id: str, email: str, extra: dict):
     elif email:
         params['customer_email'] = email
 
+    key = _idempotency_key(plan, user_id, params)
     try:
         with _lock:
-            return stripe.checkout.Session.create(
-                idempotency_key=idempotency_key, **params)
+            return stripe.checkout.Session.create(idempotency_key=key, **params)
     except CheckoutUnavailable:
         raise
     except Exception as e:
+        message = str(e)
+        # ⚠️ **鍵が衝突しても、その人を締め出さない。**
+        #    Stripeは「同じ鍵は同じ引数のときだけ」という決まり。2026-09-12、
+        #    鍵を日付で区切っていたため、戻り先の作りを変えた日に、同じ人が
+        #    その日いっぱい申し込めなくなった（本番で発生）。
+        #    引数から鍵を作るようにしたうえで、万一衝突したら鍵なしで作り直す。
+        if 'idempotent' in message.lower():
+            print('決済セッションの鍵が衝突したので作り直します: %s' % message[:200])
+            try:
+                with _lock:
+                    return stripe.checkout.Session.create(**params)
+            except Exception as retry_error:
+                message = str(retry_error)
+            else:
+                pass
         # 価格の無効化・鍵の不備・通信失敗。生の例外文を画面に出さない。
-        print('決済セッションの作成に失敗 %s: %s' % (user_id, str(e)[:300]))
+        print('決済セッションの作成に失敗 %s: %s' % (user_id, message[:300]))
         raise CheckoutUnavailable('決済を開始できませんでした')
+
+
+def _idempotency_key(plan, user_id, params):
+    """連打・再読み込みでセッションが増えないようにする鍵。
+
+    ⚠️ **引数の内容を鍵に含める。** Stripeは「同じ鍵は同じ引数のときだけ」と
+       決めているので、日付だけで区切ると、戻り先などを変えた日に同じ人が
+       一日中申し込めなくなる（2026-09-12 本番で発生）。
+    ⚠️ 日付も残す。同じ引数でも、期限切れのセッションを翌日まで使い回さない。
+    """
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    fingerprint = hashlib.sha256(
+        json.dumps(params, sort_keys=True, default=str).encode('utf-8')
+    ).hexdigest()[:16]
+    return 'checkout:membership:%s:%s:%s:%s' % (plan, user_id, today, fingerprint)
 
 
 def session_is_paid(session_id: str) -> bool:
